@@ -57,10 +57,10 @@ upgrading. The setup/diagnostics shortcut is separate from the in-game shortcut.
 ## Training, recordings, and controller display
 
 The intended training menu exposes the built-in lesson catalog, lesson help,
-retry/reset, and playback controls for successful personal recordings. The
-current in-game menu does not expose recording-file import; use the desktop
-management app to import a permitted recording, then reopen the in-game
-session. A ghost is a non-colliding wireframe
+retry/reset, playback controls for successful personal recordings, and a source
+control for importing a permitted recording. The in-game import handoff has not
+yet passed Windows/package testing, so do not rely on it until a release receipt
+confirms it. A ghost is a non-colliding wireframe
 playback of recorded car poses. It must not steer the car or affect the ball.
 There is no validated expert teaching recording bundled. Your own recording
 must be labeled as your attempt; imported files keep an unverified label unless
@@ -88,9 +88,9 @@ not read the graphic as proof that a particular physical button was pressed.
 Workshop entries are creator references and locally discovered Steam content;
 a listing or favorite does not prove that a map loaded. No Epic Workshop route
 is available in this preview. The in-game menu does not currently expose map
-file import. Local file import through the desktop management app validates
-and copies a selected file, but does not certify its contents or prove game
-compatibility.
+file import. Where the separate desktop management app offers local import, it
+validates and copies the selected file but does not certify its contents or
+prove game compatibility.
 
 Garage entries can describe local bot styles. The optional BakkesMod item
 override is limited to supported installed cosmetic products and must be

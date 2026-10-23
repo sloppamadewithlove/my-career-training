@@ -16,7 +16,7 @@ pass.
 | Career, squad, schedule, and standings | Domain logic is present; in-game controls still require integration/build verification | Pending | Not tested |
 | Match completion and result persistence | Worker/result logic exists in source; no live match or overtime evidence | Pending | Not tested |
 | Training lessons and reset | Training engine/catalog exists in source | Pending | Not tested |
-| Personal recording and ghost | Playback is pose-based and non-colliding by design; no validated expert recording is bundled. Successful personal recordings can be played in-game; the in-game UI does not expose file import | Pending | Not tested |
+| Personal recording and ghost | Playback is pose-based and non-colliding by design; no validated expert recording is bundled. Successful personal recordings can be played in-game; an import control and action are present in source, but the picker-to-service flow is not yet verified | Pending | Not tested |
 | PlayStation controller graphic | Source maps observed game actions to a configurable PlayStation display; it is not raw hardware capture | Pending | Physical controller and mapping behavior not tested |
 | Workshop and local maps | Steam library/catalog and desktop import boundaries are in source; the in-game UI does not expose map-file import, and import alone does not prove a map loads | Pending | Not tested |
 | Garage/item override | Limited local BakkesMod override code exists and reports appearance as unverified | Pending | Not tested |
@@ -74,7 +74,11 @@ tested**, with a short observation. Do not infer a pass from a screen rendering.
    progression, and rewards are saved exactly once after UI/worker restart.
 5. **Training and ghost:** launch each supported lesson; verify setup, reset,
    retry, observed feedback, and that ordinary game physics remain intact. Check
-   that no expert demonstration appears when none is installed. Record a real
+   that no expert demonstration appears when none is installed. Test the
+   in-game recording-import flow with a permitted file: it must import the
+   selected file without an extra picker, preserve its unverified provenance,
+   and never certify an imported success claim. Until that flow works in the
+   Windows package, mark import **Not tested**. Record a real
    personal attempt; replay, pause/seek/stop and slow it down if those controls
    are present. Confirm its source label says personal/imported, the ghost does
    not collide, and recorded controller actions stay synchronized.

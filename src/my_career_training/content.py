@@ -170,7 +170,12 @@ def import_map(source: str | Path, data_directory: str | Path, launcher: str) ->
             destination = map_dir / f"{sha256}{path.suffix.lower()}"
             if destination.is_symlink():
                 raise ValueError("The saved map location is a symbolic link. Choose a clean data directory.")
-            os.replace(temporary, destination)
+            # A previously imported map is already at this content-addressed
+            # path. Windows cannot replace it while its source handle is open.
+            if path == destination:
+                temporary.unlink()
+            else:
+                os.replace(temporary, destination)
             temporary = None
         finally:
             if temporary is not None:
