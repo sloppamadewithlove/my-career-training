@@ -67,8 +67,11 @@ def check_shortcuts(group: str, install: Path) -> None:
     if not result.stdout.strip():
         raise AssertionError(f'Shortcut inspection returned no JSON: {result.stderr}')
     report = json.loads(result.stdout)
-    expected = str(install / 'MyCareerTraining.exe').casefold()
-    modes = {item['arguments'] for item in report['shortcuts'] if item['target'].casefold() == expected}
+    expected = install / 'MyCareerTraining.exe'
+    # Windows shell links may expand a short path (RUNNER~1) to its long name.
+    # Compare the actual file identity rather than spelling or case alone.
+    modes = {item['arguments'] for item in report['shortcuts']
+             if Path(item['target']).is_file() and os.path.samefile(item['target'], expected)}
     assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {report}'
 
 
@@ -88,15 +91,18 @@ def main() -> int:
             store.save(state)
         sentinel = profile / 'career.json'
         original = sentinel.read_bytes()
-        group = f'MCT installation test {root.name}'
+        # DisableProgramGroupPage=yes deliberately fixes the real product group;
+        # Inno ignores /GROUP in this mode. This test runs on a disposable CI host.
+        group = 'My Career Training'
         command = [str(args.installer.resolve()), '/VERYSILENT', '/SUPPRESSMSGBOXES',
-                   '/NORESTART', '/SP-', '/TASKS=', f'/GROUP={group}', f'/DIR={install}',
+                   '/NORESTART', '/SP-', '/TASKS=', f'/DIR={install}',
                    f'/LOG={root / "install.log"}']
         subprocess.run(command, check=True, timeout=120)
         try:
             check_shortcuts(group, install)
         except Exception:
-            print((root / "install.log").read_text(encoding="utf-8-sig", errors="replace"))
+            log = (root / 'install.log').read_text(encoding='utf-8-sig', errors='replace')
+            print('\n'.join(log.splitlines()[-80:]))
             raise
         run_smoke(install, profile)
         assert sentinel.read_bytes() == original, 'Installed app smoke changed the existing career'
