@@ -27,6 +27,10 @@ struct MctRuntime {
     mct::Json actions = mct::Json::object();
     std::shared_ptr<const std::vector<MctProduct>> products = std::make_shared<const std::vector<MctProduct>>();
     std::string cosmeticMessage;
+    std::string probeMessage;
+    bool probeActive = false;
+    bool probeSavePending = false;
+    std::size_t probeEvents = 0;
     std::string error;
     std::string toggleKey = "F6";
 };
@@ -45,7 +49,8 @@ public:
     void OnOpen() override;
     void OnClose() override;
 private:
-    struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu } type; mct::Json payload; };
+    struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu,
+        StartProbe, SaveProbe, CancelProbe } type; mct::Json payload; };
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
     std::atomic<bool> menuOpen_{true};
@@ -59,7 +64,10 @@ private:
     bool tickFailed_ = false;
     mct::NativeMenuProbe nativeProbe_;
     bool probeHooksInstalled_ = false;
+    bool probeSaveFailed_ = false;
     std::string lastProbeMenu_;
+    std::string probeExecutableSha256_;
+    std::string probeMessage_ = "Ready to capture a local native menu diagnostic.";
     std::string previousBind_;
     std::string toggleKey_ = "F6";
     bool ownBind_ = false;
@@ -100,6 +108,7 @@ private:
     void scheduleTick();
     mct::NativeProbeScope probeScope() const;
     void startNativeProbe();
+    bool finishNativeProbe(bool save);
     void observeNativeProbe(const std::string& event);
     void removeProbeHooks();
     void scanProducts(MctRuntime& result);

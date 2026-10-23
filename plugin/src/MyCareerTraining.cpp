@@ -1,4 +1,5 @@
 #include "MyCareerTraining.h"
+#include "ExecutableHash.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
 #include <algorithm>
@@ -141,16 +142,14 @@ void MyCareerTraining::onLoad() {
             cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Open offline training controls", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
-            startNativeProbe();
+            queueLocal(LocalRequest::StartProbe);
         }, "Opt in to a bounded read-only native menu diagnostic", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_probe_stop", [this](std::vector<std::string>) {
-            removeProbeHooks();
-            try {
-                const bool saved = bridge_ && nativeProbe_.stopToBridge(probeScope(), mct::unixTime(), *bridge_);
-                cvarManager->log(saved ? "Read-only menu trace saved to MyCareerTraining/bridge/native-menu-probe.json."
-                    : "No safe owned-session menu trace to save.");
-            } catch (const std::exception& error) { cvarManager->log(error.what()); }
+            queueLocal(LocalRequest::SaveProbe);
         }, "Stop the native menu diagnostic and save its local trace", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_probe_cancel", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::CancelProbe);
+        }, "Discard the local native menu diagnostic", PERMISSION_OFFLINE);
         // F6 is commonly the BakkesMod console. Find an unused key and preserve
         // all player/plugin bindings; the actual selected key is shown in UI.
         bool availableKey = false;
@@ -173,6 +172,8 @@ void MyCareerTraining::onUnload() {
     offlineReady_ = false;
     removeProbeHooks();
     nativeProbe_.clear();
+    probeExecutableSha256_.clear();
+    probeSaveFailed_ = false;
     if (ownBind_ && cvarManager->getBindStringForKey(toggleKey_) == "mct_menu") cvarManager->removeBind(toggleKey_);
     restoreCosmetics();
 }
@@ -193,8 +194,7 @@ mct::NativeProbeScope MyCareerTraining::probeScope() const {
     scope.sessionNonce = stringValue(state, "bridge_session");
     scope.gameBuild = gameWrapper->GetPsyBuildID();
     scope.bakkesVersion = std::to_string(gameWrapper->GetBakkesModVersion());
-    // Executable hashing is a separate developer evidence step. Never invent
-    // a current-build hash or infer memory layout compatibility from a label.
+    scope.executableSha256 = probeExecutableSha256_;
     return scope;
 }
 
@@ -206,8 +206,29 @@ void MyCareerTraining::removeProbeHooks() {
 
 void MyCareerTraining::startNativeProbe() {
     removeProbeHooks();
-    if (!nativeProbe_.start(probeScope(), mct::unixTime())) {
-        cvarManager->log("Menu probe requires a fresh owned offline My Career session.");
+    nativeProbe_.clear();
+    probeExecutableSha256_.clear();
+    probeSaveFailed_ = false;
+    auto scope = probeScope();
+    if (!scope.owned || !scope.fresh || scope.online) {
+        probeMessage_ = "Capture requires a fresh owned offline My Career session.";
+        cvarManager->log(probeMessage_);
+        return;
+    }
+    try {
+        probeExecutableSha256_ = mct::runningExecutableSha256();
+        // Hashing can take several seconds. Recheck ownership and offline
+        // freshness before installing any hook.
+        scope = probeScope();
+    } catch (const std::exception& error) {
+        probeMessage_ = std::string("Capture could not identify this game build: ") + error.what();
+        cvarManager->log(probeMessage_);
+        return;
+    }
+    if (!nativeProbe_.start(scope, mct::unixTime())) {
+        probeExecutableSha256_.clear();
+        probeMessage_ = "Capture requires a fresh owned offline My Career session.";
+        cvarManager->log(probeMessage_);
         return;
     }
     lastProbeMenu_.clear();
@@ -220,12 +241,47 @@ void MyCareerTraining::startNativeProbe() {
             });
         }
         observeNativeProbe("menu_stack_transition");
-        cvarManager->log("Read-only menu probe started for up to 120 seconds. Use mct_probe_stop to save locally.");
+        if (!nativeProbe_.active()) {
+            removeProbeHooks();
+            probeExecutableSha256_.clear();
+            probeMessage_ = "Capture stopped because the owned offline session changed. No trace was saved.";
+            cvarManager->log(probeMessage_);
+            return;
+        }
+        probeMessage_ = "Capturing native menu names for up to 120 seconds. Navigate Rocket League menus, then save.";
+        menuOpen_ = false;
+        cvarManager->log(probeMessage_);
     } catch (const std::exception& error) {
         removeProbeHooks();
         nativeProbe_.clear();
-        cvarManager->log(std::string("Menu probe could not start: ") + error.what());
+        probeExecutableSha256_.clear();
+        probeMessage_ = std::string("Menu capture could not start: ") + error.what();
+        cvarManager->log(probeMessage_);
     }
+}
+
+bool MyCareerTraining::finishNativeProbe(bool save) {
+    removeProbeHooks();
+    bool saved = false;
+    if (!save) {
+        nativeProbe_.clear();
+        probeExecutableSha256_.clear();
+        probeSaveFailed_ = false;
+        probeMessage_ = "Menu capture cancelled. No trace was saved.";
+    } else {
+        try {
+            saved = bridge_ && nativeProbe_.stopToBridge(probeScope(), mct::unixTime(), *bridge_);
+            probeSaveFailed_ = false;
+            probeMessage_ = saved ? "Menu trace saved in MyCareerTraining/bridge/native-menu-probe.json."
+                                  : "Capture lost its owned offline session. No trace was saved.";
+        } catch (const std::exception& error) {
+            probeSaveFailed_ = nativeProbe_.hasTrace();
+            probeMessage_ = std::string("Menu trace could not be saved. Reopen Settings and retry or cancel: ") + error.what();
+        }
+        if (!probeSaveFailed_) probeExecutableSha256_.clear();
+    }
+    cvarManager->log(probeMessage_);
+    return saved;
 }
 
 void MyCareerTraining::observeNativeProbe(const std::string& event) {
@@ -237,7 +293,9 @@ void MyCareerTraining::observeNativeProbe(const std::string& event) {
         lastProbeMenu_ = menu;
     } catch (const std::exception& error) {
         nativeProbe_.clear();
-        cvarManager->log(std::string("Menu probe stopped: ") + error.what());
+        probeExecutableSha256_.clear();
+        probeMessage_ = std::string("Menu capture stopped: ") + error.what();
+        cvarManager->log(probeMessage_);
     }
 }
 
@@ -277,7 +335,18 @@ void MyCareerTraining::tick() {
             // A hook may already have erased an unsafe trace. Still remove
             // its registrations here, outside the callback's dispatch stack.
             if (nativeProbe_.hasTrace()) observeNativeProbe("");
-            if (!nativeProbe_.active()) removeProbeHooks();
+            if (!nativeProbe_.active()) {
+                if (nativeProbe_.hasTrace()) {
+                    const auto reason = nativeProbe_.finishReason();
+                    if (!probeSaveFailed_ && finishNativeProbe(true))
+                        probeMessage_ += " Capture reached its " + reason + ".";
+                } else {
+                    removeProbeHooks();
+                    probeExecutableSha256_.clear();
+                    probeSaveFailed_ = false;
+                    probeMessage_ = "Capture stopped because the owned offline session changed. No trace was saved.";
+                }
+            }
         }
         if (offlineReady_) {
             const auto& state = publishedState;
@@ -300,7 +369,7 @@ void MyCareerTraining::tick() {
                 nativePause, next.matchEnded, nonce, phase});
             // Observe the pause edge even while resuming, so a slow native
             // close cannot repeatedly reclaim input after the player resumes.
-            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_)
+            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active())
                 menuOpen_ = true;
             else if (change == mct::MenuChange::Hide) menuOpen_ = false;
             auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
@@ -308,6 +377,10 @@ void MyCareerTraining::tick() {
             next.itemModAvailable = enabled && code;
             if (scanningProducts_) scanProducts(next);
             processLocalRequests(next);
+            next.probeActive = nativeProbe_.active() && !probeSaveFailed_;
+            next.probeSavePending = probeSaveFailed_ && nativeProbe_.hasTrace();
+            next.probeEvents = nativeProbe_.eventCount();
+            next.probeMessage = probeMessage_;
             // One request per transition; OnClose stays closed until a new
             // transition or explicit menu key. The same host renders the HUD.
             if (change != mct::MenuChange::None && !windowOpen_)
@@ -336,6 +409,10 @@ void MyCareerTraining::tick() {
             menuOpen_ = false;
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             localRequests_.clear();
+            next.probeActive = false;
+            next.probeSavePending = false;
+            next.probeEvents = 0;
+            next.probeMessage = probeMessage_;
         }
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
@@ -344,6 +421,9 @@ void MyCareerTraining::tick() {
     } catch (const std::exception& error) {
         nativeProbe_.clear();
         removeProbeHooks();
+        probeExecutableSha256_.clear();
+        probeSaveFailed_ = false;
+        probeMessage_ = std::string("Menu capture stopped: ") + error.what();
         std::lock_guard<std::mutex> guard(runtimeMutex_);
         runtime_.error = error.what();
         tickFailed_ = true;
@@ -420,6 +500,12 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
         try {
             if (request.type == LocalRequest::RefreshProducts) {
                 scanningProducts_ = true; productScanCursor_ = 0; productScan_.clear();
+            } else if (request.type == LocalRequest::StartProbe) {
+                startNativeProbe();
+            } else if (request.type == LocalRequest::SaveProbe) {
+                finishNativeProbe(true);
+            } else if (request.type == LocalRequest::CancelProbe) {
+                finishNativeProbe(false);
             } else if (request.type == LocalRequest::RebindMenu) {
                 const auto key = stringValue(request.payload, "key");
                 const std::set<std::string> allowed{"F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"};
@@ -463,7 +549,16 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                     result.cosmeticMessage = "Local cosmetic design sent to BakkesMod. Actual scene appearance still needs game verification.";
                 }
             }
-        } catch (const std::exception& error) { result.cosmeticMessage = error.what(); }
+        } catch (const std::exception& error) {
+            if (request.type == LocalRequest::StartProbe || request.type == LocalRequest::SaveProbe ||
+                request.type == LocalRequest::CancelProbe) {
+                nativeProbe_.clear();
+                removeProbeHooks();
+                probeExecutableSha256_.clear();
+                probeSaveFailed_ = false;
+                probeMessage_ = std::string("Menu capture failed: ") + error.what();
+            } else result.cosmeticMessage = error.what();
+        }
     }
 }
 
@@ -585,6 +680,7 @@ void MyCareerTraining::Render() {
         const auto state = bridge_->state();
         const auto runtime = runtimeSnapshot();
         if (runtime.online) return;
+        if (runtime.probeActive && !menuOpen_) return;
         beginStyle();
         if (menuOpen_) renderMenu(state, runtime);
         else renderTrainingHud(state, runtime);

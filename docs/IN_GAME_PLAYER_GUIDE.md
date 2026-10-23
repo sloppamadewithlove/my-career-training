@@ -8,8 +8,9 @@ per-run folder beneath `%LOCALAPPDATA%`. The on-screen command error was **“Co
 not publish the local career command.”** The startup message was **“Starting
 career, waiting for Rocket League to start the offline season.”**
 
-Source repairs are in progress. A replacement installer is being held until the
-launch/practice failures are fixed and the native-menu direction is verified.
+Source repairs have merged and passed automated Windows checks. A replacement
+installer is being held until the launch/practice fixes work in the game and
+the native-menu direction is verified.
 No public-ready replacement build exists yet. The previous v0.2.0 installer and
 portable ZIP remain on the [GitHub release page](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0)
 as a known-issues preview; they are not a repaired download. This is an actual
@@ -24,8 +25,8 @@ include BakkesMod, so it is an extra prerequisite. If you are reproducing this
 old build, get BakkesMod from its [official site](https://bakkesmod.com/) and
 check that it supports your installed Rocket League build.
 
-The replacement setup is planned to explain and guide the official BakkesMod
-setup before attempting to launch My Career Training. That guided flow is not
+The repaired source explains and guides the official BakkesMod setup before
+attempting to launch My Career Training. That guided flow is not
 in the published v0.2.0 package. No BakkesMod bundling or redistribution is
 claimed.
 

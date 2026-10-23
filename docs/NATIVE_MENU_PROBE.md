@@ -1,19 +1,40 @@
-# Native menu probe: source-only research tool
+# Native menu diagnostic: source-only research tool
 
 This probe is a diagnostic step toward the requested native Rocket League
 offline menu. It does **not** change Rocket League's menu, button actions,
 files, or assets. The player asked to hold the next installer until a native
 menu solution is verified; adding this source code does not lift that hold.
 
+## Using the diagnostic in a developer build
+
+Open **Settings → Diagnostics → Start menu capture** in an owned offline
+session. The career window closes so Rocket League's own menus can be observed.
+Navigate its menu and submenus with the normal mouse or controller. The capture
+saves locally after two minutes or 1,000 events. Reopen the career window and
+return to Diagnostics to read the result, stop and save sooner, or cancel.
+The current public preview does not contain these controls.
+
+The diagnostic does not change native buttons or route clicks. It records the
+menu names and supported event names that actually occur; missing events are
+also useful evidence. No report is uploaded automatically.
+
 ## Collection contract
 
-- The player must explicitly issue `mct_probe_start` while the My Career
-  launcher owns the Steam Rocket League process, the bridge state is fresh,
-  and the game is offline. `mct_probe_stop` is the only export action.
+- The player must explicitly start capture in Settings or issue
+  `mct_probe_start` while the My Career launcher owns the Steam Rocket League
+  process, the bridge state is fresh, and the game is offline. UI requests
+  enter the game's thread through the existing local request queue.
+  `mct_probe_stop` saves early; `mct_probe_cancel` discards the capture.
 - The plugin supplies the current bridge session nonce, `GetPsyBuildID()`,
-  BakkesMod version, and the executable SHA-256 if the launcher has actually
-  computed one. An unknown executable hash is recorded as JSON `null`, never
-  guessed. The start command fails when session or build identity is absent.
+  BakkesMod version, and an SHA-256 computed from the running process's
+  executable file using Windows SHA-256 support. Hashing happens only at
+  explicit capture start, never on each tick. It streams a read-only handle,
+  rejects files over 2 GiB, checks a ten-second deadline between chunks, and
+  rechecks the session after hashing. A hash failure prevents capture. A slow
+  operating-system read may itself outlast the between-chunk deadline.
+  The hash is file identity, not proof that any native memory layout is safe.
+  The portable collector still permits a missing hash for legacy callers; the
+  Windows plugin requires a computed hash before it starts.
 - `MyCareerTraining.cpp` registers both commands and the allowlisted named
   BakkesMod hooks. Each game tick checks ownership, bridge freshness, offline
   state, session nonce, and build ID. A failed check immediately erases the
@@ -28,12 +49,16 @@ menu solution is verified; adding this source code does not lift that hold.
   integration uses named BakkesMod hooks without interpreting `void*`
   parameters. A named hook's presence in source does not prove the current
   game fires it.
-- Collection stops after 120 seconds or 1,000 events. The operator may stop
-  sooner. A bounded trace is retained in memory until explicit stop, but is
-  erased if the offline guard fails before then.
+- Collection stops after 120 seconds or 1,000 events and automatically saves
+  only if the owned offline scope is still valid. The operator may stop sooner
+  or cancel. A failed guard immediately erases the in-memory trace and removes
+  the event hooks without exporting. The interface distinguishes a saved
+  report, a cancelled capture, lost scope and an export error.
 - Export uses `LocalBridge::atomicWrite` to the fixed filename
   `native-menu-probe.json` inside the bridge's per-user directory. The command
-  accepts no output path. The probe does not request account/profile fields,
+  accepts no output path. Each successful save replaces the previous report;
+  cancellation or a failed capture does not delete an older report. Check its
+  timestamps and session before using it as evidence. The probe does not request account/profile fields,
   controller input, chat, arbitrary event strings, game memory addresses,
   hook parameters, or filesystem paths. Menu names and identity strings are
   restricted to short printable identifiers. Review the local trace before

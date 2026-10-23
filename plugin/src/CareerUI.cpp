@@ -124,7 +124,7 @@ void MyCareerTraining::beginStyle() {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(14, 14));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.025f, 0.07f, 0.12f, 0.99f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.025f, 0.07f, 0.12f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.04f, 0.11f, 0.18f, 0.98f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.94f, 0.97f, 1.0f, 1));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.23f, 0.34f, 1));
@@ -689,6 +689,20 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
         detail(runtime.teamLockApplied ? "Career team lock currently applied." : "Team lock applies inside an active career fixture.");
         paragraph("Idle-kick protection has not been verified. The plugin does not spoof movement or guarantee that an inactive player stays in a match.");
         if (button("SAVE DIAGNOSTICS")) command("diagnostics");
+        ImGui::Separator();
+        ImGui::TextColored(ice, "NATIVE MENU CAPTURE");
+        paragraph("Read-only menu names from this owned offline game. Capture releases this screen so you can navigate Rocket League. It saves automatically after 120 seconds or 1,000 events. Use the career menu shortcut to return here.");
+        if (runtime.probeSavePending) {
+            if (button("RETRY SAVE MENU TRACE")) queueLocal(LocalRequest::SaveProbe);
+            ImGui::SameLine();
+            if (button("DISCARD MENU TRACE")) queueLocal(LocalRequest::CancelProbe);
+        } else if (runtime.probeActive) {
+            ImGui::Text("Events captured: %zu / 1000", runtime.probeEvents);
+            if (button("STOP AND SAVE MENU TRACE")) queueLocal(LocalRequest::SaveProbe);
+            ImGui::SameLine();
+            if (button("CANCEL MENU CAPTURE")) queueLocal(LocalRequest::CancelProbe);
+        } else if (button("START MENU CAPTURE")) queueLocal(LocalRequest::StartProbe);
+        if (!runtime.probeMessage.empty()) paragraph(runtime.probeMessage.c_str());
     }
 }
 

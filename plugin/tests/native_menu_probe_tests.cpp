@@ -1,4 +1,5 @@
 #include "NativeMenuProbe.h"
+#include "ExecutableHash.h"
 
 #include <chrono>
 #include <filesystem>
@@ -83,6 +84,50 @@ int main() {
         require(!probe.hasTrace(), "Stale bridge did not erase bounded empty trace");
         require(!probe.stopToBridge(scope, 520.1, bridge), "Stale bounded trace was exported");
         require(!fs::exists(path), "Stale bounded trace reached disk");
+
+        require(probe.start(scope, 530.0), "Cancel probe did not start");
+        probe.observe(scope, "menu_stack_transition", "MainMenu", false, 530.1);
+        probe.clear();
+        require(!probe.hasTrace() && !probe.stopToBridge(scope, 530.2, bridge),
+                "Cancelled trace remained exportable");
+        require(!fs::exists(path), "Cancelled trace reached disk");
+
+        auto hashedScope = scope;
+        hashedScope.executableSha256 = std::string(64, 'a');
+        require(probe.start(hashedScope, 540.0), "Hashed probe did not start");
+        auto changedHash = hashedScope;
+        changedHash.executableSha256 = std::string(64, 'b');
+        require(!probe.observe(changedHash, "menu_stack_transition", "MainMenu", false, 540.1),
+                "Mismatched executable hash was accepted");
+        require(!probe.hasTrace() && !probe.stopToBridge(hashedScope, 540.2, bridge),
+                "Mismatched executable trace remained exportable");
+
+        require(probe.start(scope, 550.0), "Save retry probe did not start");
+        probe.observe(scope, "menu_stack_transition", "MainMenu", false, 550.1);
+        fs::create_directory(path);
+        bool writeFailed = false;
+        try { probe.stopToBridge(scope, 550.2, bridge); }
+        catch (const std::exception&) { writeFailed = true; }
+        require(writeFailed && probe.hasTrace(), "Failed export discarded the trace before retry");
+        require(!probe.active(), "Failed export kept collecting after Stop");
+        probe.observe(scope, "menu_stack_transition", "PlayMenu", false, 550.25);
+        require(probe.eventCount() == 1, "Failed export changed the frozen trace");
+        fs::remove(path);
+        require(probe.stopToBridge(scope, 550.3, bridge), "Retry did not publish retained trace");
+        require(readTrace(path)["events"].size() == 1, "Retry changed captured menu events");
+        fs::remove(path);
+
+#ifdef _WIN32
+        const auto hashPath = directory / "sha256-vector.txt";
+        {
+            std::ofstream stream(hashPath, std::ios::binary);
+            stream << "abc";
+        }
+        require(mct::sha256File(hashPath) ==
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "Windows executable hash does not match the SHA-256 vector");
+        fs::remove(hashPath);
+#endif
 
         require(probe.start(scope, 600.0), "Second duration probe did not start");
         require(!probe.observe(scope, "", "", false, 720.0),
