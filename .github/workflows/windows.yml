@@ -23,6 +23,9 @@ jobs:
       QT_QUICK_BACKEND: software
       SDL_VIDEODRIVER: dummy
       PYTHONUTF8: '1'
+      # Owner requires verified native menus before another installer.
+      # Source, DLL and frozen-app checks continue during this hold.
+      MCT_INSTALLER_HOLD: 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -52,6 +55,7 @@ jobs:
       - name: Frozen package smoke tests
         run: uv run --frozen python scripts/smoke_package.py
       - name: Install pinned Inno Setup compiler
+        if: env.MCT_INSTALLER_HOLD != 'true'
         shell: pwsh
         run: |
           $installer = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
@@ -65,20 +69,24 @@ jobs:
           if ($installProcess.ExitCode -ne 0) { throw "Inno Setup install failed: $($installProcess.ExitCode)" }
           "INNO_COMPILER=$compilerDir\ISCC.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build unsigned installer
+        if: env.MCT_INSTALLER_HOLD != 'true'
         shell: pwsh
         run: |
           $version = uv run --frozen python -c "import importlib.metadata; print(importlib.metadata.version('my-career-training'))"
           & $env:INNO_COMPILER "/DAppVersion=$version" 'packaging/installer.iss'
           if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
       - name: Installation, upgrade and uninstall checks
+        if: env.MCT_INSTALLER_HOLD != 'true'
         shell: pwsh
         run: |
           $installer = Get-ChildItem release/*-setup.exe | Select-Object -First 1
           uv run --frozen python scripts/test_installer.py $installer.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Installer smoke test failed' }
       - name: Create portable archive and checksums
+        if: env.MCT_INSTALLER_HOLD != 'true'
         run: uv run --frozen python scripts/package_release.py
       - name: Upload actual Windows artifacts
+        if: env.MCT_INSTALLER_HOLD != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: MyCareerTraining-windows-x64-${{ github.sha }}

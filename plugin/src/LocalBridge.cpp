@@ -4,6 +4,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <random>
 #include <set>
 #include <sstream>
@@ -76,6 +77,65 @@ Json arrayValue(const Json& j, const char* key) {
 
 LocalBridge::LocalBridge(std::filesystem::path directory) : directory_(std::move(directory)) {}
 
+#ifdef _WIN32
+namespace {
+class TemporaryReadError : public std::runtime_error {
+public:
+    explicit TemporaryReadError(DWORD code) : std::runtime_error(
+        "The offline career service is temporarily busy (Windows error " + std::to_string(code) + ").") {}
+};
+
+bool temporaryWindowsError(DWORD code) {
+    return code == ERROR_ACCESS_DENIED || code == ERROR_SHARING_VIOLATION ||
+        code == ERROR_LOCK_VIOLATION || code == ERROR_FILE_NOT_FOUND;
+}
+
+struct StateFile {
+    std::string bytes;
+    std::uint64_t modified = 0;
+    std::uintmax_t size = 0;
+    bool unchanged = false;
+};
+
+StateFile readStateFile(const std::filesystem::path& path, bool maySkip,
+                        std::uint64_t knownModified, std::uintmax_t knownSize) {
+    // The service atomically replaces state.json. A CRT ifstream omits
+    // FILE_SHARE_DELETE on Windows and can block that replacement.
+    HANDLE raw = CreateFileW(path.c_str(), GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (raw == INVALID_HANDLE_VALUE) {
+        const DWORD code = GetLastError();
+        if (temporaryWindowsError(code)) throw TemporaryReadError(code);
+        throw std::runtime_error("Cannot read the offline career state (Windows error " +
+            std::to_string(code) + ").");
+    }
+    const std::unique_ptr<void, decltype(&CloseHandle)> file(raw, &CloseHandle);
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (!GetFileInformationByHandle(file.get(), &info))
+        throw std::runtime_error("Cannot inspect the offline career state (Windows error " +
+            std::to_string(GetLastError()) + ").");
+    StateFile result;
+    result.size = (static_cast<std::uint64_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+    if (result.size > 8 * 1024 * 1024)
+        throw std::runtime_error("The offline career state is too large.");
+    result.modified = (static_cast<std::uint64_t>(info.ftLastWriteTime.dwHighDateTime) << 32) |
+        info.ftLastWriteTime.dwLowDateTime;
+    result.unchanged = maySkip && result.modified == knownModified && result.size == knownSize;
+    if (result.unchanged) return result;
+    result.bytes.resize(static_cast<std::size_t>(result.size));
+    DWORD received = 0;
+    if (result.size && !ReadFile(file.get(), result.bytes.data(), static_cast<DWORD>(result.size),
+            &received, nullptr))
+        throw std::runtime_error("Cannot finish reading the offline career state (Windows error " +
+            std::to_string(GetLastError()) + ").");
+    if (received != result.size)
+        throw std::runtime_error("The offline career state was truncated while reading.");
+    return result;
+}
+}
+#endif
+
 bool LocalBridge::validState(const Json& state, double now) {
     const auto session = stringValue(state, "bridge_session");
     const auto published = numberValue(state, "published_at", 0);
@@ -88,6 +148,20 @@ bool LocalBridge::validState(const Json& state, double now) {
 bool LocalBridge::poll(double now) {
     try {
         const auto path = directory_ / "state.json";
+#ifdef _WIN32
+        std::uint64_t knownModified = 0;
+        std::uintmax_t knownSize = 0;
+        bool maySkip = false;
+        {
+            std::lock_guard<std::mutex> guard(mutex_);
+            maySkip = haveRead_ && validState(state_, now);
+            knownModified = lastWriteTicks_;
+            knownSize = lastFileSize_;
+        }
+        auto file = readStateFile(path, maySkip, knownModified, knownSize);
+        if (file.unchanged) return true;
+        Json candidate = Json::parse(file.bytes, nullptr, false);
+#else
         if (!std::filesystem::is_regular_file(path) || std::filesystem::file_size(path) > 8 * 1024 * 1024)
             throw std::runtime_error("Waiting for the offline career service.");
         const auto modified = std::filesystem::last_write_time(path);
@@ -99,13 +173,28 @@ bool LocalBridge::poll(double now) {
         std::ifstream file(path, std::ios::binary);
         if (!file) throw std::runtime_error("The offline career service cannot be read.");
         Json candidate = Json::parse(file, nullptr, false);
+#endif
         if (candidate.is_discarded() || !validState(candidate, now))
             throw std::runtime_error("The offline career service is disconnected. Restart My Career from its shortcut.");
         std::lock_guard<std::mutex> guard(mutex_);
         state_ = std::move(candidate);
-        lastWriteTime_ = modified; lastFileSize_ = size; haveRead_ = true;
+#ifdef _WIN32
+        lastWriteTicks_ = file.modified;
+        lastFileSize_ = file.size;
+#else
+        lastWriteTime_ = modified; lastFileSize_ = size;
+#endif
+        haveRead_ = true;
         error_.clear();
         return true;
+#ifdef _WIN32
+    } catch (const TemporaryReadError& exception) {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (validState(state_, now)) return true;
+        state_ = Json::object();
+        error_ = exception.what();
+        return false;
+#endif
     } catch (const std::exception& exception) {
         std::lock_guard<std::mutex> guard(mutex_);
         state_ = Json::object();
@@ -137,7 +226,8 @@ bool LocalBridge::allowedAction(const std::string& action) {
     return actions.count(action) != 0;
 }
 
-void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::string& bytes) {
+void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::string& bytes,
+                              bool replaceExisting) {
     std::filesystem::create_directories(path.parent_path());
     const auto temporary = path.parent_path() / (path.filename().string() + "." + newId() + ".tmp");
     try {
@@ -149,9 +239,19 @@ void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::stri
             if (!file) throw std::runtime_error("Could not finish the local career command.");
         }
 #ifdef _WIN32
-        if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-            throw std::runtime_error("Could not publish the local career command.");
+        const DWORD flags = MOVEFILE_WRITE_THROUGH | (replaceExisting ? MOVEFILE_REPLACE_EXISTING : 0);
+        DWORD code = ERROR_SUCCESS;
+        for (int attempt = 0; attempt < 5; ++attempt) {
+            if (MoveFileExW(temporary.c_str(), path.c_str(), flags)) { code = ERROR_SUCCESS; break; }
+            code = GetLastError();
+            if (!temporaryWindowsError(code) || attempt == 4) break;
+            Sleep(static_cast<DWORD>(10 * (attempt + 1)));
+        }
+        if (code != ERROR_SUCCESS)
+            throw std::runtime_error("Could not publish " + path.filename().string() +
+                " (Windows error " + std::to_string(code) + ").");
 #else
+        (void)replaceExisting;
         std::filesystem::rename(temporary, path);
 #endif
     } catch (...) {
@@ -176,7 +276,7 @@ bool LocalBridge::send(const std::string& action, Json payload) {
         for (const auto& entry : std::filesystem::directory_iterator(directory_ / "commands"))
             if (entry.path().extension() == ".json" && ++pending >= 32)
                 throw std::runtime_error("Wait for the previous career actions to finish.");
-        atomicWrite(directory_ / "commands" / (id + ".json"), encoded);
+        atomicWrite(directory_ / "commands" / (id + ".json"), encoded, false);
         std::lock_guard<std::mutex> guard(mutex_);
         error_.clear();
         return true;

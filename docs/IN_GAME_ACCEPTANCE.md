@@ -7,25 +7,35 @@ pass.
 
 ## Current status
 
-| Area | Source status | Windows build status | Live game status |
-|---|---|---|---|
-| In-game UI and local bridge | Python service and BakkesMod plugin source are present; game integration needs a live test | See the published release receipt for DLL/package build evidence | Not tested |
-| Launch mode | Source restricts this preview to Steam and requests the supported offline/EAC-off route | Needs Windows launch and ownership verification | Not tested |
-| Epic Games | Not supported by the 0.2 in-game bootstrap | Out of scope for this preview; original V1 target remains unmet | Not tested |
-| Career saves and existing AppData | Existing local store is reused; bridge rejects stale sessions and arbitrary actions | Upgrade/first-install Windows checks pending | No observed match receipt |
-| Career, squad, schedule, and standings | Domain logic is present; in-game controls still require integration/build verification | Pending | Not tested |
-| Match completion and result persistence | Worker/result logic exists in source; no live match or overtime evidence | Pending | Not tested |
-| Training lessons and reset | Training engine/catalog exists in source | Pending | Not tested |
-| Personal recording and ghost | Playback is pose-based and non-colliding by design; no validated expert recording is bundled. Successful personal recordings can be played in-game; an import control and action are present in source, but the picker-to-service flow is not yet verified | Pending | Not tested |
-| PlayStation controller graphic | Source maps observed game actions to a configurable PlayStation display; it is not raw hardware capture | Pending | Physical controller and mapping behavior not tested |
-| Workshop and local maps | Steam library/catalog and desktop import boundaries are in source; the in-game UI does not expose map-file import, and import alone does not prove a map loads | Pending | Not tested |
-| Garage/item override | Limited local BakkesMod override code exists and reports appearance as unverified | Pending | Not tested |
-| Online behavior | In-game bridge is intended to reject online commands; this preview has no online flow | Pending fail-closed checks | Not tested in the live game |
+**Release hold, 23 October 2026:** the owner tested published v0.2.0 on
+Windows Steam. Start Practice and Start Fixture failed, command publication
+failed, Windows reported access denied, and the native menu flickered over the
+custom interface. Separate manual BakkesMod installation was also required.
+These are failed acceptance results. The exact game build and complete Windows
+error path have not been collected; the spoken path is not a verified filename.
 
-The in-game build requires Windows x64, Steam, an installed Rocket League copy,
-and BakkesMod. This version does not support Epic launch. No Steam or Epic game
-session has been accepted as tested until a dated receipt records the exact app,
-game, launcher, and BakkesMod versions and observed outcomes.
+| Area | Confirmed evidence | Remaining acceptance |
+|---|---|---|
+| Windows packaging | v0.2 CI passed Python tests, MSVC DLL checks, frozen model inference and install/upgrade/uninstall checks | Repairs require their own Windows CI; package checks cannot prove gameplay |
+| In-game menu and bridge | Owner reached the interface, then saw flicker and command/access-denied errors | Source sharing and menu-transition repairs need a real game retest |
+| Career and training launch | Owner reported both Start Fixture and Start Practice failing | No accepted v0.2 fixture, training or result-persistence receipt |
+| Dependency setup | Owner had to install BakkesMod separately | Guided official setup is source work; first-run Windows approval/download must be observed |
+| Native menus | Existing screen is an overlay | Actual native buttons, routing and restoration are unverified |
+| Ghost, controller, Workshop, Garage | Source features exist; owner found the UI confusing and Garage too long | No accepted v0.2 feature receipt; source cleanup is interim |
+| Saves | v0.2 Windows upgrade/uninstall checks preserved test saves | Player save continuity needs observation after repair |
+| Online boundary | Source guards and tests exist | Real-game fail-closed transitions remain unverified |
+| Epic | Bootstrap does not support Epic | No Epic launch claim |
+
+**The next installer is held until native menus are verified.** CI continues
+source, DLL and frozen-app checks, while installer generation and downloadable
+artifact uploads are disabled. See [native menu research](NATIVE_MENU_RESEARCH.md)
+for the evidence needed to lift this hold. The existing preview's files are
+retained for history; they are not a fixed download.
+
+The app requires Windows x64, Steam, installed Rocket League and BakkesMod.
+No game session has passed v0.2 acceptance. The owner's failures are valid
+observations; a successful retest must record exact app, game, launcher and
+BakkesMod versions.
 
 ## Windows source and package checks
 
@@ -47,9 +57,9 @@ these checks on Windows x64:
 
 **Windows build evidence:** each published release includes `RELEASE_RECEIPT.json`
 and `plugin-build-receipt.json`, with exact source/hash identities and passing
-package, model inference, install/upgrade/uninstall checks. Table entries marked
-pending describe real-game checks unless identified as a build requirement.
-**Plugin DLL runtime compatibility:** not yet verified inside Rocket League.
+package, model inference, install/upgrade/uninstall checks. Those receipts do not override the owner-reported failures above.
+**Plugin DLL runtime compatibility:** the interface rendered for the owner, but
+launch, command handling and menu behavior failed acceptance.
 
 ## Steam game test checklist
 

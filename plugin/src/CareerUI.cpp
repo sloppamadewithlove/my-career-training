@@ -1,6 +1,7 @@
 #include "MyCareerTraining.h"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <set>
@@ -20,15 +21,16 @@ const ImVec4 orange(1.0f, 0.47f, 0.13f, 1.0f);
 const ImVec4 ice(0.46f, 0.83f, 1.0f, 1.0f);
 const ImVec4 muted(0.60f, 0.70f, 0.79f, 1.0f);
 
+constexpr float textScale = 1.16f;
 void title(const std::string& text) {
-    ImGui::SetWindowFontScale(1.7f); ImGui::TextUnformatted(text.c_str()); ImGui::SetWindowFontScale(1.0f);
+    ImGui::SetWindowFontScale(1.55f); ImGui::TextUnformatted(text.c_str()); ImGui::SetWindowFontScale(textScale);
     ImGui::Spacing();
 }
 void detail(const std::string& text) { ImGui::TextColored(muted, "%s", text.c_str()); }
 void paragraph(const std::string& text) { ImGui::TextWrapped("%s", text.c_str()); }
 bool button(const std::string& text, bool available = true, float width = 0) {
     if (!available) ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.40f);
-    const bool selected = ImGui::Button(text.c_str(), ImVec2(width, 38));
+    const bool selected = ImGui::Button(text.c_str(), ImVec2(width, 46));
     if (!available) ImGui::PopStyleVar();
     return selected && available;
 }
@@ -84,7 +86,10 @@ bool observedActions(const Json& actions) {
 bool contains(const Json& values, const std::string& id) {
     return values.is_array() && std::find(values.begin(), values.end(), Json(id)) != values.end();
 }
-const char* pageNames[] = {"CAREER", "SQUAD", "SCHEDULE", "SEASON", "TRAINING", "WORKSHOP", "GARAGE", "SETTINGS"};
+bool includesIgnoreCase(const std::string& text, const std::string& search) {
+    return std::search(text.begin(), text.end(), search.begin(), search.end(),
+        [](unsigned char left, unsigned char right) { return std::tolower(left) == std::tolower(right); }) != text.end();
+}
 std::string selectRecordingFile() {
 #ifdef _WIN32
     std::array<wchar_t, 32768> path{};
@@ -114,9 +119,9 @@ std::string selectRecordingFile() {
 }
 
 void MyCareerTraining::beginStyle() {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(24, 22));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 10));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(28, 24));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(14, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(14, 14));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.025f, 0.07f, 0.12f, 0.99f));
@@ -141,37 +146,57 @@ void MyCareerTraining::renderMenu(const Json& state, const MctRuntime& runtime) 
     const auto flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
     ImGui::Begin("My Career##root", nullptr, flags);
+    ImGui::SetWindowFontScale(textScale);
     auto draw = ImGui::GetWindowDrawList();
     draw->AddRectFilled(ImVec2(0, 0), ImVec2(screen.x, 5), IM_COL32(255, 123, 32, 255));
-    ImGui::TextColored(ice, "MY CAREER  /  OFFLINE");
-    ImGui::SameLine();
-    ImGui::TextColored(muted, "     Local progress - personal training - your club");
+    ImGui::TextColored(ice, "MY CAREER  /  OFFLINE PREVIEW");
     ImGui::Separator();
-    const float navWidth = std::clamp(screen.x * 0.22f, 170.0f, 290.0f);
-    const float contentHeight = std::max(160.0f, screen.y - 138.0f);
+    const float navWidth = std::clamp(screen.x * 0.20f, 185.0f, 275.0f);
+    const float contentHeight = std::max(160.0f, screen.y - 122.0f);
     ImGui::BeginChild("navigation", ImVec2(navWidth, contentHeight), false);
-    title("MY CAREER");
+    ImGui::SetWindowFontScale(textScale);
     const auto career = objectValue(state, "career");
-    paragraph(stringValue(career, "team_name", "Create your club"));
-    ImGui::Spacing();
-    for (int index = 0; index < 8; ++index) {
-        const bool selected = page_ == index;
+    title(stringValue(career, "team_name", "MY CAREER"));
+    if (!career.empty()) detail("Season " + std::to_string(static_cast<int>(numberValue(career, "current_season")) + 1));
+    ImGui::Separator();
+    const std::array<std::pair<const char*, int>, 5> destinations{{
+        {"CAREER", 0}, {"TRAINING", 4}, {"GARAGE", 6}, {"WORKSHOP", 5}, {"SETTINGS", 7}}};
+    for (const auto& destination : destinations) {
+        const bool selected = destination.second == 0 ? page_ <= 3 : page_ == destination.second;
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.74f, 0.28f, 0.07f, 1));
-        if (button(pageNames[index], true, -1)) { page_ = index; search_[0] = '\0'; }
+        if (button(destination.first, true, -1)) page_ = destination.second;
         if (selected) ImGui::PopStyleColor();
     }
-    if (runtime.inGame) {
-        if (primary("RESUME SESSION", true, -1)) queueLocal(LocalRequest::Resume);
-        if (button("RETURN TO CAREER", true, -1)) {
+    const auto session = objectValue(state, "session");
+    const auto phase = stringValue(session, "state");
+    const bool activeSession = phase == "Playing" || phase == "training" || phase == "workshop";
+    if (runtime.inGame && activeSession) {
+        ImGui::Spacing(); ImGui::Separator();
+        if (primary("RESUME PLAY", true, -1)) queueLocal(LocalRequest::Resume);
+        if (button("LEAVE SESSION", true, -1)) {
             const bool pending = !objectValue(career, "pending_session").empty();
             if (pending) ImGui::OpenPopup("Leave unfinished fixture?");
             else command("return_hub", {{"abandon", false}});
         }
     }
+    ImGui::Spacing();
     if (button("SAVE AND EXIT", true, -1)) ImGui::OpenPopup("Exit My Career?");
     ImGui::EndChild();
     ImGui::SameLine();
     ImGui::BeginChild("content", ImVec2(0, contentHeight), true);
+    ImGui::SetWindowFontScale(textScale);
+    if (page_ <= 3 && !career.empty()) {
+        const std::array<std::pair<const char*, int>, 4> careerViews{{
+            {"OVERVIEW", 0}, {"SQUAD", 1}, {"SCHEDULE", 2}, {"TABLE", 3}}};
+        for (const auto& view : careerViews) {
+            if (view.second) ImGui::SameLine();
+            const bool selected = page_ == view.second;
+            if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.74f, 0.28f, 0.07f, 1));
+            if (button(view.first)) page_ = view.second;
+            if (selected) ImGui::PopStyleColor();
+        }
+        ImGui::Separator();
+    }
     switch (page_) {
         case 0: renderCareer(state); break;
         case 1: renderSquad(state); break;
@@ -183,14 +208,14 @@ void MyCareerTraining::renderMenu(const Json& state, const MctRuntime& runtime) 
         case 7: renderSettings(state, runtime); break;
     }
     ImGui::EndChild();
-    const auto session = objectValue(state, "session");
     ImGui::TextColored(ice, "%s", stringValue(session, "state", "Connected").c_str());
     ImGui::SameLine(); paragraph(stringValue(session, "message"));
     const auto stateError = stringValue(state, "error");
-    const auto error = !stateError.empty() ? stateError : !runtime.error.empty() ? runtime.error : bridge_->error();
+    const auto bridgeError = bridge_->error();
+    const auto error = !stateError.empty() ? stateError : !bridgeError.empty() ? bridgeError : runtime.error;
     if (!error.empty()) ImGui::TextColored(orange, "%s", error.c_str());
     else if (!stringValue(state, "notice").empty()) detail(stringValue(state, "notice"));
-    else detail(runtime.toggleKey + " opens controls. D-pad / left stick to move, Cross to select. Steam Input/XInput is required for gamepad navigation.");
+    else detail(runtime.toggleKey + " opens controls. D-pad / left stick to move; Cross to select.");
     if (ImGui::BeginPopupModal("Leave unfinished fixture?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         paragraph("Leave this attempt and return to your career? Your completed results stay saved. This fixture will restart from kickoff.");
         if (primary("LEAVE AND RETURN")) { command("return_hub", {{"abandon", true}}); ImGui::CloseCurrentPopup(); }
@@ -210,7 +235,7 @@ void MyCareerTraining::renderCareer(const Json& state) {
     const auto career = objectValue(state, "career");
     if (career.empty()) {
         title("BUILD YOUR CLUB");
-        paragraph("An offline football career, built around you. Choose your club, develop your squad, and train between fixtures.");
+        paragraph("Name your club and choose your match size.");
         ImGui::SetNextItemWidth(340); ImGui::InputText("Club name", clubName_, sizeof(clubName_));
         static int format = 3;
         ImGui::SliderInt("Match size", &format, 1, 4, "%d per team");
@@ -240,7 +265,7 @@ void MyCareerTraining::renderCareer(const Json& state) {
         } else if (!pending) {
             if (primary("PLAY NEXT FIXTURE", !boolValue(session, "busy"))) command("play_match");
         }
-        ImGui::SameLine(); if (button("CHOOSE LINEUP")) page_ = 1;
+        ImGui::SameLine(); if (button("CHANGE LINEUP")) page_ = 1;
         if (pending) {
             paragraph(active ? "This fixture is active. Resume playing, or leave this attempt to change your lineup." :
                 "This saved attempt is unfinished. Restart it from kickoff, then choose your lineup and play.");
@@ -252,9 +277,8 @@ void MyCareerTraining::renderCareer(const Json& state) {
         if (primary("START NEXT SEASON")) command("next_season");
     }
     ImGui::Spacing(); ImGui::Separator();
-    detail("TODAY'S TRAINING");
-    paragraph("Sharpen a mechanic before your next fixture. Practice uses your real controls and records your attempts locally.");
-    if (button("OPEN TRAINING")) page_ = 4;
+    detail("BEFORE YOUR NEXT MATCH");
+    if (button("PRACTICE A SKILL")) page_ = 4;
     ImGui::SameLine(); if (button("WORKSHOP MAPS")) page_ = 5;
     const auto result = objectValue(state, "latest_result");
     if (!result.empty()) {
@@ -278,7 +302,7 @@ void MyCareerTraining::renderSquad(const Json& state) {
     if (careerId != lineupCareerId_ || signature != lineupSignature_) {
         lineupCareerId_ = careerId; lineupSignature_ = signature; lineupDraft_ = committedLineup;
     }
-    paragraph("Choose your starting teammates before each fixture. Your career club and side stay fixed during the match.");
+    paragraph("Choose your starters before the next fixture. Your club stays fixed.");
     ImGui::Text("Select %d teammates. You are the remaining player.", static_cast<int>(required));
     for (const auto& idValue : squad) {
         if (!idValue.is_string()) continue;
@@ -351,6 +375,7 @@ void MyCareerTraining::renderTraining(const Json& state) {
     const auto lessons = arrayValue(state, "lessons");
     if (selectedLesson_.empty()) selectedLesson_ = stringValue(objectValue(state, "selected_lesson"), "id");
     ImGui::BeginChild("lessons", ImVec2(std::max(190.0f, ImGui::GetContentRegionAvail().x * 0.33f), 0), true);
+    ImGui::SetWindowFontScale(textScale);
     detail("MECHANICS");
     for (const auto& lesson : lessons) {
         const auto id = stringValue(lesson, "id");
@@ -360,30 +385,37 @@ void MyCareerTraining::renderTraining(const Json& state) {
     }
     ImGui::EndChild(); ImGui::SameLine();
     ImGui::BeginChild("lesson_detail", ImVec2(0, 0), false);
+    ImGui::SetWindowFontScale(textScale);
     Json selected;
     for (const auto& lesson : lessons) if (stringValue(lesson, "id") == selectedLesson_) selected = lesson;
     if (selected.is_null()) selected = objectValue(state, "selected_lesson");
     title(stringValue(selected, "title", "Choose a lesson"));
     paragraph(stringValue(selected, "description"));
-    for (const auto& step : arrayValue(selected, "steps")) {
-        if (step.is_string()) ImGui::BulletText("%s", step.get<std::string>().c_str());
-        else ImGui::BulletText("%s", stringValue(step, "text", stringValue(step, "instruction")).c_str());
-    }
-    paragraph("Target marker: the outlined finish zone marks where the lesson expects your car or ball to reach. It is not a demonstration.");
     const auto session = objectValue(state, "session");
     if (primary("START PRACTICE", !selectedLesson_.empty() && !boolValue(session, "busy"))) command("start_lesson", {{"id", selectedLesson_}});
     ImGui::SameLine(); if (button("RETRY", stringValue(session, "state") == "training")) command("retry_lesson");
+    if (selectedLesson_.empty()) detail("Choose a lesson first.");
+    else if (boolValue(session, "busy")) detail("Starting the offline practice session...");
+    detail("The outlined green zone is your goal marker, not a demonstration.");
+    if (ImGui::CollapsingHeader("LESSON STEPS")) {
+        for (const auto& step : arrayValue(selected, "steps")) {
+            if (step.is_string()) ImGui::BulletText("%s", step.get<std::string>().c_str());
+            else ImGui::BulletText("%s", stringValue(step, "text", stringValue(step, "instruction")).c_str());
+        }
+    }
     ImGui::Spacing(); ImGui::Separator();
     renderGhostControls(state, false);
-    ImGui::Spacing(); detail("ASSISTANCE");
+    if (button("PLAYSTATION DISPLAY SETTINGS")) page_ = 7;
+    ImGui::Spacing();
     const auto prefs = lessonPreferences(state, selectedLesson_);
-    for (const auto& setting : std::array<std::pair<const char*, const char*>, 5>{{
-        {"explanations", "Show instructions"}, {"actions", "Show controller actions"},
-        {"timing", "Show timing feedback"}, {"ghost", "Show recorded ghost"}, {"auto_reset", "Automatic retry"}}}) {
-        bool value = boolValue(prefs, setting.first, true);
-        if (ImGui::Checkbox(setting.second, &value)) command("assistance", {{"id", selectedLesson_}, {"key", setting.first}, {"value", value}});
+    if (ImGui::CollapsingHeader("PRACTICE OPTIONS")) {
+        for (const auto& setting : std::array<std::pair<const char*, const char*>, 5>{{
+            {"explanations", "Show instructions"}, {"actions", "Show controller actions"},
+            {"timing", "Show timing feedback"}, {"ghost", "Show recorded ghost"}, {"auto_reset", "Automatic retry"}}}) {
+            bool value = boolValue(prefs, setting.first, true);
+            if (ImGui::Checkbox(setting.second, &value)) command("assistance", {{"id", selectedLesson_}, {"key", setting.first}, {"value", value}});
+        }
     }
-    if (button("CONTROLLER AND GHOST SETTINGS")) page_ = 7;
     const auto attempt = objectValue(state, "latest_attempt");
     if (!attempt.empty()) { detail("LATEST ATTEMPT"); paragraph(stringValue(attempt, "feedback", stringValue(attempt, "outcome"))); }
     ImGui::EndChild();
@@ -396,16 +428,21 @@ void MyCareerTraining::renderGhostControls(const Json& state, bool compact) {
     const auto lesson = compact ? activeLesson : selectedLesson_;
     const bool training = stringValue(objectValue(state, "session"), "state") == "training" && activeLesson == lesson;
     const auto activeVariant = objectValue(telemetry, "lesson_variant");
+    bool lessonRecording = false;
     bool recorded = false;
-    for (const auto& recording : arrayValue(state, "recordings"))
-        if (stringValue(recording, "lesson_id") == lesson && stringValue(recording, "outcome") == "success" &&
-            (!recording.contains("variant") || objectValue(recording, "variant") == activeVariant)) recorded = true;
-    detail("RECORDED COACHING");
-    paragraph(boolValue(ghost, "available") ? stringValue(ghost, "label", "Recorded attempt") :
-        "No coach demonstration is included yet. A real permitted successful recording is needed; completing a successful attempt creates your personal ghost.");
-    if (button("WATCH MY BEST ATTEMPT", training && recorded)) command("play_recording", {{"id", lesson}, {"mode", "watch"}});
+    for (const auto& recording : arrayValue(state, "recordings")) {
+        if (stringValue(recording, "lesson_id") != lesson || stringValue(recording, "outcome") != "success") continue;
+        lessonRecording = true;
+        if (!recording.contains("variant") || objectValue(recording, "variant") == activeVariant) recorded = true;
+    }
+    detail("RECORDED GHOST");
+    if (boolValue(ghost, "available")) detail(stringValue(ghost, "label", "Your recording"));
+    else if (!lessonRecording) paragraph("No recording yet. Finish a successful attempt, or import a recording you have permission to use.");
+    else if (!training) detail("Start this lesson to check and play its recording.");
+    else if (!recorded) detail("Your recording uses different lesson settings. Record this version to enable the ghost.");
+    if (button("WATCH RECORDING", training && recorded)) command("play_recording", {{"id", lesson}, {"mode", "watch"}});
     if (!compact) ImGui::SameLine();
-    if (button("GHOST AHEAD OF ME", training && recorded)) command("play_recording", {{"id", lesson}, {"mode", "lead"},
+    if (button("GHOST AHEAD", training && recorded)) command("play_recording", {{"id", lesson}, {"mode", "lead"},
         {"lead_seconds", numberValue(trainingPreferences(state), "lead_seconds", 0.75)}});
     if (!compact && button("IMPORT ACTUAL RECORDING")) {
         try {
@@ -420,6 +457,9 @@ void MyCareerTraining::renderGhostControls(const Json& state, bool compact) {
         if (button(playing ? "PAUSE GHOST" : "RESUME GHOST")) command("ghost_control", {{"operation", playing ? "pause" : "resume"}});
         ImGui::SameLine(); if (button("RESTART GHOST")) command("ghost_control", {{"operation", "restart"}});
         ImGui::SameLine(); if (button("HIDE GHOST")) command("stop_ghost");
+        const double ghostSpeed = numberValue(ghost, "speed", 1);
+        if (button("SLOWER", ghostSpeed > 0.25))
+            command("ghost_control", {{"operation", "speed"}, {"value", std::max(0.25, ghostSpeed / 2)}});
         float cursor = static_cast<float>(numberValue(ghost, "cursor"));
         const float duration = static_cast<float>(numberValue(ghost, "duration"));
         if (duration > 0 && ImGui::SliderFloat("Ghost timeline", &cursor, 0, duration, "%.2f s"))
@@ -429,8 +469,8 @@ void MyCareerTraining::renderGhostControls(const Json& state, bool compact) {
 
 void MyCareerTraining::renderWorkshop(const Json& state) {
     title("WORKSHOP");
-    paragraph("Browse community challenges and launch maps already installed on this PC. Map files remain with their creators and your local installation.");
-    const char* tabs[] = {"BROWSE", "FAVORITES", "CREATED / IMPORTED", "INSTALLED"};
+    detail("Browse community challenges. Play maps installed on this PC.");
+    const char* tabs[] = {"BROWSE", "FAVORITES", "LOCAL FILES", "INSTALLED"};
     for (int index = 0; index < 4; ++index) {
         if (index) ImGui::SameLine();
         if (button(tabs[index])) workshopTab_ = index;
@@ -443,6 +483,7 @@ void MyCareerTraining::renderWorkshop(const Json& state) {
     Json selected;
     const float width = ImGui::GetContentRegionAvail().x;
     ImGui::BeginChild("map_list", ImVec2(width * 0.48f, 0), true);
+    ImGui::SetWindowFontScale(textScale);
     for (const auto& item : items) {
         if (workshopTab_ == 1 && !boolValue(item, "favorite")) continue;
         if (workshopTab_ == 2 && stringValue(item, "origin") != "local_import") continue;
@@ -456,6 +497,7 @@ void MyCareerTraining::renderWorkshop(const Json& state) {
     }
     ImGui::EndChild(); ImGui::SameLine();
     ImGui::BeginChild("map_detail", ImVec2(0, 0), false);
+    ImGui::SetWindowFontScale(textScale);
     if (!selected.is_null()) {
         title(stringValue(selected, "title"));
         detail(stringValue(selected, "creator")); detail(stringValue(selected, "category"));
@@ -464,48 +506,91 @@ void MyCareerTraining::renderWorkshop(const Json& state) {
         if (primary("PLAY MAP", boolValue(selected, "can_launch"))) command("play_workshop", {{"id", stringValue(selected, "launch_id", stringValue(selected, "id"))}});
         if (button(boolValue(selected, "favorite") ? "REMOVE FAVORITE" : "ADD TO FAVORITES")) command("workshop_favorite", {{"id", stringValue(selected, "id")}});
         paragraph(stringValue(selected, "dependency"));
-        detail("Current-game map compatibility is verified by actually playing it, separately from finding a local file.");
+        detail("A listed file has not necessarily been play tested in this game build.");
     } else paragraph("Choose a map from this collection.");
     ImGui::EndChild();
 }
 
 void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     title("MY GARAGE");
-    paragraph("Build a local visual design from the installed game's cosmetic catalog. No game assets are copied and no account inventory is changed.");
-    detail(std::to_string(runtime.products->size()) + " installed products discovered");
+    detail("Local appearance only. Your Rocket League account inventory stays unchanged.");
     const std::array<std::pair<int, const char*>, 15> slots{{{0, "Car bodies (catalog)"}, {1, "Decals"}, {2, "Wheels"},
         {3, "Boosts"}, {4, "Antennas"}, {5, "Toppers"}, {7, "Primary paint finish"}, {12, "Accent paint finish"},
         {13, "Engine audio"}, {14, "Trails"}, {15, "Goal explosions"}, {16, "Banners (catalog)"},
         {18, "Anthems"}, {20, "Avatar borders (catalog)"}, {21, "Titles (catalog)"}}};
     const char* current = "Cosmetics";
     for (const auto& item : slots) if (item.first == garageSlot_) current = item.second;
+    static char garageSearch[128] = "";
+    static bool equipableOnly = true;
+    static int page = 0;
+    static int inspectedSlot = -1;
+    static int inspectedId = -1;
     if (ImGui::BeginCombo("Category", current)) {
-        for (const auto& item : slots) if (ImGui::Selectable(item.second, item.first == garageSlot_)) garageSlot_ = item.first;
+        for (const auto& item : slots) if (ImGui::Selectable(item.second, item.first == garageSlot_)) {
+            garageSlot_ = item.first; page = 0; inspectedSlot = -1; inspectedId = -1;
+        }
         ImGui::EndCombo();
     }
-    ImGui::InputText("Search items", search_, sizeof(search_));
+    if (ImGui::InputText("Search items", garageSearch, sizeof(garageSearch))) page = 0;
     static const char* paints[] = {"Original", "Crimson", "Lime", "Black", "Sky blue", "Cobalt", "Burnt sienna",
         "Forest green", "Purple", "Pink", "Orange", "Grey", "Titanium white", "Saffron", "Gold", "Rose gold", "White gold", "Onyx", "Platinum"};
-    ImGui::Combo("Paint", &paint_, paints, 19);
     const bool supported = garageSlot_ != 0 && garageSlot_ != 16 && garageSlot_ != 20 && garageSlot_ != 21;
-    if (!supported) paragraph("This category can be browsed, but the verified local item override does not equip it. Car bodies still require the game's equip flow. Account banners, borders and titles are not unlocked here.");
-    ImGui::BeginChild("products", ImVec2(0, std::max(150.0f, ImGui::GetContentRegionAvail().y - 230)), true);
+    if (supported) {
+        if (ImGui::Checkbox("Show equipable items only", &equipableOnly)) page = 0;
+    } else detail("Browse only. This category cannot be equipped by the local override.");
     std::vector<const MctProduct*> filtered;
     for (const auto& product : *runtime.products)
-        if (product.slot == garageSlot_ && (!search_[0] || product.name.find(search_) != std::string::npos)) filtered.push_back(&product);
-    ImGuiListClipper clipper(static_cast<int>(filtered.size()));
-    while (clipper.Step()) for (int index = clipper.DisplayStart; index < clipper.DisplayEnd; ++index) {
-        const auto& product = *filtered[index];
-        const auto found = cosmeticItems_.find(product.slot);
-        const bool selected = found != cosmeticItems_.end() && found->second.first == product.id;
-        const auto label = product.name + "  [" + std::to_string(product.id) + "]";
-        if (ImGui::Selectable(label.c_str(), selected) && supported && product.id <= 8191)
-            cosmeticItems_[product.slot] = {product.id, product.paintable ? paint_ : 0};
-        if (product.id > 8191 && ImGui::IsItemHovered()) ImGui::SetTooltip("This newer product exceeds the verified v3 item-code format. It is catalog-only.");
+        if (product.slot == garageSlot_ && includesIgnoreCase(product.name, garageSearch) &&
+            (!supported || !equipableOnly || product.id <= 8191)) filtered.push_back(&product);
+    constexpr int itemsPerPage = 18;
+    const int lastPage = filtered.empty() ? 0 : static_cast<int>((filtered.size() - 1) / itemsPerPage);
+    page = std::clamp(page, 0, lastPage);
+    ImGui::Text("%zu items  /  Page %d of %d", filtered.size(), page + 1, lastPage + 1);
+    ImGui::BeginChild("products", ImVec2(0, std::clamp(ImGui::GetContentRegionAvail().y - 245.0f, 180.0f, 390.0f)), true);
+    ImGui::SetWindowFontScale(textScale);
+    if (filtered.empty()) detail("No items match this category and search. Try another category or refresh the catalog.");
+    else {
+        ImGui::Columns(3, "product_tiles", false);
+        const int end = std::min(static_cast<int>(filtered.size()), (page + 1) * itemsPerPage);
+        for (int index = page * itemsPerPage; index < end; ++index) {
+            const auto& product = *filtered[index];
+            const auto found = cosmeticItems_.find(product.slot);
+            const bool selected = found != cosmeticItems_.end() && found->second.first == product.id;
+            const std::string label = std::string(selected ? "DESIGN: " : "") + product.name + "##" + std::to_string(product.id);
+            if (ImGui::Selectable(label.c_str(), inspectedSlot == product.slot && inspectedId == product.id,
+                0, ImVec2(0, 48))) {
+                inspectedSlot = product.slot; inspectedId = product.id;
+                if (supported && product.id <= 8191)
+                    cosmeticItems_[product.slot] = {product.id, product.paintable ? paint_ : 0};
+            }
+            ImGui::NextColumn();
+        }
+        ImGui::Columns(1);
     }
     ImGui::EndChild();
-    ImGui::Checkbox("Override local car colors", &overrideColors_);
-    if (overrideColors_) { ImGui::ColorEdit3("Primary", primaryColor_); ImGui::ColorEdit3("Accent", secondaryColor_); }
+    if (button("PREVIOUS", page > 0)) --page;
+    ImGui::SameLine(); if (button("NEXT", page < lastPage)) ++page;
+    const auto inspected = std::find_if(filtered.begin(), filtered.end(), [&](const MctProduct* product) {
+        return product->slot == inspectedSlot && product->id == inspectedId;
+    });
+    if (inspected != filtered.end()) {
+        const auto& product = **inspected;
+        detail(product.name + (supported && product.id <= 8191 ? "  /  selected for local design" : "  /  catalog only"));
+        if (product.id > 8191) detail("This item exceeds the verified local item-code range.");
+    }
+    if (ImGui::CollapsingHeader("PAINT AND COLORS")) {
+        if (ImGui::Combo("Paint", &paint_, paints, 19)) {
+            const auto selected = cosmeticItems_.find(garageSlot_);
+            if (selected != cosmeticItems_.end()) {
+                const auto product = std::find_if(runtime.products->begin(), runtime.products->end(), [&](const MctProduct& item) {
+                    return item.slot == garageSlot_ && item.id == selected->second.first;
+                });
+                if (product != runtime.products->end() && product->paintable) selected->second.second = paint_;
+            }
+        }
+        ImGui::Checkbox("Override local car colors", &overrideColors_);
+        if (overrideColors_) { ImGui::ColorEdit3("Primary", primaryColor_); ImGui::ColorEdit3("Accent", secondaryColor_); }
+    }
     if (primary("APPLY LOCAL DESIGN", runtime.itemModAvailable)) {
         savePreferences();
         Json items = Json::array();
@@ -515,9 +600,9 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
             {"secondary", {secondaryColor_[0], secondaryColor_[1], secondaryColor_[2]}}});
     }
     ImGui::SameLine(); if (button("RESTORE ORIGINAL")) queueLocal(LocalRequest::RestoreCosmetics);
-    ImGui::SameLine(); if (button("REFRESH CATALOG")) queueLocal(LocalRequest::RefreshProducts);
-    paragraph(runtime.itemModAvailable ? runtime.cosmeticMessage : "This BakkesMod build has not exposed its local cosmetic override. Catalog browsing still works.");
-    detail("Overrides are local appearance requests; exact item compatibility and visible results require current-game verification. Original overrides are restored when this plugin unloads.");
+    if (!runtime.itemModAvailable) detail("This game build does not expose the local cosmetic override.");
+    else if (!runtime.cosmeticMessage.empty()) detail(runtime.cosmeticMessage);
+    if (button("REFRESH CATALOG")) queueLocal(LocalRequest::RefreshProducts);
 }
 
 void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runtime) {
@@ -542,14 +627,22 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     if (ImGui::Combo("Season progression", &curve, curves, 3)) command("set_difficulty", {{"baseline", baseline}, {"curve", curves[curve]}});
     } else paragraph(career.empty() ? "Create a career to choose match format and season difficulty." :
                      "Finish or leave this fixture before changing career settings.");
-    paragraph("Learned bots keep their original ability. Select a stronger provider to raise the actual challenge; its rank estimate is historical and unverified on this game build.");
-    for (const auto& provider : arrayValue(state, "providers")) {
-        ImGui::PushID(stringValue(provider, "id").c_str());
-        paragraph(stringValue(provider, "name", stringValue(provider, "id")));
-        paragraph(stringValue(provider, "rank_claim"));
-        paragraph(stringValue(provider, "reason", stringValue(provider, "status")));
-        if (button("USE THIS PROVIDER", boolValue(provider, "available"))) command("choose_provider", {{"id", stringValue(provider, "id")}});
-        ImGui::PopID();
+    const auto selectedProviderId = stringValue(state, "selected_provider", "default");
+    std::string selectedProvider = selectedProviderId;
+    for (const auto& provider : arrayValue(state, "providers"))
+        if (stringValue(provider, "id") == selectedProviderId)
+            selectedProvider = stringValue(provider, "name", selectedProviderId);
+    detail("Selected bot: " + selectedProvider);
+    if (ImGui::CollapsingHeader("BOT PROVIDERS")) {
+        detail("Provider strength comes from the model; rank labels are historical estimates.");
+        for (const auto& provider : arrayValue(state, "providers")) {
+            ImGui::PushID(stringValue(provider, "id").c_str());
+            paragraph(stringValue(provider, "name", stringValue(provider, "id")) + "  /  " + stringValue(provider, "rank_claim"));
+            if (!boolValue(provider, "available")) detail(stringValue(provider, "reason", stringValue(provider, "status")));
+            if (button("SELECT BOT", boolValue(provider, "available"))) command("choose_provider", {{"id", stringValue(provider, "id")}});
+            ImGui::Separator();
+            ImGui::PopID();
+        }
     }
     ImGui::Spacing(); ImGui::Separator(); ImGui::TextColored(ice, "PLAYSTATION CONTROLLER DISPLAY");
     bool controller = boolValue(preferences_, "controller", true);
@@ -591,10 +684,12 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     int keyIndex = 1;
     for (int k = 0; k < 8; ++k) if (runtime.toggleKey == keys[k]) keyIndex = k;
     if (ImGui::Combo("Career menu shortcut", &keyIndex, keys, 8)) queueLocal(LocalRequest::RebindMenu, {{"key", keys[keyIndex]}});
-    ImGui::Text("Game build: %s  |  BakkesMod %d  |  SDK API 95", runtime.build.c_str(), runtime.bakkesVersion);
-    detail(runtime.teamLockApplied ? "Career team lock currently applied." : "Team lock applies inside an active career fixture.");
-    paragraph("Idle-kick protection has not been verified. SDK 95 exposes no supported idle-kick disable switch; this plugin does not spoof movement or claim a no-kick guarantee.");
-    if (button("SAVE DIAGNOSTICS")) command("diagnostics");
+    if (ImGui::CollapsingHeader("DIAGNOSTICS")) {
+        ImGui::Text("Game build: %s  |  BakkesMod %d  |  SDK API 95", runtime.build.c_str(), runtime.bakkesVersion);
+        detail(runtime.teamLockApplied ? "Career team lock currently applied." : "Team lock applies inside an active career fixture.");
+        paragraph("Idle-kick protection has not been verified. The plugin does not spoof movement or guarantee that an inactive player stays in a match.");
+        if (button("SAVE DIAGNOSTICS")) command("diagnostics");
+    }
 }
 
 void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float scale, const char* heading, const Json& bindings) {

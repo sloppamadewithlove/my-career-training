@@ -1,6 +1,7 @@
 #pragma once
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <cstdint>
 #include <mutex>
 #include <string>
 
@@ -27,13 +28,18 @@ public:
     const std::filesystem::path& directory() const { return directory_; }
     static bool allowedAction(const std::string& action);
     static bool validState(const Json& state, double now);
-    static void atomicWrite(const std::filesystem::path& path, const std::string& bytes);
+    static void atomicWrite(const std::filesystem::path& path, const std::string& bytes,
+                            bool replaceExisting = true);
 private:
     std::filesystem::path directory_;
     mutable std::mutex mutex_;
     Json state_ = Json::object();
     std::string error_;
+#ifdef _WIN32
+    std::uint64_t lastWriteTicks_ = 0;
+#else
     std::filesystem::file_time_type lastWriteTime_{};
+#endif
     std::uintmax_t lastFileSize_ = 0;
     bool haveRead_ = false;
 };

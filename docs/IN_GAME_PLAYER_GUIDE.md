@@ -1,111 +1,71 @@
-# My Career Training 0.2.0 — in-game Windows preview
+# My Career Training: v0.2.0 known-issues preview
 
-This is an early testing preview. Full V1 is incomplete. Each published package
-includes a release receipt identifying its exact source and automated Windows
-checks. Those checks do not verify the interface inside a real Rocket League
-session. Use the flow below for your Steam game test.
+**The published v0.2.0 download is not a working replacement for the failures
+reported by the owner.** In the first Windows Steam test, a Career fixture and
+Start Practice failed to start, the menu repeatedly reopened or appeared under
+Rocket League's original menu, and Windows reported **Access is denied** in a
+per-run folder beneath `%LOCALAPPDATA%`. The on-screen command error was **“Could
+not publish the local career command.”** The startup message was **“Starting
+career, waiting for Rocket League to start the offline season.”**
 
-## What you need
+Source repairs are in progress. A replacement installer is being held until the
+launch/practice failures are fixed and the native-menu direction is verified.
+No public-ready replacement build exists yet. The previous v0.2.0 installer and
+portable ZIP remain on the [GitHub release page](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0)
+as a known-issues preview; they are not a repaired download. This is an actual
+owner-reported failed test, not a first test still waiting to happen.
 
-- Windows x64 and the current Rocket League installation launched through Steam.
-- Steam signed in, plus BakkesMod installed and opened at least once.
-- Rocket League fully closed before starting My Career Training. This build
-  refuses to attach to an already-running game.
+## BakkesMod requirement in v0.2.0
 
-Version 0.2 starts Rocket League in its supported offline/EAC-off mode and
-opens a custom BakkesMod interface inside the game. It does not replace the
-game's native Scaleform menus. Epic launch is not supported in this preview.
-Do not use this session for online matchmaking; the in-game experience has no
-online actions. To play online, close My Career Training and the game, then
-launch Rocket League normally through Steam.
+The old v0.2.0 preview requires BakkesMod to be installed and running
+separately. BakkesMod is a third-party community plugin framework; My Career
+Training uses it to load its in-game plugin. The v0.2.0 installer does not
+include BakkesMod, so it is an extra prerequisite. If you are reproducing this
+old build, get BakkesMod from its [official site](https://bakkesmod.com/) and
+check that it supports your installed Rocket League build.
 
-The first launch installs the My Career Training plugin into the existing
-BakkesMod folder and adds its load command to `plugins.cfg`. If a plugin DLL or
-configuration file already exists, the installer keeps a backup beside it.
-Your career saves remain under `%LOCALAPPDATA%\MyCareerTraining`, outside the
-program folder. Before testing, close the app and make a separate copy of that
-folder if you want an extra backup.
+The replacement setup is planned to explain and guide the official BakkesMod
+setup before attempting to launch My Career Training. That guided flow is not
+in the published v0.2.0 package. No BakkesMod bundling or redistribution is
+claimed.
 
-## Start the in-game menu
+## Intended design direction
 
-1. Close every Rocket League window and open the **My Career Training** desktop
-   or Start menu shortcut. It starts the offline game and its local career
-   service together.
-2. Wait for Rocket League to reach its offline front end. The plugin should
-   open the **MY CAREER** custom interface. F6 toggles the hub when that key was
-   unused; the plugin will not replace an existing F6 binding. If the menu does
-   not appear, check that BakkesMod is open and supports the installed game
-   build, then use the setup/diagnostics shortcut and record the error.
-3. Use the on-screen tabs and Back controls to move between Career, Training,
-   Schedule, Season, Squad, Workshop, Garage, and Settings. Mouse and keyboard
-   are expected; controller navigation and focus behavior still need a Windows
-   game test.
+The owner wants a solo offline My Career experience integrated into Rocket
+League's menu flow, while preserving the original Steam game and saves. The
+v0.2.0 screen is an overlay; native Rocket League menu replacement has not been
+demonstrated and remains a release blocker for that direction.
 
-## Career and matches
+The interim information layout has five main destinations: **Career** (with
+Squad, Schedule, and League Table views), **Training**, **Garage**, **Workshop**,
+and **Settings**. This is the design direction, not a statement that those
+screens currently work. The old preview has no online features and does not
+support Epic launch.
 
-Create or continue a local career, choose a 1v1–4v4 format, review the schedule
-and standings, and manage the four recruited teammates. The human remains the
-player-controlled car. A match result should appear only after the game reports
-the actual final score; confirm the career is saved before starting another
-fixture. If the game or app closes during a match, do not invent a score. Use
-the saved career state and report the exact recovery screen shown.
+## If you already installed v0.2.0
 
-The in-game view uses the same player save directory as the earlier desktop
-preview. Do not delete or replace `%LOCALAPPDATA%\MyCareerTraining` when
-upgrading. The setup/diagnostics shortcut is separate from the in-game shortcut.
+- Close My Career Training and Rocket League before trying any recovery.
+- Keep your career data under `%LOCALAPPDATA%\MyCareerTraining`; do not delete
+  it to address the bridge access error.
+- Do not assume that restarting, reinstalling, a green build result, or an
+  automated package check fixed the live-game failures.
+- If reporting a reproduction, include the exact screen/action, the full error
+  text, Windows version, app version, Rocket League build, Steam status, and
+  BakkesMod status. Do not include account credentials.
 
-## Training, recordings, and controller display
+## Package evidence and remaining limits
 
-The intended training menu exposes the built-in lesson catalog, lesson help,
-retry/reset, playback controls for successful personal recordings, and a source
-control for importing a permitted recording. The native picker and in-game
-handoff still require a real game test. A ghost is a non-colliding wireframe
-playback of recorded car poses. It must not steer the car or affect the ball.
-There is no validated expert teaching recording bundled. Your own recording
-must be labeled as your attempt; imported files keep an unverified label unless
-independently checked. If no compatible recording exists, the menu should say
-that the demonstration is unavailable rather than inventing one.
+The existing release receipt identifies the source commit and Windows package
+checks for the old artifacts. Build, native plugin compilation, and automated
+tests do not prove that Rocket League gameplay works; the owner's report shows
+the published build failed in the live session.
 
-The controller graphic defaults to a PlayStation-style display. Its inputs are
-observed Rocket League logical actions, not direct DualShock/DualSense button
-capture. Display mappings can be changed separately; your actual controls stay
-in Rocket League's own controller settings. The default display mapping is:
+The old source also does not demonstrate native-menu replacement, inactivity
+protection, an expert ghost recording, ghost camera spectating, unrestricted
+garage customization, Epic support, or verified compatibility for every
+community map or plugin. Do not treat these as working features.
 
-| Game action | PlayStation display |
-|---|---|
-| Jump | Cross |
-| Boost | Circle |
-| Powerslide / handbrake | Square |
-| Accelerate / reverse | R2 / L2 |
-| Steering and aerial axes | Configurable stick-axis display |
-
-If telemetry is missing, the display should say actions are unavailable. Do
-not read the graphic as proof that a particular physical button was pressed.
-
-## Workshop, Garage, and Settings
-
-Workshop entries are creator references and locally discovered Steam content;
-a listing or favorite does not prove that a map loaded. No Epic Workshop route
-is available in this preview. The in-game menu does not currently expose map
-file import. Where the separate desktop management app offers local import, it
-validates and copies the selected file but does not certify its contents or
-prove game compatibility.
-
-Garage entries can describe local bot styles. The optional BakkesMod item
-override is limited to supported installed cosmetic products and must be
-restorable. It does not grant account inventory, and the current game appearance
-still needs verification. If an option is unavailable, keep it labeled as
-unavailable rather than reporting success.
-
-Settings and diagnostics should identify the active Steam installation, game
-build, BakkesMod version, plugin connection, and whether observed input or
-cosmetic capabilities are actually present. Do not include Steam credentials
-or private account identifiers in a report.
-
-## Please report
-
-Use [IN_GAME_ACCEPTANCE.md](IN_GAME_ACCEPTANCE.md) for the test checklist. For a
-failure, include app version/commit, Windows version, Rocket League build,
-Steam, BakkesMod and plugin versions, the exact screen/action, and what the game
-actually did. Keep source tests, Windows packaging results, and game observations
-separate. A successful build is not proof of gameplay.
+For the design and repair status, see [the GitHub repository](https://github.com/sloppamadewithlove/my-career-training),
+[the Opus 5.5 design handoff](OPUS_DESIGN_BRIEF.md), and [the acceptance
+record](IN_GAME_ACCEPTANCE.md). The handoff does not claim Opus 5.5 has reviewed
+the project.

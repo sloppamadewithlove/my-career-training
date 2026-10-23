@@ -1,46 +1,72 @@
-# My Career Training 0.2.0 — in-game testing preview
+# Current status: v0.2.0 is a known-issues previous preview
 
-This build moves the career controls into Rocket League through a full-screen BakkesMod plugin. It is a Windows Steam offline preview. BakkesMod remains a separate prerequisite; the app does not redistribute Rocket League assets or unlock account inventory.
+**A replacement installer is on hold.** In the owner's Windows Steam test of
+the published v0.2.0 package, starting a Career fixture and **Start Practice**
+failed. The owner saw **“Could not publish the local career command”** and
+**“Starting career, waiting for Rocket League to start the offline season.”**
+They also reported the My Career menu repeatedly reopening while Rocket
+League's original menu glitched over it, plus a Windows **Access is denied**
+error under a per-run folder beneath `%LOCALAPPDATA%`. These are actual player
+reports; they are not a pending first test or a diagnosis.
 
-## Install and launch
+Source repairs are in progress. No replacement build is public-ready. Existing
+v0.2.0 artifacts remain accessible as the [known-issues previous preview](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0),
+not as a fixed download. See the [current player guide](IN_GAME_PLAYER_GUIDE.md)
+and [GitHub repository](https://github.com/sloppamadewithlove/my-career-training)
+for status.
 
-1. Close Rocket League. Install or update [BakkesMod from its official site](https://bakkesmod.com/) and open it. The [official RL 2.78 / BM 229 release](https://github.com/bakkesmodorg/BakkesModInjectorCpp/releases/tag/2.0.78) was published on 20 October 2026.
-2. Download and run **MyCareerTraining-0.2.0-windows-x64-setup.exe** from the assets below. It is unsigned. Existing career data is kept in `%LOCALAPPDATA%/MyCareerTraining`.
-3. Keep Steam open, then use the **My Career Training** shortcut. It installs the My Career plugin and requests the supported EAC-off game launch. Do not start a second game window first.
-4. The custom menu should appear in-game. F6 opens it when that key is free; an existing binding is preserved and the actual selected shortcut is shown in the HUD/settings.
+The old package requires the player to manually install and run [BakkesMod](https://bakkesmod.com/)
+from its official source. BakkesMod is a third-party plugin framework used by
+v0.2.0 to load the My Career plugin; the My Career Training installer does not
+include it. A guided official setup is planned for a future build. This note
+does not claim bundling, redistribution rights, or a completed installer flow.
 
-## Changes
+The intended destination is a native My Career flow in the offline
+game, while preserving the original Steam installation and saves. The v0.2.0
+custom screen is an overlay and native menu replacement has not been
+demonstrated. The interim design has five main destinations: **Career** (with
+Squad, Schedule, and League Table views), **Training**, **Garage**,
+**Workshop**, and **Settings**. This is planned navigation, not a claim that the
+published package works.
 
-- Career, Squad, Schedule, Season, Training, Workshop, Garage and Settings in a full-screen in-game interface.
-- The same owned game stays open across worker restarts for the next fixture or lesson. Match results use durable receipts and remain saved once.
-- Active career team locking, custom club names, and lineup changes between matches.
-- Actual bundled Necto and Nexto CPU policies for 1v1–3v3. Select Necto for the creator's historical Diamond-level target or Nexto for the historical GC1 target. These are not current rank certifications, and the policies do not learn from your sessions. Original ground specialists remain available for 4v4.
-- PlayStation graphic showing observed logical game actions with editable display labels, size and side.
-- Personal/imported ghost playback: watch, lead, pause, seek, slow playback, loop and in-game recording import. The green lesson rectangle is now explained as the FINISH target.
-- Expanded attributed Workshop catalog, favorites/search and discovery/launch of local Steam map packages, with recovery of the exact temporary built-in map substitution.
-- Installed cosmetic browsing and supported BakkesMod local visual overrides. Overrides are restored when leaving the owned offline session.
+## v0.2.0 package record
 
-## Verification and limits
+The archived v0.2.0 package contains the following source/features, but the
+owner's live test failed and these entries do not certify working gameplay:
 
-The release receipt and checksums identify the exact compiled source and artifacts. Automated Windows checks cover Python logic and real model inference, MSVC plugin compilation/native exports, frozen app/worker tests, Unicode paths, installation, repeat installation and uninstall with save preservation. They do **not** verify actual Rocket League gameplay.
+- The Career, Squad, Schedule, Season, Training, Workshop, Garage, and Settings
+  plugin pages, plus local career and result persistence logic.
+- Necto and Nexto CPU policy files with their original licenses. Historical
+  rank estimates are not current certifications, and the policies do not learn
+  from the player's sessions.
+- A PlayStation-style display for observed logical actions and personal or
+  imported ghost-playback code. No validated expert recording is bundled.
+- Workshop catalog and local Steam map discovery/launch code; compatibility
+  still requires a real successful map launch.
+- Limited BakkesMod local cosmetic override code; supported appearance and
+  restore behavior have not been accepted in a live game.
 
-This is not full V1 acceptance. Please expect these current limits:
+The v0.2.0 release receipt records the source and automated Windows package
+checks. Those checks do not override the owner's reported live failures. The
+custom screen does not replace Rocket League's native menu. Idle-kick
+protection, expert ghosts, ghost camera spectating, unrestricted garage
+customization, Epic launch, and verified compatibility for every map or plugin
+remain unavailable or unverified.
 
-- The custom screen overlays the native menu; it does not replace Rocket League's menu files. Pause, navigation and input focus require game testing.
-- No validated expert teaching recording is bundled. Personal/imported recordings work as playback sources; camera spectating is not implemented.
-- Idle-kick prevention is unresolved and is not guaranteed.
-- The garage cannot equip every category or product. Car bodies/profile unlocks and newer item IDs outside the supported override format are not provided.
-- The in-game bootstrap supports Steam, not Epic. Map compatibility, bot strength, appearance and physical controller behavior require testing in the installed game.
-
-[Player guide](https://github.com/sloppamadewithlove/my-career-training/blob/feat/in-game-career/docs/IN_GAME_PLAYER_GUIDE.md) · [Source and acceptance details](https://github.com/sloppamadewithlove/my-career-training/pull/1) · [Previous desktop preview](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.1.0)
+[Previous v0.2.0 release](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0) ·
+[Player guide](IN_GAME_PLAYER_GUIDE.md) ·
+[Design handoff](OPUS_DESIGN_BRIEF.md) ·
+[Older v0.1.0 preview](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.1.0)
 
 ---
 
 # 0.1.0 — Windows testing prerelease
 
-Prepared 22 October 2026. **Full V1 is incomplete.** No real Rocket League match
-has been verified for this application on Steam or Epic. This release is intended
-for a first test on the owner's own Windows computer and current game.
+Prepared 22 October 2026. **Full V1 is incomplete.** At publication, the in-game
+integration had no Steam or Epic acceptance receipt. The owner later reported
+playing a Steam match with the earlier desktop preview; that experience is not
+evidence that the v0.2.0 plugin works. The v0.2.0 owner test and current failures
+are recorded at the top of this file.
 
 ## Available in source
 
@@ -111,7 +137,7 @@ Known boundaries:
 - No native Mac gameplay, two-captain network mode, extra game modes or enlarged
   22-player project is included.
 
-## First test and reporting
+## Historical v0.1.0 test guidance
 
 Follow [PLAYER_GUIDE.md](PLAYER_GUIDE.md). Close existing Rocket League/RLBot
 sessions, select the signed-in launcher in Settings, check the installation and
