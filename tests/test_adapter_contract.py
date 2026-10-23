@@ -182,6 +182,8 @@ def test_team_hivemind_agent_ids_match_the_controllable_team_mapping(tmp_path):
     session.human_index = human_index
     session.descriptors = descriptors
     for team in (0, 1):
+        sent = []
+        session.relays[team] = NS(send_msg=sent.append)
         indices = [index for index, entry in descriptors.items() if entry["team"] == team]
         info = flat.ControllableTeamInfo(
             team=team,
@@ -189,6 +191,7 @@ def test_team_hivemind_agent_ids_match_the_controllable_team_mapping(tmp_path):
         )
         restored_info = flat.ControllableTeamInfo.unpack(info.pack())
         session.map_team(team, restored_info)
+        assert len(sent) == 1 and isinstance(sent[0], flat.InitComplete)
         assert session.mapping[team] == indices
         assert human_index not in session.mapping[team]
 

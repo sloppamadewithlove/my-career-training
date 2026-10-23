@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
 import tempfile
 
 
@@ -20,6 +21,19 @@ def self_test():
             assert len(state["career"]["seasons"][0]["fixtures"]) == 12
         assert len(catalog()) == 8
         assert SpecialistController("keeper").manifest()
+        if sys.platform == "win32":
+            from rlbot import flat
+            from rlbot.interface import SocketRelay
+            from rlbot.managers.match import MatchManager
+            from rlbot.managers.rendering import Renderer
+            from .adapter import match_config, desired_state
+            from .training import configure_lesson
+            assert all(callable(value) for value in (SocketRelay, MatchManager, Renderer))
+            config, _, human = match_config({"fixture": career.next_fixture(state["career"]),
+                                             "settings": {"launcher": "steam"}})
+            assert len(flat.MatchConfiguration.unpack(config.pack()).player_configurations) == 6
+            lesson = configure_lesson("speed-flip")
+            assert desired_state(lesson["starting_state"], human).pack()
     return 0
 
 
@@ -31,11 +45,11 @@ def main():
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--screenshot", type=Path)
     args = parser.parse_args()
+    if args.self_test:
+        return self_test()
     if args.worker:
         from .game_worker import main as worker_main
         return worker_main()
-    if args.self_test:
-        return self_test()
     from .storage import data_dir
     from .app import run
     return run(args.data_dir or data_dir(), args.smoke_test, args.screenshot)

@@ -25,6 +25,8 @@ def run_smoke(bundle: Path, data: Path) -> None:
     for flag in ('--self-test', '--smoke-test'):
         subprocess.run([str(bundle / 'MyCareerTraining.exe'), flag, '--data-dir', str(data)],
                        check=True, timeout=60, env=environment)
+    subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe'), '--self-test'],
+                   check=True, timeout=60, env=environment)
     requests = [dict(id='package-ping', type='ping'), dict(id='package-stop', type='shutdown')]
     result = subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe')],
                             input=''.join(json.dumps(item) + '\n' for item in requests),
