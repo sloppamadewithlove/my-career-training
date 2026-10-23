@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import stat
 
 import pytest
 
@@ -116,29 +115,20 @@ def test_error_after_replace_is_recovered_as_already_committed_result(tmp_path, 
     store = storage.Store(tmp_path)
     store.save(state)
     real_replace = storage.os.replace
-    real_fsync = storage.os.fsync
-    installed = False
-
     def replace_and_mark(source, destination):
-        nonlocal installed
         result = real_replace(source, destination)
         if Path(destination).resolve() == store.path.resolve():
-            installed = True
+            # Inject immediately after the atomic commit on every platform.
+            # Windows has no POSIX directory-fsync step to intercept.
+            raise OSError("simulated uncertainty after atomic replace")
         return result
 
-    def fail_directory_sync(fd):
-        if installed and stat.S_ISDIR(storage.os.fstat(fd).st_mode):
-            raise OSError("simulated uncertainty after atomic replace")
-        return real_fsync(fd)
-
     monkeypatch.setattr(storage.os, "replace", replace_and_mark)
-    monkeypatch.setattr(storage.os, "fsync", fail_directory_sync)
     with pytest.raises(OSError, match="after atomic replace"):
         store.save(completed)
     store.close()
 
     monkeypatch.setattr(storage.os, "replace", real_replace)
-    monkeypatch.setattr(storage.os, "fsync", real_fsync)
     with storage.Store(tmp_path) as restarted:
         recovered = restarted.load()
         # The caller could not know whether the replace committed. Replaying the

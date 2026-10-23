@@ -68,11 +68,11 @@ class Store:
         self.backup_path = self.directory / "career.last-good.json"
         self.validator = validator
         self._lock = os.fdopen(os.open(self.directory / "app.lock", os.O_RDWR | os.O_CREAT, 0o600), "r+b")
-        self._lock.seek(0)
-        self._lock.write(b"0")
-        self._lock.flush()
-        self._lock.seek(0)
         try:
+            if os.fstat(self._lock.fileno()).st_size == 0:
+                self._lock.write(b"0")
+                self._lock.flush()
+            self._lock.seek(0)
             if sys.platform == "win32":
                 import msvcrt
                 msvcrt.locking(self._lock.fileno(), msvcrt.LK_NBLCK, 1)
