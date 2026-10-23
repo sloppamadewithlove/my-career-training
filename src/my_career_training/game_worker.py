@@ -217,10 +217,13 @@ class GameSession:
         self.relays = {}
         self.threads = []
         self.mapping = {}
+        self.ready_teams = set()
         self.controllers = {}
         self.prediction = self.field_info = None
         self.owned = None
         self.engine = None
+        from .review import MatchReview
+        self.review = MatchReview()
         self.renderer = None
         self.recording = None
         self.playback_origin = None
@@ -285,10 +288,40 @@ class GameSession:
         self.threads.append(thread)
         thread.start()
 
+    @staticmethod
+    def config_signature(config):
+        return (config.game_map_upk, tuple((player.team, type(player.variety).__name__,
+                    getattr(player.variety, "agent_id", ""), getattr(player.variety, "name", ""))
+                    for player in config.player_configurations))
+
+    def start_acknowledged_match(self, config, timeout=90):
+        # StartMatch is asynchronous. rc18 closes close-between-matches bot
+        # connections while processing it, so no team relay may connect until
+        # the master receives the matching configuration from our fresh core.
+        acknowledged = threading.Event()
+        expected = self.config_signature(config)
+        master = self.manager.rlbot_interface
+        def on_config(received):
+            if self.config_signature(received) == expected:
+                acknowledged.set()
+        master.match_config_handlers.append(on_config)
+        deadline = time.monotonic() + timeout
+        try:
+            self.check_cancel()
+            self.manager.start_match(config, wait_for_start=False, ensure_server_started=False)
+            while not acknowledged.wait(.05):
+                self.check_cancel()
+                if self.core.poll() is not None:
+                    raise RuntimeError("The offline runtime exited before acknowledging the requested match.")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("The game did not acknowledge the requested match. Check your launcher and retry.")
+            self.check_cancel()
+        finally:
+            master.match_config_handlers.remove(on_config)
+
     def setup(self):
         if sys.platform != "win32":
             raise RuntimeError("Game sessions run on Windows. Use the Windows installer on your gaming PC.")
-        from rlbot import flat
         from rlbot.interface import SocketRelay
         from rlbot.managers.match import MatchManager
         from rlbot.managers.rendering import Renderer
@@ -332,12 +365,10 @@ class GameSession:
         self.renderer = Renderer(master)
         self.renderer._used_group_ids = set()
         self.renderer._current_renders = []
-        self.manager.start_match(config, wait_for_start=False, ensure_server_started=False)
-        fixture = self.request.get("fixture") or {}
+        self.start_acknowledged_match(config)
         for index, descriptor in descriptors.items():
             self.controllers[index] = SpecialistController(descriptor.get("role", "all-rounder"),
-                descriptor.get("level", 1),
-                (fixture.get("difficulty") or {}).get("value", .5), fixture.get("seed", 0) + index)
+                descriptor["level"], descriptor["difficulty"], descriptor["seed"])
         for team in sorted({value["team"] for value in descriptors.values()}):
             relay = isolated_relay(SocketRelay(f"my-career-training/team-{team}", connection_timeout=8))
             relay.controllable_team_info_handlers.append(
@@ -345,7 +376,6 @@ class GameSession:
             self.connect(relay.connect, relay, port)
             self.relays[team] = relay
             self._relay_thread(relay)
-            relay.send_msg(flat.InitComplete())
         self.event("session", state="starting", message="Waiting for Rocket League to start the offline session.")
 
     def _discover_game(self):
@@ -362,6 +392,13 @@ class GameSession:
         if info.team != team or assigned != expected or self.human_index in assigned:
             raise RuntimeError("The game returned an unexpected bot-control mapping. No human controls were sent.")
         self.mapping[team] = assigned
+        # rc18 records readiness only for agents already reserved by this mapping.
+        # Sending InitComplete on socket-connect can arrive before reservation and
+        # leave wait_for_agents pending forever.
+        if team not in self.ready_teams and not self.cancel_start.is_set() and not self.stopping:
+            from rlbot import flat
+            self.relays[team].send_msg(flat.InitComplete())
+            self.ready_teams.add(team)
 
     def reset(self):
         if self.cancel_start.is_set() or self.stopping:
@@ -478,12 +515,14 @@ class GameSession:
                 self.render(frame)
                 self.last_render = now
         if not self.engine:
+            self.review.update(frame, {team.team_index: team.score for team in packet.teams})
             scores = adapter.final_score(packet, self.seen_active)
             if scores is not None and not self.result_sent:
                 result = {"type": "result", "session_id": self.session_id,
                           "fixture_id": self.request["fixture"]["id"], "home_score": scores[0],
                           "away_score": scores[1], "provenance": "game",
-                          "calibration": bool(self.request.get("calibration", False))}
+                          "calibration": bool(self.request.get("calibration", False)),
+                          "review": self.review.summary()}
                 persist_result(self.request["data_dir"], result)
                 self.result_sent = True
                 self.emit(result)

@@ -233,6 +233,9 @@ def test_worker_outbound_messages_use_the_sdk_interface_packet_framing():
         def sendall(self, frame):
             self.frames.append(frame)
 
+        def close(self):
+            pass
+
     relay = SocketRelay("my-career-training/team-0")
     relay.socket = CaptureSocket()
     relay.is_connected = True
@@ -246,6 +249,8 @@ def test_worker_outbound_messages_use_the_sdk_interface_packet_framing():
         flat.PlayerInput(0, flat.ControllerState(throttle=0.5, steer=-0.25, jump=True)),
         adapter.desired_state(lesson("speed-flip")["starting_state"], 0),
     ]
+    for message in messages:
+        relay.send_msg(message)
     with renderer.context("adapter-contract"):
         renderer.draw_line_3d(flat.Vector3(0, 0, 0), flat.Vector3(100, 0, 100))
 

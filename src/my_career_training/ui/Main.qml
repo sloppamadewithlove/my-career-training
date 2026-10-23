@@ -7,6 +7,7 @@ ApplicationWindow {
     width: 1340; height: 900
     minimumWidth: 1000; minimumHeight: 720
     visible: true
+    onClosing: function(close) { close.accepted = backend.request_close(); }
     title: "My Career Training"
     color: "#0c141d"
     font.family: "Segoe UI"
@@ -27,6 +28,7 @@ ApplicationWindow {
     property var startingRecruits: ["anchor", "shield", "relay", "comet"]
     property string garageRecruit: "anchor"
     property bool onlineAwaiting: false
+    property bool reviewOpen: false
     property string dismissedError: ""
     property var recruitPool: ["anchor", "shield", "relay", "comet", "orbit"]
     property bool locked: Boolean(career && career.pending_session) || Boolean(session.busy)
@@ -248,6 +250,23 @@ ApplicationWindow {
                     return home !== undefined && away !== undefined ? (result.home ? root.club(result.home)+"  " : "")+home+" – "+away+(result.away ? "  "+root.club(result.away) : "") : r.summary || r.message || "Completed match saved";
                 } tone:"title"; Layout.fillWidth:true; scale:root.textScale }
                 ActionButton { textScale:root.textScale; text:"Continue"; primary:true; onClicked:root.go("season") }
+                ActionButton {
+                    textScale:root.textScale; quiet:true
+                    text:root.reviewOpen ? "Hide optional match review" : "Review this match"
+                    visible:Boolean(root.view.latest_result && (root.view.latest_result.review || []).length)
+                    onClicked:root.reviewOpen = !root.reviewOpen
+                }
+                Copy { visible:root.reviewOpen; text:"Observed moments and optional coaching suggestions. These never affect your progress."; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
+                Repeater {
+                    model:root.reviewOpen && root.view.latest_result ? root.view.latest_result.review || [] : []
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth:true; spacing:6
+                        Copy { text:Number(modelData.time).toFixed(1)+"s · "+modelData.title; tone:"heading"; Layout.fillWidth:true; scale:root.textScale }
+                        Copy { text:modelData.evidence; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
+                        Copy { text:modelData.suggestion; visible:Boolean(modelData.suggestion); Layout.fillWidth:true; scale:root.textScale }
+                    }
+                }
             }
         }
     }

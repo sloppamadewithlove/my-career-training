@@ -33,6 +33,7 @@ def validate_document(state):
 
 class Backend(QObject):
     stateChanged = Signal()
+    exitRequested = Signal()
 
     def __init__(self, directory, parent=None):
         super().__init__(parent)
@@ -78,6 +79,13 @@ class Backend(QObject):
         self.timer.timeout.connect(self._tick)
         self.timer.start(200)
         self._recover_outbox()
+        if self.latest_result is None and self.document["career"]:
+            played = [f for season in self.document["career"]["seasons"]
+                      for f in domain._fixtures(season)
+                      if f["status"] == "completed" and "human" in (f["home"], f["away"])]
+            if played:
+                latest = max(played, key=lambda f: f["result"]["completed_at"])
+                self.latest_result = dict(latest["result"], home=latest["home"], away=latest["away"])
 
     @Property("QVariantMap", notify=stateChanged)
     def state(self):
@@ -201,6 +209,20 @@ class Backend(QObject):
             self._commit(state)
         elif action == "setup_finish":
             state = copy.deepcopy(self.document)
+            if sys.platform == "win32":
+                selected = state["settings"]
+                raw = selected.get("install_path", "").strip()
+                if not raw:
+                    candidate = next((i for i in detect_installations() if i["launcher"] == selected["launcher"]), None)
+                    if not candidate:
+                        raise ValueError("Rocket League was not found for this launcher. Enter its installed game folder or RocketLeague.exe path.")
+                    raw = candidate["path"]
+                path = Path(raw)
+                if path.is_dir():
+                    path = path / "Binaries/Win64/RocketLeague.exe"
+                if not path.is_file() or path.name.lower() != "rocketleague.exe":
+                    raise ValueError("Select the Rocket League installation folder or its Binaries/Win64/RocketLeague.exe file.")
+                selected["install_path"] = str(path.resolve())
             state["settings"]["setup_complete"] = True
             self._commit(state)
             self.setup_required = False
@@ -435,10 +457,15 @@ class Backend(QObject):
         state = copy.deepcopy(self.document)
         state["career"] = domain.complete_fixture(state["career"], event["fixture_id"], event["session_id"],
             event["home_score"], event["away_score"], event.get("provenance", "game"))
+        from .review import bounded_summary
+        review = bounded_summary(event.get("review"))
+        fixture = next(f for f in domain._all_fixtures(state["career"]) if f["id"] == event["fixture_id"])
+        if "review" not in fixture["result"]:
+            fixture["result"]["review"] = review
         if note:
             state.setdefault("recovery_notes", []).append({"fixture_id": event["fixture_id"], "note": str(note)[:1000]})
         self._commit(state)
-        self.latest_result = dict(event)
+        self.latest_result = dict(fixture["result"], home=fixture["home"], away=fixture["away"])
         self._ack_outbox(event["session_id"])
 
     def _ack_outbox(self, session_id):
@@ -537,6 +564,8 @@ class Backend(QObject):
                 self.session_message = "Game session closed. Progress is saved."
                 if reason == "abandon":
                     self._career_change(domain.abandon_fixture)
+                if reason == "exit":
+                    self.exitRequested.emit()
                 if self.pending_launch:
                     request, self.pending_launch = self.pending_launch, None
                     self._launch(request)
@@ -548,6 +577,24 @@ class Backend(QObject):
                 self.error = "The session is still closing. Close the game window, then retry. No second game was launched."
                 self.pending_launch = None
                 self.stateChanged.emit()
+
+    @Slot(result=bool)
+    def request_close(self):
+        try:
+            self._save_current()
+            if self.lifecycle.frozen or self.stop_reason:
+                self.error = "Wait for the game transition to finish before closing the app."
+                self.stateChanged.emit()
+                return False
+            if self._worker_active() or is_alive(self.owned_game):
+                self._begin_stop("exit")
+                self.stateChanged.emit()
+                return False
+            return True
+        except Exception as exc:
+            self.error = "The save could not be completed. Keep the app open and retry: " + str(exc)
+            self.stateChanged.emit()
+            return False
 
     def close(self):
         self._save_current()

@@ -13,6 +13,8 @@ import math
 import random
 import uuid
 
+from .bots import PROVIDER_ID, PROVIDER_VERSION, capability_parameters
+
 SCHEMA_VERSION = 1
 MAX_LEVEL = 5
 ROLES = ("keeper", "defender", "passer", "attacker", "all-rounder")
@@ -26,7 +28,7 @@ DEFAULT_RECRUITS = {
 MAPS = ("DFHStadium", "Mannfield", "ChampionsField", "UtopiaColiseum")
 CLUB_IDS = ("human", "aurora", "cinder", "tidal")
 PROVIDER = {
-    "id": "baseline-specialist", "version": "0.1.0",
+    "id": PROVIDER_ID, "version": PROVIDER_VERSION,
     "capability": "Experimental specialist controller; no rank certification",
 }
 
@@ -115,10 +117,45 @@ def _snapshot(career, lineup):
                   "loadout": deepcopy(career["recruits"][key]["loadout"])} for key in lineup}
 
 
+def bot_runtime_snapshot(fixture):
+    """Record the exact pure-controller configuration in RLBot's player order.
+
+    Custom bots occupy team 0 then team 1; the human is always the last player.
+    Other-club score simulations have no instantiated game controllers.
+    """
+    if "human" not in (fixture["home"], fixture["away"]):
+        return []
+    human_team = 0 if fixture["home"] == "human" else 1
+    difficulty = fixture["difficulty"]["value"]
+    bots = []
+    for team in (0, 1):
+        count = fixture["format"] - int(team == human_team)
+        for position in range(count):
+            recruit_id = fixture["lineup"][position] if team == human_team else None
+            if recruit_id is not None:
+                descriptor = fixture["recruit_snapshots"][recruit_id]
+            else:
+                descriptor = {
+                    "name": f"Rival {position + 1}",
+                    "role": ("keeper", "attacker", "defender", "passer")[position],
+                    "level": fixture["opponent_starting_level"],
+                    "loadout": {"car_id": 23, "primary_color": 30, "secondary_color": 0},
+                }
+            bots.append({
+                "index": len(bots), "team": team, "recruit_id": recruit_id,
+                "name": descriptor["name"], "role": descriptor["role"], "level": descriptor["level"],
+                "loadout": deepcopy(descriptor["loadout"]),
+                "difficulty": difficulty, "seed": fixture["seed"] + len(bots),
+                "parameters": capability_parameters(descriptor["level"], difficulty),
+                "provider_id": PROVIDER_ID, "provider_version": PROVIDER_VERSION,
+            })
+    return bots
+
+
 def _fixture(career, season, home, away, round_number, index, phase="league"):
     rng = random.Random(f"{season['seed']}:{phase}:{round_number}:{index}")
     lineup = list(career["lineup"]) if "human" in (home, away) else []
-    return {
+    fixture = {
         "id": f"{season['id']}:{phase}:{round_number}:{index}",
         "home": home, "away": away, "round": round_number, "phase": phase,
         "format": career["format"], "map": rng.choice(MAPS),
@@ -129,6 +166,8 @@ def _fixture(career, season, home, away, round_number, index, phase="league"):
         "duration_seconds": 300, "overtime": True,
         "status": "scheduled", "result": None, "session_id": None, "attempts": [],
     }
+    fixture["bot_runtime"] = bot_runtime_snapshot(fixture)
+    return fixture
 
 
 def _new_season(career, number, seed):
@@ -256,6 +295,7 @@ def start_fixture(career, session_id):
     fixture["lineup"] = list(career["lineup"])
     fixture["squad"] = list(career["squad"])
     fixture["recruit_snapshots"] = _snapshot(career, fixture["lineup"])
+    fixture["bot_runtime"] = bot_runtime_snapshot(fixture)
     fixture["attempts"].append({"session_id": session_id, "status": "pending", "started_at": _now()})
     career["pending_session"] = {"fixture_id": fixture["id"], "session_id": session_id,
                                    "started_at": fixture["attempts"][-1]["started_at"]}
@@ -268,7 +308,8 @@ def _result(fixture, session_id, home_score, away_score, provenance):
             "winner": fixture["home"] if home_score > away_score else fixture["away"],
             "provenance": provenance, "simulated": provenance == "simulated", "completed_at": _now(),
             "format": fixture["format"], "map": fixture["map"], "lineup": list(fixture["lineup"]),
-            "difficulty": deepcopy(fixture["difficulty"]), "seed": fixture["seed"]}
+            "difficulty": deepcopy(fixture["difficulty"]), "seed": fixture["seed"],
+            "bot_runtime": deepcopy(fixture["bot_runtime"])}
 
 
 def _simulate(season, fixture):
@@ -434,6 +475,7 @@ def _refresh_future(career, update_format=False, update_difficulty=False):
             fixture["lineup"] = list(career["lineup"])
             fixture["squad"] = list(career["squad"])
             fixture["recruit_snapshots"] = _snapshot(career, fixture["lineup"])
+        fixture["bot_runtime"] = bot_runtime_snapshot(fixture)
 
 
 def set_lineup(career, recruit_ids):
@@ -788,6 +830,8 @@ def _validate_fixture(f, fixture_ids, result_ids, session_ids):
     _require(f["provider"] == PROVIDER, "Unknown bot provider/version in the saved fixture.")
     _require(_integer(f["opponent_starting_level"], 1, MAX_LEVEL)
              and f["duration_seconds"] == 300 and f["overtime"] is True, "Invalid match rules or bot level.")
+    _require(f["bot_runtime"] == bot_runtime_snapshot(f),
+             "Recorded bot runtime settings do not match this fixture's controllers.")
     _require(f["status"] in ("scheduled", "pending", "completed"), "Unknown fixture status.")
     _require(isinstance(f["attempts"], list), "Fixture attempts are malformed.")
     for attempt in f["attempts"]:
@@ -816,7 +860,7 @@ def _validate_fixture(f, fixture_ids, result_ids, session_ids):
                  and r["home_score"] != r["away_score"], "Completed games need an untied final score.")
         _require(r["winner"] == (f["home"] if r["home_score"] > r["away_score"] else f["away"]),
                  "Result winner does not match the final score.")
-        _require(all(r[k] == f[k] for k in ("format", "map", "lineup", "difficulty", "seed")),
+        _require(all(r[k] == f[k] for k in ("format", "map", "lineup", "difficulty", "seed", "bot_runtime")),
                  "Result settings do not match the played fixture.")
         _require((human and r["provenance"] in ("game", "manual", "manual_recovery")
                   and r["simulated"] is False) or

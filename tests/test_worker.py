@@ -90,15 +90,21 @@ def test_unowned_game_packets_never_processed(tmp_path, monkeypatch):
     assert not instance.first_packet
 
 
-def test_bot_controls_cannot_target_human(tmp_path):
+def test_bot_controls_cannot_target_human(tmp_path, monkeypatch):
     instance = worker.GameSession(request(tmp_path), lambda event: None)
     instance.descriptors = {0: {"team": 1}}
     instance.human_index = 1
     with pytest.raises(RuntimeError, match="mapping"):
         instance.map_team(1, NS(team=1, controllables=[NS(index=1)]))
     assert not instance.mapping
+    sent = []
+    monkeypatch.setitem(sys.modules, "rlbot", NS(flat=NS(InitComplete=lambda: "ready")))
+    instance.relays[1] = NS(send_msg=sent.append)
     instance.map_team(1, NS(team=1, controllables=[NS(index=0)]))
     assert instance.mapping == {1: [0]}
+    assert sent == ["ready"]
+    instance.map_team(1, NS(team=1, controllables=[NS(index=0)]))
+    assert sent == ["ready"]  # Repeated reservation notifications are idempotent.
 
 
 def test_unexpected_packet_human_mapping_fails_before_controls(tmp_path, monkeypatch):
@@ -312,3 +318,85 @@ def test_core_requires_bot_relay_close_between_matches(tmp_path, agent_id, expec
     instance.connect(lambda **kwargs: calls.append(kwargs), relay, 24123)
     assert calls[0]["close_between_matches"] is expected
     assert calls[0]["rlbot_server_port"] == 24123
+
+
+def handshake_config(arena="Stadium_P"):
+    class Human:
+        pass
+    class CustomBot:
+        name = "Rival"
+        agent_id = "my-career-training/team-1"
+    return NS(game_map_upk=arena, player_configurations=[NS(team=1, variety=CustomBot()), NS(team=0, variety=Human())])
+
+
+def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch):
+    import threading
+    configuration = handshake_config()
+    order = []
+    acknowledged = threading.Event()
+    class Relay:
+        def __init__(self, agent_id, **kwargs):
+            if agent_id:
+                assert acknowledged.is_set(), "Bot connection preceded asynchronous match acknowledgement"
+            self.agent_id = agent_id
+        def connect(self, **kwargs):
+            order.append("team-connect" if self.agent_id else "manager-connect")
+        def send_msg(self, value):
+            order.append("init")
+    class Manager:
+        def __init__(self, executable):
+            self.rlbot_interface = Relay("")
+        def connect(self, **kwargs):
+            self.rlbot_interface.connect(**kwargs)
+        def start_match(self, config, **kwargs):
+            order.append("start")
+            def acknowledge():
+                order.append("ack")
+                acknowledged.set()
+                for handler in self.rlbot_interface.match_config_handlers:
+                    handler(config)
+            timer = threading.Timer(.01, acknowledge)
+            timer.daemon = True
+            timer.start()
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setitem(sys.modules, "rlbot", NS(flat=NS(InitComplete=lambda: "init")))
+    monkeypatch.setitem(sys.modules, "rlbot.interface", NS(SocketRelay=Relay))
+    monkeypatch.setitem(sys.modules, "rlbot.managers.match", NS(MatchManager=Manager))
+    monkeypatch.setitem(sys.modules, "rlbot.managers.rendering", NS(Renderer=lambda relay: NS()))
+    monkeypatch.setattr(worker, "preflight", lambda: None)
+    monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: NS(poll=lambda: None))
+    monkeypatch.setattr(adapter, "match_config", lambda req: (configuration,
+        {0: {"team": 1, "level": 1, "difficulty": .5, "seed": 1}}, 1))
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    monkeypatch.setattr(instance, "_relay_thread", lambda relay: None)
+    instance.setup()
+    assert order == ["manager-connect", "start", "ack", "team-connect"]
+    order.append("mapping")
+    instance.map_team(1, NS(team=1, controllables=[NS(index=0)]))
+    assert order == ["manager-connect", "start", "ack", "team-connect", "mapping", "init"]
+
+
+def test_match_handshake_rejects_wrong_configuration_and_times_out(tmp_path):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    master = NS(match_config_handlers=[])
+    instance.core = NS(poll=lambda: None)
+    def start(config, **kwargs):
+        for handler in master.match_config_handlers:
+            handler(handshake_config("wrong-arena"))
+    instance.manager = NS(rlbot_interface=master, start_match=start)
+    with pytest.raises(RuntimeError, match="acknowledge"):
+        instance.start_acknowledged_match(handshake_config(), timeout=0)
+    assert master.match_config_handlers == []
+
+
+def test_stop_cancels_match_handshake_before_team_connections(tmp_path):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    master = NS(match_config_handlers=[])
+    instance.core = NS(poll=lambda: None)
+    def start(config, **kwargs):
+        instance.command({"type": "stop"})
+    instance.manager = NS(rlbot_interface=master, start_match=start)
+    with pytest.raises(worker.SessionCancelled):
+        instance.start_acknowledged_match(handshake_config())
+    assert master.match_config_handlers == []

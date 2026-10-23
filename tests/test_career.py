@@ -5,6 +5,7 @@ import json
 import pytest
 
 from my_career_training import career as rules
+from my_career_training.bots import PROVIDER_ID, PROVIDER_VERSION, SpecialistController, provider_manifest
 
 
 def play(career, home_score=3, away_score=1, sid=None):
@@ -293,3 +294,52 @@ def test_repeated_format_changes_validate_against_future_rounds_and_not_old_snap
     assert rounds == {1: 3, 2: 1, 3: 4, 4: 4, 5: 4, 6: 4}
     assert rules.validate_career(json.loads(json.dumps(career)))
     assert rules.validate_career(rules.start_fixture(career, "current-four-v-four"))
+
+
+@pytest.mark.parametrize("format", [1, 2, 3, 4])
+@pytest.mark.parametrize("human_team", [0, 1])
+def test_recorded_runtime_matches_controller_parameters_for_every_player_mapping(format, human_team):
+    career = rules.new_career("Runtime Metadata", format=format, seed=775)
+    if human_team == 1:
+        for _ in range(3):
+            career = play(career)
+    career = rules.set_difficulty(career, 0.7, "steep")
+    career = rules.start_fixture(career, "runtime-inspection")
+    fixture = rules.next_fixture(career)
+    manifest = provider_manifest()
+    assert fixture["provider"]["id"] == manifest["id"] == PROVIDER_ID
+    assert fixture["provider"]["version"] == manifest["version"] == PROVIDER_VERSION
+    runtime = fixture["bot_runtime"]
+    assert len(runtime) == format * 2 - 1
+    assert [bot["index"] for bot in runtime] == list(range(format * 2 - 1))
+    assert [bot["team"] for bot in runtime] == sorted(bot["team"] for bot in runtime)
+    teammates = [bot for bot in runtime if bot["team"] == human_team]
+    rivals = [bot for bot in runtime if bot["team"] != human_team]
+    assert [bot["recruit_id"] for bot in teammates] == fixture["lineup"]
+    assert [bot["role"] for bot in rivals] == ["keeper", "attacker", "defender", "passer"][:format]
+    assert all(bot["level"] == fixture["opponent_starting_level"] for bot in rivals)
+    for bot in runtime:
+        controller = SpecialistController(bot["role"], bot["level"], fixture["difficulty"]["value"],
+                                          fixture["seed"] + bot["index"])
+        actual = controller.manifest()
+        assert bot["provider_id"] == actual["id"]
+        assert bot["provider_version"] == actual["version"]
+        for key in ("role", "level", "difficulty", "seed", "parameters"):
+            assert bot[key] == actual[key]
+    done = rules.complete_fixture(career, fixture["id"], "runtime-inspection", 2, 1)
+    result = next(f for f in done["seasons"][0]["fixtures"] if f["id"] == fixture["id"])["result"]
+    assert result["bot_runtime"] == runtime
+    assert rules.validate_career(json.loads(json.dumps(done)))
+
+
+def test_bot_runtime_rejects_tampered_parameters_and_preserves_completed_snapshot():
+    career = play(rules.new_career("Runtime Metadata", seed=775))
+    completed = deepcopy(career["seasons"][0]["fixtures"][0]["bot_runtime"])
+    career = rules.replace_recruit(career, "anchor", "orbit")
+    career = rules.set_difficulty(career, 0.2, "flat")
+    assert career["seasons"][0]["fixtures"][0]["bot_runtime"] == completed
+    malformed = deepcopy(career)
+    rules.next_fixture(malformed)  # Selecting a fixture must not expose an alias.
+    malformed["seasons"][0]["fixtures"][2]["bot_runtime"][0]["parameters"]["speed_limit"] += 100
+    with pytest.raises(ValueError, match="runtime settings"):
+        rules.validate_career(malformed)

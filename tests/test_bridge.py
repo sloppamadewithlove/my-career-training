@@ -9,9 +9,14 @@ import uuid
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QProcess
+from PySide6.QtCore import QUrl
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QApplication
 import pytest
 
+from my_career_training import app as application
 from my_career_training import bridge, career, game_worker, training
 
 
@@ -28,7 +33,7 @@ def backend(tmp_path, monkeypatch, qt_app):
     monkeypatch.setattr(
         bridge, "game_processes", lambda: ["mock-rocket-league"] if game_running["value"] else []
     )
-    monkeypatch.setattr(bridge, "is_alive", lambda _identity: False)
+    monkeypatch.setattr(bridge, "is_alive", lambda identity: identity is not None and game_running["value"])
     monkeypatch.setattr(bridge, "graceful_close", lambda _identity: None)
     monkeypatch.setattr(bridge, "launch_online", lambda launcher: launches.append(launcher) or "online opened")
     instance = bridge.Backend(tmp_path)
@@ -146,6 +151,8 @@ def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, 
     started = career.new_career("Receipt Test", seed=841)
     fixture = career.next_fixture(started)
     session_id = str(uuid.uuid4())
+    instance.session_id = session_id
+    instance.request = {"lesson_id": None}
     state = dict(instance.document)
     state["career"] = career.start_fixture(started, session_id)
     instance._commit(state)
@@ -193,6 +200,7 @@ def test_online_transition_clears_stop_reason_and_allows_later_dispatch(backend)
     instance.session_id = str(uuid.uuid4())
     instance.request = {"session_id": instance.session_id, "lesson_id": None}
     instance.session_state = "Playing"
+    instance.owned_game = bridge.ProcessIdentity(12345, 1.0, "C:/mock/RocketLeague.exe")
     game_running["value"] = True
 
     instance.dispatch("online_request", {})
@@ -302,3 +310,170 @@ def test_source_worker_ready_ping_and_shutdown_protocol():
     assert events[1] == {"type": "pong", "id": "bridge-probe", "session_id": session_id}
     assert process.closed is True
     assert process.session.commands == [{"type": "shutdown", "id": "shutdown-2"}]
+
+
+def _load_main_window(instance, qt_app):
+    QQuickStyle.setStyle("Basic")
+    engine = QQmlApplicationEngine()
+    engine.rootContext().setContextProperty("backend", instance)
+    qml = bridge.Path(__file__).resolve().parents[1] / "src" / "my_career_training" / "ui" / "Main.qml"
+    engine.load(QUrl.fromLocalFile(str(qml)))
+    roots = engine.rootObjects()
+    assert roots, "Main.qml must load for the close-event integration test."
+    window = roots[0]
+    window.setVisible(True)
+    qt_app.processEvents()
+    return engine, window
+
+
+def test_request_close_saves_before_waiting_and_emits_exit_only_after_worker_and_game_exit(backend):
+    instance, game_running, _ = backend
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = str(uuid.uuid4())
+    instance.request = {"session_id": instance.session_id, "lesson_id": None}
+    instance.session_state = "Playing"
+    instance.owned_game = bridge.ProcessIdentity(12346, 1.0, "C:/mock/RocketLeague.exe")
+    game_running["value"] = True
+    exit_spy = QSignalSpy(instance.exitRequested)
+
+    assert instance.request_close() is False
+    assert instance.store.path.exists()
+    assert instance.stop_reason == "exit"
+    assert instance.session_state == "Stopping Career"
+    assert json.loads(process.writes[-1])["type"] == "shutdown"
+
+    process.current_state = QProcess.NotRunning
+    instance._event({"type": "stopped", "session_id": instance.session_id, "id": "shutdown-close"})
+    instance._tick()
+    assert instance.session_state == "Waiting for Game Exit"
+    assert exit_spy.count() == 0
+
+    game_running["value"] = False
+    instance._tick()
+    assert instance.stop_reason is None
+    assert instance.session_state == "Idle"
+    assert exit_spy.count() == 1
+
+
+def test_qml_window_close_is_vetoed_while_backend_waits_for_game_exit(backend, qt_app):
+    instance, game_running, _ = backend
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = str(uuid.uuid4())
+    instance.request = {"session_id": instance.session_id, "lesson_id": None}
+    instance.session_state = "Playing"
+    instance.owned_game = bridge.ProcessIdentity(12347, 1.0, "C:/mock/RocketLeague.exe")
+    game_running["value"] = True
+    exit_spy = QSignalSpy(instance.exitRequested)
+    engine, window = _load_main_window(instance, qt_app)
+
+    accepted = window.close()
+    qt_app.processEvents()
+
+    assert accepted is False
+    assert window.isVisible()
+    assert instance.stop_reason == "exit"
+    assert json.loads(process.writes[-1])["type"] == "shutdown"
+
+    process.current_state = QProcess.NotRunning
+    instance._event({"type": "stopped", "session_id": instance.session_id, "id": "shutdown-qml"})
+    instance._tick()
+    assert exit_spy.count() == 0
+    game_running["value"] = False
+    instance._tick()
+    assert exit_spy.count() == 1
+
+    assert window.close() is True
+    qt_app.processEvents()
+    assert not window.isVisible()
+    engine.deleteLater()
+
+
+def test_qml_window_close_is_accepted_when_idle(backend, qt_app):
+    instance, _, _ = backend
+    engine, window = _load_main_window(instance, qt_app)
+
+    assert window.close() is True
+    qt_app.processEvents()
+
+    assert not window.isVisible()
+    assert instance.store.path.exists()
+    engine.deleteLater()
+
+
+def test_application_connects_graceful_exit_signal_to_quit(backend, monkeypatch, qt_app, tmp_path):
+    instance, _, _ = backend
+    quit_calls = []
+    monkeypatch.setattr(application, "Backend", lambda _directory: instance)
+    monkeypatch.setattr(QApplication, "quit", lambda app: quit_calls.append(app))
+
+    def run_event_loop(app):
+        instance.exitRequested.emit()
+        return 0
+
+    monkeypatch.setattr(QApplication, "exec", run_event_loop)
+
+    result = application.run(tmp_path, smoke_test=True)
+
+    assert result == 0
+    assert quit_calls == [qt_app]
+
+
+def test_optional_match_review_persists_once_across_restart_and_rejects_late_score(backend):
+    instance, _, _ = backend
+    started = career.new_career("Review Persistence", seed=452)
+    fixture = career.next_fixture(started)
+    session_id = str(uuid.uuid4())
+    instance.session_id = session_id
+    instance.request = {"lesson_id": None}
+    state = dict(instance.document)
+    state["career"] = career.start_fixture(started, session_id)
+    instance._commit(state)
+    review = [
+        {
+            "time": 18.25,
+            "title": "Observed score change",
+            "evidence": "The scoreboard changed from 0–0 to 1–0.",
+            "suggestion": "",
+            "kind": "score",
+        },
+        {
+            "time": float("nan"),
+            "title": "Malformed optional note",
+            "evidence": "This must be discarded.",
+            "suggestion": "",
+            "kind": "score",
+        },
+    ]
+    result = {
+        "type": "result",
+        "session_id": session_id,
+        "fixture_id": fixture["id"],
+        "home_score": 2,
+        "away_score": 1,
+        "provenance": "game",
+        "review": review,
+    }
+
+    instance._event(result)
+    expected_review = [review[0]]
+    assert instance.latest_result["review"] == expected_review
+    duplicate = {**result, "review": [{**review[0], "title": "Duplicate packet"}]}
+    instance._event(duplicate)
+    assert instance.latest_result["review"] == expected_review
+
+    before_conflict = instance.store.load()
+    with pytest.raises(ValueError, match="different final result"):
+        instance._event({**result, "home_score": 3, "away_score": 1})
+    assert instance.store.load() == before_conflict
+
+    instance.timer.stop()
+    instance.close()
+    restarted = bridge.Backend(instance.store.directory)
+    try:
+        assert restarted.latest_result["session_id"] == session_id
+        assert restarted.latest_result["review"] == expected_review
+    finally:
+        restarted.timer.stop()
+        restarted.close()

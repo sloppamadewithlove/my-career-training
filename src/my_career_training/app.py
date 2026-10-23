@@ -76,6 +76,7 @@ def run(directory, smoke_test=False, screenshot=None):
             QMessageBox.critical(None, "My Career Training", str(exc))
         return 1
     engine = QQmlApplicationEngine()
+    backend.exitRequested.connect(app.quit)
     engine.rootContext().setContextProperty("backend", backend)
     engine.load(QUrl.fromLocalFile(str(Path(__file__).parent / "ui/Main.qml")))
     if not engine.rootObjects():

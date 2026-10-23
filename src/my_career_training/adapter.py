@@ -30,25 +30,16 @@ def match_config(request):
     human_team = 0 if training or fixture.get("home") == "human" else 1
     players, descriptors = [], {}
     if not training:
-        snapshots = fixture["recruit_snapshots"]
-        for team in (0, 1):
-            count = size - 1 if team == human_team else size
-            for index in range(count):
-                if team == human_team:
-                    bot = snapshots[fixture["lineup"][index]]
-                else:
-                    roles = ("keeper", "attacker", "defender", "passer")
-                    bot = {"name": f"Rival {index + 1}", "role": roles[index],
-                           "level": fixture.get("opponent_starting_level", 1),
-                           "loadout": {"car_id": 23, "primary_color": 30, "secondary_color": 0}}
-                loadout = bot.get("loadout", {})
-                variety = f.CustomBot(name=bot["name"], root_dir=str(Path.cwd()), run_command="",
-                    agent_id=f"my-career-training/team-{team}", hivemind=True,
-                    loadout=f.PlayerLoadout(car_id=loadout.get("car_id", 23), wheels_id=376,
-                        team_color_id=loadout.get("primary_color", 27),
-                        custom_color_id=loadout.get("secondary_color", 0)))
-                descriptors[len(players)] = dict(bot, team=team)
-                players.append(f.PlayerConfiguration(variety=variety, team=team))
+        from .career import bot_runtime_snapshot
+        for bot in bot_runtime_snapshot(fixture):
+            team, loadout = bot["team"], bot["loadout"]
+            variety = f.CustomBot(name=bot["name"], root_dir=str(Path.cwd()), run_command="",
+                agent_id=f"my-career-training/team-{team}", hivemind=True,
+                loadout=f.PlayerLoadout(car_id=loadout.get("car_id", 23), wheels_id=376,
+                    team_color_id=loadout.get("primary_color", 27),
+                    custom_color_id=loadout.get("secondary_color", 0)))
+            descriptors[len(players)] = bot
+            players.append(f.PlayerConfiguration(variety=variety, team=team))
     # The core moves the human last. Build that layout explicitly to avoid remapping.
     players.append(f.PlayerConfiguration(variety=f.Human(), team=human_team))
     arena = fixture.get("map", "Stadium_P")
