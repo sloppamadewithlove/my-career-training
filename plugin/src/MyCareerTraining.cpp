@@ -273,7 +273,7 @@ void MyCareerTraining::tick() {
         const bool owned = mct::numberValue(ownedGame, "pid", -1) == static_cast<double>(GetCurrentProcessId());
         offlineReady_ = fresh && owned && !next.online;
         // Empty observations enforce timeout/scope without recording tick spam.
-        if (probeHooksInstalled_ || nativeProbe_.eventCount()) {
+        if (nativeProbe_.hasTrace()) {
             observeNativeProbe("");
             if (!nativeProbe_.active()) removeProbeHooks();
         }

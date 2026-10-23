@@ -106,6 +106,13 @@ public:
         return active_;
     }
 
+    // A duration-limited trace can have zero events. Continue checking its
+    // scope on every tick until it is exported or erased.
+    bool hasTrace() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return !nonce_.empty();
+    }
+
     std::size_t eventCount() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return events_.size();

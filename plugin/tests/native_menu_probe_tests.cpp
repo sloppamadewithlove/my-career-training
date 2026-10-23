@@ -72,19 +72,31 @@ int main() {
         require(!probe.observe(scope, "menu_stack_transition", "MainMenu", false, 520.0),
                 "Duration limit recorded a late event");
         require(!probe.active(), "Duration limit left collection running");
-        require(probe.stopToBridge(scope, 520.1, bridge), "Duration-limited trace was lost");
+        require(probe.hasTrace(), "Duration-limited empty trace was lost before stop");
+        auto stale = scope;
+        stale.fresh = false;
+        require(!probe.observe(stale, "", "", false, 520.05),
+                "Stale bridge observation was accepted");
+        require(!probe.hasTrace(), "Stale bridge did not erase bounded empty trace");
+        require(!probe.stopToBridge(scope, 520.1, bridge), "Stale bounded trace was exported");
+        require(!fs::exists(path), "Stale bounded trace reached disk");
+
+        require(probe.start(scope, 600.0), "Second duration probe did not start");
+        require(!probe.observe(scope, "", "", false, 720.0),
+                "Duration limit accepted empty observation");
+        require(probe.stopToBridge(scope, 720.1, bridge), "Duration-limited trace was lost");
         std::ifstream durationStream(path);
         require(mct::Json::parse(durationStream)["finish_reason"] == "duration_limit",
                 "Duration stop reason was not recorded");
 
         fs::remove(path);
-        require(probe.start(scope, 600.0), "Count probe did not start");
+        require(probe.start(scope, 800.0), "Count probe did not start");
         for (std::size_t i = 0; i < mct::NativeMenuProbe::kMaxEvents + 30; ++i)
-            probe.observe(scope, "menu_stack_transition", "MainMenu", false, 600.0 + i * 0.001);
+            probe.observe(scope, "menu_stack_transition", "MainMenu", false, 800.0 + i * 0.001);
         require(!probe.active(), "Event limit left collection running");
         require(probe.eventCount() == mct::NativeMenuProbe::kMaxEvents,
                 "Event limit exceeded or undercounted");
-        require(probe.stopToBridge(scope, 602.0, bridge), "Count-limited trace was lost");
+        require(probe.stopToBridge(scope, 802.0, bridge), "Count-limited trace was lost");
         std::ifstream countStream(path);
         const auto countTrace = mct::Json::parse(countStream);
         require(countTrace["finish_reason"] == "event_limit", "Event limit reason missing");
