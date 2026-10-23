@@ -74,14 +74,14 @@ public:
     // Stop is the only operation that writes a trace. The destination is a
     // fixed basename under the bridge's per-user directory, never input data.
     bool stopToBridge(const NativeProbeScope& scope, double now, LocalBridge& bridge) {
-        Json trace;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (!safeCurrentScope(scope) || !std::isfinite(now) || now < startedAt_) {
-                clearLocked();
-                return false;
-            }
-            trace = {{"schema_version", 1}, {"kind", "native_menu_read_only_probe"},
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!safeCurrentScope(scope) || !std::isfinite(now) || now < startedAt_) {
+            clearLocked();
+            return false;
+        }
+        active_ = false;
+        if (finishReason_.empty()) finishReason_ = "operator_stop";
+        const Json trace = {{"schema_version", 1}, {"kind", "native_menu_read_only_probe"},
                      {"started_at", startedAt_}, {"finished_at", now},
                      {"scope", {{"bridge_session", nonce_}, {"game_build", build_},
                                 {"executable_sha256", executableSha256_.empty() ? Json(nullptr) : Json(executableSha256_)},
@@ -90,15 +90,19 @@ public:
                      {"limits", {{"duration_seconds", kMaxSeconds}, {"event_count", kMaxEvents}}},
                      {"finish_reason", finishReason_.empty() ? "operator_stop" : finishReason_},
                      {"native_mutations", false}, {"events", events_}};
-            clearLocked();
-        }
         LocalBridge::atomicWrite(bridge.directory() / kOutputName, trace.dump(2));
+        clearLocked();
         return true;
     }
 
     void clear() {
         std::lock_guard<std::mutex> lock(mutex_);
         clearLocked();
+    }
+
+    std::string finishReason() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return finishReason_;
     }
 
     bool active() const {
@@ -167,7 +171,8 @@ private:
 
     bool safeCurrentScope(const NativeProbeScope& scope) const {
         return !nonce_.empty() && safeScope(scope) &&
-               scope.sessionNonce == nonce_ && scope.gameBuild == build_;
+               scope.sessionNonce == nonce_ && scope.gameBuild == build_ &&
+               (executableSha256_.empty() || scope.executableSha256 == executableSha256_);
     }
 
     void clearLocked() {

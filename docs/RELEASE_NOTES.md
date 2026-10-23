@@ -1,4 +1,25 @@
-# Current status: v0.2.0 is a known-issues previous preview
+# Current development status: native-menu installer held
+
+There is no downloadable native-menu edition yet. The public installer remains
+held under the owner's native-menu requirement. GitHub source changes and green
+Windows checks must not be presented as a completed download.
+
+[PR #2](https://github.com/sloppamadewithlove/my-career-training/pull/2) is merged.
+It repairs atomic bridge file sharing on Windows, removes repeated menu-open
+requests, simplifies the plugin window and garage, and adds a guided official
+BakkesMod setup flow. The Windows checks passed, including plugin compilation
+and frozen-app smoke checks. Installer build, installation lifecycle checks,
+packaging and artifact upload were skipped by the explicit installer hold.
+The repaired source still renders an ImGui window; it does not replace native
+Rocket League buttons. Its gameplay fixes need a fresh Windows game test.
+
+The latest source adds easier opt-in native-menu diagnostics and
+removes old-preview download promotion from the project website. See
+[the probe contract](NATIVE_MENU_PROBE.md) and
+[native integration research](NATIVE_MENU_RESEARCH.md) for the precise evidence
+boundary. No native-menu runtime verification or new release is claimed.
+
+## Previous preview: owner-reported failures
 
 **A replacement installer is on hold.** In the owner's Windows Steam test of
 the published v0.2.0 package, starting a Career fixture and **Start Practice**
@@ -9,7 +30,7 @@ League's original menu glitched over it, plus a Windows **Access is denied**
 error under a per-run folder beneath `%LOCALAPPDATA%`. These are actual player
 reports; they are not a pending first test or a diagnosis.
 
-Source repairs are in progress. No replacement build is public-ready. Existing
+Source repairs have merged, but no replacement build is public-ready. Existing
 v0.2.0 artifacts remain accessible as the [known-issues previous preview](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0),
 not as a fixed download. See the [current player guide](IN_GAME_PLAYER_GUIDE.md)
 and [GitHub repository](https://github.com/sloppamadewithlove/my-career-training)
@@ -18,8 +39,9 @@ for status.
 The old package requires the player to manually install and run [BakkesMod](https://bakkesmod.com/)
 from its official source. BakkesMod is a third-party plugin framework used by
 v0.2.0 to load the My Career plugin; the My Career Training installer does not
-include it. A guided official setup is planned for a future build. This note
-does not claim bundling, redistribution rights, or a completed installer flow.
+include it. A guided official setup is implemented in the repaired source but
+has not been released in an installer. No bundling or redistribution rights are
+claimed.
 
 The intended destination is a native My Career flow in the offline
 game, while preserving the original Steam installation and saves. The v0.2.0
