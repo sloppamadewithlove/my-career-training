@@ -1,6 +1,8 @@
-"""Offline Workshop browser; launches resolve IDs to inspected local packages only.
+"""Offline Workshop browser. Installed and imported packages can be browsed and favorited.
 
-No Steam/network download API, external program, or console command is used here.
+Custom map launch is unavailable: the pinned RLBot core writes the installed game's
+Haunted_TrainStation_P.upk, and no no-write route exists there. This is not a native
+Workshop menu. No Steam download, external program, or console command is used here.
 """
 from __future__ import annotations
 
@@ -11,7 +13,8 @@ import re
 import stat
 import sys
 
-from .content import MAX_MAP_BYTES, community_catalog, import_map
+from .content import MAX_MAP_BYTES, community_catalog
+from .map_guard import CUSTOM_MAP_LAUNCH_UNAVAILABLE, digest
 
 _MAGIC = b"\xc1\x83\x2a\x9e"
 _SHA = re.compile(r"^[a-f0-9]{64}$")
@@ -198,12 +201,24 @@ def library_state(data_directory, launcher="steam", install_path="", favorites=(
     for item in rows:
         item["favorite"] = item["id"] in favorite_ids
         launch_id = item.get("launch_id", item["id"] if item["installed"] else None)
-        item["can_launch"] = bool(launcher == "steam" and launch_id and (
+        # A single installed package used to be selectable for RLBot. That route writes
+        # the Steam game files on the pinned core, so launch stays closed.
+        selectable = bool(launcher == "steam" and launch_id and (
             item["origin"] != "catalog" or item.get("launch_id")))
+        item["can_launch"] = False
+        if launcher == "epic":
+            item["availability"] = "Epic loader unavailable"
+            item["launch_reason"] = item["availability"]
+        elif selectable:
+            item["availability"] = CUSTOM_MAP_LAUNCH_UNAVAILABLE
+            item["launch_reason"] = CUSTOM_MAP_LAUNCH_UNAVAILABLE
+        elif item["origin"] == "catalog" and item["installed"] and launcher == "steam":
+            item["availability"] = "Choose an installed package"
+            item["launch_reason"] = CUSTOM_MAP_LAUNCH_UNAVAILABLE
+        else:
+            item["availability"] = "Not installed"
+            item["launch_reason"] = item["availability"]
         item["launch_id"] = launch_id
-        item["availability"] = ("Local package · launch available" if item["can_launch"] else
-                                "Choose an installed package" if item["installed"] and launcher == "steam" else
-                                "Epic loader unavailable" if launcher == "epic" else "Not installed")
     categories = sorted({row["category"] for row in rows})
     counts = {"browse": len(rows), "favorites": sum(row["favorite"] for row in rows),
               "created": sum(row["origin"] == "local_import" for row in rows),
@@ -224,7 +239,9 @@ def library_state(data_directory, launcher="steam", install_path="", favorites=(
     return {"items": filtered, "categories": categories, "tabs": TABS[:], "counts": counts,
             "tab": tab, "query": search, "category": category, "launcher": launcher,
             "created_label": "Created / imported", "offline": True,
-            "note": "Creator references are offline metadata. Installed packages still need map-specific game verification."}
+            "launch": {"available": False, "reason": CUSTOM_MAP_LAUNCH_UNAVAILABLE},
+            "note": "Browse installed maps and save favorites. Custom map launch is paused while a loader "
+                    "that preserves your Steam game is being developed."}
 
 
 def toggle_favorite(favorites, identity: str, items) -> list[str]:
@@ -240,10 +257,10 @@ def toggle_favorite(favorites, identity: str, items) -> list[str]:
 
 def prepare_launch(identity: str, data_directory, launcher="steam", install_path="", imported_maps=(),
                    steam_roots=None) -> dict:
-    """Re-discover and re-import selected bytes, yielding trusted launch metadata.
+    """Reject a launch before copying a package into a game slot.
 
-    Caller must use the controlled RLBot route and recovery contract documented in
-    WORKSHOP_LIBRARY.md; this function never alters installed game files.
+    Discovery and favorites stay available through library_state. This function
+    does not import over the Steam game files and does not return a launch payload.
     """
     if launcher != "steam":
         raise ValueError("Epic map launch is unavailable until its local loader is verified.")
@@ -251,15 +268,15 @@ def prepare_launch(identity: str, data_directory, launcher="steam", install_path
                           steam_roots=steam_roots)
     rows = {row["id"]: row for row in state["items"]}
     item = rows.get(identity)
-    if item and item.get("launch_id"):
+    if item and item.get("launch_id") and item["launch_id"] != item["id"]:
         item = rows.get(item["launch_id"])
-    if not item or not item.get("can_launch") or not item.get("path"):
+    if not item or not item.get("path"):
         raise ValueError("Install this map or choose its exact installed package before playing.")
-    result = import_map(item["path"], data_directory, launcher)
-    if item["origin"] == "local_import" and result["sha256"] != item["sha256"]:
-        raise ValueError("Imported map bytes changed. Import the original package again before playing.")
-    result.update(id=identity, title=item["title"], origin=item["origin"],
-                  creator=item.get("creator", ""), creator_url=item.get("url", ""),
-                  workshop_id=item.get("workshop_id"), dependencies=item.get("dependency", "Creator-specific dependencies"),
-                  requires_game_map_recovery=True)
-    return result
+    if item.get("origin") == "local_import":
+        try:
+            actual = digest(item["path"])
+        except OSError:
+            actual = ""
+        if actual != item.get("sha256"):
+            raise ValueError("Imported map bytes changed. Import the original package again before playing.")
+    raise ValueError(CUSTOM_MAP_LAUNCH_UNAVAILABLE)

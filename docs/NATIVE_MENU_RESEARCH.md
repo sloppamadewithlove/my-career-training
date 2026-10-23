@@ -26,8 +26,14 @@ verified native-menu Windows build, so the installer remains on hold.
 
 ## Native integration candidates
 
-Two approaches merit investigation. Neither is validated for the current
-Rocket League process.
+The source now includes an opt-in [native dialog trial](NATIVE_DIALOG_TRIAL.md)
+using the public `CreateModal`/`AddButton` SDK. Its buttons route real Career and
+Training commands, with stale-click and backend fixture checks. It has not run
+inside the player's Windows game and does not replace or lock stock menus.
+This supported route is narrower than the two full-menu candidates below.
+
+Two approaches to full menu replacement still merit investigation. Neither is
+validated for the current Rocket League process.
 
 | Candidate | Evidence and potential | What remains unknown |
 |---|---|---|

@@ -21,13 +21,26 @@ lessons, recorded ghost playback, a PlayStation-style action display, a workshop
 library, and local cosmetic controls. These are implementation details, not a
 claim that every feature works in the player's game.
 
-The latest merged repair fixes Windows bridge file-sharing conflicts, replaces
-repeated menu-open requests with transition-based navigation, simplifies the
-interface, and adds guided setup for the official BakkesMod installer. Windows
+Earlier repairs fix Windows bridge file-sharing conflicts, replace
+repeated menu-open requests with transition-based navigation, simplify the
+interface, and add guided setup for the official BakkesMod installer. Windows
 source, plugin and frozen-application checks passed for
 [PR #2](https://github.com/sloppamadewithlove/my-career-training/pull/2).
-Installer creation and upload were deliberately skipped. Those checks do not
-verify gameplay or native menu replacement.
+Installer creation and upload were deliberately skipped in that run. The 0.3.0
+workflow also builds and checks installation, same-version reinstall and
+uninstallation while keeping downloadable artifacts on hold. These automated
+checks do not verify gameplay, older-version upgrades or native menu replacement.
+
+A supported [native dialog trial](docs/NATIVE_DIALOG_TRIAL.md) now routes Career
+and Training buttons through Rocket League dialogs. It is opt-in development
+code: it does not replace the full menu, disable stock buttons, or prove
+controller and Back/Escape behavior. The installer hold remains in place.
+
+The 0.3.0 source journals temporary BakkesMod plugin setup and restores the
+previous files after the game closes. Interrupted sessions keep a recovery
+record; conflicting user changes are preserved. The old custom-map substitution
+route is disabled because it writes an installed Rocket League map. Workshop
+browsing and favorites remain available.
 
 A read-only [menu diagnostic](docs/NATIVE_MENU_PROBE.md) supports investigation
 on the player's installed Steam build. It does not edit game memory, replace
@@ -54,6 +67,7 @@ before making any changes.
 - [Acceptance record](docs/IN_GAME_ACCEPTANCE.md)
 - [Native menu investigation and release gate](docs/NATIVE_MENU_RESEARCH.md)
 - [Read-only menu diagnostic](docs/NATIVE_MENU_PROBE.md)
+- [Windows Codex handoff and read-only game-file comparison](docs/WINDOWS_CODEX_HANDOFF.md)
 - [Design-engineer handoff for Opus 5.5](docs/OPUS_DESIGN_BRIEF.md) — a brief; no completed Opus review is claimed.
 - [Bot providers](docs/BOT_PROVIDERS.md) and [workshop library](docs/WORKSHOP_LIBRARY.md)
 - [Plugin capabilities and build](plugin/README.md)

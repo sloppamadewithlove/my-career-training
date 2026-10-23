@@ -685,6 +685,11 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     for (int k = 0; k < 8; ++k) if (runtime.toggleKey == keys[k]) keyIndex = k;
     if (ImGui::Combo("Career menu shortcut", &keyIndex, keys, 8)) queueLocal(LocalRequest::RebindMenu, {{"key", keys[keyIndex]}});
     if (ImGui::CollapsingHeader("DIAGNOSTICS")) {
+        paragraph("Native dialog trial: uses Rocket League dialogs for Career and Training. It does not replace or lock the original menus.");
+        if (button("TRY NATIVE CAREER DIALOG", !runtime.inGame && !runtime.replay && !runtime.probeActive))
+            queueLocal(LocalRequest::OpenNativeMenu);
+        if (!runtime.nativeMenuMessage.empty()) paragraph(runtime.nativeMenuMessage.c_str());
+        ImGui::Separator();
         ImGui::Text("Game build: %s  |  BakkesMod %d  |  SDK API 95", runtime.build.c_str(), runtime.bakkesVersion);
         detail(runtime.teamLockApplied ? "Career team lock currently applied." : "Team lock applies inside an active career fixture.");
         paragraph("Idle-kick protection has not been verified. The plugin does not spoof movement or guarantee that an inactive player stays in a match.");

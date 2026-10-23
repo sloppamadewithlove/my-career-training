@@ -56,7 +56,7 @@ name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe" },
+    { name = "markupsafe", marker = "sys_platform != 'darwin'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
@@ -97,7 +97,7 @@ wheels = [
 
 [[package]]
 name = "my-career-training"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", marker = "sys_platform == 'win32'" },
@@ -307,8 +307,8 @@ name = "rlbot"
 version = "2.0.0b56"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "psutil" },
-    { name = "rlbot-flatbuffers" },
+    { name = "psutil", marker = "sys_platform != 'darwin'" },
+    { name = "rlbot-flatbuffers", marker = "sys_platform != 'darwin'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d8/5b/e6b1a5daf507def1120e1f781b9782a7c5cee7d02188bce3ca1d5ea5784f/rlbot-2.0.0b56.tar.gz", hash = "sha256:ecf32af99107546c47e96e9a16434ccd8be430cd297245f55756d34b93815abd", size = 25152, upload-time = "2026-10-02T19:28:19.001Z" }
 wheels = [
@@ -376,7 +376,7 @@ name = "sympy"
 version = "1.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mpmath" },
+    { name = "mpmath", marker = "sys_platform != 'darwin'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/99/5a5b6f19ff9f083671ddf7b9632028436167cd3d33e11015754e41b249a4/sympy-1.13.1.tar.gz", hash = "sha256:9cebf7e04ff162015ce31c9c6c9144daa34a93bd082f54fd8f12deca4f47515f", size = 7533040, upload-time = "2024-07-19T09:26:51.238Z" }
 wheels = [

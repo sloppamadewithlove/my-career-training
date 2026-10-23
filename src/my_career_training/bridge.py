@@ -437,6 +437,13 @@ class Backend(QObject):
         if action == "play_match":
             if not career:
                 raise ValueError("Create a career first.")
+            # Native dialog callbacks may arrive after the displayed fixture
+            # changed. Validate their snapshot before provider/save side effects.
+            if "expected_career_id" in payload or "expected_fixture_id" in payload:
+                fixture = domain.next_fixture(career)
+                if (payload.get("expected_career_id") != career["id"] or not fixture or
+                        payload.get("expected_fixture_id") != fixture["id"]):
+                    raise ValueError("That match changed while the menu was open. Reopen Career and choose the current fixture.")
             from .bots.providers import ensure_provider
             ensure_provider(request["provider"], career["format"])
             self._career_change(domain.set_policy, request["provider"])

@@ -77,7 +77,7 @@ def read_shortcut(path: Path) -> dict[str, str]:
         return {'target': target.value, 'arguments': arguments.value}
 
 
-def programs_folders() -> list[Path]:
+def _shell_folders(csidl_values: tuple[int, ...]) -> list[Path]:
     if os.name != 'nt':
         raise OSError('Windows known folders require Windows')
     shell = ctypes.WinDLL('shell32')
@@ -85,10 +85,18 @@ def programs_folders() -> list[Path]:
                                      ctypes.c_uint32, ctypes.c_wchar_p]
     shell.SHGetFolderPathW.restype = ctypes.c_int32
     folders = []
-    for csidl in (0x02, 0x17):  # CSIDL_PROGRAMS, CSIDL_COMMON_PROGRAMS
+    for csidl in csidl_values:
         value = ctypes.create_unicode_buffer(32768)
         _check(shell.SHGetFolderPathW(None, csidl, None, 0, value))
         path = Path(value.value)
         if path not in folders:
             folders.append(path)
     return folders
+
+
+def programs_folders() -> list[Path]:
+    return _shell_folders((0x02, 0x17))  # CSIDL_PROGRAMS, CSIDL_COMMON_PROGRAMS
+
+
+def desktop_folders() -> list[Path]:
+    return _shell_folders((0x10, 0x19))  # CSIDL_DESKTOPDIRECTORY, CSIDL_COMMON_DESKTOPDIRECTORY

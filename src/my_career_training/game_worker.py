@@ -333,6 +333,8 @@ class GameSession:
             master.match_config_handlers.remove(on_config)
 
     def setup(self):
+        from .map_guard import refuse_custom_map_launch
+        refuse_custom_map_launch(self.request)
         if sys.platform != "win32":
             raise RuntimeError("Game sessions run on Windows. Use the Windows installer on your gaming PC.")
         from rlbot.interface import SocketRelay
@@ -344,11 +346,13 @@ class GameSession:
         from .training.recordings import validate_recording
         self.check_cancel()
         preflight(self.owned)
-        executable = core_path()
-        if self.request.get("workshop"):
+        # Heal a journal an older build already wrote, only after preflight says no game is open.
+        # This does not copy a custom map or write a new journal.
+        if self.request.get("data_dir"):
             from .map_guard import MapGuard
             self.map_guard = MapGuard(self.request["data_dir"])
-            self.map_guard.prepare(self.request["settings"]["install_path"], self.request["workshop"])
+            self.map_guard.recover()
+        executable = core_path()
         config, descriptors, self.human_index = adapter.match_config(self.request)
         self.human_team = config.player_configurations[self.human_index].team
         self.descriptors = descriptors
@@ -754,6 +758,9 @@ class Worker:
         elif kind == "start":
             if self.session and self.session.thread.is_alive():
                 raise RuntimeError("An offline session is already running.")
+            from .map_guard import refuse_custom_map_launch
+            # Before the session object, its thread, RLBot, or any game-file journal.
+            refuse_custom_map_launch(command)
             self.session = self.session_factory(command, self.emit)
             self.session.thread.start()
         elif kind in {"stop", "shutdown"}:

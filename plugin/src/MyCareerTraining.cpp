@@ -11,8 +11,9 @@
 #include <set>
 #include <stdexcept>
 #include <windows.h>
+#include <shellapi.h>
 
-BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.2.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.3.0", PLUGINTYPE_FREEPLAY)
 extern "C" __declspec(dllexport) int mct_protocol_version() { return 1; }
 
 namespace {
@@ -42,6 +43,39 @@ std::filesystem::path bridgeDirectory() {
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return value;
+}
+
+std::string utf8(const std::wstring& value) {
+    if (value.empty()) return {};
+    const int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+        static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (size <= 0) throw std::runtime_error("Cannot read the game process identity.");
+    std::string result(size, '\0');
+    if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+            static_cast<int>(value.size()), result.data(), size, nullptr, nullptr) != size)
+        throw std::runtime_error("Cannot read the game process identity.");
+    return result;
+}
+
+mct::ProcessScope currentProcessScope() {
+    mct::ProcessScope scope;
+    scope.pid = GetCurrentProcessId();
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user))
+        throw std::runtime_error("Cannot verify the game start time.");
+    ULARGE_INTEGER ticks{}; ticks.LowPart = created.dwLowDateTime; ticks.HighPart = created.dwHighDateTime;
+    scope.created = static_cast<double>(ticks.QuadPart - 116444736000000000ULL) / 10000000.0;
+    std::wstring path(32768, L'\0');
+    const DWORD count = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (!count || count >= path.size()) throw std::runtime_error("Cannot identify the running game file.");
+    path.resize(count); scope.executable = utf8(path);
+    int argc = 0;
+    auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!argv) throw std::runtime_error("Cannot verify the offline launch flags.");
+    try { for (int i = 1; i < argc; ++i) scope.arguments.push_back(utf8(argv[i])); }
+    catch (...) { LocalFree(argv); throw; }
+    LocalFree(argv);
+    return scope;
 }
 
 // Original implementation of BakkesMod's documented v3 loadout wire format.
@@ -130,17 +164,23 @@ void MyCareerTraining::onLoad() {
     alive_ = std::make_shared<int>(1);
     try {
         bridge_ = std::make_unique<mct::LocalBridge>(bridgeDirectory());
+        processScope_ = currentProcessScope();
         loadPreferences();
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
-            if (!offlineReady_) return;
+            if (!offlineReady_ || !ownedOfflineNow()) return;
+            closeNativeMenu();
             menuOpen_ = !menuOpen_.load();
             if (menuOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Toggle the offline My Career interface", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_training", [this](std::vector<std::string>) {
-            if (!offlineReady_) return;
+            if (!offlineReady_ || !ownedOfflineNow()) return;
+            closeNativeMenu();
             page_ = 4; menuOpen_ = true;
             cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Open offline training controls", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_native_hub", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::OpenNativeMenu);
+        }, "Try supported native career dialogs in the owned offline frontend", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::StartProbe);
         }, "Opt in to a bounded read-only native menu diagnostic", PERMISSION_OFFLINE);
@@ -150,17 +190,9 @@ void MyCareerTraining::onLoad() {
         cvarManager->registerNotifier("mct_probe_cancel", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::CancelProbe);
         }, "Discard the local native menu diagnostic", PERMISSION_OFFLINE);
-        // F6 is commonly the BakkesMod console. Find an unused key and preserve
-        // all player/plugin bindings; the actual selected key is shown in UI.
-        bool availableKey = false;
-        for (const char* key : {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}) {
-            const auto binding = cvarManager->getBindStringForKey(key);
-            if (binding.empty() || binding == "mct_menu") { toggleKey_ = key; previousBind_ = binding; availableKey = true; break; }
-        }
-        if (availableKey) {
-            cvarManager->setBind(toggleKey_, "mct_menu"); ownBind_ = true;
-        } else toggleKey_ = "BakkesMod console: mct_menu";
-        cvarManager->log("My Career Training 0.2.0: waiting for the offline career service. Menu key: " + toggleKey_);
+        // Do not touch bindings just because BakkesMod loaded the DLL. A normal
+        // Steam game (including its frontend) is not an owned career session.
+        cvarManager->log("My Career Training 0.3.0: waiting for the owned offline career service.");
         tick();
     } catch (const std::exception& error) {
         cvarManager->log(std::string("My Career could not start: ") + error.what());
@@ -169,13 +201,60 @@ void MyCareerTraining::onLoad() {
 
 void MyCareerTraining::onUnload() {
     alive_.reset();
+    updateNavigationFlags(false);
+    closeNativeMenu();
     offlineReady_ = false;
     removeProbeHooks();
     nativeProbe_.clear();
     probeExecutableSha256_.clear();
     probeSaveFailed_ = false;
-    if (ownBind_ && cvarManager->getBindStringForKey(toggleKey_) == "mct_menu") cvarManager->removeBind(toggleKey_);
+    releaseMenuBind();
     restoreCosmetics();
+}
+
+bool MyCareerTraining::ownedOfflineNow() const {
+    if (!bridge_) return false;
+    const auto state = bridge_->state();
+    const auto path = stringValue(objectValue(state, "owned_game"), "executable");
+    std::error_code error;
+    const bool sameFile = !path.empty() && std::filesystem::equivalent(
+        std::filesystem::u8path(processScope_.executable), std::filesystem::u8path(path), error);
+    return !error && mct::ownedSession(state, processScope_, bridge_->fresh(),
+        gameWrapper->IsInOnlineGame(), sameFile) && gameWrapper->IsUsingSteamVersion();
+}
+
+void MyCareerTraining::acquireMenuBind() {
+    if (bindAttempted_ || !ownedOfflineNow()) return;
+    bindAttempted_ = true;
+    for (const char* key : {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}) {
+        const auto binding = cvarManager->getBindStringForKey(key);
+        if (!binding.empty() && binding != "mct_menu") continue;
+        toggleKey_ = key;
+        // Observe an unused key inside our foreground process only. Never
+        // write global Bakkes bindings, even temporarily: a crash may persist them.
+        toggleVirtualKey_ = binding.empty() ? VK_F1 + std::stoi(toggleKey_.substr(1)) - 1 : 0;
+        shortcut_.reset();
+        return;
+    }
+    toggleKey_ = "BakkesMod console: mct_menu";
+}
+
+void MyCareerTraining::releaseMenuBind() {
+    bindAttempted_ = false; toggleVirtualKey_ = 0; shortcut_.reset();
+}
+
+void MyCareerTraining::pollMenuShortcut() {
+    if (!toggleVirtualKey_) return; // Existing user mct_menu bindings use the notifier.
+    const auto binding = cvarManager->getBindStringForKey(toggleKey_);
+    if (!binding.empty()) { releaseMenuBind(); return; }
+    DWORD foregroundPid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+    const bool down = (GetAsyncKeyState(toggleVirtualKey_) & 0x8000) != 0;
+    if (shortcut_.observe(down, foregroundPid == GetCurrentProcessId() && offlineReady_)) {
+        closeNativeMenu();
+        menuOpen_ = !menuOpen_.load();
+        if (menuOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
+    }
 }
 
 void MyCareerTraining::scheduleTick() {
@@ -187,8 +266,7 @@ mct::NativeProbeScope MyCareerTraining::probeScope() const {
     mct::NativeProbeScope scope;
     if (!bridge_) return scope;
     const auto state = bridge_->state();
-    scope.owned = mct::numberValue(objectValue(state, "owned_game"), "pid", -1) ==
-        static_cast<double>(GetCurrentProcessId());
+    scope.owned = ownedOfflineNow();
     scope.fresh = bridge_->fresh();
     scope.online = gameWrapper->IsInOnlineGame();
     scope.sessionNonce = stringValue(state, "bridge_session");
@@ -327,9 +405,9 @@ void MyCareerTraining::tick() {
         next.bakkesVersion = gameWrapper->GetBakkesModVersion();
         next.toggleKey = toggleKey_;
         const auto publishedState = bridge_->state();
-        const auto ownedGame = objectValue(publishedState, "owned_game");
-        const bool owned = mct::numberValue(ownedGame, "pid", -1) == static_cast<double>(GetCurrentProcessId());
-        offlineReady_ = fresh && owned && !next.online;
+        offlineReady_ = fresh && ownedOfflineNow();
+        if (nativeDialogActive_ && (!offlineReady_ || next.inGame || next.replay ||
+            nativeNonce_ != stringValue(publishedState, "bridge_session"))) closeNativeMenu();
         // Empty observations enforce timeout/scope without recording tick spam.
         if (probeHooksInstalled_ || nativeProbe_.hasTrace()) {
             // A hook may already have erased an unsafe trace. Still remove
@@ -349,6 +427,9 @@ void MyCareerTraining::tick() {
             }
         }
         if (offlineReady_) {
+            acquireMenuBind();
+            pollMenuShortcut();
+            next.toggleKey = toggleKey_;
             const auto& state = publishedState;
             const auto session = objectValue(state, "session");
             const auto phase = stringValue(session, "state");
@@ -369,7 +450,7 @@ void MyCareerTraining::tick() {
                 nativePause, next.matchEnded, nonce, phase});
             // Observe the pause edge even while resuming, so a slow native
             // close cannot repeatedly reclaim input after the player resumes.
-            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active())
+            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active() && !nativeDialogActive_)
                 menuOpen_ = true;
             else if (change == mct::MenuChange::Hide) menuOpen_ = false;
             auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
@@ -377,6 +458,8 @@ void MyCareerTraining::tick() {
             next.itemModAvailable = enabled && code;
             if (scanningProducts_) scanProducts(next);
             processLocalRequests(next);
+            processNativeClick();
+            next.nativeMenuMessage = nativeMenuMessage_;
             next.probeActive = nativeProbe_.active() && !probeSaveFailed_;
             next.probeSavePending = probeSaveFailed_ && nativeProbe_.hasTrace();
             next.probeEvents = nativeProbe_.eventCount();
@@ -386,17 +469,19 @@ void MyCareerTraining::tick() {
             if (change != mct::MenuChange::None && !windowOpen_)
                 cvarManager->executeCommand("openmenu mycareertraining", false);
             if (mct::unixTime() - lastStatus_ >= 0.5) {
-                Json status = {{"version", "0.2.0"}, {"sdk_api", 95}, {"online", next.online},
+                Json status = {{"version", "0.3.0"}, {"sdk_api", 95}, {"online", next.online},
                     {"pid", GetCurrentProcessId()}, {"bakkesmod_version", next.bakkesVersion},
                     {"in_game", next.inGame}, {"ui_open", ShouldBlockInput()}, {"menu", next.menu},
                     {"game_build", next.build}, {"logical_actions", next.actions}, {"team_lock_applied", next.teamLockApplied},
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
-                    {"menu_mode", "full-screen custom PluginWindow with input capture"}};
+                    {"menu_mode", "full-screen custom PluginWindow with input capture"},
+                    {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
             }
         } else {
+            releaseMenuBind();
             // Restoring previously captured local cvars is also necessary on an
             // online transition. Leaving an override enabled would leak a
             // career-only choice into the player's ordinary Rocket League.
@@ -424,10 +509,13 @@ void MyCareerTraining::tick() {
         probeExecutableSha256_.clear();
         probeSaveFailed_ = false;
         probeMessage_ = std::string("Menu capture stopped: ") + error.what();
+        closeNativeMenu();
         std::lock_guard<std::mutex> guard(runtimeMutex_);
         runtime_.error = error.what();
         tickFailed_ = true;
         offlineReady_ = false;
+        menuOpen_ = false;
+        releaseMenuBind();
     }
     scheduleTick();
 }
@@ -496,12 +584,17 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
         requests.swap(localRequests_);
     }
     for (const auto& request : requests) {
-        if (!offlineReady_ || gameWrapper->IsInOnlineGame()) return;
+        if (!offlineReady_ || !ownedOfflineNow()) return;
         try {
             if (request.type == LocalRequest::RefreshProducts) {
                 scanningProducts_ = true; productScanCursor_ = 0; productScan_.clear();
             } else if (request.type == LocalRequest::StartProbe) {
+                closeNativeMenu();
                 startNativeProbe();
+            } else if (request.type == LocalRequest::OpenNativeMenu) {
+                if (nativeProbe_.active()) throw std::runtime_error("Stop the menu capture before trying native dialogs.");
+                nativeMenu_.reset();
+                showNativeMenu();
             } else if (request.type == LocalRequest::SaveProbe) {
                 finishNativeProbe(true);
             } else if (request.type == LocalRequest::CancelProbe) {
@@ -512,8 +605,11 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 if (!allowed.count(key)) throw std::runtime_error("Choose an allowed menu key.");
                 const auto existing = cvarManager->getBindStringForKey(key);
                 if (!existing.empty() && existing != "mct_menu") throw std::runtime_error("That key is already bound. Choose a free menu key.");
-                if (ownBind_ && cvarManager->getBindStringForKey(toggleKey_) == "mct_menu") cvarManager->removeBind(toggleKey_);
-                toggleKey_ = key; cvarManager->setBind(toggleKey_, "mct_menu"); ownBind_ = true;
+                if (key == toggleKey_) continue;
+                releaseMenuBind();
+                toggleKey_ = key; bindAttempted_ = true;
+                toggleVirtualKey_ = existing.empty() ? VK_F1 + std::stoi(key.substr(1)) - 1 : 0;
+                shortcut_.reset();
                 result.toggleKey = toggleKey_;
             } else if (request.type == LocalRequest::Resume) {
                 menuOpen_ = false;
@@ -550,7 +646,10 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 }
             }
         } catch (const std::exception& error) {
-            if (request.type == LocalRequest::StartProbe || request.type == LocalRequest::SaveProbe ||
+            if (request.type == LocalRequest::OpenNativeMenu) {
+                closeNativeMenu();
+                nativeMenuMessage_ = error.what();
+            } else if (request.type == LocalRequest::StartProbe || request.type == LocalRequest::SaveProbe ||
                 request.type == LocalRequest::CancelProbe) {
                 nativeProbe_.clear();
                 removeProbeHooks();
@@ -663,19 +762,35 @@ bool MyCareerTraining::command(const std::string& action, Json payload) {
     return bridge_->send(action, std::move(payload));
 }
 void MyCareerTraining::SetImGuiContext(uintptr_t context) {
-    ImGui::SetCurrentContext(reinterpret_cast<ImGuiContext*>(context));
-    hasContext_ = true;
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+    auto* next = reinterpret_cast<ImGuiContext*>(context);
+    if (guiContext_ != next) updateNavigationFlags(false);
+    guiContext_ = next;
+    ImGui::SetCurrentContext(next);
+    hasContext_ = next != nullptr;
+}
+void MyCareerTraining::updateNavigationFlags(bool active) {
+    if (!guiContext_) return;
+    auto* previous = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(guiContext_);
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags = navigationFlags_.update(io.ConfigFlags, active,
+        ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
+    ImGui::SetCurrentContext(previous);
 }
 bool MyCareerTraining::ShouldBlockInput() {
     return mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
 }
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
 void MyCareerTraining::OnOpen() { windowOpen_ = true; }
-void MyCareerTraining::OnClose() { windowOpen_ = false; menuOpen_ = false; }
+void MyCareerTraining::OnClose() {
+    windowOpen_ = false; menuOpen_ = false;
+    updateNavigationFlags(false);
+}
 
 void MyCareerTraining::Render() {
-    if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh()) return;
+    updateNavigationFlags(hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
+        bridge_ && bridge_->fresh() && !nativeDialogActive_);
+    if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_) return;
     try {
         const auto state = bridge_->state();
         const auto runtime = runtimeSnapshot();

@@ -2,6 +2,9 @@
 #include "LocalBridge.h"
 #include "MenuLifecycle.h"
 #include "NativeMenuProbe.h"
+#include "OwnedSession.h"
+#include "NativeCareerMenu.h"
+#include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
 #include "imgui.h"
@@ -10,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 struct MctProduct { int id = 0; int slot = -1; std::string name; bool paintable = false; };
@@ -28,6 +32,7 @@ struct MctRuntime {
     std::shared_ptr<const std::vector<MctProduct>> products = std::make_shared<const std::vector<MctProduct>>();
     std::string cosmeticMessage;
     std::string probeMessage;
+    std::string nativeMenuMessage;
     bool probeActive = false;
     bool probeSavePending = false;
     std::size_t probeEvents = 0;
@@ -50,13 +55,15 @@ public:
     void OnClose() override;
 private:
     struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu,
-        StartProbe, SaveProbe, CancelProbe } type; mct::Json payload; };
+        StartProbe, SaveProbe, CancelProbe, OpenNativeMenu } type; mct::Json payload; };
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
     std::atomic<bool> menuOpen_{true};
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};
+    ImGuiContext* guiContext_ = nullptr;
+    mct::SessionFlags navigationFlags_;
     mutable std::mutex runtimeMutex_;
     MctRuntime runtime_;
     std::deque<LocalRequest> localRequests_;
@@ -68,9 +75,19 @@ private:
     std::string lastProbeMenu_;
     std::string probeExecutableSha256_;
     std::string probeMessage_ = "Ready to capture a local native menu diagnostic.";
-    std::string previousBind_;
     std::string toggleKey_ = "F6";
-    bool ownBind_ = false;
+    bool bindAttempted_ = false;
+    int toggleVirtualKey_ = 0;
+    mct::SessionShortcut shortcut_;
+    mct::ProcessScope processScope_;
+    mct::NativeCareerMenu nativeMenu_;
+    std::unique_ptr<ModalWrapper> nativeModal_;
+    std::atomic<bool> nativeDialogActive_{false};
+    struct NativeClick { mct::NativeCareerChoice choice; std::string nonce; std::uint64_t generation; };
+    std::optional<NativeClick> nativeClick_;
+    std::uint64_t nativeGeneration_ = 0;
+    std::string nativeNonce_;
+    std::string nativeMenuMessage_ = "Native dialogs are an opt-in development trial; stock menus remain available.";
     double lastStatus_ = 0;
     double lastProductScan_ = 0;
     int productScanCursor_ = 0;
@@ -106,6 +123,14 @@ private:
 
     void tick();
     void scheduleTick();
+    bool ownedOfflineNow() const;
+    void acquireMenuBind();
+    void releaseMenuBind();
+    void pollMenuShortcut();
+    void updateNavigationFlags(bool active);
+    void showNativeMenu();
+    void closeNativeMenu();
+    void processNativeClick();
     mct::NativeProbeScope probeScope() const;
     void startNativeProbe();
     bool finishNativeProbe(bool save);

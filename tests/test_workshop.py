@@ -1,5 +1,4 @@
-"""Real directory fixtures exercise offline library discovery and ID-only launches."""
-import hashlib
+"""Real directory fixtures exercise offline library discovery and rejected launches."""
 from pathlib import Path
 
 import pytest
@@ -34,12 +33,18 @@ def test_discovery_follows_real_library_manifest_and_preserves_source(tmp_path):
     assert found[0]["path"] == str(source)
     assert found[0]["game_tested"] is False
     assert "subscription" not in found[0]["provenance"]
-    prepared = prepare_launch("coco-aim", tmp_path / "data", steam_roots=[main])
-    assert prepared["sha256"] == hashlib.sha256(payload).hexdigest()
-    assert Path(prepared["path"]).read_bytes() == source.read_bytes() == payload
-    assert prepared["requires_game_map_recovery"] is True
-    assert prepared["route"] == "rlbot_steam_local_map"
-    assert prepared["creator_url"].endswith("id=1906378036")
+    state = library_state(tmp_path / "data", steam_roots=[main])
+    catalog = next(row for row in state["items"] if row["id"] == "coco-aim")
+    assert catalog["installed"] and catalog["can_launch"] is False
+    assert catalog["favorite"] is False
+    assert "preserve your Steam game" in catalog["availability"]
+    assert state["launch"] == {"available": False, "reason": catalog["launch_reason"]}
+    assert "preserves your Steam game" in state["note"]
+    with pytest.raises(ValueError, match="Custom map launch is unavailable"):
+        prepare_launch("coco-aim", tmp_path / "data", steam_roots=[main])
+    assert source.read_bytes() == payload
+    assert not (tmp_path / "data").exists()
+    assert found[0]["url"].endswith("id=1906378036")
 
 
 def test_bad_packages_other_apps_links_and_traversal_are_excluded(tmp_path):
@@ -101,7 +106,11 @@ def test_tabs_filters_favorites_and_created_local_maps(tmp_path):
     assert len(created["items"]) == 1
     assert created["items"][0]["title"] == original.name
     assert created["items"][0]["origin"] == "local_import"
-    assert prepare_launch(created["items"][0]["id"], data, imported_maps=[imported], steam_roots=[])["sha256"]
+    assert created["items"][0]["can_launch"] is False
+    assert "preserve your Steam game" in created["items"][0]["availability"]
+    with pytest.raises(ValueError, match="Custom map launch is unavailable"):
+        prepare_launch(created["items"][0]["id"], data, imported_maps=[imported], steam_roots=[])
+    assert Path(imported["path"]).read_bytes() == original.read_bytes()
     with pytest.raises(ValueError):
         toggle_favorite([], "unknown", state["items"])
     with pytest.raises(ValueError):
@@ -119,7 +128,10 @@ def test_multi_package_item_requires_exact_selection(tmp_path):
     with pytest.raises(ValueError):
         prepare_launch("coco-aim", tmp_path / "data", steam_roots=[root])
     selected = next(row for row in state["items"] if row.get("original_name") == "Aim training.udk")
-    assert prepare_launch(selected["id"], tmp_path / "data", steam_roots=[root])["sha256"]
+    assert selected["can_launch"] is False
+    assert "preserve your Steam game" in selected["availability"]
+    with pytest.raises(ValueError, match="Custom map launch is unavailable"):
+        prepare_launch(selected["id"], tmp_path / "data", steam_roots=[root])
 
 
 def test_imported_records_cannot_authorize_arbitrary_paths_or_changed_bytes(tmp_path):
@@ -132,6 +144,7 @@ def test_imported_records_cannot_authorize_arbitrary_paths_or_changed_bytes(tmp_
     Path(record["path"]).write_bytes(MAGIC + b"modified")
     with pytest.raises(ValueError, match="changed"):
         prepare_launch("imported:" + record["sha256"], data, imported_maps=[record], steam_roots=[])
+    assert not (data / "map-recovery").exists()
 
 
 def test_epic_does_not_claim_steam_maps_or_a_working_loader(tmp_path):
