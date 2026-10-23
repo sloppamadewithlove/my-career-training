@@ -229,3 +229,17 @@ def test_finish_rectangle_is_labelled_and_stage_checks_require_observed_evidence
 def test_flip_reset_stage_accepts_plain_dodge_instead_of_requiring_diagonal_dodge():
     feedback = lesson_coaching(configure_lesson("flip-reset"), [{"name": "dodge", "confidence": "observed"}])
     assert feedback["stages"][0]["complete"] is True
+
+
+def test_persisted_playback_settings_initialize_and_update_actual_coach():
+    from my_career_training.game_worker import GameSession
+    from types import SimpleNamespace
+    prefs = coaching_preferences()
+    coach = GhostPlayback(mode=prefs["mode"], speed=prefs["playback_speed"],
+                          lead_seconds=prefs["lead_seconds"], loop=prefs["loop"])
+    assert coach.speed == 1
+    session = SimpleNamespace(coach=coach, coaching_preferences=prefs)
+    GameSession.handle_command(session, {"type": "coaching", "preferences": {"playback_speed": .25}})
+    assert session.coaching_preferences["playback_speed"] == .25 and coach.speed == .25
+    with pytest.raises(ValueError, match="speed must"):
+        coaching_preferences({"playback_speed": True})

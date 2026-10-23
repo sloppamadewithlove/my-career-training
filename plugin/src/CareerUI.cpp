@@ -67,6 +67,20 @@ double actionStrength(const Json& actions, const std::string& key) {
     if (it->is_boolean()) return it->get<bool>() ? 1 : 0;
     return it->is_number() ? std::clamp(it->get<double>(), -1.0, 1.0) : 0;
 }
+bool observedActions(const Json& actions) {
+    if (!actions.is_object()) return false;
+    for (const char* key : {"throttle", "steer", "pitch", "yaw", "roll"}) {
+        const auto it = actions.find(key);
+        if (it == actions.end() || !it->is_number()) return false;
+        const double value = it->get<double>();
+        if (!std::isfinite(value) || value < -1 || value > 1) return false;
+    }
+    for (const char* key : {"jump", "boost", "handbrake"}) {
+        const auto it = actions.find(key);
+        if (it == actions.end() || !it->is_boolean()) return false;
+    }
+    return true;
+}
 bool contains(const Json& values, const std::string& id) {
     return values.is_array() && std::find(values.begin(), values.end(), Json(id)) != values.end();
 }
@@ -218,10 +232,18 @@ void MyCareerTraining::renderCareer(const Json& state) {
             static_cast<int>(numberValue(fixture, "format", 3)), static_cast<int>(numberValue(fixture, "format", 3)),
             stringValue(fixture, "map").c_str());
         const bool pending = !objectValue(career, "pending_session").empty();
-        if (primary(pending ? "CONTINUE FIXTURE" : "PLAY NEXT FIXTURE", !boolValue(objectValue(state, "session"), "busy"))) command("play_match");
+        const auto session = objectValue(state, "session");
+        const bool active = stringValue(session, "state") == "Playing" && stringValue(session, "kind") == "career" &&
+            stringValue(session, "fixture_id") == stringValue(fixture, "id");
+        if (pending && active) {
+            if (primary("RESUME FIXTURE")) queueLocal(LocalRequest::Resume);
+        } else if (!pending) {
+            if (primary("PLAY NEXT FIXTURE", !boolValue(session, "busy"))) command("play_match");
+        }
         ImGui::SameLine(); if (button("CHOOSE LINEUP")) page_ = 1;
         if (pending) {
-            paragraph("This attempt is unfinished. Return to career to restart it and change your lineup.");
+            paragraph(active ? "This fixture is active. Resume playing, or leave this attempt to change your lineup." :
+                "This saved attempt is unfinished. Restart it from kickoff, then choose your lineup and play.");
             if (button("RESTART UNFINISHED FIXTURE")) command("return_hub", {{"abandon", true}});
         }
     } else {
@@ -251,7 +273,11 @@ void MyCareerTraining::renderSquad(const Json& state) {
     const auto squad = arrayValue(career, "squad");
     const auto required = static_cast<size_t>(std::max(0, static_cast<int>(numberValue(career, "format", 3)) - 1));
     const auto careerId = stringValue(career, "id");
-    if (careerId != lineupCareerId_) { lineupCareerId_ = careerId; lineupDraft_ = arrayValue(career, "lineup"); }
+    const auto committedLineup = arrayValue(career, "lineup");
+    const auto signature = committedLineup.dump();
+    if (careerId != lineupCareerId_ || signature != lineupSignature_) {
+        lineupCareerId_ = careerId; lineupSignature_ = signature; lineupDraft_ = committedLineup;
+    }
     paragraph("Choose your starting teammates before each fixture. Your career club and side stay fixed during the match.");
     ImGui::Text("Select %d teammates. You are the remaining player.", static_cast<int>(required));
     for (const auto& idValue : squad) {
@@ -444,7 +470,7 @@ void MyCareerTraining::renderWorkshop(const Json& state) {
 void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     title("MY GARAGE");
     paragraph("Build a local visual design from the installed game's cosmetic catalog. No game assets are copied and no account inventory is changed.");
-    detail(std::to_string(runtime.products.size()) + " installed products discovered");
+    detail(std::to_string(runtime.products->size()) + " installed products discovered");
     const std::array<std::pair<int, const char*>, 15> slots{{{0, "Car bodies (catalog)"}, {1, "Decals"}, {2, "Wheels"},
         {3, "Boosts"}, {4, "Antennas"}, {5, "Toppers"}, {7, "Primary paint finish"}, {12, "Accent paint finish"},
         {13, "Engine audio"}, {14, "Trails"}, {15, "Goal explosions"}, {16, "Banners (catalog)"},
@@ -463,7 +489,7 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     if (!supported) paragraph("This category can be browsed, but the verified local item override does not equip it. Car bodies still require the game's equip flow. Account banners, borders and titles are not unlocked here.");
     ImGui::BeginChild("products", ImVec2(0, std::max(150.0f, ImGui::GetContentRegionAvail().y - 230)), true);
     std::vector<const MctProduct*> filtered;
-    for (const auto& product : runtime.products)
+    for (const auto& product : *runtime.products)
         if (product.slot == garageSlot_ && (!search_[0] || product.name.find(search_) != std::string::npos)) filtered.push_back(&product);
     ImGuiListClipper clipper(static_cast<int>(filtered.size()));
     while (clipper.Step()) for (int index = clipper.DisplayStart; index < clipper.DisplayEnd; ++index) {
@@ -568,15 +594,17 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
 
 void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float scale, const char* heading, const Json& bindings) {
     auto draw = ImGui::GetWindowDrawList();
+    const bool observed = observedActions(actions);
     const auto point = [&](float x, float y) { return ImVec2(origin.x + x * scale, origin.y + y * scale); };
     const auto activeColor = IM_COL32(255, 147, 49, 255);
     const auto idleColor = IM_COL32(102, 130, 151, 255);
-    draw->AddText(point(0, 0), IM_COL32(195, 229, 251, 255), heading);
+    draw->AddText(point(0, 0), IM_COL32(195, 229, 251, 255), observed ? heading : "CONTROLLER ACTIONS UNAVAILABLE");
     draw->AddRectFilled(point(7, 48), point(246, 152), IM_COL32(18, 40, 59, 235), 37 * scale);
     draw->AddCircleFilled(point(52, 144), 42 * scale, IM_COL32(18, 40, 59, 235));
     draw->AddCircleFilled(point(200, 144), 42 * scale, IM_COL32(18, 40, 59, 235));
     const auto strengthFor = [&](const std::string& buttonName) {
         double value = 0;
+        if (!observed) return value;
         for (const auto& binding : bindings.items()) {
             if (!binding.value().is_string() || binding.value().get<std::string>() != buttonName) continue;
             const auto& key = binding.key();
@@ -597,7 +625,7 @@ void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float 
     // no raw look-stick telemetry.
     for (float x : {90.0f, 159.0f}) draw->AddCircle(point(x, 135), 19 * scale, idleColor, 24, 2 * scale);
     draw->AddCircleFilled(point(90 + static_cast<float>(actionStrength(actions, "steer")) * 12,
-        135 + static_cast<float>(actionStrength(actions, "pitch")) * 12), 10 * scale, activeColor);
+        135 + static_cast<float>(actionStrength(actions, "pitch")) * 12), 10 * scale, observed ? activeColor : idleColor);
     draw->AddCircleFilled(point(159, 135), 10 * scale, idleColor);
     draw->AddRectFilled(point(36, 77), point(70, 88), idleColor, 2 * scale);
     draw->AddRectFilled(point(47, 66), point(58, 100), idleColor, 2 * scale);
@@ -616,7 +644,7 @@ void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float 
         }
         if (index == 3) draw->AddRect(ImVec2(center.x - radius, center.y - radius), ImVec2(center.x + radius, center.y + radius), color, 0, 15, scale);
     }
-    draw->AddText(point(0, 193), IM_COL32(156, 180, 196, 255), "Observed actions / your configured labels");
+    draw->AddText(point(0, 193), IM_COL32(156, 180, 196, 255), observed ? "Observed actions / your configured labels" : "Waiting for observed game inputs");
     ImGui::Dummy(ImVec2(260 * scale, 216 * scale));
 }
 

@@ -90,6 +90,12 @@ bool LocalBridge::poll(double now) {
         const auto path = directory_ / "state.json";
         if (!std::filesystem::is_regular_file(path) || std::filesystem::file_size(path) > 8 * 1024 * 1024)
             throw std::runtime_error("Waiting for the offline career service.");
+        const auto modified = std::filesystem::last_write_time(path);
+        const auto size = std::filesystem::file_size(path);
+        {
+            std::lock_guard<std::mutex> guard(mutex_);
+            if (haveRead_ && modified == lastWriteTime_ && size == lastFileSize_ && validState(state_, now)) return true;
+        }
         std::ifstream file(path, std::ios::binary);
         if (!file) throw std::runtime_error("The offline career service cannot be read.");
         Json candidate = Json::parse(file, nullptr, false);
@@ -97,6 +103,7 @@ bool LocalBridge::poll(double now) {
             throw std::runtime_error("The offline career service is disconnected. Restart My Career from its shortcut.");
         std::lock_guard<std::mutex> guard(mutex_);
         state_ = std::move(candidate);
+        lastWriteTime_ = modified; lastFileSize_ = size; haveRead_ = true;
         error_.clear();
         return true;
     } catch (const std::exception& exception) {

@@ -23,7 +23,7 @@ struct MctRuntime {
     std::string menu;
     std::string build;
     mct::Json actions = mct::Json::object();
-    std::vector<MctProduct> products;
+    std::shared_ptr<const std::vector<MctProduct>> products = std::make_shared<const std::vector<MctProduct>>();
     std::string cosmeticMessage;
     std::string error;
     std::string toggleKey = "F6";
@@ -66,6 +66,11 @@ private:
     std::string originalItemCode_;
     bool originalItemEnabled_ = false;
     bool changedItemMod_ = false;
+    bool resumePending_ = false;
+    bool resumeEscapeSent_ = false;
+    bool pauseCaptureSuppressed_ = false;
+    double resumeInjectAt_ = 0;
+    double resumeVerifyAt_ = 0;
     mct::Json preferences_ = mct::Json::object();
     std::atomic<int> page_{0};
     int workshopTab_ = 0;
@@ -79,6 +84,7 @@ private:
     std::string selectedMap_;
     mct::Json lineupDraft_ = mct::Json::array();
     std::string lineupCareerId_;
+    std::string lineupSignature_;
     std::map<int, std::pair<int, int>> cosmeticItems_;
     float primaryColor_[3] = {0.04f, 0.36f, 0.85f};
     float secondaryColor_[3] = {1.0f, 0.53f, 0.18f};
@@ -91,6 +97,7 @@ private:
     void enforceCareer(const mct::Json& state, MctRuntime& result);
     void processLocalRequests(MctRuntime& result);
     void restoreCosmetics();
+    void advanceResume(MctRuntime& result);
     MctRuntime runtimeSnapshot() const;
     void queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());
     void loadPreferences();

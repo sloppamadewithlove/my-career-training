@@ -160,7 +160,7 @@ void MyCareerTraining::onUnload() {
 
 void MyCareerTraining::scheduleTick() {
     std::weak_ptr<int> life = alive_;
-    gameWrapper->SetTimeout([this, life](GameWrapper*) { if (!life.expired()) tick(); }, 0.1f);
+    gameWrapper->SetTimeout([this, life](GameWrapper*) { if (!life.expired()) tick(); }, 1.0f / 30.0f);
 }
 
 MctRuntime MyCareerTraining::runtimeSnapshot() const {
@@ -201,7 +201,10 @@ void MyCareerTraining::tick() {
             if (newlyPlaying) menuOpen_ = false;
             if (!next.inGame || nonce != lastBridgeSession_ || phase == "Error/Recovery" ||
                 (phase == "Career Ready" && lastSessionState_ == "Playing")) menuOpen_ = true;
-            if (next.paused || lower(next.menu).find("pause") != std::string::npos) menuOpen_ = true;
+            advanceResume(next);
+            const bool nativePause = next.paused || lower(next.menu).find("pause") != std::string::npos;
+            if (!nativePause) pauseCaptureSuppressed_ = false;
+            if (!resumePending_ && !pauseCaptureSuppressed_ && nativePause) menuOpen_ = true;
             next.actions = Json::object();
             auto player = gameWrapper->GetPlayerController();
             if (player && next.inGame) {
@@ -222,7 +225,7 @@ void MyCareerTraining::tick() {
                     {"pid", GetCurrentProcessId()}, {"bakkesmod_version", next.bakkesVersion},
                     {"in_game", next.inGame}, {"ui_open", menuOpen_.load()}, {"menu", next.menu},
                     {"game_build", next.build}, {"logical_actions", next.actions}, {"team_lock_applied", next.teamLockApplied},
-                    {"cosmetic_products", next.products.size()}, {"itemmod_available", next.itemModAvailable},
+                    {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
                     {"menu_mode", "full-screen custom PluginWindow with input capture"}};
                 bridge_->publishStatus(std::move(status));
@@ -235,6 +238,7 @@ void MyCareerTraining::tick() {
             // online transition. Leaving an override enabled would leak a
             // career-only choice into the player's ordinary Rocket League.
             restoreCosmetics();
+            resumePending_ = false;
             // No wrapper writes, commands, menu capture or telemetry in an
             // online match, stale service or unrelated game session.
             next.actions = Json::object();
@@ -306,7 +310,7 @@ void MyCareerTraining::scanProducts(MctRuntime& result) {
     }
     if (productScanCursor_ >= count) {
         std::sort(productScan_.begin(), productScan_.end(), [](const MctProduct& a, const MctProduct& b) { return a.name < b.name; });
-        result.products = std::move(productScan_);
+        result.products = std::make_shared<const std::vector<MctProduct>>(std::move(productScan_));
         productScan_.clear(); productScanCursor_ = 0; scanningProducts_ = false;
         lastProductScan_ = mct::unixTime();
     }
@@ -333,8 +337,16 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 toggleKey_ = key; cvarManager->setBind(toggleKey_, "mct_menu"); ownBind_ = true;
                 result.toggleKey = toggleKey_;
             } else if (request.type == LocalRequest::Resume) {
-                if (gameWrapper->IsPaused()) gameWrapper->ExecuteUnrealCommand("pause");
                 menuOpen_ = false;
+                if (result.paused || lower(result.menu).find("pause") != std::string::npos) {
+                    // Closing our input capture must reach the next rendered
+                    // frame before a user-requested Escape can reach the game.
+                    resumePending_ = true; resumeEscapeSent_ = false;
+                    pauseCaptureSuppressed_ = false;
+                    resumeInjectAt_ = mct::unixTime() + 0.2;
+                    resumeVerifyAt_ = mct::unixTime() + 1.0;
+                    result.error.clear();
+                }
             } else if (request.type == LocalRequest::ApplyCosmetics || request.type == LocalRequest::RestoreCosmetics) {
                 auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
                 auto code = cvarManager->getCvar("cl_itemmod_code");
@@ -347,10 +359,10 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                     for (const auto& item : arrayValue(request.payload, "items")) {
                         const int product = static_cast<int>(mct::numberValue(item, "product_id"));
                         const int slot = static_cast<int>(mct::numberValue(item, "slot", -1));
-                        const auto found = std::find_if(result.products.begin(), result.products.end(), [&](const MctProduct& p) {
+                        const auto found = std::find_if(result.products->begin(), result.products->end(), [&](const MctProduct& p) {
                             return p.id == product && p.slot == slot;
                         });
-                        if (found == result.products.end()) throw std::runtime_error("Refresh the installed cosmetic catalog before applying this item.");
+                        if (found == result.products->end()) throw std::runtime_error("Refresh the installed cosmetic catalog before applying this item.");
                     }
                     const auto encoded = cosmeticCode(request.payload);
                     if (!changedItemMod_) { originalItemCode_ = code.getStringValue(); originalItemEnabled_ = enabled.getBoolValue(); }
@@ -370,6 +382,39 @@ void MyCareerTraining::restoreCosmetics() {
         code.setValue(originalItemCode_);
         enabled.setValue(originalItemEnabled_ ? 1 : 0);
         changedItemMod_ = false;
+    }
+}
+
+void MyCareerTraining::advanceResume(MctRuntime& result) {
+    if (!resumePending_) return;
+    const bool nativePause = result.paused || lower(result.menu).find("pause") != std::string::npos;
+    if (!nativePause) { resumePending_ = false; menuOpen_ = false; result.error.clear(); return; }
+    if (!offlineReady_ || result.online || !result.inGame) { resumePending_ = false; return; }
+    const auto now = mct::unixTime();
+    if (!resumeEscapeSent_ && now >= resumeInjectAt_) {
+        const HWND foreground = GetForegroundWindow(); DWORD process = 0;
+        GetWindowThreadProcessId(foreground, &process);
+        if (!foreground || process != GetCurrentProcessId() || menuOpen_) {
+            resumePending_ = false; menuOpen_ = true;
+            result.error = "Focus Rocket League and select Resume again. No key was sent to another application.";
+            return;
+        }
+        // Escape is the native pause-menu back action. It is sent only in
+        // response to Resume, once, paired down/up, to our foreground game.
+        // No gameplay control, movement or anti-idle input is synthesized.
+        INPUT input[2]{};
+        input[0].type = INPUT_KEYBOARD; input[0].ki.wVk = VK_ESCAPE;
+        input[1].type = INPUT_KEYBOARD; input[1].ki.wVk = VK_ESCAPE; input[1].ki.dwFlags = KEYEVENTF_KEYUP;
+        if (SendInput(2, input, sizeof(INPUT)) != 2) {
+            resumePending_ = false; menuOpen_ = true; pauseCaptureSuppressed_ = true;
+            result.error = "Resume was not accepted. Use the career shortcut to hide this screen, then close the game pause menu with Escape or controller back.";
+            return;
+        }
+        resumeEscapeSent_ = true;
+    }
+    if (now >= resumeVerifyAt_) {
+        resumePending_ = false; menuOpen_ = true; pauseCaptureSuppressed_ = true;
+        result.error = "The pause menu is still open. Use the career shortcut to hide this screen, then close it with Escape or controller back.";
     }
 }
 

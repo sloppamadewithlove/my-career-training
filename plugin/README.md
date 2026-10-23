@@ -53,12 +53,23 @@ The game thread owns all SDK calls. Rendering reads a protected snapshot and
 queues fixed local operations. Career team writes additionally require
 `session.kind == "career"`, `session.state == "Playing"` and the exact pending
 fixture ID. Freeplay, custom training, replays and online games are excluded.
+Native logical actions are sampled at 30 Hz; unchanged service files reuse their
+parsed snapshot while still enforcing heartbeat expiry. The installed cosmetic
+catalog is immutable between scans and shared across render snapshots.
 
 The hub auto-opens in the main menu and after match results. Its full-screen
 window covers the native menu and `ShouldBlockInput` prevents clicks reaching
 the underlying controls. This is **not** a patched replacement of the native
 Scaleform files. Main/pause transitions, native menu focus, controller navigation
 and resume behavior still require current-game Windows testing.
+
+Resume closes only the career hub when the game is not paused. When the observed
+native pause menu is present, the user-requested Resume action first releases
+input capture, then sends one paired Escape down/up to the exact owned foreground
+game window. It rechecks the real pause/menu state and reports failure instead
+of claiming success. No driving or anti-idle inputs are synthesized. If the native
+menu stays open, automatic pause capture is temporarily suppressed so the player
+can hide the career hub and close the native menu normally.
 
 The menu uses the first unused F6-F12 key, retaining existing bindings. An
 in-game Settings selector can choose a different unused function key. The actual
@@ -108,7 +119,7 @@ SDK commit `479e8f571cf554b25f4eeb64d611dec4133edcaf`, API 95:
 - [Custom club names](https://github.com/bakkesmodorg/BakkesModSDK/blob/479e8f571cf554b25f4eeb64d611dec4133edcaf/include/bakkesmod/wrappers/GameObject/TeamWrapper.h)
 - [ChangeTeam and observed vehicle inputs](https://github.com/bakkesmodorg/BakkesModSDK/blob/479e8f571cf554b25f4eeb64d611dec4133edcaf/include/bakkesmod/wrappers/PlayerControllerWrapper.h)
 - [Installed cosmetic catalog](https://github.com/bakkesmodorg/BakkesModSDK/blob/479e8f571cf554b25f4eeb64d611dec4133edcaf/include/bakkesmod/wrappers/items/ItemsWrapper.h)
-- [Existing item-code format reference](https://github.com/daftpenguin/StreamAPIPlugin/blob/master/StreamAPIPlugin/BMLoadoutLib/bmloadout.h)
+- [Existing item-code format reference](https://github.com/daftpenguin/StreamAPIPlugin/blob/0bb1c69958e7b77b5b7fef7586ea325fc46fbc7e/StreamAPIPlugin/BMLoadoutLib/bmloadout.h)
 
 Compilation, portable bridge tests and static API review do not demonstrate game
 compatibility. Steam launch, menu transitions, actual cosmetics and idle behavior

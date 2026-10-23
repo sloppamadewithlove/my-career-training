@@ -22,6 +22,9 @@ int main() {
         require(!LocalBridge::validState(invalid, now), "Invalid session accepted");
         LocalBridge::atomicWrite(root / "state.json", valid.dump());
         require(bridge.poll(), "Published state was not read");
+        require(bridge.poll(), "Unchanged fresh state cache failed");
+        require(!bridge.poll(now + 6), "Unchanged cached state bypassed expiry");
+        require(bridge.poll(), "Fresh state did not recover after cached expiry");
         require(!bridge.send("online_request"), "Online command accepted");
         require(!bridge.send("execute", {{"command", "bad"}}), "Arbitrary execution accepted");
         require(!bridge.send("play_match", "not-an-object"), "Invalid payload accepted");

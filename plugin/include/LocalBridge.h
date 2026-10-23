@@ -33,5 +33,8 @@ private:
     mutable std::mutex mutex_;
     Json state_ = Json::object();
     std::string error_;
+    std::filesystem::file_time_type lastWriteTime_{};
+    std::uintmax_t lastFileSize_ = 0;
+    bool haveRead_ = false;
 };
 }
