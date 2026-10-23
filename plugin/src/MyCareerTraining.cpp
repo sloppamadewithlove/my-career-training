@@ -216,7 +216,7 @@ void MyCareerTraining::startNativeProbe() {
         std::weak_ptr<int> life = alive_;
         for (const auto event : probeEvents) {
             gameWrapper->HookEventPost(event, [this, life](std::string observed) {
-                if (!life.expired()) observeNativeProbe(observed);
+                if (!life.expired() && nativeProbe_.active()) observeNativeProbe(observed);
             });
         }
         observeNativeProbe("menu_stack_transition");
@@ -273,8 +273,10 @@ void MyCareerTraining::tick() {
         const bool owned = mct::numberValue(ownedGame, "pid", -1) == static_cast<double>(GetCurrentProcessId());
         offlineReady_ = fresh && owned && !next.online;
         // Empty observations enforce timeout/scope without recording tick spam.
-        if (nativeProbe_.hasTrace()) {
-            observeNativeProbe("");
+        if (probeHooksInstalled_ || nativeProbe_.hasTrace()) {
+            // A hook may already have erased an unsafe trace. Still remove
+            // its registrations here, outside the callback's dispatch stack.
+            if (nativeProbe_.hasTrace()) observeNativeProbe("");
             if (!nativeProbe_.active()) removeProbeHooks();
         }
         if (offlineReady_) {
