@@ -92,9 +92,11 @@ def validate_recording(value, *, require_reference=False):
     warnings = []
     if require_reference:
         source, permission = metadata["source"], metadata["permission"]
-        if source.get("kind") != "actual_execution" or not source.get("origin"):
+        if (source.get("kind") != "actual_execution" or not isinstance(source.get("origin"), str)
+                or not source["origin"].strip()):
             raise ValueError("A teaching reference must identify an actual successful execution.")
-        if not permission.get("distribute") or not permission.get("basis"):
+        if (permission.get("distribute") is not True or not isinstance(permission.get("basis"), str)
+                or not permission["basis"].strip()):
             raise ValueError("A shared reference needs explicit distribution permission and its basis.")
         if not metadata["success_evidence"]:
             raise ValueError("A teaching reference must include its observed success evidence.")
@@ -289,7 +291,7 @@ def _slerp(first, second, amount):
     return [a * x + b * y for x, y in zip(first, second)]
 
 
-def interpolate_pose(recording, time, *, speed=1.0, max_gap=0.1):
+def interpolate_pose(recording, time, *, speed=1.0, max_gap=0.1, sample_times=None):
     """No extrapolation or invented motion across packet gaps. Actions are sample-held."""
     if not _finite(time) or not _finite(speed) or speed <= 0:
         raise ValueError("Playback time and speed must be finite and nonnegative.")
@@ -299,7 +301,7 @@ def interpolate_pose(recording, time, *, speed=1.0, max_gap=0.1):
     target = time * speed
     if target < samples[0]["time"] or target > samples[-1]["time"]:
         return None
-    index = bisect_right([x["time"] for x in samples], target) - 1
+    index = bisect_right(sample_times if sample_times is not None else [x["time"] for x in samples], target) - 1
     a = samples[index]
     b = samples[min(index + 1, len(samples) - 1)]
     span = b["time"] - a["time"]

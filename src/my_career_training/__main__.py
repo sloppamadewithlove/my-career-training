@@ -22,6 +22,8 @@ def self_test():
         assert len(catalog()) == 8
         assert SpecialistController("keeper").manifest()
         if sys.platform == "win32":
+            from .bots.providers import model_self_test
+            model_self_test()
             from rlbot import flat
             from rlbot.interface import SocketRelay
             from rlbot.managers.match import MatchManager
@@ -40,17 +42,34 @@ def self_test():
 def main():
     parser = argparse.ArgumentParser(description="My Career Training")
     parser.add_argument("--worker", action="store_true")
+    parser.add_argument("--in-game", action="store_true")
+    parser.add_argument("--manage", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--screenshot", type=Path)
     args = parser.parse_args()
     if args.self_test:
-        return self_test()
+        try:
+            return self_test()
+        except Exception:
+            # A windowless frozen executable otherwise opens a hidden exception
+            # dialog in CI. Preserve the failure and return an actual error code.
+            import traceback
+            detail = traceback.format_exc()
+            if args.data_dir:
+                args.data_dir.mkdir(parents=True, exist_ok=True)
+                (args.data_dir / "self-test-error.txt").write_text(detail, encoding="utf-8")
+            if sys.stderr is not None:
+                sys.stderr.write(detail)
+            return 1
     if args.worker:
         from .game_worker import main as worker_main
         return worker_main()
     from .storage import data_dir
+    if args.in_game or (sys.platform == "win32" and not args.manage and not args.smoke_test):
+        from .bootstrap import run_service
+        return run_service(args.data_dir or data_dir())
     from .app import run
     return run(args.data_dir or data_dir(), args.smoke_test, args.screenshot)
 

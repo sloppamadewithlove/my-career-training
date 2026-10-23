@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,6 +14,7 @@ from my_career_training.career import new_career, validate_career
 from my_career_training.storage import Store, default_state
 
 from smoke_package import run_smoke
+from windows_shortcuts import programs_folders, read_shortcut
 
 
 def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
@@ -36,6 +40,19 @@ def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
             time.sleep(min(0.1, remaining))
 
 
+def check_shortcuts(group: str, install: Path) -> None:
+    directories = [root / group for root in programs_folders()]
+    report = {'directories': [str(path) for path in directories],
+              'shortcuts': [read_shortcut(path) for directory in directories
+                            for path in directory.glob('*.lnk')]}
+    expected = install / 'MyCareerTraining.exe'
+    # Windows shell links may expand a short path (RUNNER~1) to its long name.
+    # Compare the actual file identity rather than spelling or case alone.
+    modes = {item['arguments'] for item in report['shortcuts']
+             if Path(item['target']).is_file() and os.path.samefile(item['target'], expected)}
+    assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {report}'
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('installer', type=Path)
@@ -52,10 +69,19 @@ def main() -> int:
             store.save(state)
         sentinel = profile / 'career.json'
         original = sentinel.read_bytes()
+        # DisableProgramGroupPage=yes deliberately fixes the real product group;
+        # Inno ignores /GROUP in this mode. This test runs on a disposable CI host.
+        group = 'My Career Training'
         command = [str(args.installer.resolve()), '/VERYSILENT', '/SUPPRESSMSGBOXES',
-                   '/NORESTART', '/SP-', '/NOICONS', '/TASKS=', f'/DIR={install}',
+                   '/NORESTART', '/SP-', '/TASKS=', f'/DIR={install}',
                    f'/LOG={root / "install.log"}']
         subprocess.run(command, check=True, timeout=120)
+        try:
+            check_shortcuts(group, install)
+        except Exception:
+            log = (root / 'install.log').read_text(encoding='utf-8-sig', errors='replace')
+            print('\n'.join(log.splitlines()[-80:]))
+            raise
         run_smoke(install, profile)
         assert sentinel.read_bytes() == original, 'Installed app smoke changed the existing career'
         # Install the same version over itself: stable identity and upgrade paths.
@@ -67,6 +93,14 @@ def main() -> int:
         wait_for_uninstaller_log_release(uninstall_log)
         assert not (install / 'MyCareerTraining.exe').exists(), 'Uninstall left the installed app'
         assert sentinel.read_bytes() == original, 'Uninstall changed player data'
+    evidence_path = Path(__file__).resolve().parents[1] / 'build' / 'installer-test-receipt.json'
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(json.dumps({
+        'passed': True, 'installer_sha256': hashlib.sha256(args.installer.read_bytes()).hexdigest(),
+        'checks': ['silent install', 'offline and management shortcuts', 'frozen package smoke',
+                   'repeat install', 'uninstall',
+                   'existing career bytes preserved'],
+    }, indent=2) + '\n', encoding='utf-8')
     print('Silent installation, repeat installation and save-preserving uninstall passed')
     return 0
 

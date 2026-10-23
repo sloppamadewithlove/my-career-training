@@ -17,7 +17,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-2025
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       QT_QPA_PLATFORM: offscreen
       QT_QUICK_BACKEND: software
@@ -41,6 +41,10 @@ jobs:
           uv run --frozen pytest -q
       - name: Download and verify pinned RLBot runtime
         run: uv run --frozen python scripts/fetch_runtime.py
+      - name: Compile pinned AMD64 in-game plugin and inspect native exports
+        run: uv run --frozen python scripts/build_plugin.py
+      - name: Download and verify pinned local bot model
+        run: uv run --frozen python scripts/fetch_bot_provider.py
       - name: Collect redistributed dependency notices
         run: uv run --frozen python scripts/collect_licenses.py
       - name: Build UI and console worker executables

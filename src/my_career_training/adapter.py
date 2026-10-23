@@ -20,7 +20,7 @@ def flat_module():
 def match_config(request):
     f = flat_module()
     fixture = request.get("fixture") or {}
-    training = bool(request.get("lesson_id"))
+    training = bool(request.get("lesson_id") or request.get("workshop"))
     size = 1 if training else fixture["format"]
     if type(size) is not int or size not in range(1, 5):
         raise ValueError("Only 1v1 through 4v4 Soccar is supported.")
@@ -44,17 +44,27 @@ def match_config(request):
     players.append(f.PlayerConfiguration(variety=f.Human(), team=human_team))
     arena = fixture.get("map", "Stadium_P")
     arena = MAPS.get(arena, arena)
-    if arena not in {"Stadium_P", "EuroStadium_P", "CS_P", "UtopiaStadium_P", "Park_P"}:
+    if request.get("workshop"):
+        from .map_guard import digest
+        custom = request["workshop"]
+        if launcher != "steam" or custom.get("route") != "rlbot_steam_local_map":
+            raise ValueError("This Workshop map has no supported launch route.")
+        map_path = Path(custom["path"])
+        if not map_path.is_absolute() or not map_path.is_file() or digest(map_path) != custom["sha256"]:
+            raise ValueError("The prepared Workshop map is missing or changed.")
+        arena = str(map_path)
+    elif arena not in {"Stadium_P", "EuroStadium_P", "CS_P", "UtopiaStadium_P", "Park_P"}:
         raise ValueError(f"Unsupported built-in arena: {arena}")
     mutators = f.MutatorSettings(match_length=f.MatchLengthMutator.Unlimited if training else f.MatchLengthMutator.FiveMinutes,
         max_score=f.MaxScoreMutator.Unlimited, overtime=f.OvertimeMutator.Unlimited,
         multi_ball=f.MultiBallMutator.One, boost_amount=f.BoostAmountMutator.NormalBoost)
-    config = f.MatchConfiguration(launcher=f.Launcher.Steam if launcher == "steam" else f.Launcher.Epic,
+    config = f.MatchConfiguration(launcher=f.Launcher.NoLaunch if request.get("owned_game") else (f.Launcher.Steam if launcher == "steam" else f.Launcher.Epic),
         launcher_arg="", auto_start_agents=False, wait_for_agents=True, game_map_upk=arena,
         player_configurations=players, script_configurations=[], game_mode=f.GameMode.Soccar,
         skip_replays=training, instant_start=training, mutators=mutators,
         existing_match_behavior=f.ExistingMatchBehavior.Restart, enable_rendering=f.DebugRendering.OnByDefault,
-        enable_state_setting=training, auto_save_replay=False, freeplay=training)
+        enable_state_setting=bool(request.get("lesson_id")), auto_save_replay=False, freeplay=training,
+        performance_monitor=f.PerformanceMonitor.NeverShow)
     return config, descriptors, len(players) - 1
 
 
@@ -76,7 +86,8 @@ def normalized_packet(packet, prediction=None, field_info=None):
                    boost=player.boost, wheel_contact=player.air_state == f.AirState.OnGround,
                    air_state=str(player.air_state).split(".")[-1], has_jumped=player.has_jumped,
                    has_double_jumped=player.has_double_jumped, has_dodged=player.has_dodged,
-                   dodge_timeout=player.dodge_timeout, is_bot=player.is_bot)
+                   dodge_timeout=player.dodge_timeout, is_bot=player.is_bot,
+                   is_demolished=getattr(player, "demolished_timeout", 0) > 0)
         car["dodge_dir"] = [player.dodge_dir.x, player.dodge_dir.y]
         touch = player.latest_touch
         if touch is not None:
@@ -96,6 +107,7 @@ def normalized_packet(packet, prediction=None, field_info=None):
         predictions = [{"time": s.game_seconds, "position": vector(s.physics.location)}
                        for s in prediction.slices[::6]]
     return {"time": packet.match_info.seconds_elapsed, "frame_num": packet.match_info.frame_num,
+            "is_kickoff": packet.match_info.match_phase == f.MatchPhase.Kickoff,
             "game_speed": packet.match_info.game_speed, "cars": cars, "boosts": boosts,
             "ball": physics(packet.balls[0].physics) if packet.balls else {}, "prediction": predictions}
 

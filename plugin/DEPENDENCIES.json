@@ -1,0 +1,20 @@
+{
+  "bakkesmod_sdk": {
+    "repository": "https://github.com/bakkesmodorg/BakkesModSDK",
+    "commit": "479e8f571cf554b25f4eeb64d611dec4133edcaf",
+    "archive_sha256": "e4072d2884a432bedfd7a7e8474000137b1649deeea3346de4f1b2a0cb9dd866",
+    "api_version": 95,
+    "redistribution": "Fetched at build time. No game assets or BakkesMod injector are bundled."
+  },
+  "imgui": {
+    "version": "1.75, ABI-matched SDK imgui_bm.zip",
+    "source": "The hash-verified BakkesMod SDK archive",
+    "license": "MIT; licenses/imgui-LICENSE.txt"
+  },
+  "json": {
+    "repository": "https://github.com/nlohmann/json",
+    "version": "3.12.0",
+    "archive_sha256": "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+    "license": "MIT; licenses/json-LICENSE.MIT"
+  }
+}
