@@ -56,53 +56,60 @@ def validate_loadout(loadout: dict) -> dict:
     return dict(loadout)
 
 
+# Creator pages checked 23 October 2026. These are discovery references, not
+# compatibility certificates; no page is fetched during offline play.
+_MAP_REFERENCES = [
+    ("dribble-2-overhaul", "Dribble 2 Overhaul", "0xDigby and Martinn", "Dribbling",
+     "Ground ball-control course with staged challenges.", "1694288506"),
+    ("speed-jump-rings-3", "Speed Jump: Rings 3", "dmc", "Aerial control",
+     "Aerial obstacle course; creator labels it intermediate to hard.", "1671658424"),
+    ("giant-rings", "Lethamyr's Giant Rings Map", "Lethamyr", "Aerial control",
+     "Rings course for aerial steering; Workshop textures may be required.", "2025564083"),
+    ("neon-heights-rings", "Lethamyr's Neon Heights Rings", "Lethamyr", "Aerial control",
+     "A separate rings course set above a neon city.", "2468375059"),
+    ("noob-dribble", "Noob Dribble", "dmc", "Dribbling",
+     "Beginner-friendly ground-control course; creator lists intermediate difficulty.", "1843822064"),
+    ("coco-aim", "Aim training", "CoCo", "Shooting",
+     "Target shooting with easy, customizable normal, and survival modes.", "1906378036"),
+    ("hornets-nest", "Hornets Nest", "dmc", "Recoveries",
+     "Obstacle arena; creator lists intermediate difficulty.", "1827631206"),
+    ("fractal-funland", "Fractal's Funland", "F r a c t a l and Rocket League Mapmaking", "Recoveries",
+     "Course for momentum, recoveries, and handling, with level navigation.", "3109906046"),
+    ("speed-jump-boost", "Speed Jump: Boost", "dmc", "Boost management",
+     "Community aerial course focused on boost and movement control.", "1421195368"),
+    ("speed-jump-2", "Speed Jump 2", "dmc", "Aerial control",
+     "Community obstacle course for aerial movement.", "1429288182"),
+]
+
 _COMMUNITY = [
     {
-        "id": "dribble-2-overhaul",
-        "title": "Dribble 2 Overhaul",
-        "creator": "0xDigby and Martinn; based on Dribbling Challenge #2",
-        "category": "Ground dribbling and ball control",
-        "description": "A staged dribbling course with restart and practice options.",
-        "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1694288506",
-        "license": "Creator's Workshop terms; redistribution permission not established. Link only.",
-        "dependency": "A legally obtained compatible map file and installed Rocket League",
-        "loading_route": "Steam Workshop in-game, or local .udk/.upk import for documented RLBot Steam route",
-        "compatibility": "Steam route documented, map not game tested here. Epic import unavailable.",
-        "steam": "Documented route; current-map runtime unverified",
-        "epic": "Unavailable in this app; Workshop publication does not establish Epic permission or loading",
-        "status": "External creator resource; verify current availability at source",
-    },
-    {
-        "id": "speed-jump-rings-3",
-        "title": "Speed Jump: Rings 3",
-        "creator": "dmc",
-        "category": "Aerial steering and recovery",
-        "description": "An aerial obstacle course described by its creator as intermediate to hard.",
-        "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1671658424",
-        "license": "Creator's Workshop terms; redistribution permission not established. Link only.",
-        "dependency": "A legally obtained compatible map file and installed Rocket League",
-        "loading_route": "Steam Workshop in-game, or local .udk/.upk import for documented RLBot Steam route",
-        "compatibility": "Steam route documented, map not game tested here. Epic import unavailable.",
-        "steam": "Documented route; current-map runtime unverified",
-        "epic": "Unavailable in this app; no verified Epic loader is bundled",
-        "status": "External creator resource; verify current availability at source",
-    },
-    {
-        "id": "lethamyr-training",
-        "title": "Lethamyr's training map collection",
-        "creator": "Lethamyr and the individual creators credited on each map",
-        "category": "Aerial control, dribbling, and boost management",
-        "description": "Browse original map pages for creator credits, downloads, and map-specific instructions.",
-        "url": "https://lethamyr.com/maps?filter=Training&sort_by=downloads",
-        "license": "Read each creator's terms. No map redistribution rights are implied by this link.",
-        "dependency": "Map-specific dependencies listed by its creator; no external loader is installed by this app",
-        "loading_route": "Import a permitted local .udk/.upk on Steam; consult creator for other routes",
-        "compatibility": "Individual maps need validation. Epic import unavailable in this app.",
-        "steam": "Documented local-file route; map-specific behavior unverified",
-        "epic": "Unavailable in this app; creator's separate loading instructions may require external tools",
-        "status": "External creator catalog; no map is included",
-    },
-]
+        "id": identity, "title": title, "creator": creator, "category": category,
+        "description": description, "workshop_id": workshop_id,
+        "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={workshop_id}",
+        "license": "Creator's Workshop terms; no redistribution permission established. Link only.",
+        "dependency": "Player-owned compatible local map; some maps also need creator-listed textures or plugins",
+        "loading_route": "Installed Steam Workshop discovery or permitted local .udk/.upk import",
+        "compatibility": "Current-game compatibility unverified; source page displays a compatibility warning.",
+        "steam": "Local package discovery supported; exact map runtime unverified",
+        "epic": "Launch unavailable in this app; a separately verified local loader is required",
+        "status": "Creator reference checked 2026-10-23; no map files included",
+        "game_tested": False, "source_checked": "2026-10-23",
+    }
+    for identity, title, creator, category, description, workshop_id in _MAP_REFERENCES
+] + [{
+    "id": "immortals-progressive-tower", "title": "The Immortals Progressive Tower",
+    "creator": "Lethamyr and credited collaborators", "category": "Mixed mechanics",
+    "description": "Twenty levels combining timing, shooting, aerial control, and boost usage.",
+    "url": "https://lethamyr.com/maps/173", "workshop_id": None,
+    "license": "Read creator terms. No permission to redistribute map or dependencies is established.",
+    "dependency": "Workshop textures; Map Expansion Plugin (294) for persistent times, per creator",
+    "loading_route": "Creator-provided local package; exact required loader/dependencies need verification",
+    "compatibility": "Creator page verified; current-game runtime and dependency compatibility unverified",
+    "steam": "Permitted local-file import supported; exact map runtime unverified",
+    "epic": "Launch unavailable in this app; creator's loader instructions require separate verification",
+    "status": "Creator reference checked 2026-10-23; no map files included",
+    "game_tested": False, "source_checked": "2026-10-23",
+}]
 
 
 def community_catalog() -> list[dict]:
@@ -163,7 +170,12 @@ def import_map(source: str | Path, data_directory: str | Path, launcher: str) ->
             destination = map_dir / f"{sha256}{path.suffix.lower()}"
             if destination.is_symlink():
                 raise ValueError("The saved map location is a symbolic link. Choose a clean data directory.")
-            os.replace(temporary, destination)
+            # A previously imported map is already at this content-addressed
+            # path. Windows cannot replace it while its source handle is open.
+            if path == destination:
+                temporary.unlink()
+            else:
+                os.replace(temporary, destination)
             temporary = None
         finally:
             if temporary is not None:

@@ -117,6 +117,26 @@ def _snapshot(career, lineup):
                   "loadout": deepcopy(career["recruits"][key]["loadout"])} for key in lineup}
 
 
+def policy_manifest(provider_id):
+    """Immutable policy identity without importing the inference runtime."""
+    if provider_id == PROVIDER_ID:
+        return deepcopy(PROVIDER)
+    from .bots.providers import MODELS, SOURCE_REVISION
+    _require(provider_id in MODELS, "Unknown bot policy.")
+    return {"id": provider_id, "version": SOURCE_REVISION,
+            "model_sha256": MODELS[provider_id]["sha256"]}
+
+
+def set_policy(career, provider_id):
+    career = _copy(career)
+    _assert_editable(career)
+    manifest = policy_manifest(provider_id)
+    _require(provider_id == PROVIDER_ID or career["format"] <= 3,
+             "Necto and Nexto support 1v1, 2v2 and 3v3; select Ground Specialists for 4v4.")
+    career["bot_policy"] = manifest["id"]
+    return _finish(career)
+
+
 def bot_runtime_snapshot(fixture):
     """Record the exact pure-controller configuration in RLBot's player order.
 
@@ -146,8 +166,9 @@ def bot_runtime_snapshot(fixture):
                 "name": descriptor["name"], "role": descriptor["role"], "level": descriptor["level"],
                 "loadout": deepcopy(descriptor["loadout"]),
                 "difficulty": difficulty, "seed": fixture["seed"] + len(bots),
-                "parameters": capability_parameters(descriptor["level"], difficulty),
-                "provider_id": PROVIDER_ID, "provider_version": PROVIDER_VERSION,
+                "parameters": (capability_parameters(descriptor["level"], difficulty)
+                    if fixture["provider"]["id"] == PROVIDER_ID else {}),
+                "provider_id": fixture["provider"]["id"], "provider_version": fixture["provider"]["version"],
             })
     return bots
 
@@ -291,6 +312,7 @@ def start_fixture(career, session_id):
     _require(selected is not None, "This season is complete. Start the next season to play again.")
     fixture = next(f for f in _fixtures(_season(career)) if f["id"] == selected["id"])
     fixture["status"] = "pending"
+    fixture["provider"] = policy_manifest(career.get("bot_policy", PROVIDER_ID))
     fixture["session_id"] = session_id
     fixture["lineup"] = list(career["lineup"])
     fixture["squad"] = list(career["squad"])
@@ -827,7 +849,10 @@ def _validate_fixture(f, fixture_ids, result_ids, session_ids):
                  and _integer(snapshot["level"], 1, MAX_LEVEL), "Invalid historical bot capability.")
         _name(snapshot["name"])
         _validate_loadout(snapshot["loadout"])
-    _require(f["provider"] == PROVIDER, "Unknown bot provider/version in the saved fixture.")
+    _require(isinstance(f["provider"], dict) and f["provider"] == policy_manifest(f["provider"].get("id")),
+             "Unknown bot provider/version in the saved fixture.")
+    _require(f["provider"]["id"] == PROVIDER_ID or f["format"] <= 3,
+             "Learned bot policies do not support 4v4.")
     _require(_integer(f["opponent_starting_level"], 1, MAX_LEVEL)
              and f["duration_seconds"] == 300 and f["overtime"] is True, "Invalid match rules or bot level.")
     _require(f["bot_runtime"] == bot_runtime_snapshot(f),

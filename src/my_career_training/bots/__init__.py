@@ -29,8 +29,7 @@ def provider_manifest():
         "rank_targets": [{"rank": rank, "available": False, "status": "unevaluated"}
                          for rank in ("Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion",
                                       "Grand Champion", "Supersonic Legend")],
-        "optional_providers": [{"id": "nexto", "installed": False, "status": "unavailable",
-                                "reason": "No licensed compatible runtime/model packaged or verified"}],
+        "provider_selection": "Necto and Nexto availability is listed separately in the installed provider catalog",
         "role_weights": {role: dict(weights) for role, weights in ROLE_WEIGHTS.items()},
     }
 

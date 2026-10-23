@@ -1,75 +1,39 @@
 # My Career Training
 
-## Download for Windows
+**[Download the Windows in-game preview](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.2.0/MyCareerTraining-0.2.0-windows-x64-setup.exe)** · [Portable ZIP](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.2.0/MyCareerTraining-0.2.0-windows-x64-portable.zip) · [Release and checksums](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0)
 
-**[Download Windows installer (.exe · 50 MB)](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-setup.exe)**
+An offline career and training interface inside Rocket League. **0.2.0 is an unsigned Windows Steam testing preview**, requiring your installed game and [BakkesMod](https://bakkesmod.com/). It has no online matchmaking flow. Epic launch is not supported by this build.
 
-[Portable ZIP · 78 MB](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-portable.zip)
- · [Setup guide](docs/PLAYER_GUIDE.md)
- · [All downloads and checksums](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.1.0)
+Close Rocket League, keep Steam and BakkesMod open, install the app, then use the **My Career Training** shortcut. It installs our plugin and launches an owned offline game. Existing saves remain in `%LOCALAPPDATA%/MyCareerTraining`. No Python, Git, Cursor or AI subscription is needed.
 
-Close Rocket League, run the installer, then choose Steam or Epic and your game
-location in **Settings**. Try the optional calibration match first. The current
-download is the unsigned **0.1.0 Windows x64 testing preview**.
+[Setup and player guide](docs/IN_GAME_PLAYER_GUIDE.md) · [Website](https://my-career-training.vercel.app/)
 
-A local Windows career and practice companion for your installed **Rocket League**.
-Drive your own car, recruit four specialist bots, play a short Soccar season, and
-choose optional lessons including speed flips and flip resets.
+## In this preview
 
-**0.1.0 is a testing prerelease. Full V1 is incomplete.** The application and
-integration are implemented in source, but no real Rocket League session has
-been verified for this app on Steam or Epic. Validated expert teaching recordings
-are still missing. The original specialist bots are experimental and unranked;
-there is no Diamond-strength guarantee.
+- Career, Squad, Schedule, Season, Training, Workshop, Garage and Settings in a full-screen in-game menu.
+- Local seasons, standings, durable results, between-match lineup changes, custom club names and active career-side locking.
+- Actual Necto and Nexto CPU policies for 1v1–3v3, with their original licenses. Their historical Diamond/GC1 estimates are not current rank certifications. Ground specialists support 4v4.
+- A PlayStation graphic for observed logical actions, configurable labels and placement, and personal/imported ghost playback with watch, lead, slow motion, seek and loop controls.
+- An expanded attributed Workshop browser, local Steam map discovery, favorites and controlled map loading/recovery.
+- Installed cosmetic browsing and the supported BakkesMod local visual override categories.
 
-## Try it on Windows
+## Verification and remaining work
 
-Use the installer linked above, or extract the entire portable ZIP and open
-**MyCareerTraining.exe**. Keep its worker and `_internal` folder beside it.
+Published installers require successful Windows tests, native DLL compilation/export checks, frozen model inference, Unicode-path checks and install/upgrade/uninstall checks. The release's `RELEASE_RECEIPT.json` identifies the exact compiled source and artifacts. These checks do not prove gameplay.
 
-Follow the [player guide](docs/PLAYER_GUIDE.md) for installation, first setup,
-career matches, lessons, backups and Play Online. You need Windows x64, your own
-current Rocket League installation, and an existing signed-in Steam or Epic
-session. The packaged app needs no Python, Git, Cursor or AI subscription.
+**Full V1 is incomplete.** This new in-game build still needs a real Steam game test. The custom screen covers native menus; it does not replace the game's menu files. No validated expert ghost is bundled. Ghost camera spectating, guaranteed inactivity protection, unrestricted garage/body/profile customization and Epic bootstrap remain unfinished. Learned bots do not learn from your training sessions.
 
-Career matches use the supported **EAC-off offline environment**. Official online
-play uses the platform's normal **EAC-enabled** entry. The app never asks for your
-Steam/Epic password. macOS source/UI checks do not provide Mac gameplay support.
+- [Game acceptance checklist](docs/IN_GAME_ACCEPTANCE.md)
+- [Bot providers and attribution](docs/BOT_PROVIDERS.md)
+- [Workshop library](docs/WORKSHOP_LIBRARY.md)
+- [Plugin capabilities and build](plugin/README.md)
+- [Rebuild architecture](docs/IN_GAME_REBUILD.md) and [release notes](docs/RELEASE_NOTES.md)
+- [Original assignment](docs/BUILD_SPEC.md)
 
-## What's here
+## Earlier desktop preview
 
-- One human captain and four persistent recruits, with 1v1–4v4 formats and
-  between-match lineup changes.
-- Four-club, six-round seasons, standings, seeded simulated rival fixtures,
-  title playoffs when needed, progression and continued careers.
-- Eight optional training groups, reset/retry, measured observations, personal
-  recordings, wireframe ghost playback and independent help preferences.
-- A local bot garage, creator/map links, validated local map import, accessibility
-  settings, backups and diagnostics.
-- A separate game worker, durable match-result receipts, and an ordered save,
-  close and normal-launch Play Online transition.
-- Optional match review with timestamped observations and clearly labeled
-  positioning suggestions, saved alongside the result.
+[0.1.0 installer](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-setup.exe) · [0.1.0 portable ZIP](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-portable.zip) · [Legacy guide](docs/PLAYER_GUIDE.md)
 
-Features above describe source implementation. Actual game behavior, lesson
-accuracy, controller operation and Steam/Epic handoff still need independent
-Windows tests. Community map import does not establish a working game loader;
-Epic map loading is unavailable. Local rewards never grant account inventory.
+The earlier preview used a separate desktop interface. The owner reported playing a Steam match and identified the interface, bot and training issues that prompted this rebuild; those observations do not validate the new plugin.
 
-## Evidence and development
-
-- [Feature evidence matrix](docs/FEATURE_MATRIX.md)
-- [Compatibility and integration findings](docs/COMPATIBILITY.md)
-- [Release notes](docs/RELEASE_NOTES.md)
-- [Architecture](docs/ARCHITECTURE.md) and [build instructions](docs/BUILDING.md)
-- [Future two-captain investigation](docs/MULTIPLAYER.md)
-- [Complete assignment](docs/BUILD_SPEC.md)
-
-GitHub is canonical. The Cursor Origin mirror is
-[sloppamadewithlove/my-career-training](https://origin.cursor.com/sloppamadewithlove/my-career-training.git).
-Its HEAD was verified at repository setup; continuing mirror synchronization
-must be checked for the release commit. See [repository setup](docs/REPOSITORY_SETUP.md).
-
-Original project code/artwork is [MIT-licensed](LICENSE). Read
-[third-party notices](THIRD_PARTY_NOTICES.md) for Qt, RLBot and other dependencies.
-Rocket League and community content have their own owners and permissions.
+GitHub is canonical. The connected [Cursor Origin mirror](https://origin.cursor.com/sloppamadewithlove/my-career-training.git) carries the development branch too. Original code/artwork is [MIT-licensed](LICENSE); [third-party notices](THIRD_PARTY_NOTICES.md) cover the separately licensed models and dependencies. Rocket League assets, account inventory and community maps are not redistributed.

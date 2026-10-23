@@ -10,6 +10,7 @@ import math
 import uuid
 
 from .catalog import assistance_preferences, configure_lesson
+from .coaching import lesson_coaching
 from .recordings import Recorder, euler_quaternion, _rotate
 
 
@@ -691,6 +692,7 @@ class TrainingEngine:
             "reference_status": self.lesson["reference_status"],
             "timing_comparison": "No validated equivalent teaching reference is installed.",
             "preferences": deepcopy(self.preferences),
+            "coaching": lesson_coaching(self.lesson, self.events, state=self.state, outcome=self.outcome),
         }
 
     def recording(self):

@@ -1,0 +1,58 @@
+cmake_minimum_required(VERSION 3.24)
+project(MyCareerTrainingPlugin VERSION 0.2.0 LANGUAGES CXX)
+
+include(FetchContent)
+FetchContent_Declare(mct_json
+  URL https://codeload.github.com/nlohmann/json/tar.gz/refs/tags/v3.12.0
+  URL_HASH SHA256=4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(mct_json)
+
+add_library(mct_bridge STATIC src/LocalBridge.cpp)
+target_include_directories(mct_bridge PUBLIC include)
+target_link_libraries(mct_bridge PUBLIC nlohmann_json::nlohmann_json)
+target_compile_features(mct_bridge PUBLIC cxx_std_17)
+if(WIN32)
+  target_link_libraries(mct_bridge PUBLIC ole32)
+  target_compile_definitions(mct_bridge PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
+option(MCT_BUILD_PLUGIN "Build the Windows Rocket League plugin" ${WIN32})
+if(MCT_BUILD_PLUGIN)
+  if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "The game plugin needs 64-bit Windows and MSVC. Use -DMCT_BUILD_PLUGIN=OFF for portable bridge tests.")
+  endif()
+  FetchContent_Declare(mct_sdk
+    URL https://codeload.github.com/bakkesmodorg/BakkesModSDK/tar.gz/479e8f571cf554b25f4eeb64d611dec4133edcaf
+    URL_HASH SHA256=e4072d2884a432bedfd7a7e8474000137b1649deeea3346de4f1b2a0cb9dd866
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  FetchContent_GetProperties(mct_sdk)
+  if(NOT mct_sdk_POPULATED)
+    FetchContent_Populate(mct_sdk)
+  endif()
+  # BakkesMod shares an ImGui context with plugins. A newer upstream release is
+  # not ABI-compatible: use the SDK's exact patched 1.75 sources.
+  set(MCT_IMGUI_ROOT ${CMAKE_CURRENT_BINARY_DIR}/sdk-imgui)
+  file(ARCHIVE_EXTRACT INPUT ${mct_sdk_SOURCE_DIR}/imgui_bm.zip DESTINATION ${MCT_IMGUI_ROOT})
+  add_library(mct_imgui STATIC
+    ${MCT_IMGUI_ROOT}/imgui/imgui.cpp
+    ${MCT_IMGUI_ROOT}/imgui/imgui_draw.cpp
+    ${MCT_IMGUI_ROOT}/imgui/imgui_widgets.cpp)
+  target_include_directories(mct_imgui PUBLIC ${MCT_IMGUI_ROOT}/imgui)
+  target_compile_definitions(mct_imgui PRIVATE IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCTIONS)
+  add_library(MyCareerTraining SHARED src/MyCareerTraining.cpp src/CareerUI.cpp)
+  target_include_directories(MyCareerTraining PRIVATE ${mct_sdk_SOURCE_DIR}/include ${mct_sdk_SOURCE_DIR}/include/bakkesmod/wrappers)
+  target_link_libraries(MyCareerTraining PRIVATE mct_bridge mct_imgui ${mct_sdk_SOURCE_DIR}/lib/pluginsdk.lib comdlg32 user32)
+  target_compile_options(MyCareerTraining PRIVATE /W4 /EHsc /utf-8 /permissive-)
+  target_compile_definitions(MyCareerTraining PRIVATE _CRT_SECURE_NO_WARNINGS)
+  set_target_properties(MyCareerTraining PROPERTIES PREFIX "" OUTPUT_NAME "MyCareerTraining")
+  install(TARGETS MyCareerTraining RUNTIME DESTINATION plugins)
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(mct_bridge_tests tests/bridge_tests.cpp)
+  target_link_libraries(mct_bridge_tests PRIVATE mct_bridge)
+  add_test(NAME local_bridge COMMAND mct_bridge_tests)
+endif()

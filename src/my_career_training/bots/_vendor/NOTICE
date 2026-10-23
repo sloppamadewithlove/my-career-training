@@ -1,0 +1,14 @@
+Necto and Nexto observation builders and model action parsing derive from
+https://github.com/Rolv-Arild/Necto
+Revision: 2e6ed7d6ed2b352e8ff529d4a12a0c9c70c28cca
+Authors: Rolv-Arild and the RLGym / Necto contributors (see upstream history).
+License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+Full license: LICENSE. Model weights carry the same license.
+
+My Career Training adapts the observation builders to its normalized RLBot v5
+packet boundary and preserves upstream observation math. This implementation
+uses the original licensed source, rather than the separate unlicensed v5 port.
+The original model weights are unchanged. The models and their adapted code
+are a separate licensed component; the app MIT license does not relicense them.
+No commercial permission or competitive rank certification is claimed.

@@ -363,7 +363,7 @@ def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch)
     monkeypatch.setitem(sys.modules, "rlbot.interface", NS(SocketRelay=Relay))
     monkeypatch.setitem(sys.modules, "rlbot.managers.match", NS(MatchManager=Manager))
     monkeypatch.setitem(sys.modules, "rlbot.managers.rendering", NS(Renderer=lambda relay: NS()))
-    monkeypatch.setattr(worker, "preflight", lambda: None)
+    monkeypatch.setattr(worker, "preflight", lambda owned=None: None)
     monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
     monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: NS(poll=lambda: None))
     monkeypatch.setattr(adapter, "match_config", lambda req: (configuration,

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 #define AppName "My Career Training"
 
@@ -31,17 +31,18 @@ UninstallDisplayName={#AppName}
 VersionInfoVersion={#AppVersion}
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "desktopicon"; Description: "Create a desktop shortcut for offline My Career"; GroupDescription: "Shortcuts:"
 
 [Files]
 Source: "..\dist\MyCareerTraining\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\MyCareerTraining.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\MyCareerTraining.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\MyCareerTraining.exe"; Parameters: "--in-game"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\MyCareerTraining.exe"; Parameters: "--in-game"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\{#AppName} - Setup and diagnostics"; Filename: "{app}\MyCareerTraining.exe"; Parameters: "--manage"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\MyCareerTraining.exe"; Description: "Open {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\MyCareerTraining.exe"; Parameters: "--in-game"; Description: "Open offline {#AppName}"; Flags: nowait postinstall skipifsilent
 
 ; AppData careers are deliberately absent from Files, Dirs and UninstallDelete.
 ; Inno removes installed program files; it preserves the player's separate saves.

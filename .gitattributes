@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.pt -text
+src/my_career_training/bots/resources/LICENSE-Necto.txt -text

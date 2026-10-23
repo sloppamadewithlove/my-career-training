@@ -1,0 +1,198 @@
+#include "LocalBridge.h"
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <random>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+#ifdef _WIN32
+#include <windows.h>
+#include <objbase.h>
+#endif
+
+namespace mct {
+double unixTime() {
+    return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+std::string newId() {
+    std::array<unsigned char, 16> bytes{};
+#ifdef _WIN32
+    GUID id{};
+    if (FAILED(CoCreateGuid(&id))) throw std::runtime_error("Could not create a command ID.");
+    // UUID's canonical layout must use GUID field order, not native little endian.
+    bytes = {static_cast<unsigned char>(id.Data1 >> 24), static_cast<unsigned char>(id.Data1 >> 16),
+        static_cast<unsigned char>(id.Data1 >> 8), static_cast<unsigned char>(id.Data1),
+        static_cast<unsigned char>(id.Data2 >> 8), static_cast<unsigned char>(id.Data2),
+        static_cast<unsigned char>(id.Data3 >> 8), static_cast<unsigned char>(id.Data3),
+        id.Data4[0], id.Data4[1], id.Data4[2], id.Data4[3], id.Data4[4], id.Data4[5], id.Data4[6], id.Data4[7]};
+#else
+    std::random_device random;
+    for (auto& byte : bytes) byte = static_cast<unsigned char>(random());
+#endif
+    bytes[6] = static_cast<unsigned char>((bytes[6] & 0x0f) | 0x40);
+    bytes[8] = static_cast<unsigned char>((bytes[8] & 0x3f) | 0x80);
+    std::ostringstream output;
+    output << std::hex << std::setfill('0');
+    for (size_t i = 0; i < bytes.size(); ++i) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) output << '-';
+        output << std::setw(2) << static_cast<unsigned int>(bytes[i]);
+    }
+    return output.str();
+}
+std::string stringValue(const Json& j, const char* key, const std::string& fallback) {
+    if (!j.is_object()) return fallback;
+    auto it = j.find(key);
+    return it != j.end() && it->is_string() ? it->get<std::string>() : fallback;
+}
+double numberValue(const Json& j, const char* key, double fallback) {
+    if (!j.is_object()) return fallback;
+    auto it = j.find(key);
+    if (it == j.end() || !it->is_number()) return fallback;
+    const double result = it->get<double>();
+    return std::isfinite(result) ? result : fallback;
+}
+bool boolValue(const Json& j, const char* key, bool fallback) {
+    if (!j.is_object()) return fallback;
+    auto it = j.find(key);
+    return it != j.end() && it->is_boolean() ? it->get<bool>() : fallback;
+}
+Json objectValue(const Json& j, const char* key) {
+    if (j.is_object()) {
+        auto it = j.find(key);
+        if (it != j.end() && it->is_object()) return *it;
+    }
+    return Json::object();
+}
+Json arrayValue(const Json& j, const char* key) {
+    if (j.is_object()) {
+        auto it = j.find(key);
+        if (it != j.end() && it->is_array()) return *it;
+    }
+    return Json::array();
+}
+
+LocalBridge::LocalBridge(std::filesystem::path directory) : directory_(std::move(directory)) {}
+
+bool LocalBridge::validState(const Json& state, double now) {
+    const auto session = stringValue(state, "bridge_session");
+    const auto published = numberValue(state, "published_at", 0);
+    return state.is_object() && numberValue(state, "protocol") == 1 &&
+        boolValue(state, "offline") && session.size() >= 16 && session.size() <= 128 &&
+        session.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") == std::string::npos &&
+        published <= now + 2.0 && now - published <= 5.0;
+}
+
+bool LocalBridge::poll(double now) {
+    try {
+        const auto path = directory_ / "state.json";
+        if (!std::filesystem::is_regular_file(path) || std::filesystem::file_size(path) > 8 * 1024 * 1024)
+            throw std::runtime_error("Waiting for the offline career service.");
+        const auto modified = std::filesystem::last_write_time(path);
+        const auto size = std::filesystem::file_size(path);
+        {
+            std::lock_guard<std::mutex> guard(mutex_);
+            if (haveRead_ && modified == lastWriteTime_ && size == lastFileSize_ && validState(state_, now)) return true;
+        }
+        std::ifstream file(path, std::ios::binary);
+        if (!file) throw std::runtime_error("The offline career service cannot be read.");
+        Json candidate = Json::parse(file, nullptr, false);
+        if (candidate.is_discarded() || !validState(candidate, now))
+            throw std::runtime_error("The offline career service is disconnected. Restart My Career from its shortcut.");
+        std::lock_guard<std::mutex> guard(mutex_);
+        state_ = std::move(candidate);
+        lastWriteTime_ = modified; lastFileSize_ = size; haveRead_ = true;
+        error_.clear();
+        return true;
+    } catch (const std::exception& exception) {
+        std::lock_guard<std::mutex> guard(mutex_);
+        state_ = Json::object();
+        error_ = exception.what();
+        return false;
+    }
+}
+Json LocalBridge::state() const {
+    std::lock_guard<std::mutex> guard(mutex_);
+    return state_;
+}
+bool LocalBridge::fresh(double now) const {
+    std::lock_guard<std::mutex> guard(mutex_);
+    return validState(state_, now);
+}
+std::string LocalBridge::error() const {
+    std::lock_guard<std::mutex> guard(mutex_);
+    return error_;
+}
+
+bool LocalBridge::allowedAction(const std::string& action) {
+    static const std::set<std::string> actions = {
+        "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
+        "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson",
+        "retry_lesson", "stop_session", "assistance", "settings", "diagnostics", "loadout",
+        "restore_explanations", "return_hub", "quit_game", "workshop_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
+        "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording"
+    };
+    return actions.count(action) != 0;
+}
+
+void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::string& bytes) {
+    std::filesystem::create_directories(path.parent_path());
+    const auto temporary = path.parent_path() / (path.filename().string() + "." + newId() + ".tmp");
+    try {
+        {
+            std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
+            if (!file) throw std::runtime_error("Cannot write the local career command.");
+            file.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+            file.flush();
+            if (!file) throw std::runtime_error("Could not finish the local career command.");
+        }
+#ifdef _WIN32
+        if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            throw std::runtime_error("Could not publish the local career command.");
+#else
+        std::filesystem::rename(temporary, path);
+#endif
+    } catch (...) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
+        throw;
+    }
+}
+
+bool LocalBridge::send(const std::string& action, Json payload) {
+    try {
+        if (!allowedAction(action) || !payload.is_object()) throw std::runtime_error("This action is not available in the offline career.");
+        Json snapshot = state();
+        if (!validState(snapshot, unixTime())) throw std::runtime_error("Reconnect the offline career service before continuing.");
+        const auto id = newId();
+        const Json command = {{"protocol", 1}, {"id", id}, {"session", stringValue(snapshot, "bridge_session")},
+            {"action", action}, {"payload", std::move(payload)}};
+        const auto encoded = command.dump();
+        if (encoded.size() > 65536) throw std::runtime_error("This career command is too large.");
+        size_t pending = 0;
+        std::filesystem::create_directories(directory_ / "commands");
+        for (const auto& entry : std::filesystem::directory_iterator(directory_ / "commands"))
+            if (entry.path().extension() == ".json" && ++pending >= 32)
+                throw std::runtime_error("Wait for the previous career actions to finish.");
+        atomicWrite(directory_ / "commands" / (id + ".json"), encoded);
+        std::lock_guard<std::mutex> guard(mutex_);
+        error_.clear();
+        return true;
+    } catch (const std::exception& exception) {
+        std::lock_guard<std::mutex> guard(mutex_);
+        error_ = exception.what();
+        return false;
+    }
+}
+
+void LocalBridge::publishStatus(Json status) {
+    const auto snapshot = state();
+    if (!validState(snapshot, unixTime())) return;
+    status["protocol"] = 1;
+    status["bridge_session"] = stringValue(snapshot, "bridge_session");
+    status["published_at"] = unixTime();
+    atomicWrite(directory_ / "plugin-status.json", status.dump());
+}
+}

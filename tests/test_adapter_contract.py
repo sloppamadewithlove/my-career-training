@@ -56,7 +56,7 @@ def test_connect_uses_the_core_required_close_mode_for_match_managers_and_agents
 
 def test_normalized_packet_maps_the_sdk_shape_with_small_fake_objects(monkeypatch):
     """Keep the pure adapter usable without importing the Windows native SDK."""
-    monkeypatch.setattr(adapter, "flat_module", lambda: NS(AirState=NS(OnGround="ground")))
+    monkeypatch.setattr(adapter, "flat_module", lambda: NS(AirState=NS(OnGround="ground"), MatchPhase=NS(Kickoff=2)))
     player = NS(
         physics=_physics((1, 2, 3), (4, 5, 6), (0.1, 0.2, 0.3), (7, 8, 9)),
         team=1,
@@ -90,7 +90,7 @@ def test_normalized_packet_maps_the_sdk_shape_with_small_fake_objects(monkeypatc
         players=[player],
         boost_pads=[NS(is_active=True)],
         balls=[ball],
-        match_info=NS(seconds_elapsed=4.5, frame_num=540, game_speed=1.0),
+        match_info=NS(seconds_elapsed=4.5, frame_num=540, game_speed=1.0, match_phase=3),
     )
     field = NS(boost_pads=[NS(location=_vec(-100, 250, 73), is_full_boost=True)])
     prediction = NS(
