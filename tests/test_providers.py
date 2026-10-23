@@ -99,6 +99,33 @@ def test_real_cpu_models_infer_in_all_supported_formats():
 
 
 @runtime
+@pytest.mark.parametrize("provider_id", ["necto", "nexto"])
+def test_real_models_load_from_unicode_paths_through_python_binary_stream(tmp_path, monkeypatch, provider_id):
+    import torch
+    directory = tmp_path / "My Career Training é 球"
+    directory.mkdir()
+    model = MODELS[provider_id]
+    shutil.copy(RESOURCE_DIR / model["filename"], directory / model["filename"])
+    shutil.copy(RESOURCE_DIR / "LICENSE-Necto.txt", directory / "LICENSE-Necto.txt")
+    original_load = torch.jit.load
+    seen = []
+
+    def load_from_stream(file, *args, **kwargs):
+        # A path-only success on macOS would miss the Windows regression: this
+        # assertion requires the Unicode-safe buffer overload on every platform.
+        assert not isinstance(file, (str, bytes))
+        assert hasattr(file, "read") and file.readable() and "é 球" in file.name
+        seen.append(file.name)
+        return original_load(file, *args, **kwargs)
+
+    monkeypatch.setattr(torch.jit, "load", load_from_stream)
+    bot = create_controller(provider_id, resources=directory)
+    frame, index = game_frame(2)
+    assert any(bot.step(frame, index).values())
+    assert len(seen) == 1
+
+
+@runtime
 def test_pad_order_player_identity_and_orientation_survive_v5_conversion():
     import numpy as np
     from my_career_training.bots.learned import build_state, rotation_matrix

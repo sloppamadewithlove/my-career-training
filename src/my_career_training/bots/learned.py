@@ -176,7 +176,11 @@ def _load_actor(provider_id, path):
     if not _verified(path, MODELS[provider_id]["sha256"], force=True):
         raise ProviderUnavailable("The learned policy failed its integrity check before loading.")
     torch.set_num_threads(1)
-    actor = torch.jit.load(str(path), map_location="cpu").eval()
+    # Python opens Unicode Windows paths correctly. Passing a filename directly
+    # delegates to Torch 2.6's narrow-character native fopen and can fail for a
+    # player's account name or install folder. A binary stream uses its buffer API.
+    with path.open("rb") as stream:
+        actor = torch.jit.load(stream, map_location="cpu").eval()
     # Real model warmup before a match: catches unsupported runtime/operators.
     with torch.inference_mode():
         actor((torch.zeros(1, 1, 32), torch.zeros(1, 41, 24), torch.zeros(1, 41)))

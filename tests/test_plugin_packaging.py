@@ -64,3 +64,14 @@ def test_invalid_plugin_is_rejected(tmp_path, change):
     path.write_bytes(image)
     with pytest.raises(ValueError):
         inspect_plugin(path)
+
+
+def test_windowless_self_test_failure_is_nonzero_and_has_a_durable_traceback(tmp_path, monkeypatch):
+    from my_career_training import __main__ as entry
+    monkeypatch.setattr(entry.sys, "argv", ["MyCareerTraining", "--self-test", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(entry.sys, "stderr", None)
+    def broken_runtime():
+        raise RuntimeError("missing test runtime")
+    monkeypatch.setattr(entry, "self_test", broken_runtime)
+    assert entry.main() == 1
+    assert "missing test runtime" in (tmp_path / "self-test-error.txt").read_text()

@@ -35,11 +35,16 @@ def run_smoke(bundle: Path, data: Path) -> None:
         raise AssertionError('Plugin source and pinned dependencies are missing from its receipt')
     if receipt.get('gameplay_verified') is not False:
         raise AssertionError('A native build must not claim gameplay verification')
+    # Run the console self-test first so native/model import failures produce
+    # a traceback rather than a hidden Windows GUI exception dialog.
+    probe = subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe'), '--self-test'],
+                           capture_output=True, text=True, encoding='utf-8',
+                           timeout=60, env=environment)
+    if probe.returncode:
+        raise RuntimeError(f'Frozen worker self-test failed ({probe.returncode}):\n{probe.stdout}\n{probe.stderr}')
     for flag in ('--self-test', '--smoke-test'):
         subprocess.run([str(bundle / 'MyCareerTraining.exe'), flag, '--data-dir', str(data)],
                        check=True, timeout=60, env=environment)
-    subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe'), '--self-test'],
-                   check=True, timeout=60, env=environment)
     requests = [dict(id='package-ping', type='ping'), dict(id='package-stop', type='shutdown')]
     result = subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe')],
                             input=''.join(json.dumps(item) + '\n' for item in requests),
