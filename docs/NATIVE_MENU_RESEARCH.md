@@ -6,6 +6,28 @@ the player's game files and saves intact. This document records research and
 remaining proof; it does not claim that native-menu replacement has been
 validated.
 
+## Research decision
+
+The menu is not inherently unchangeable. Other games have demonstrated native
+Scaleform asset replacement and widget/action customization. Rocket League's
+generated metadata provides concrete native menu targets, but the public
+BakkesMod wrappers do not expose a complete editor for them.
+
+The [implementation plan](NATIVE_MENU_IMPLEMENTATION_PLAN.md) now identifies
+the exact candidate classes, distinguishes the home screen from the Play tree,
+and defines decisive tests for a native label change, disabled input, replaced
+actions, startup timing and normal Steam restoration. The preferred design
+changes live native objects in the owned offline process. The fallback supplies
+a locally edited UI package through a process-specific file view. Neither
+requires a second whole-game download; neither is yet a verified Rocket League
+implementation. [Cross-game precedents](research/NATIVE_MENU_PRECEDENTS.md)
+show what those methods actually achieve and where the analogy stops.
+
+The remaining work includes implementing a build-specific native adapter and
+proving its behavior. It is not merely a finished adapter awaiting a Windows
+test. Changing labels or displaying the supported dialog does not satisfy the
+requirement that stock choices be inaccessible and custom actions work.
+
 ## Current implementation status
 
 The current in-game interface is still a BakkesMod `PluginWindow` rendered with
@@ -37,7 +59,7 @@ validated for the current Rocket League process.
 
 | Candidate | Evidence and potential | What remains unknown |
 |---|---|---|
-| **Live GFx/menu-tree adapter — preferred** | The current generated SDK snapshot describes `GFxShell_X.Movies` and `GFxShell_X.DataStore`, `GFxMoviePlayer.Invoke` and `SetVariableString`, and `MenuTreeBranch.SetChildren`. It also documents build-specific function invocation details including a fixed RVA and `ProcessEvent` at vtable slot 67. If verified in the running game, a process-local adapter could change the native menu while leaving Steam package files untouched. | The generated descriptions are not proof that these objects own the desired top-level buttons in the player's process. The exact executable hash, object lifetime/ownership, current call layout, safe invocation method, and a route that invokes career actions without also starting the original action are unverified. Fixed RVAs and vtable slots must not be used without exact-build validation. |
+| **Live GFx/menu-tree adapter — preferred** | The current generated SDK snapshot describes `GFxShell_X.Movies` and `GFxShell_X.DataStore`, `GFxMoviePlayer.Invoke` and `SetVariableString`, and `MenuTreeBranch.SetChildren`. If verified in the running game, a process-local adapter could change the native menu while leaving Steam package files untouched. | The tree may own Play navigation rather than the home-screen buttons. Exact-build layouts, object lifetime, native action replacement, controller focus and startup timing are unverified. Generated offsets must not be used as a substitute for validating the actual callable interface. |
 | **Per-process local package redirection — alternate** | [Reloaded II documents supported injection methods](https://reloaded-project.github.io/Reloaded-II/InjectionMethods/), and the [Reloaded file redirector](https://github.com/Reloaded-Project/reloaded.universal.redirector/blob/7c7cfae07e80cc9fb1c5f39f10cca2d49dc7eee3/README-REDIRECTOR.md) describes mapping replacement files by game-relative path. A locally generated menu package could, in principle, be supplied to the running process through a virtual file layer. | There is no verified Rocket League loader/redirector integration, no proven current menu package mapping, and no evidence that Rocket League accepts a generated package in this flow. It must remain process-local and must not alter the Steam installation. |
 
 ## Source evidence and limits
@@ -53,7 +75,9 @@ validated for the current Rocket League process.
 
 1. On the player's actual Windows Steam installation, capture the exact game
    build and executable hash, confirm the launcher-owned process and offline
-   no-EAC state, and observe the native menus in that same process.
+   no-EAC state, prove current host/plugin loading, and observe the native menus
+   in that same process. The official [RL2.78/BM229 release](https://github.com/bakkesmodorg/BakkesModInjectorCpp/releases/tag/2.0.78)
+   establishes a published compatible-version host, not a test of this plugin.
 2. Identify which current-build movie and objects own the main-menu buttons and
    relevant submenus. Verify function signatures and object lifetimes against
    that exact executable; do not infer them from old offsets or names alone.
@@ -62,8 +86,10 @@ validated for the current Rocket League process.
    League menus return after career exit, plugin unload, process exit, and any
    stale/online state.
 4. Verify controller and keyboard navigation, match/pause/results transitions,
-   repeated entry/exit, an update/hash mismatch refusal, and an ordinary Steam
-   launch after the test. No test may change or replace Steam's original game
+   repeated entry/exit, startup before the first interactive menu, an update/hash
+   mismatch refusal, and an ordinary Steam launch after the test. Confirm that
+   native changes are not written back to shared settings or profiles. No test
+   may change or replace Steam's original game
    files, and no proprietary Rocket League assets may be copied into the
    project or installer.
 

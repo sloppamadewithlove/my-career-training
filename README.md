@@ -14,6 +14,12 @@ installer is held until that integration is verified.
 [Current development status](docs/RELEASE_NOTES.md) ·
 [Native menu investigation](docs/NATIVE_MENU_RESEARCH.md)
 
+The [native-menu implementation plan](docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md)
+maps candidate Rocket League menu classes, compares proven techniques in
+other games, and defines the tests needed to replace native controls while
+preserving the normal Steam installation. This is a researched design, not a
+claim that the native-menu edition already works.
+
 ## What is implemented, and what remains unverified
 
 The source includes career seasons and lineups, local bot providers, training
@@ -49,7 +55,10 @@ controller navigation and restoration still need real Windows game evidence.
 
 ## Setup direction
 
-BakkesMod is the third-party framework that currently loads our in-game plugin.
+BakkesMod is the third-party framework targeted by the current in-game plugin.
+Its official [RL2.78/BM229 compatibility release](https://github.com/bakkesmodorg/BakkesModInjectorCpp/releases/tag/2.0.78)
+was published on 20 October 2026. Loading this project's plugin on the player's
+exact current build still needs verification.
 The repaired source offers a guided download of its verified official installer,
 followed by the normal Windows installation steps when it is missing. We do not
 bundle BakkesMod or install unrelated community plugins. See
@@ -66,6 +75,7 @@ before making any changes.
 - [Player guide and known issues](docs/IN_GAME_PLAYER_GUIDE.md)
 - [Acceptance record](docs/IN_GAME_ACCEPTANCE.md)
 - [Native menu investigation and release gate](docs/NATIVE_MENU_RESEARCH.md)
+- [Native implementation plan](docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md) and [cross-game precedents](docs/research/NATIVE_MENU_PRECEDENTS.md)
 - [Read-only menu diagnostic](docs/NATIVE_MENU_PROBE.md)
 - [Windows Codex handoff and read-only game-file comparison](docs/WINDOWS_CODEX_HANDOFF.md)
 - [Design-engineer handoff for Opus 5.5](docs/OPUS_DESIGN_BRIEF.md) — a brief; no completed Opus review is claimed.
