@@ -1,5 +1,7 @@
 #pragma once
 #include "LocalBridge.h"
+#include "MenuLifecycle.h"
+#include "NativeMenuProbe.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
 #include "imgui.h"
@@ -53,8 +55,11 @@ private:
     mutable std::mutex runtimeMutex_;
     MctRuntime runtime_;
     std::deque<LocalRequest> localRequests_;
-    std::string lastSessionState_;
-    std::string lastBridgeSession_;
+    mct::MenuLifecycle menuLifecycle_;
+    bool tickFailed_ = false;
+    mct::NativeMenuProbe nativeProbe_;
+    bool probeHooksInstalled_ = false;
+    std::string lastProbeMenu_;
     std::string previousBind_;
     std::string toggleKey_ = "F6";
     bool ownBind_ = false;
@@ -93,6 +98,10 @@ private:
 
     void tick();
     void scheduleTick();
+    mct::NativeProbeScope probeScope() const;
+    void startNativeProbe();
+    void observeNativeProbe(const std::string& event);
+    void removeProbeHooks();
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
     void processLocalRequests(MctRuntime& result);

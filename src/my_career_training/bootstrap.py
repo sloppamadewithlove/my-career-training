@@ -28,6 +28,29 @@ def bakkes_directory():
     return next((p for p in candidates if (p / "plugins").is_dir()), None)
 
 
+def _injector_running():
+    import psutil
+    return any((process.info.get("name") or "").lower() == "bakkesmod.exe"
+               for process in psutil.process_iter(["name"]))
+
+
+def _injector_candidates(root=None):
+    candidates = [Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "BakkesMod/BakkesMod.exe",
+                  Path(os.environ.get("PROGRAMFILES(X86)", "C:/Program Files (x86)")) / "BakkesMod/BakkesMod.exe",
+                  Path(os.environ.get("LOCALAPPDATA", "")) / "BakkesMod/BakkesMod.exe"]
+    if root is not None:
+        candidates.extend((root.parent / "BakkesMod.exe", root.parent.parent / "BakkesMod.exe"))
+    return candidates
+
+
+def bakkes_ready():
+    """Require both the plugin folder and an installed or running injector."""
+    root = bakkes_directory()
+    if root is None:
+        return None
+    return root if _injector_running() or any(path.is_file() for path in _injector_candidates(root)) else None
+
+
 def plugin_binary():
     package = Path(__file__).resolve().parent
     for path in (package / "runtime/plugins/MyCareerTraining.dll", package.parent.parent / "runtime/plugins/MyCareerTraining.dll"):
@@ -65,20 +88,17 @@ def install_plugin():
 
 
 def ensure_injector_running():
-    import psutil
-    for process in psutil.process_iter(["name"]):
-        if (process.info.get("name") or "").lower() == "bakkesmod.exe":
-            return
-    candidates = [Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "BakkesMod/BakkesMod.exe",
-                  Path(os.environ.get("LOCALAPPDATA", "")) / "BakkesMod/BakkesMod.exe"]
-    for candidate in candidates:
+    if _injector_running():
+        return
+    for candidate in _injector_candidates(bakkes_directory()):
         if candidate.is_file():
             subprocess.Popen([str(candidate)], shell=False)
             return
     raise RuntimeError("Open BakkesMod, then launch My Career again. It loads the in-game career interface.")
 
 
-def launch_offline(settings):
+def preflight_offline(settings):
+    """Validate the game and Steam before offering first-run dependencies."""
     if sys.platform != "win32":
         raise RuntimeError("The in-game build runs on Windows with your installed Rocket League.")
     if game_processes():
@@ -93,6 +113,12 @@ def launch_offline(settings):
     import psutil
     if not any((p.info.get("name") or "").lower() == "steam.exe" for p in psutil.process_iter(["name"])):
         raise RuntimeError("Open Steam and sign in, then launch My Career again.")
+    return executable
+
+
+def launch_offline(settings):
+    import psutil
+    executable = preflight_offline(settings)
     install_plugin()
     ensure_injector_running()
     # Current RLBot's Steam launcher uses the installed executable and Steam identity.
@@ -152,6 +178,17 @@ def run_service(directory):
         backend.document["settings"].update(launcher=found["launcher"], install_path=found["path"], setup_complete=True)
         backend.setup_required = False
         backend._save_current()
+    try:
+        preflight_offline(backend.document["settings"])
+    except Exception as exc:
+        backend.store.close()
+        QMessageBox.critical(None, "My Career offline startup", str(exc))
+        return 1
+    if bakkes_ready() is None:
+        from .setup_dialog import ensure_bakkes_available
+        if not ensure_bakkes_available(Path(directory) / "setup-cache", finder=bakkes_ready):
+            backend.store.close()
+            return 0
     backend.exitRequested.connect(app.quit)
     bridge = FileBridge(directory, backend.dispatch, lambda: backend.state)
     bridge.poll()

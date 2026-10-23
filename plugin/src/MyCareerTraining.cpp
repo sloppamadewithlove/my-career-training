@@ -19,6 +19,12 @@ using mct::Json;
 using mct::stringValue;
 using mct::objectValue;
 using mct::arrayValue;
+constexpr const char* probeEvents[] = {
+    "Function TAGame.GFxData_MenuStack_TA.ButtonTriggered",
+    "Function TAGame.GFxData_MenuStack_TA.PushMenu",
+    "Function TAGame.GFxData_MenuStack_TA.PopMenu",
+    "Function TAGame.GFxData_MenuTree_TA.OnChildNodeClicked",
+};
 
 std::filesystem::path bridgeDirectory() {
     // Resolve the current user's actual Unicode LocalAppData path, never an
@@ -134,6 +140,17 @@ void MyCareerTraining::onLoad() {
             page_ = 4; menuOpen_ = true;
             cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Open offline training controls", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
+            startNativeProbe();
+        }, "Opt in to a bounded read-only native menu diagnostic", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_probe_stop", [this](std::vector<std::string>) {
+            removeProbeHooks();
+            try {
+                const bool saved = bridge_ && nativeProbe_.stopToBridge(probeScope(), mct::unixTime(), *bridge_);
+                cvarManager->log(saved ? "Read-only menu trace saved to MyCareerTraining/bridge/native-menu-probe.json."
+                    : "No safe owned-session menu trace to save.");
+            } catch (const std::exception& error) { cvarManager->log(error.what()); }
+        }, "Stop the native menu diagnostic and save its local trace", PERMISSION_OFFLINE);
         // F6 is commonly the BakkesMod console. Find an unused key and preserve
         // all player/plugin bindings; the actual selected key is shown in UI.
         bool availableKey = false;
@@ -154,6 +171,8 @@ void MyCareerTraining::onLoad() {
 void MyCareerTraining::onUnload() {
     alive_.reset();
     offlineReady_ = false;
+    removeProbeHooks();
+    nativeProbe_.clear();
     if (ownBind_ && cvarManager->getBindStringForKey(toggleKey_) == "mct_menu") cvarManager->removeBind(toggleKey_);
     restoreCosmetics();
 }
@@ -161,6 +180,65 @@ void MyCareerTraining::onUnload() {
 void MyCareerTraining::scheduleTick() {
     std::weak_ptr<int> life = alive_;
     gameWrapper->SetTimeout([this, life](GameWrapper*) { if (!life.expired()) tick(); }, 1.0f / 30.0f);
+}
+
+mct::NativeProbeScope MyCareerTraining::probeScope() const {
+    mct::NativeProbeScope scope;
+    if (!bridge_) return scope;
+    const auto state = bridge_->state();
+    scope.owned = mct::numberValue(objectValue(state, "owned_game"), "pid", -1) ==
+        static_cast<double>(GetCurrentProcessId());
+    scope.fresh = bridge_->fresh();
+    scope.online = gameWrapper->IsInOnlineGame();
+    scope.sessionNonce = stringValue(state, "bridge_session");
+    scope.gameBuild = gameWrapper->GetPsyBuildID();
+    scope.bakkesVersion = std::to_string(gameWrapper->GetBakkesModVersion());
+    // Executable hashing is a separate developer evidence step. Never invent
+    // a current-build hash or infer memory layout compatibility from a label.
+    return scope;
+}
+
+void MyCareerTraining::removeProbeHooks() {
+    if (!probeHooksInstalled_) return;
+    for (const auto event : probeEvents) gameWrapper->UnhookEventPost(event);
+    probeHooksInstalled_ = false;
+}
+
+void MyCareerTraining::startNativeProbe() {
+    removeProbeHooks();
+    if (!nativeProbe_.start(probeScope(), mct::unixTime())) {
+        cvarManager->log("Menu probe requires a fresh owned offline My Career session.");
+        return;
+    }
+    lastProbeMenu_.clear();
+    probeHooksInstalled_ = true;
+    try {
+        std::weak_ptr<int> life = alive_;
+        for (const auto event : probeEvents) {
+            gameWrapper->HookEventPost(event, [this, life](std::string observed) {
+                if (!life.expired() && nativeProbe_.active()) observeNativeProbe(observed);
+            });
+        }
+        observeNativeProbe("menu_stack_transition");
+        cvarManager->log("Read-only menu probe started for up to 120 seconds. Use mct_probe_stop to save locally.");
+    } catch (const std::exception& error) {
+        removeProbeHooks();
+        nativeProbe_.clear();
+        cvarManager->log(std::string("Menu probe could not start: ") + error.what());
+    }
+}
+
+void MyCareerTraining::observeNativeProbe(const std::string& event) {
+    try {
+        auto stack = gameWrapper->GetMenuStack();
+        const auto menu = stack ? stack.GetTopMenu() : "";
+        const auto observed = event.empty() && menu != lastProbeMenu_ ? "menu_stack_transition" : event;
+        nativeProbe_.observe(probeScope(), observed, menu, gameWrapper->IsInGame(), mct::unixTime());
+        lastProbeMenu_ = menu;
+    } catch (const std::exception& error) {
+        nativeProbe_.clear();
+        cvarManager->log(std::string("Menu probe stopped: ") + error.what());
+    }
 }
 
 MctRuntime MyCareerTraining::runtimeSnapshot() const {
@@ -177,6 +255,8 @@ void MyCareerTraining::tick() {
     try {
         const bool fresh = bridge_->poll();
         MctRuntime next = runtimeSnapshot();
+        if (tickFailed_) next.error.clear();
+        tickFailed_ = false;
         next.online = gameWrapper->IsInOnlineGame();
         next.inGame = gameWrapper->IsInGame();
         next.replay = gameWrapper->IsInReplay();
@@ -192,19 +272,21 @@ void MyCareerTraining::tick() {
         const auto ownedGame = objectValue(publishedState, "owned_game");
         const bool owned = mct::numberValue(ownedGame, "pid", -1) == static_cast<double>(GetCurrentProcessId());
         offlineReady_ = fresh && owned && !next.online;
+        // Empty observations enforce timeout/scope without recording tick spam.
+        if (probeHooksInstalled_ || nativeProbe_.hasTrace()) {
+            // A hook may already have erased an unsafe trace. Still remove
+            // its registrations here, outside the callback's dispatch stack.
+            if (nativeProbe_.hasTrace()) observeNativeProbe("");
+            if (!nativeProbe_.active()) removeProbeHooks();
+        }
         if (offlineReady_) {
             const auto& state = publishedState;
             const auto session = objectValue(state, "session");
             const auto phase = stringValue(session, "state");
             const auto nonce = stringValue(state, "bridge_session");
-            const bool newlyPlaying = (phase == "Playing" || phase == "training") && phase != lastSessionState_;
-            if (newlyPlaying) menuOpen_ = false;
-            if (!next.inGame || nonce != lastBridgeSession_ || phase == "Error/Recovery" ||
-                (phase == "Career Ready" && lastSessionState_ == "Playing")) menuOpen_ = true;
             advanceResume(next);
             const bool nativePause = next.paused || lower(next.menu).find("pause") != std::string::npos;
             if (!nativePause) pauseCaptureSuppressed_ = false;
-            if (!resumePending_ && !pauseCaptureSuppressed_ && nativePause) menuOpen_ = true;
             next.actions = Json::object();
             auto player = gameWrapper->GetPlayerController();
             if (player && next.inGame) {
@@ -214,16 +296,26 @@ void MyCareerTraining::tick() {
                     {"boost", input.ActivateBoost != 0 || input.HoldingBoost != 0}, {"handbrake", input.Handbrake != 0}};
             }
             enforceCareer(state, next);
+            const auto change = menuLifecycle_.observe({true, next.inGame,
+                nativePause, next.matchEnded, nonce, phase});
+            // Observe the pause edge even while resuming, so a slow native
+            // close cannot repeatedly reclaim input after the player resumes.
+            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_)
+                menuOpen_ = true;
+            else if (change == mct::MenuChange::Hide) menuOpen_ = false;
             auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
             auto code = cvarManager->getCvar("cl_itemmod_code");
             next.itemModAvailable = enabled && code;
             if (scanningProducts_) scanProducts(next);
             processLocalRequests(next);
-            if (!windowOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
+            // One request per transition; OnClose stays closed until a new
+            // transition or explicit menu key. The same host renders the HUD.
+            if (change != mct::MenuChange::None && !windowOpen_)
+                cvarManager->executeCommand("openmenu mycareertraining", false);
             if (mct::unixTime() - lastStatus_ >= 0.5) {
                 Json status = {{"version", "0.2.0"}, {"sdk_api", 95}, {"online", next.online},
                     {"pid", GetCurrentProcessId()}, {"bakkesmod_version", next.bakkesVersion},
-                    {"in_game", next.inGame}, {"ui_open", menuOpen_.load()}, {"menu", next.menu},
+                    {"in_game", next.inGame}, {"ui_open", ShouldBlockInput()}, {"menu", next.menu},
                     {"game_build", next.build}, {"logical_actions", next.actions}, {"team_lock_applied", next.teamLockApplied},
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
@@ -231,8 +323,6 @@ void MyCareerTraining::tick() {
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
             }
-            lastSessionState_ = phase;
-            lastBridgeSession_ = nonce;
         } else {
             // Restoring previously captured local cvars is also necessary on an
             // online transition. Leaving an override enabled would leak a
@@ -242,6 +332,7 @@ void MyCareerTraining::tick() {
             // No wrapper writes, commands, menu capture or telemetry in an
             // online match, stale service or unrelated game session.
             next.actions = Json::object();
+            menuLifecycle_.observe({});
             menuOpen_ = false;
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             localRequests_.clear();
@@ -251,8 +342,11 @@ void MyCareerTraining::tick() {
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        nativeProbe_.clear();
+        removeProbeHooks();
         std::lock_guard<std::mutex> guard(runtimeMutex_);
         runtime_.error = error.what();
+        tickFailed_ = true;
         offlineReady_ = false;
     }
     scheduleTick();
@@ -290,7 +384,6 @@ void MyCareerTraining::enforceCareer(const Json& state, MctRuntime& result) {
             result.teamLockApplied = pri.GetTeamNum() == ownTeam;
         }
     }
-    if (result.matchEnded) menuOpen_ = true;
 }
 
 void MyCareerTraining::scanProducts(MctRuntime& result) {
@@ -479,7 +572,9 @@ void MyCareerTraining::SetImGuiContext(uintptr_t context) {
     hasContext_ = true;
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
 }
-bool MyCareerTraining::ShouldBlockInput() { return offlineReady_ && menuOpen_; }
+bool MyCareerTraining::ShouldBlockInput() {
+    return mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
+}
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
 void MyCareerTraining::OnOpen() { windowOpen_ = true; }
 void MyCareerTraining::OnClose() { windowOpen_ = false; menuOpen_ = false; }

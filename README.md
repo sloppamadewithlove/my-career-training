@@ -1,39 +1,80 @@
 # My Career Training
 
-**[Download the Windows in-game preview](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.2.0/MyCareerTraining-0.2.0-windows-x64-setup.exe)** · [Portable ZIP](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.2.0/MyCareerTraining-0.2.0-windows-x64-portable.zip) · [Release and checksums](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0)
+**Status: the published v0.2.0 Windows preview has owner-reported launch and
+menu failures. A replacement installer is on hold while source repairs are in
+progress and the native-menu direction is verified. There is no public-ready
+replacement build yet.**
 
-An offline career and training interface inside Rocket League. **0.2.0 is an unsigned Windows Steam testing preview**, requiring your installed game and [BakkesMod](https://bakkesmod.com/). It has no online matchmaking flow. Epic launch is not supported by this build.
+## What the owner reported
 
-Close Rocket League, keep Steam and BakkesMod open, install the app, then use the **My Career Training** shortcut. It installs our plugin and launches an owned offline game. Existing saves remain in `%LOCALAPPDATA%/MyCareerTraining`. No Python, Git, Cursor or AI subscription is needed.
+In the Windows Steam test of v0.2.0, the owner reported that a Career
+fixture and **Start Practice** did not start. The game showed **“Could not
+publish the local career command”** and **“Starting career, waiting for Rocket
+League to start the offline season.”** They also reported that the My Career
+menu repeatedly reopened and the original Rocket League menu glitched over it.
+A Windows **Access is denied** error was reported under local AppData. The
+complete error path has not been captured, so its exact filename is unverified.
 
-[Setup and player guide](docs/IN_GAME_PLAYER_GUIDE.md) · [Website](https://my-career-training.vercel.app/)
+These are observed owner reports, not a completed diagnosis. Windows packaging
+and automated tests do not override the failed live-game experience. Source
+repairs are underway; the old installer remains available only as the previous
+known-issues preview.
 
-## In this preview
+## Repository and previous preview
 
-- Career, Squad, Schedule, Season, Training, Workshop, Garage and Settings in a full-screen in-game menu.
-- Local seasons, standings, durable results, between-match lineup changes, custom club names and active career-side locking.
-- Actual Necto and Nexto CPU policies for 1v1–3v3, with their original licenses. Their historical Diamond/GC1 estimates are not current rank certifications. Ground specialists support 4v4.
-- A PlayStation graphic for observed logical actions, configurable labels and placement, and personal/imported ghost playback with watch, lead, slow motion, seek and loop controls.
-- An expanded attributed Workshop browser, local Steam map discovery, favorites and controlled map loading/recovery.
-- Installed cosmetic browsing and the supported BakkesMod local visual override categories.
+[Open the GitHub repository](https://github.com/sloppamadewithlove/my-career-training) ·
+[Archived v0.2.0 release and downloads (known issues)](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0) ·
+[Release notes](docs/RELEASE_NOTES.md) ·
+[Player guide and current status](docs/IN_GAME_PLAYER_GUIDE.md)
 
-## Verification and remaining work
+The archived v0.2.0 setup and portable files are still downloadable for
+reference or controlled reproduction. They are not a repaired build, and a
+replacement installer is not ready to test.
 
-Published installers require successful Windows tests, native DLL compilation/export checks, frozen model inference, Unicode-path checks and install/upgrade/uninstall checks. The release's `RELEASE_RECEIPT.json` identifies the exact compiled source and artifacts. These checks do not prove gameplay.
+## BakkesMod requirement
 
-**Full V1 is incomplete.** This new in-game build still needs a real Steam game test. The custom screen covers native menus; it does not replace the game's menu files. No validated expert ghost is bundled. Ghost camera spectating, guaranteed inactivity protection, unrestricted garage/body/profile customization and Epic bootstrap remain unfinished. Learned bots do not learn from your training sessions.
+The v0.2.0 preview requires BakkesMod to be installed and running separately.
+BakkesMod is a third-party plugin framework that this preview uses to load its
+in-game interface; it is not included in the My Career Training download. The
+player must install it from the [official BakkesMod site](https://bakkesmod.com/)
+before using the old preview. The repaired source includes a guided download of
+the verified official setup, followed by the player's normal Windows installation
+steps. It is not included in the published v0.2.0 download. BakkesMod binaries
+and community plugins are not bundled.
 
-- [Game acceptance checklist](docs/IN_GAME_ACCEPTANCE.md)
+## Intended experience
+
+The owner wants a solo offline My Career mode that becomes part of Rocket
+League's menu flow, while preserving the original Steam game and saves. The
+v0.2.0 interface is a plugin overlay; native Rocket League menu replacement has
+not been demonstrated. That gap is a release blocker for the intended direction,
+not a completed feature.
+
+The simplified design direction has five main destinations: **Career** (with
+Squad, Schedule, and League Table views), **Training**, **Garage**, **Workshop**,
+and **Settings**. This is the planned information layout, not a claim that the
+current build works. The long-term goal remains a coherent native
+offline menu, with only verified game capabilities exposed.
+
+## Project links
+
+- [Known-issues v0.2.0 release](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.2.0)
+- [Current acceptance record](docs/IN_GAME_ACCEPTANCE.md)
+- [Native menu investigation and release gate](docs/NATIVE_MENU_RESEARCH.md)
+- [Read-only developer probe](docs/NATIVE_MENU_PROBE.md)
+- [Design-engineer handoff](docs/OPUS_DESIGN_BRIEF.md) — a brief for Opus 5.5; it does not claim Opus has reviewed the project.
 - [Bot providers and attribution](docs/BOT_PROVIDERS.md)
 - [Workshop library](docs/WORKSHOP_LIBRARY.md)
 - [Plugin capabilities and build](plugin/README.md)
-- [Rebuild architecture](docs/IN_GAME_REBUILD.md) and [release notes](docs/RELEASE_NOTES.md)
-- [Original assignment](docs/BUILD_SPEC.md)
+- [Rebuild architecture](docs/IN_GAME_REBUILD.md)
 
-## Earlier desktop preview
+The repo is canonical. A [Cursor Origin mirror](https://origin.cursor.com/sloppamadewithlove/my-career-training.git)
+is also configured. Project code is MIT-licensed; third-party licenses and
+attribution are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Rocket League assets, account inventory, BakkesMod, and community plugins are
+not redistributed by this repository.
 
-[0.1.0 installer](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-setup.exe) · [0.1.0 portable ZIP](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-portable.zip) · [Legacy guide](docs/PLAYER_GUIDE.md)
+## Older desktop preview
 
-The earlier preview used a separate desktop interface. The owner reported playing a Steam match and identified the interface, bot and training issues that prompted this rebuild; those observations do not validate the new plugin.
-
-GitHub is canonical. The connected [Cursor Origin mirror](https://origin.cursor.com/sloppamadewithlove/my-career-training.git) carries the development branch too. Original code/artwork is [MIT-licensed](LICENSE); [third-party notices](THIRD_PARTY_NOTICES.md) cover the separately licensed models and dependencies. Rocket League assets, account inventory and community maps are not redistributed.
+The [v0.1.0 desktop preview](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.1.0)
+is retained separately. It is not the intended in-game menu experience.

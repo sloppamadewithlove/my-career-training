@@ -2,13 +2,24 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#ifdef _WIN32
+#include <chrono>
+#include <thread>
+#include <windows.h>
+#endif
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 int main() {
     using namespace mct;
+#ifdef _WIN32
+    const auto id = newId();
+    const auto root = std::filesystem::temp_directory_path() /
+        (std::wstring(L"MCT-case-\u00e9-") + std::wstring(id.begin(), id.end()));
+#else
     const auto root = std::filesystem::temp_directory_path() / ("mct-bridge-" + newId());
+#endif
     try {
         LocalBridge bridge(root);
         const double now = unixTime();
@@ -21,6 +32,17 @@ int main() {
         auto invalid = valid; invalid["bridge_session"] = "../../arbitrary/path";
         require(!LocalBridge::validState(invalid, now), "Invalid session accepted");
         LocalBridge::atomicWrite(root / "state.json", valid.dump());
+#ifdef _WIN32
+        // A writer can hold DELETE access while allowing other readers. CRT
+        // ifstream opens without FILE_SHARE_DELETE, which makes poll fail here.
+        HANDLE deletingState = CreateFileW((root / "state.json").c_str(), DELETE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(deletingState != INVALID_HANDLE_VALUE, "Could not hold the state replacement handle");
+        const bool readDuringReplace = bridge.poll();
+        CloseHandle(deletingState);
+        require(readDuringReplace, "State polling failed during an allowed Windows replacement handle");
+#endif
         require(bridge.poll(), "Published state was not read");
         require(bridge.poll(), "Unchanged fresh state cache failed");
         require(!bridge.poll(now + 6), "Unchanged cached state bypassed expiry");
@@ -40,6 +62,20 @@ int main() {
         require(commands == 1, "Wrong command count");
         bridge.publishStatus({{"online", false}});
         require(std::filesystem::exists(root / "plugin-status.json"), "Runtime status missing");
+#ifdef _WIN32
+        HANDLE statusReader = CreateFileW((root / "plugin-status.json").c_str(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(statusReader != INVALID_HANDLE_VALUE, "Could not hold a reader on status");
+        std::thread releaseReader([statusReader]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            CloseHandle(statusReader);
+        });
+        bool statusPublished = true;
+        try { bridge.publishStatus({{"online", false}}); }
+        catch (...) { statusPublished = false; }
+        releaseReader.join();
+        require(statusPublished, "Brief Windows status read lock broke atomic publication");
+#endif
         LocalBridge::atomicWrite(root / "state.json", "{broken");
         require(!bridge.poll() && !bridge.fresh(), "Malformed state did not fail closed");
         require(!bridge.send("play_match"), "Command sent after disconnect");
