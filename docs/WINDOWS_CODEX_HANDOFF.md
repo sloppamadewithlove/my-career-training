@@ -4,6 +4,15 @@ Installing Codex CLI on the Windows PC does not automatically connect that PC
 to this Mac session. A local Codex session can perform the checks below. No remote
 access is configured by this project.
 
+For supported remote desktop access, use the current ChatGPT desktop app on the
+Windows PC: **Settings → Connections → Control this PC → Set up/Add**. Pair the
+device that should control it; on another supported desktop app, use **Control
+other devices**. Keep the Windows PC awake and unlocked for Computer Use. This
+requires setup on the Windows host; signing into the CLI alone is insufficient.
+See [OpenAI's remote connections guide](https://learn.chatgpt.com/docs/remote-connections).
+The CLI also exposes experimental remote-control commands, but this project
+does not start a listener, expose ports or configure access automatically.
+
 This handoff is **read-only preparation**. The native-menu trial is unfinished,
 and the public installer hold still applies. Do not install or run the current
 development mod automatically. A file comparison cannot prove that menus, bots,

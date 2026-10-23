@@ -121,7 +121,10 @@ def snapshot(root: Path) -> dict:
                 path = Path(child.path)
                 relative = path.relative_to(root).as_posix()
                 try:
-                    info = child.stat(follow_symlinks=False)
+                    # DirEntry.stat() on Windows caches zero st_ino/st_dev values;
+                    # use fresh no-follow metadata for comparison with the opened handle.
+                    # https://docs.python.org/3.12/library/os.html#os.DirEntry.stat
+                    info = path.lstat()
                     if _linked(info):
                         raise ValueError("Symlink/reparse point skipped")
                     if stat.S_ISDIR(info.st_mode):

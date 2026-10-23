@@ -1,7 +1,9 @@
 """Receipts distinguish unchanged bytes, changed files and incomplete inspection."""
+from contextlib import contextmanager
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -22,8 +24,9 @@ def installation(tmp_path):
 def test_receipts_compare_bytes_and_never_overwrite(tmp_path):
     root = installation(tmp_path)
     baseline = tmp_path / "before.json"
-    assert verify.main(["baseline", "--game-dir", str(root), "--output", str(baseline)]) == 0
+    status = verify.main(["baseline", "--game-dir", str(root), "--output", str(baseline)])
     record = json.loads(baseline.read_text())
+    assert status == 0, record["errors"]
     assert record["files"]["asset.upk"]["size"] == 5
     assert len(record["files"]["asset.upk"]["sha256"]) == 64
     before = baseline.read_bytes()
@@ -121,9 +124,35 @@ def test_manifest_limits_and_wrong_install_are_refused(tmp_path, monkeypatch):
     assert any("limit" in error["error"] for error in receipt["errors"])
     monkeypatch.setattr(verify, "MAX_ENTRIES", 50_000)
     manifest = tmp_path / "before.json"
-    manifest.write_text(json.dumps(verify.snapshot(root)))
+    complete = verify.snapshot(root)
+    assert complete["complete"], complete["errors"]
+    manifest.write_text(json.dumps(complete))
     with pytest.raises(ValueError, match="different"):
         verify.load_baseline(manifest, tmp_path)
     monkeypatch.setattr(verify, "MAX_MANIFEST_BYTES", 2)
     with pytest.raises(ValueError, match="size limit"):
         verify.load_baseline(manifest, root)
+
+
+def test_directory_entry_identity_cache_is_not_used_for_hash_guard(tmp_path, monkeypatch):
+    root = installation(tmp_path)
+    real_scandir = verify.os.scandir
+
+    def cached_entry(child):
+        info = child.stat(follow_symlinks=False)
+        # Windows DirEntry.stat omits these identities even for a stable file.
+        cached = SimpleNamespace(st_ino=0, st_dev=0, st_size=info.st_size,
+                                 st_mtime_ns=info.st_mtime_ns, st_ctime_ns=info.st_ctime_ns,
+                                 st_mode=info.st_mode,
+                                 st_file_attributes=getattr(info, "st_file_attributes", 0))
+        return SimpleNamespace(path=child.path, stat=lambda **_kwargs: cached)
+
+    @contextmanager
+    def cached_scandir(directory):
+        with real_scandir(directory) as children:
+            yield (cached_entry(child) for child in children)
+
+    monkeypatch.setattr(verify.os, "scandir", cached_scandir)
+    receipt = verify.snapshot(root)
+    assert receipt["complete"], receipt["errors"]
+    assert set(receipt["files"]) == {"asset.upk", "Binaries/Win64/RocketLeague.exe"}
