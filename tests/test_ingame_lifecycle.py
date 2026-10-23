@@ -123,6 +123,37 @@ def in_game_backend(tmp_path, monkeypatch, qt_app):
     instance.close()
 
 
+@pytest.mark.parametrize("stale_field", ["expected_career_id", "expected_fixture_id", "missing_fixture"])
+def test_native_match_choice_is_revalidated_before_save_or_worker(in_game_backend, stale_field):
+    instance, _, process_instances, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Native Club", "format": 3})
+    before = json.dumps(instance.document, sort_keys=True)
+    fixture = career.next_fixture(instance.document["career"])
+    payload = {"expected_career_id": instance.document["career"]["id"], "expected_fixture_id": fixture["id"]}
+    if stale_field == "missing_fixture":
+        del payload["expected_fixture_id"]
+    else:
+        payload[stale_field] = "stale"
+
+    instance.dispatch("play_match", payload)
+
+    assert "match changed" in instance.error
+    assert json.dumps(instance.document, sort_keys=True) == before
+    assert not process_instances
+
+
+def test_current_native_match_choice_starts_same_owned_game(in_game_backend):
+    instance, identity, process_instances, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Native Club", "format": 3})
+    fixture = career.next_fixture(instance.document["career"])
+    instance.dispatch("play_match", {"expected_career_id": instance.document["career"]["id"],
+                                     "expected_fixture_id": fixture["id"]})
+    assert not instance.error
+    assert instance.request["fixture"]["id"] == fixture["id"]
+    assert instance.request["owned_game"] == identity.as_dict()
+    assert len(process_instances) == 1
+
+
 def test_completed_fixture_worker_restart_keeps_same_owned_game(in_game_backend):
     instance, game_identity, process_instances, verified_identities = in_game_backend
 

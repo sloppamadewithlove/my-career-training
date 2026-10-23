@@ -71,12 +71,18 @@ def game_processes():
     return found
 
 
+def offline_launch_arguments(arguments) -> bool:
+    """Require whole offline launch tokens, and reject contradictory EAC mode."""
+    tokens = {str(argument).lower() for argument in arguments}
+    return {"-noeac", "-rlbot"} <= tokens and "-eac" not in tokens
+
+
 def owned_game_since(started: float, expected_path: str = "") -> ProcessIdentity | None:
     candidates = []
     for process in game_processes():
         try:
             command = process.cmdline()
-            if process.create_time() < started - 1 or "-rlbot" not in command:
+            if process.create_time() < started - 1 or not offline_launch_arguments(command):
                 continue
             executable = process.exe()
             if expected_path and Path(executable).resolve() != Path(expected_path).resolve():
