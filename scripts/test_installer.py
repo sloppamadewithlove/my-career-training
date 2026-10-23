@@ -14,7 +14,7 @@ from my_career_training.career import new_career, validate_career
 from my_career_training.storage import Store, default_state
 
 from smoke_package import run_smoke
-from windows_shortcuts import programs_folders, read_shortcut
+from windows_shortcuts import desktop_folders, programs_folders, read_shortcut
 
 
 def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
@@ -40,17 +40,30 @@ def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
             time.sleep(min(0.1, remaining))
 
 
-def check_shortcuts(group: str, install: Path) -> None:
-    directories = [root / group for root in programs_folders()]
-    report = {'directories': [str(path) for path in directories],
-              'shortcuts': [read_shortcut(path) for directory in directories
-                            for path in directory.glob('*.lnk')]}
+def _owned_shortcuts(directories: list[Path], expected: Path) -> list[tuple[Path, dict[str, str]]]:
+    expected = expected.resolve()
+    owned = []
+    for directory in directories:
+        for path in directory.glob('*.lnk'):
+            shortcut = read_shortcut(path)
+            target = Path(shortcut['target'])
+            if target.is_file() and os.path.samefile(target, expected):
+                owned.append((path, shortcut))
+    return owned
+
+
+def check_shortcuts(group: str, install: Path) -> list[Path]:
+    start_menu = _owned_shortcuts([root / group for root in programs_folders()],
+                                  install / 'MyCareerTraining.exe')
+    desktop = _owned_shortcuts(desktop_folders(), install / 'MyCareerTraining.exe')
+    report = {'start_menu': [(str(path), item) for path, item in start_menu],
+              'desktop': [(str(path), item) for path, item in desktop]}
     expected = install / 'MyCareerTraining.exe'
-    # Windows shell links may expand a short path (RUNNER~1) to its long name.
-    # Compare the actual file identity rather than spelling or case alone.
-    modes = {item['arguments'] for item in report['shortcuts']
-             if Path(item['target']).is_file() and os.path.samefile(item['target'], expected)}
-    assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {report}'
+    start_modes = {item['arguments'] for _, item in start_menu}
+    assert start_modes == {'--in-game', '--manage'}, f'Incorrect Start Menu shortcuts for {expected}: {report}'
+    desktop_modes = {item['arguments'] for _, item in desktop}
+    assert desktop_modes == {'--in-game'}, f'Incorrect desktop shortcut for {expected}: {report}'
+    return [path for path, _ in (*start_menu, *desktop)]
 
 
 def main() -> int:
@@ -73,11 +86,11 @@ def main() -> int:
         # Inno ignores /GROUP in this mode. This test runs on a disposable CI host.
         group = 'My Career Training'
         command = [str(args.installer.resolve()), '/VERYSILENT', '/SUPPRESSMSGBOXES',
-                   '/NORESTART', '/SP-', '/TASKS=', f'/DIR={install}',
+                   '/NORESTART', '/SP-', '/TASKS=desktopicon', f'/DIR={install}',
                    f'/LOG={root / "install.log"}']
         subprocess.run(command, check=True, timeout=120)
         try:
-            check_shortcuts(group, install)
+            owned_shortcuts = set(check_shortcuts(group, install))
         except Exception:
             log = (root / 'install.log').read_text(encoding='utf-8-sig', errors='replace')
             print('\n'.join(log.splitlines()[-80:]))
@@ -88,18 +101,23 @@ def main() -> int:
         # This does not verify upgrading from an older release.
         subprocess.run(command, check=True, timeout=120)
         assert sentinel.read_bytes() == original, 'Reinstall changed player data'
+        assert set(check_shortcuts(group, install)) == owned_shortcuts, 'Reinstall changed shortcut paths'
         uninstall_log = root / 'uninstall.log'
         subprocess.run([str(install / 'unins000.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES',
                         '/NORESTART', f'/LOG={uninstall_log}'], check=True, timeout=120)
         wait_for_uninstaller_log_release(uninstall_log)
         assert not (install / 'MyCareerTraining.exe').exists(), 'Uninstall left the installed app'
+        remaining_shortcuts = [str(path) for path in owned_shortcuts if path.exists()]
+        assert not remaining_shortcuts, f'Uninstall left owned shortcuts behind: {remaining_shortcuts}'
         assert sentinel.read_bytes() == original, 'Uninstall changed player data'
     evidence_path = Path(__file__).resolve().parents[1] / 'build' / 'installer-test-receipt.json'
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     evidence_path.write_text(json.dumps({
         'passed': True, 'installer_sha256': hashlib.sha256(args.installer.read_bytes()).hexdigest(),
-        'checks': ['silent install', 'offline and management shortcuts', 'frozen package smoke',
+        'checks': ['silent install', 'offline and management Start Menu shortcuts',
+                   'offline desktop shortcut', 'frozen package smoke',
                    'same-version reinstall', 'uninstall',
+                   'owned Start Menu and desktop shortcuts removed',
                    'existing career bytes preserved'],
         'upgrade_verified': False,
     }, indent=2) + '\n', encoding='utf-8')

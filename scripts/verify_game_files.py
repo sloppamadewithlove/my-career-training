@@ -22,8 +22,15 @@ def _linked(info: os.stat_result) -> bool:
     return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & REPARSE_POINT)
 
 
+def _file_identity(info: os.stat_result) -> tuple:
+    # Python 3.12 Windows lstat reports creation time as ctime, whereas fstat
+    # reports ChangeTime. Compare their common fields across those APIs, then
+    # compare ctime separately within each API before/after reading.
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+
 def _identity(info: os.stat_result) -> tuple:
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    return (*_file_identity(info), info.st_ctime_ns)
 
 
 def _root(path: Path) -> Path:
@@ -83,7 +90,7 @@ def _hash_file(path: Path, before: os.stat_result) -> dict:
     digest = hashlib.sha256()
     with _open_readonly(path) as stream:
         opened = os.fstat(stream.fileno())
-        if not stat.S_ISREG(opened.st_mode) or _identity(before) != _identity(opened):
+        if not stat.S_ISREG(opened.st_mode) or _file_identity(before) != _file_identity(opened):
             raise ValueError("File changed before hashing")
         remaining = before.st_size
         while remaining:
@@ -96,7 +103,7 @@ def _hash_file(path: Path, before: os.stat_result) -> dict:
             raise ValueError("File grew during hashing")
         after = os.fstat(stream.fileno())
     current = path.lstat()
-    if _linked(current) or _identity(before) != _identity(after) or _identity(before) != _identity(current):
+    if _linked(current) or _identity(opened) != _identity(after) or _identity(before) != _identity(current):
         raise ValueError("File changed during hashing")
     return {"size": after.st_size, "sha256": digest.hexdigest()}
 
