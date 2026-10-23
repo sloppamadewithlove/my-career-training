@@ -12,6 +12,10 @@ namespace fs = std::filesystem;
 static void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
 }
+static mct::Json readTrace(const fs::path& path) {
+    std::ifstream stream(path);
+    return mct::Json::parse(stream);
+} // Close the Windows reader before any replacement or cleanup.
 
 int main() {
     const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -41,8 +45,7 @@ int main() {
         require(!probe.active() && probe.eventCount() == 0, "Stop retained private trace in memory");
         const auto path = directory / mct::NativeMenuProbe::kOutputName;
         require(fs::exists(path), "Trace did not use the fixed bridge filename");
-        std::ifstream stream(path);
-        const auto trace = mct::Json::parse(stream);
+        const auto trace = readTrace(path);
         require(trace["native_mutations"] == false, "Trace claimed a game modification");
         require(trace["scope"]["owned_offline_session"] == true, "Trace omitted offline scope");
         require(trace["scope"]["executable_sha256"].is_null(), "Unverified executable hash was fabricated");
@@ -85,8 +88,7 @@ int main() {
         require(!probe.observe(scope, "", "", false, 720.0),
                 "Duration limit accepted empty observation");
         require(probe.stopToBridge(scope, 720.1, bridge), "Duration-limited trace was lost");
-        std::ifstream durationStream(path);
-        require(mct::Json::parse(durationStream)["finish_reason"] == "duration_limit",
+        require(readTrace(path)["finish_reason"] == "duration_limit",
                 "Duration stop reason was not recorded");
 
         fs::remove(path);
@@ -97,8 +99,7 @@ int main() {
         require(probe.eventCount() == mct::NativeMenuProbe::kMaxEvents,
                 "Event limit exceeded or undercounted");
         require(probe.stopToBridge(scope, 802.0, bridge), "Count-limited trace was lost");
-        std::ifstream countStream(path);
-        const auto countTrace = mct::Json::parse(countStream);
+        const auto countTrace = readTrace(path);
         require(countTrace["finish_reason"] == "event_limit", "Event limit reason missing");
         require(countTrace["events"].size() == mct::NativeMenuProbe::kMaxEvents,
                 "Export exceeded event limit");
