@@ -1,9 +1,9 @@
 # My Career Training 0.2.0 — in-game Windows preview
 
-This is an early technical preview. Full V1 is incomplete. The in-game source is
-being prepared for a Windows build; a successful DLL/package build and a live
-Rocket League session have not yet been verified. Treat the controls below as
-the intended test flow until the acceptance report records a real result.
+This is an early testing preview. Full V1 is incomplete. Each published package
+includes a release receipt identifying its exact source and automated Windows
+checks. Those checks do not verify the interface inside a real Rocket League
+session. Use the flow below for your Steam game test.
 
 ## What you need
 
@@ -58,9 +58,8 @@ upgrading. The setup/diagnostics shortcut is separate from the in-game shortcut.
 
 The intended training menu exposes the built-in lesson catalog, lesson help,
 retry/reset, playback controls for successful personal recordings, and a source
-control for importing a permitted recording. The in-game import handoff has not
-yet passed Windows/package testing, so do not rely on it until a release receipt
-confirms it. A ghost is a non-colliding wireframe
+control for importing a permitted recording. The native picker and in-game
+handoff still require a real game test. A ghost is a non-colliding wireframe
 playback of recorded car poses. It must not steer the car or affect the ball.
 There is no validated expert teaching recording bundled. Your own recording
 must be labeled as your attempt; imported files keep an unverified label unless

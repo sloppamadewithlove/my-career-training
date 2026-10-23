@@ -394,10 +394,12 @@ void MyCareerTraining::renderGhostControls(const Json& state, bool compact) {
     const auto ghost = objectValue(telemetry, "ghost");
     const auto activeLesson = stringValue(telemetry, "lesson_id", selectedLesson_);
     const auto lesson = compact ? activeLesson : selectedLesson_;
-    const bool training = stringValue(objectValue(state, "session"), "state") == "training";
+    const bool training = stringValue(objectValue(state, "session"), "state") == "training" && activeLesson == lesson;
+    const auto activeVariant = objectValue(telemetry, "lesson_variant");
     bool recorded = false;
     for (const auto& recording : arrayValue(state, "recordings"))
-        if (stringValue(recording, "lesson_id") == lesson && stringValue(recording, "outcome") == "success") recorded = true;
+        if (stringValue(recording, "lesson_id") == lesson && stringValue(recording, "outcome") == "success" &&
+            (!recording.contains("variant") || objectValue(recording, "variant") == activeVariant)) recorded = true;
     detail("RECORDED COACHING");
     paragraph(boolValue(ghost, "available") ? stringValue(ghost, "label", "Recorded attempt") :
         "No coach demonstration is included yet. A real permitted successful recording is needed; completing a successful attempt creates your personal ghost.");
@@ -527,6 +529,7 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     }
     const auto career = objectValue(state, "career");
     ImGui::TextColored(ice, "CAREER CHALLENGE");
+    if (!career.empty() && objectValue(career, "pending_session").empty()) {
     int format = static_cast<int>(numberValue(career, "format", 3));
     const char* formats[] = {"1v1", "2v2", "3v3", "4v4"}; int index = std::clamp(format - 1, 0, 3);
     if (ImGui::Combo("Match format", &index, formats, 4)) command("set_format", {{"format", index + 1}});
@@ -537,6 +540,8 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     const char* curves[] = {"flat", "gentle", "steep"};
     int curve = stringValue(difficulty, "curve") == "steep" ? 2 : stringValue(difficulty, "curve") == "gentle" ? 1 : 0;
     if (ImGui::Combo("Season progression", &curve, curves, 3)) command("set_difficulty", {{"baseline", baseline}, {"curve", curves[curve]}});
+    } else paragraph(career.empty() ? "Create a career to choose match format and season difficulty." :
+                     "Finish or leave this fixture before changing career settings.");
     paragraph("Learned bots keep their original ability. Select a stronger provider to raise the actual challenge; its rank estimate is historical and unverified on this game build.");
     for (const auto& provider : arrayValue(state, "providers")) {
         ImGui::PushID(stringValue(provider, "id").c_str());

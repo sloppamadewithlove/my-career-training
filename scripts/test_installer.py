@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -40,23 +41,35 @@ def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
 
 
 def check_shortcuts(group: str, install: Path) -> None:
-    directory = Path(os.environ['APPDATA']) / 'Microsoft/Windows/Start Menu/Programs' / group
-    environment = dict(os.environ, MCT_TEST_SHORTCUTDIR=str(directory))
+    environment = dict(os.environ, MCT_TEST_SHORTCUTGROUP=group)
     script = """
+    $ErrorActionPreference = 'Stop'
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $shell = New-Object -ComObject WScript.Shell
-    @(Get-ChildItem -LiteralPath $env:MCT_TEST_SHORTCUTDIR -Filter *.lnk | ForEach-Object {
-        $shortcut = $shell.CreateShortcut($_.FullName)
-        @{target=$shortcut.TargetPath; arguments=$shortcut.Arguments}
-    }) | ConvertTo-Json -Compress
+    $roots = @($shell.SpecialFolders.Item('Programs'), $shell.SpecialFolders.Item('AllUsersPrograms')) | Select-Object -Unique
+    $directories = @($roots | ForEach-Object { Join-Path $_ $env:MCT_TEST_SHORTCUTGROUP })
+    $links = @(foreach ($directory in $directories) {
+        if (Test-Path -LiteralPath $directory) {
+            Get-ChildItem -LiteralPath $directory -Filter *.lnk | ForEach-Object {
+                $shortcut = $shell.CreateShortcut($_.FullName)
+                @{target=$shortcut.TargetPath; arguments=$shortcut.Arguments}
+            }
+        }
+    })
+    ConvertTo-Json -InputObject @{directories=$directories; shortcuts=$links} -Depth 4 -Compress
     """
-    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
-                            check=True, capture_output=True, text=True, encoding='utf-8',
+    encoded = base64.b64encode(script.encode('utf-16le')).decode('ascii')
+    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+                            capture_output=True, text=True, encoding='utf-8',
                             timeout=30, env=environment)
-    links = json.loads(result.stdout)
+    if result.returncode:
+        raise RuntimeError(f'Shortcut inspection failed: {result.stderr}')
+    if not result.stdout.strip():
+        raise AssertionError(f'Shortcut inspection returned no JSON: {result.stderr}')
+    report = json.loads(result.stdout)
     expected = str(install / 'MyCareerTraining.exe').casefold()
-    modes = {item['arguments'] for item in links if item['target'].casefold() == expected}
-    assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {links}'
+    modes = {item['arguments'] for item in report['shortcuts'] if item['target'].casefold() == expected}
+    assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {report}'
 
 
 def main() -> int:
@@ -80,7 +93,11 @@ def main() -> int:
                    '/NORESTART', '/SP-', '/TASKS=', f'/GROUP={group}', f'/DIR={install}',
                    f'/LOG={root / "install.log"}']
         subprocess.run(command, check=True, timeout=120)
-        check_shortcuts(group, install)
+        try:
+            check_shortcuts(group, install)
+        except Exception:
+            print((root / "install.log").read_text(encoding="utf-8-sig", errors="replace"))
+            raise
         run_smoke(install, profile)
         assert sentinel.read_bytes() == original, 'Installed app smoke changed the existing career'
         # Install the same version over itself: stable identity and upgrade paths.

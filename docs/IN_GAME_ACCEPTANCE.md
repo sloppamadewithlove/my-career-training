@@ -9,7 +9,7 @@ pass.
 
 | Area | Source status | Windows build status | Live game status |
 |---|---|---|---|
-| In-game UI and local bridge | Python service and BakkesMod plugin source are present; no Windows DLL build or game integration is verified | Windows DLL/package build and exact-commit CI receipt pending | Not tested |
+| In-game UI and local bridge | Python service and BakkesMod plugin source are present; game integration needs a live test | See the published release receipt for DLL/package build evidence | Not tested |
 | Launch mode | Source restricts this preview to Steam and requests the supported offline/EAC-off route | Needs Windows launch and ownership verification | Not tested |
 | Epic Games | Not supported by the 0.2 in-game bootstrap | Out of scope for this preview; original V1 target remains unmet | Not tested |
 | Career saves and existing AppData | Existing local store is reused; bridge rejects stale sessions and arbitrary actions | Upgrade/first-install Windows checks pending | No observed match receipt |
@@ -45,8 +45,11 @@ these checks on Windows x64:
 - Run the Python and C++ contract tests. Report the test command and result;
   these checks do not count as live-game verification.
 
-**Windows CI result:** pending. **Installer/portable artifacts:** pending.
-**Plugin DLL runtime compatibility:** pending.
+**Windows build evidence:** each published release includes `RELEASE_RECEIPT.json`
+and `plugin-build-receipt.json`, with exact source/hash identities and passing
+package, model inference, install/upgrade/uninstall checks. Table entries marked
+pending describe real-game checks unless identified as a build requirement.
+**Plugin DLL runtime compatibility:** not yet verified inside Rocket League.
 
 ## Steam game test checklist
 

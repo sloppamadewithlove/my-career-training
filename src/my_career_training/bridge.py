@@ -96,6 +96,8 @@ class Backend(QObject):
         career = self.document["career"]
         variants = self.document.get("lesson_variants", {}).get(self.selected_id, {})
         selected = configure_lesson(self.selected_id, **variants)
+        active_lesson = (configure_lesson(self.request["lesson_id"], **self.request.get("variants", {}))
+                         if self.request and self.request.get("lesson_id") else None)
         transition = self.lifecycle.frozen or self.lifecycle.state in ("Error/Recovery", "Online Launch Requested")
         state = self.lifecycle.state if transition else self.session_state
         message = self.lifecycle.message if transition else self.session_message
@@ -112,7 +114,8 @@ class Backend(QObject):
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
-            "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id")),
+            "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
+                              lesson_variant=active_lesson["variant"] if active_lesson else None),
             "recordings": self.document["recordings"], "providers": self._providers(),
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
@@ -385,7 +388,10 @@ class Backend(QObject):
         elif action == "play_recording":
             if not self._worker_active() or not self.request.get("lesson_id"):
                 raise ValueError("Start this lesson before playing its recorded ghost.")
-            recordings = self._recordings(p["id"])
+            if p["id"] != self.request["lesson_id"]:
+                raise ValueError("Start the selected lesson before playing its recorded ghost.")
+            variant = configure_lesson(p["id"], **self.request.get("variants", {}))["variant"]
+            recordings = [r for r in self._recordings(p["id"]) if r.get("variant") == variant]
             selected_id = p.get("recording_id")
             if selected_id:
                 entry = next((item for item in self.document["recordings"]
@@ -606,7 +612,7 @@ class Backend(QObject):
             Store._atomic(path, json.dumps(recording, allow_nan=False).encode())
             state["recordings"].append({"id": record_id, "lesson_id": recording["lesson_id"],
                 "filename": path.name, "label": recording.get("label", "Your attempt"),
-                "outcome": recording.get("outcome", "unknown"),
+                "outcome": recording.get("outcome", "unknown"), "variant": recording.get("variant"),
                 "source": recording.get("metadata", {}).get("source", {})})
             state["recordings"] = state["recordings"][-100:]
         if summary:

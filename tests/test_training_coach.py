@@ -243,3 +243,25 @@ def test_persisted_playback_settings_initialize_and_update_actual_coach():
     assert session.coaching_preferences["playback_speed"] == .25 and coach.speed == .25
     with pytest.raises(ValueError, match="speed must"):
         coaching_preferences({"playback_speed": True})
+
+
+def test_playback_selects_best_for_active_lesson_and_variant_only():
+    from types import SimpleNamespace
+    from my_career_training.bridge import Backend
+    value = capture()
+    other_variant = deepcopy(value)
+    other_variant["variant"]["side"] = "left"
+    other_variant["duration"] = 1.5
+    sent = []
+    backend = SimpleNamespace(
+        _worker_active=lambda: True, request={"lesson_id": "speed-flip", "variants": {}},
+        _recordings=lambda _id: [other_variant, value],
+        document={"settings": {"training_display": {"mode": "lead", "lead_seconds": 1.25}}},
+        _send=lambda kind, **data: sent.append((kind, data)))
+    Backend._action(backend, "play_recording", {"id": "speed-flip"})
+    assert sent[0][1]["recording"]["variant"] == value["variant"]
+    assert sent[0][1]["recording"]["duration"] == value["duration"]
+    assert sent[0][1]["mode"] == "lead" and sent[0][1]["lead_seconds"] == 1.25
+    with pytest.raises(ValueError, match="Start the selected lesson"):
+        Backend._action(backend, "play_recording", {"id": "flip-reset"})
+    assert len(sent) == 1
