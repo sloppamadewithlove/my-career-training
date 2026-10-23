@@ -37,6 +37,10 @@ class Backend(QObject):
 
     def __init__(self, directory, parent=None):
         super().__init__(parent)
+        self.in_game = False
+        self.telemetry = {}
+        self.plugin_status = {}
+        self.workshop_state = {}
         self.store = Store(directory, validate_document)
         self.error = ""
         try:
@@ -100,11 +104,33 @@ class Backend(QObject):
             "selected_lesson": selected, "settings": self.document["settings"],
             "lesson_preferences": self.document["lesson_preferences"], "setup_required": self.setup_required,
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
-                self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit"),
+                self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
+                "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
+                "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
+                "id": self.session_id,
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
             "content": community_catalog(), "garage": garage_catalog(),
-            "latest_attempt": self.latest_attempt, "latest_result": self.latest_result}
+            "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
+            "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id")),
+            "recordings": self.document["recordings"], "providers": self._providers(),
+            "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
+            "workshop": self.workshop_state, "plugin": self.plugin_status,
+            "owned_game": self.owned_game.as_dict() if self.owned_game else None,
+            "offline": self.in_game, "human_team": (0 if not self.request or
+                not self.request.get("fixture") or self.request["fixture"].get("home") == "human" else 1)}
+
+    def _providers(self):
+        from .bots.providers import provider_catalog
+        return provider_catalog()
+
+    def _refresh_workshop(self):
+        from .workshop import library_state
+        self.workshop_state = library_state(self.store.directory,
+            launcher=self.document["settings"]["launcher"],
+            install_path=self.document["settings"].get("install_path", ""),
+            favorites=self.document.get("workshop_favorites", []),
+            imported_maps=self.document.get("maps", []))
 
     def _save_current(self):
         self.store.save(self.document)
@@ -134,8 +160,12 @@ class Backend(QObject):
     def dispatch(self, action, payload):
         try:
             self.error = ""
+            if self.in_game and action.startswith("online_"):
+                raise ValueError("My Career runs offline. Online features are not part of this mode.")
             if action == "navigate":
                 self.page = payload["page"]
+                if self.page in ("community", "workshop"):
+                    self._refresh_workshop()
             elif action == "online_request":
                 self.lifecycle.request_online()
             elif action == "online_confirm":
@@ -151,7 +181,7 @@ class Backend(QObject):
                     "python": platform.python_version(), "rlbot_interface": SDK_VERSION, "core": CORE_VERSION,
                     "steam_game_test": "Not yet tested", "epic_game_test": "Not yet tested",
                     "installed_game_version": "Read by worker during a supported session",
-                    "bot_provider": "Original baseline specialists 0.1.0; experimental, unranked",
+                    "bot_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
                     "game_processes": len(game_processes()), "worker_running": bool(self.process and
                         self.process.state() != QProcess.NotRunning), "save_status": "Loaded and validated",
                     "teaching_references": "No validated expert demonstrations bundled"}
@@ -173,7 +203,52 @@ class Backend(QObject):
         self.stateChanged.emit()
 
     def _action(self, action, p):
-        if action == "new_career":
+        if action == "return_hub":
+            pending = self.document["career"] and self.document["career"]["pending_session"]
+            if pending and not p.get("abandon"):
+                raise ValueError("This match is unfinished. Confirm leaving it; it will restart from kickoff.")
+            self.page = "hub"
+            if self._worker_active():
+                self._begin_stop("abandon" if pending else "return_hub")
+            elif pending:
+                self._career_change(domain.abandon_fixture)
+        elif action == "quit_game":
+            self._begin_stop("exit")
+        elif action == "refresh_workshop":
+            self._refresh_workshop()
+        elif action == "workshop_favorite":
+            from .workshop import toggle_favorite
+            self._refresh_workshop()
+            state = copy.deepcopy(self.document)
+            state["workshop_favorites"] = toggle_favorite(state.get("workshop_favorites", []),
+                                                        p["id"], self.workshop_state["items"])
+            self._commit(state)
+            self._refresh_workshop()
+        elif action == "play_workshop":
+            self._prepare_launch(action, p)
+        elif action in ("choose_provider", "install_provider"):
+            from .bots.providers import ensure_provider
+            if self.document["career"] and self.document["career"]["pending_session"]:
+                raise ValueError("Change opponents between matches.")
+            ensure_provider(p["id"], self.document["career"]["format"] if self.document["career"] else 3)
+            state = copy.deepcopy(self.document)
+            state["settings"]["bot_provider"] = p["id"]
+            self._commit(state)
+            self.notice = "Bot provider selected for the next match. Learned policies keep their original abilities."
+        elif action == "training_settings":
+            from .training import coaching_preferences
+            prefs = coaching_preferences(self.document["settings"].get("training_display", {}))
+            prefs[p["key"]] = p["value"]
+            prefs = coaching_preferences(prefs)
+            state = copy.deepcopy(self.document)
+            state["settings"]["training_display"] = prefs
+            self._commit(state)
+            if self._worker_active() and self.request and self.request.get("lesson_id"):
+                self._send("coaching", preferences=prefs)
+        elif action in ("stop_ghost", "ghost_control"):
+            self._send("ghost_control", operation="stop" if action == "stop_ghost" else p.get("operation"),
+                       value=p.get("value"))
+        elif action == "new_career":
             if self._worker_active() or (self.document["career"] and self.document["career"]["pending_session"]):
                 raise ValueError("Finish or abandon the current session first.")
             if self.document["career"]:
@@ -199,9 +274,9 @@ class Backend(QObject):
             self._career_change(domain.set_loadout, p["id"], loadout)
             self.notice = "Bot preset saved. Your human car keeps its normal garage appearance."
         elif action == "settings":
-            if self._worker_active():
-                raise ValueError("Stop the current game session before changing its setup.")
             key, value = p["key"], p["value"]
+            if self._worker_active() and key in ("launcher", "install_path"):
+                raise ValueError("Stop the current game session before changing its setup.")
             if key not in ("launcher", "install_path", "text_scale", "reduced_motion", "binding_profile"):
                 raise ValueError("Unknown setting.")
             state = copy.deepcopy(self.document)
@@ -295,7 +370,12 @@ class Backend(QObject):
                 self._commit(state)
                 self.notice = "Map copied and identified. Custom-map loading awaits game validation; core lessons remain available."
         elif action == "import_recording":
-            path, _ = QFileDialog.getOpenFileName(None, "Import a permitted actual recording", "", "Recording (*.json)")
+            if self.in_game:
+                path = Path(str(p.get("path", "")))
+                if not path.is_absolute() or path.suffix.lower() != ".json" or path.is_symlink() or not path.is_file():
+                    raise ValueError("Select an existing JSON recording file with the import button.")
+            else:
+                path, _ = QFileDialog.getOpenFileName(None, "Import a permitted actual recording", "", "Recording (*.json)")
             if path:
                 recording = import_recording(path)
                 if isinstance(recording, tuple):
@@ -306,7 +386,15 @@ class Backend(QObject):
             if not self._worker_active() or not self.request.get("lesson_id"):
                 raise ValueError("Start this lesson before playing its recorded ghost.")
             recordings = self._recordings(p["id"])
-            best = personal_best(recordings)
+            selected_id = p.get("recording_id")
+            if selected_id:
+                entry = next((item for item in self.document["recordings"]
+                              if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
+                if entry is None or Path(entry["filename"]).name != entry["filename"]:
+                    raise ValueError("Choose a recording from this lesson's saved attempts.")
+                best = import_recording(self.store.directory / "recordings" / entry["filename"])
+            else:
+                best = personal_best(recordings)
             if best is None:
                 # Imported references retain their labels and uncertainty.
                 best = next((r for r in reversed(recordings) if r.get("outcome") == "success"), None)
@@ -314,7 +402,10 @@ class Backend(QObject):
                 raise ValueError("No successful recording exists for this lesson yet. Complete an attempt or import a permitted recording.")
             if best.get("variant") != configure_lesson(p["id"], **self.request.get("variants", {})).get("variant"):
                 raise ValueError("This recording uses a different lesson setup. Choose the matching variation.")
-            self._send("play_recording", recording=best)
+            from .training.coach import coaching_preferences
+            preferences = coaching_preferences(self.document["settings"].get("training_display", {}))
+            self._send("play_recording", recording=best, mode=p.get("mode", preferences["mode"]),
+                       lead_seconds=float(p.get("lead_seconds", preferences["lead_seconds"])))
             self.notice = best.get("label", "Imported recording; success claim not independently verified")
         else:
             raise ValueError(f"Unsupported action: {action}")
@@ -334,16 +425,27 @@ class Backend(QObject):
         if career and career["pending_session"]:
             raise ValueError("An unfinished fixture is saved. Abandon that attempt to restart from kickoff, or recover a missing final result.")
         request = {"session_id": str(uuid.uuid4()), "settings": copy.deepcopy(self.document["settings"]),
-                   "data_dir": str(self.store.directory)}
+                   "data_dir": str(self.store.directory), "in_game": self.in_game,
+                   "coaching": copy.deepcopy(self.document["settings"].get("training_display", {})),
+                   "provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline")}
         if action == "play_match":
             if not career:
                 raise ValueError("Create a career first.")
+            from .bots.providers import ensure_provider
+            ensure_provider(request["provider"], career["format"])
+            self._career_change(domain.set_policy, request["provider"])
             self._career_change(domain.start_fixture, request["session_id"])
             request["fixture"] = domain.next_fixture(self.document["career"])
         elif action == "calibration":
             temp = domain.new_career("Calibration", career["format"] if career else 3)
             request["fixture"] = domain.next_fixture(temp)
             request["calibration"] = True
+        elif action == "play_workshop":
+            from .workshop import prepare_launch
+            request["workshop"] = prepare_launch(payload["id"], self.store.directory,
+                launcher=self.document["settings"]["launcher"],
+                install_path=self.document["settings"].get("install_path", ""),
+                imported_maps=self.document.get("maps", []))
         else:
             lesson_id = payload["id"]
             configure_lesson(lesson_id)
@@ -351,7 +453,7 @@ class Backend(QObject):
                 self.document["lesson_preferences"].get(lesson_id)),
                 variants=self.document.get("lesson_variants", {}).get(lesson_id, {}))
         self._save_current()
-        if self._worker_active() or is_alive(self.owned_game):
+        if self._worker_active() or (is_alive(self.owned_game) and not self.in_game):
             self.pending_launch = request
             self._begin_stop("restart")
         else:
@@ -360,6 +462,11 @@ class Backend(QObject):
     def _launch(self, request):
         self.lifecycle.state = "Idle"
         self.lifecycle.last_error = ""
+        if self.in_game:
+            from .bootstrap import verify_owned_offline
+            if not self.owned_game or not verify_owned_offline(self.owned_game):
+                raise ValueError("The owned offline game is no longer available. Relaunch My Career.")
+            request["owned_game"] = self.owned_game.as_dict()
         self.request = request
         self.session_id = request["session_id"]
         self.session_state = "Starting Career"
@@ -426,6 +533,7 @@ class Backend(QObject):
             if self.session_state != "Starting Career":
                 self.start_deadline = None
         elif kind == "telemetry":
+            self.telemetry = {key: value for key, value in event.items() if key not in ("type", "session_id")}
             self.start_deadline = None
             if self.session_state != "Career Ready" and (not self.latest_result or self.latest_result.get("session_id") != self.session_id):
                 self.session_state = "training" if self.request.get("lesson_id") else "Playing"
@@ -438,6 +546,7 @@ class Backend(QObject):
                 self._commit_result(event)
             self.session_state = "Career Ready"
             self.session_message = "Match complete. Your result is saved. Continue when you are ready."
+            self.page = "hub"
         elif kind == "attempt":
             self.latest_attempt = event["summary"]
             recording = event.get("recording")
@@ -496,7 +605,9 @@ class Backend(QObject):
             path = self.store.directory / "recordings" / f"{record_id}.json"
             Store._atomic(path, json.dumps(recording, allow_nan=False).encode())
             state["recordings"].append({"id": record_id, "lesson_id": recording["lesson_id"],
-                "filename": path.name, "label": recording.get("label", "Your attempt")})
+                "filename": path.name, "label": recording.get("label", "Your attempt"),
+                "outcome": recording.get("outcome", "unknown"),
+                "source": recording.get("metadata", {}).get("source", {})})
             state["recordings"] = state["recordings"][-100:]
         if summary:
             ids = {x.get("id") for x in state["attempts"]}
@@ -540,6 +651,10 @@ class Backend(QObject):
 
     def _close_after_stop(self):
         self._save_current()
+        if self.in_game and self.stop_reason in ("restart", "return_hub", "abandon"):
+            self.session_state = "Waiting for Worker"
+            self.close_deadline = time.monotonic() + 15
+            return
         graceful_close(self.owned_game)
         self.session_state = "Waiting for Game Exit"
         self.close_deadline = time.monotonic() + 30
@@ -557,7 +672,18 @@ class Backend(QObject):
             self.session_state = "Error/Recovery"
             self.stateChanged.emit()
         if self.stop_reason and self.stop_reason != "online":
-            if self.session_state == "Waiting for Game Exit" and not is_alive(self.owned_game) and not self._worker_active():
+            if self.session_state == "Waiting for Worker" and not self._worker_active():
+                reason, self.stop_reason = self.stop_reason, None
+                self.session_state = "Idle"
+                self.telemetry = {}
+                self.session_message = "Career hub ready. Progress saved."
+                if reason == "abandon":
+                    self._career_change(domain.abandon_fixture)
+                if self.pending_launch:
+                    request, self.pending_launch = self.pending_launch, None
+                    self._launch(request)
+                self.stateChanged.emit()
+            elif self.session_state == "Waiting for Game Exit" and not is_alive(self.owned_game) and not self._worker_active():
                 reason, self.stop_reason = self.stop_reason, None
                 self.owned_game = None
                 self.session_state = "Idle"

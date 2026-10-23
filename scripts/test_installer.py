@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -36,6 +39,26 @@ def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
             time.sleep(min(0.1, remaining))
 
 
+def check_shortcuts(group: str, install: Path) -> None:
+    directory = Path(os.environ['APPDATA']) / 'Microsoft/Windows/Start Menu/Programs' / group
+    environment = dict(os.environ, MCT_TEST_SHORTCUTDIR=str(directory))
+    script = """
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    $shell = New-Object -ComObject WScript.Shell
+    @(Get-ChildItem -LiteralPath $env:MCT_TEST_SHORTCUTDIR -Filter *.lnk | ForEach-Object {
+        $shortcut = $shell.CreateShortcut($_.FullName)
+        @{target=$shortcut.TargetPath; arguments=$shortcut.Arguments}
+    }) | ConvertTo-Json -Compress
+    """
+    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
+                            check=True, capture_output=True, text=True, encoding='utf-8',
+                            timeout=30, env=environment)
+    links = json.loads(result.stdout)
+    expected = str(install / 'MyCareerTraining.exe').casefold()
+    modes = {item['arguments'] for item in links if item['target'].casefold() == expected}
+    assert modes == {'--in-game', '--manage'}, f'Incorrect launch shortcuts: {links}'
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('installer', type=Path)
@@ -52,10 +75,12 @@ def main() -> int:
             store.save(state)
         sentinel = profile / 'career.json'
         original = sentinel.read_bytes()
+        group = f'MCT installation test {root.name}'
         command = [str(args.installer.resolve()), '/VERYSILENT', '/SUPPRESSMSGBOXES',
-                   '/NORESTART', '/SP-', '/NOICONS', '/TASKS=', f'/DIR={install}',
+                   '/NORESTART', '/SP-', '/TASKS=', f'/GROUP={group}', f'/DIR={install}',
                    f'/LOG={root / "install.log"}']
         subprocess.run(command, check=True, timeout=120)
+        check_shortcuts(group, install)
         run_smoke(install, profile)
         assert sentinel.read_bytes() == original, 'Installed app smoke changed the existing career'
         # Install the same version over itself: stable identity and upgrade paths.
@@ -67,6 +92,14 @@ def main() -> int:
         wait_for_uninstaller_log_release(uninstall_log)
         assert not (install / 'MyCareerTraining.exe').exists(), 'Uninstall left the installed app'
         assert sentinel.read_bytes() == original, 'Uninstall changed player data'
+    evidence_path = Path(__file__).resolve().parents[1] / 'build' / 'installer-test-receipt.json'
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(json.dumps({
+        'passed': True, 'installer_sha256': hashlib.sha256(args.installer.read_bytes()).hexdigest(),
+        'checks': ['silent install', 'offline and management shortcuts', 'frozen package smoke',
+                   'repeat install', 'uninstall',
+                   'existing career bytes preserved'],
+    }, indent=2) + '\n', encoding='utf-8')
     print('Silent installation, repeat installation and save-preserving uninstall passed')
     return 0
 

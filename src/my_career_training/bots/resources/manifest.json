@@ -1,0 +1,20 @@
+{
+  "source": "https://github.com/Rolv-Arild/Necto",
+  "revision": "2e6ed7d6ed2b352e8ff529d4a12a0c9c70c28cca",
+  "license": "CC-BY-NC-SA-4.0",
+  "license_sha256": "1349a4b6148492b44f629e64eed676612e234fe9a839e4f3b277c1482c8849f1",
+  "models": [
+    {
+      "id": "necto",
+      "file": "necto-model.pt",
+      "sha256": "137f94924afb0402af7ae9f12b7f2d7e47adff962afad4dbed7bf864c34c542b",
+      "size": 734598
+    },
+    {
+      "id": "nexto",
+      "file": "nexto-model.pt",
+      "sha256": "bf5343b5eeacac6bf7cdb75dac4a5c14ba0f94d820eae75f00a211b6119d69fa",
+      "size": 1852625
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+#pragma once
+#include "LocalBridge.h"
+#include "bakkesmod/plugin/bakkesmodplugin.h"
+#include "bakkesmod/plugin/pluginwindow.h"
+#include "imgui.h"
+#include <atomic>
+#include <deque>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+struct MctProduct { int id = 0; int slot = -1; std::string name; bool paintable = false; };
+struct MctRuntime {
+    bool online = true;
+    bool inGame = false;
+    bool paused = false;
+    bool replay = false;
+    bool matchEnded = false;
+    bool itemModAvailable = false;
+    bool teamLockApplied = false;
+    int bakkesVersion = 0;
+    std::string menu;
+    std::string build;
+    mct::Json actions = mct::Json::object();
+    std::vector<MctProduct> products;
+    std::string cosmeticMessage;
+    std::string error;
+    std::string toggleKey = "F6";
+};
+
+class MyCareerTraining final : public BakkesMod::Plugin::BakkesModPlugin,
+                              public BakkesMod::Plugin::PluginWindow {
+public:
+    void onLoad() override;
+    void onUnload() override;
+    void Render() override;
+    std::string GetMenuName() override { return "mycareertraining"; }
+    std::string GetMenuTitle() override { return "MY CAREER"; }
+    void SetImGuiContext(uintptr_t context) override;
+    bool ShouldBlockInput() override;
+    bool IsActiveOverlay() override;
+    void OnOpen() override;
+    void OnClose() override;
+private:
+    struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu } type; mct::Json payload; };
+    std::shared_ptr<int> alive_;
+    std::unique_ptr<mct::LocalBridge> bridge_;
+    std::atomic<bool> menuOpen_{true};
+    std::atomic<bool> windowOpen_{false};
+    std::atomic<bool> offlineReady_{false};
+    std::atomic<bool> hasContext_{false};
+    mutable std::mutex runtimeMutex_;
+    MctRuntime runtime_;
+    std::deque<LocalRequest> localRequests_;
+    std::string lastSessionState_;
+    std::string lastBridgeSession_;
+    std::string previousBind_;
+    std::string toggleKey_ = "F6";
+    bool ownBind_ = false;
+    double lastStatus_ = 0;
+    double lastProductScan_ = 0;
+    int productScanCursor_ = 0;
+    bool scanningProducts_ = true;
+    std::vector<MctProduct> productScan_;
+    std::string originalItemCode_;
+    bool originalItemEnabled_ = false;
+    bool changedItemMod_ = false;
+    mct::Json preferences_ = mct::Json::object();
+    std::atomic<int> page_{0};
+    int workshopTab_ = 0;
+    int garageSlot_ = 2;
+    char clubName_[65] = "Apex Athletic";
+    char search_[128] = "";
+    char rename_[65] = "";
+    char localPresetName_[65] = "My design";
+    std::string selectedRecruit_;
+    std::string selectedLesson_;
+    std::string selectedMap_;
+    mct::Json lineupDraft_ = mct::Json::array();
+    std::string lineupCareerId_;
+    std::map<int, std::pair<int, int>> cosmeticItems_;
+    float primaryColor_[3] = {0.04f, 0.36f, 0.85f};
+    float secondaryColor_[3] = {1.0f, 0.53f, 0.18f};
+    bool overrideColors_ = false;
+    int paint_ = 0;
+
+    void tick();
+    void scheduleTick();
+    void scanProducts(MctRuntime& result);
+    void enforceCareer(const mct::Json& state, MctRuntime& result);
+    void processLocalRequests(MctRuntime& result);
+    void restoreCosmetics();
+    MctRuntime runtimeSnapshot() const;
+    void queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());
+    void loadPreferences();
+    void savePreferences();
+    bool command(const std::string& action, mct::Json payload = mct::Json::object());
+    void renderMenu(const mct::Json& state, const MctRuntime& runtime);
+    void renderTrainingHud(const mct::Json& state, const MctRuntime& runtime);
+    void renderCareer(const mct::Json& state);
+    void renderSquad(const mct::Json& state);
+    void renderSchedule(const mct::Json& state);
+    void renderSeason(const mct::Json& state);
+    void renderTraining(const mct::Json& state);
+    void renderWorkshop(const mct::Json& state);
+    void renderGarage(const MctRuntime& runtime);
+    void renderSettings(const mct::Json& state, const MctRuntime& runtime);
+    void renderGhostControls(const mct::Json& state, bool compact);
+    void drawController(const mct::Json& actions, ImVec2 origin, float scale,
+                        const char* title, const mct::Json& bindings);
+    void beginStyle();
+    void endStyle();
+};

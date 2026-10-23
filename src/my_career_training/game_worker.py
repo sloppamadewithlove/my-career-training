@@ -82,11 +82,17 @@ def core_path():
     raise RuntimeError("The verified RLBot runtime is missing. Install the complete Windows package.")
 
 
-def preflight():
+def preflight(owned=None):
     import psutil
+    if owned:
+        from .bootstrap import verify_owned_offline
+        if not verify_owned_offline(owned):
+            raise RuntimeError("The owned game is not the verified offline session.")
     for process in psutil.process_iter(["name"]):
         try:
             name = (process.info.get("name") or "").lower()
+            if owned and name == "rocketleague.exe" and process.pid == owned.pid:
+                continue
             if name in {"rocketleague.exe", "rlbotserver.exe", "rlbotserver"}:
                 raise RuntimeError("Close Rocket League and any RLBot session before starting a career or lesson.")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -221,6 +227,13 @@ class GameSession:
         self.controllers = {}
         self.prediction = self.field_info = None
         self.owned = None
+        if request.get("owned_game"):
+            from .platforms import ProcessIdentity
+            self.owned = ProcessIdentity(**request["owned_game"])
+        self.map_guard = None
+        self.coach = None
+        self.coach_snapshot = {}
+        self.coaching_preferences = request.get("coaching", {})
         self.engine = None
         from .review import MatchReview
         self.review = MatchReview()
@@ -326,12 +339,16 @@ class GameSession:
         from rlbot.managers.match import MatchManager
         from rlbot.managers.rendering import Renderer
         from . import adapter
-        from .bots import SpecialistController
+        from .bots.providers import create_controller
         from .training import TrainingEngine
         from .training.recordings import validate_recording
         self.check_cancel()
-        preflight()
+        preflight(self.owned)
         executable = core_path()
+        if self.request.get("workshop"):
+            from .map_guard import MapGuard
+            self.map_guard = MapGuard(self.request["data_dir"])
+            self.map_guard.prepare(self.request["settings"]["install_path"], self.request["workshop"])
         config, descriptors, self.human_index = adapter.match_config(self.request)
         self.human_team = config.player_configurations[self.human_index].team
         self.descriptors = descriptors
@@ -340,6 +357,12 @@ class GameSession:
             allowed = {key: variants[key] for key in ("side", "target_zone", "angle", "simplified") if key in variants}
             self.engine = TrainingEngine(self.request["lesson_id"], self.request.get("preferences"),
                                          metadata={"framework_version": adapter.SDK_VERSION}, **allowed)
+        from .training import GhostPlayback
+        from .training import coaching_preferences
+        self.coaching_preferences = coaching_preferences(self.coaching_preferences)
+        self.coach = GhostPlayback(mode=self.coaching_preferences["mode"],
+            lead_seconds=self.coaching_preferences["lead_seconds"],
+            speed=self.coaching_preferences["playback_speed"], loop=self.coaching_preferences["loop"])
         if self.request.get("recording") is not None:
             validate_recording(self.request["recording"])
             self.recording = self.request["recording"]
@@ -349,7 +372,7 @@ class GameSession:
         # Recheck just before the core launches: the Epic launch route may close
         # game processes globally, so attaching to a preexisting game is forbidden.
         self.check_cancel()
-        preflight()
+        preflight(self.owned)
         self.core = subprocess.Popen([str(executable), str(port)], cwd=runtime, shell=False,
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -367,7 +390,7 @@ class GameSession:
         self.renderer._current_renders = []
         self.start_acknowledged_match(config)
         for index, descriptor in descriptors.items():
-            self.controllers[index] = SpecialistController(descriptor.get("role", "all-rounder"),
+            self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"), descriptor.get("role", "all-rounder"),
                 descriptor["level"], descriptor["difficulty"], descriptor["seed"])
         for team in sorted({value["team"] for value in descriptors.values()}):
             relay = isolated_relay(SocketRelay(f"my-career-training/team-{team}", connection_timeout=8))
@@ -413,6 +436,8 @@ class GameSession:
         self.attempt_sent = None
         self.attempt_acked = False
         self.playback_origin = None
+        if self.coach:
+            self.coach.restart()
         self.event("session", state="training", message="Settling the car before the drill.")
 
     def handle_command(self, command):
@@ -434,10 +459,42 @@ class GameSession:
                 preferences = {command["key"]: command["value"]}
             for key, value in preferences.items():
                 self.engine.set_preference(key, value)
+        elif kind == "coaching":
+            from .training import coaching_preferences
+            self.coaching_preferences = coaching_preferences(command.get("preferences", {}))
+            self.coach.set_mode(self.coaching_preferences["mode"], self.coaching_preferences["lead_seconds"])
+            self.coach.set_speed(self.coaching_preferences["playback_speed"])
+            self.coach.set_loop(self.coaching_preferences["loop"])
+        elif kind == "ghost_control":
+            if not self.coach:
+                raise ValueError("Start a lesson before controlling its ghost.")
+            operation, value = command.get("operation"), command.get("value")
+            if operation == "pause":
+                self.coach.pause()
+            elif operation == "resume":
+                self.coach.resume()
+            elif operation == "stop":
+                self.coach.stop()
+            elif operation == "restart":
+                self.coach.restart()
+            elif operation == "seek":
+                self.coach.seek(float(value))
+            elif operation == "speed":
+                self.coach.set_speed(float(value))
+            elif operation == "loop":
+                self.coach.set_loop(bool(value))
+            elif operation == "mode":
+                self.coach.set_mode(str(value))
+            else:
+                raise ValueError("Unknown ghost playback control.")
         elif kind == "play_recording":
             from .training.recordings import validate_recording
             validate_recording(command["recording"])
             self.recording = command["recording"]
+            self.coach.load(self.recording, kind="personal")
+            self.coach.set_mode(command.get("mode", self.coaching_preferences["mode"]),
+                                float(command.get("lead_seconds", self.coaching_preferences["lead_seconds"])))
+            self.coach.resume()
             self.playback_origin = self.last_frame["time"] if self.last_frame else None
         else:
             raise ValueError("Unknown game-session command.")
@@ -514,7 +571,7 @@ class GameSession:
             if now - self.last_render >= 1 / 30:
                 self.render(frame)
                 self.last_render = now
-        if not self.engine:
+        if not self.engine and not self.request.get("workshop"):
             self.review.update(frame, {team.team_index: team.score for team in packet.teams})
             scores = adapter.final_score(packet, self.seen_active)
             if scores is not None and not self.result_sent:
@@ -527,10 +584,14 @@ class GameSession:
                 self.result_sent = True
                 self.emit(result)
                 self.event("session", state="completed", message="Final score received from the game.")
-        if now - self.last_telemetry >= .1:
+        if self.engine and self.coach and not self.cancel_start.is_set() and not self.stopping:
+            self.coach_snapshot = self.coach.update(frame["time"], attempt_seconds=(
+                None if self.engine.started_at is None else frame["time"] - self.engine.started_at))
+        if now - self.last_telemetry >= 1 / 30:
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
-                       scores=[team.score for team in packet.teams])
+                       scores=[team.score for team in packet.teams], ghost=self.coach_snapshot,
+                       coaching=(self.engine.summary().get("coaching", {}) if self.engine and not self.cancel_start.is_set() and not self.stopping else {}))
             self.last_telemetry = now
 
     def publish_attempt(self):
@@ -549,7 +610,6 @@ class GameSession:
         if self.cancel_start.is_set() or self.stopping or not self.renderer.can_render:
             return
         from rlbot import flat
-        from .training.recordings import ghost_lines, interpolate_pose
         renderer, preferences = self.renderer, self.engine.preferences
         with renderer.context("my-career-training"):
             if preferences["explanations"]:
@@ -565,15 +625,11 @@ class GameSession:
             if preferences["timing"]:
                 duration = 0 if self.engine.started_at is None else max(0, frame["time"] - self.engine.started_at)
                 renderer.draw_string_2d(f"{self.engine.state.title()}  {duration:.2f}s", .03, .35, 1)
-            if preferences["ghost"] and self.recording:
-                if self.playback_origin is None:
-                    self.playback_origin = frame["time"]
-                pose = interpolate_pose(self.recording, frame["time"] - self.playback_origin,
-                                        speed=preferences["playback_speed"])
-                for line in ghost_lines(pose):
+            if preferences["ghost"] and self.coach_snapshot.get("visible"):
+                for line in self.coach_snapshot.get("lines", []):
                     color = renderer.yellow if line["style"] == "front" else renderer.cyan
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
-                renderer.draw_string_2d(self.recording.get("label", "Recorded attempt"), .03, .39, .8)
+                renderer.draw_string_2d(self.coach_snapshot.get("label", "Recorded attempt"), .03, .39, .8)
 
     def draw_target(self, target):
         from rlbot import flat
@@ -630,6 +686,8 @@ class GameSession:
                 relay.socket.close()
         for thread in self.threads:
             thread.join(timeout=.2)
+        if self.map_guard:
+            self.map_guard.recover()
 
     def run(self):
         self.event("session", state="starting", message="Checking the game installation and offline runtime.")
