@@ -1,0 +1,304 @@
+"""Qt bridge integration checks with local files and a mocked game process."""
+from __future__ import annotations
+
+import io
+import json
+import os
+import uuid
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QProcess
+from PySide6.QtWidgets import QApplication
+import pytest
+
+from my_career_training import bridge, career, game_worker, training
+
+
+@pytest.fixture(scope="session")
+def qt_app():
+    return QApplication.instance() or QApplication(["my-career-training-tests"])
+
+
+@pytest.fixture
+def backend(tmp_path, monkeypatch, qt_app):
+    game_running = {"value": False}
+    launches = []
+    monkeypatch.setattr(bridge, "detect_installations", lambda: [])
+    monkeypatch.setattr(
+        bridge, "game_processes", lambda: ["mock-rocket-league"] if game_running["value"] else []
+    )
+    monkeypatch.setattr(bridge, "is_alive", lambda _identity: False)
+    monkeypatch.setattr(bridge, "graceful_close", lambda _identity: None)
+    monkeypatch.setattr(bridge, "launch_online", lambda launcher: launches.append(launcher) or "online opened")
+    instance = bridge.Backend(tmp_path)
+    yield instance, game_running, launches
+    instance.timer.stop()
+    instance.close()
+
+
+class FakeProcess:
+    def __init__(self, state=QProcess.Running):
+        self.current_state = state
+        self.writes = []
+
+    def state(self):
+        return self.current_state
+
+    def write(self, value):
+        self.writes.append(bytes(value))
+        return len(value)
+
+    def readAllStandardOutput(self):
+        return b""
+
+    def waitForFinished(self, _timeout):
+        self.current_state = QProcess.NotRunning
+        return True
+
+
+def test_dispatch_persists_career_lineup_settings_and_assistance_preferences(backend):
+    instance, _, _ = backend
+
+    instance.dispatch("new_career", {"team_name": "Night Shift", "format": 3})
+    assert instance.error == ""
+    assert instance.document["career"]["team_name"] == "Night Shift"
+    assert instance.page == "hub"
+
+    instance.dispatch("lineup", {"ids": ["shield", "relay"]})
+    instance.dispatch("settings", {"key": "text_scale", "value": 1.25})
+    instance.dispatch("assistance", {"id": "speed-flip", "key": "explanations", "value": False})
+
+    assert instance.error == ""
+    assert instance.document["career"]["lineup"] == ["shield", "relay"]
+    assert instance.document["settings"]["text_scale"] == 1.25
+    assert instance.document["lesson_preferences"]["speed-flip"]["explanations"] is False
+    assert instance.store.load() == instance.document
+
+
+def _synthetic_recording():
+    lesson = training.configure_lesson("speed-flip")
+    actions = {
+        "throttle": 0.0,
+        "steer": 0.0,
+        "pitch": 0.0,
+        "yaw": 0.0,
+        "roll": 0.0,
+        "jump": False,
+        "boost": False,
+        "handbrake": False,
+    }
+    return {
+        "schema_version": 1,
+        "lesson_id": lesson["id"],
+        "lesson_version": lesson["version"],
+        "variant": lesson.get("variant"),
+        "metadata": {
+            "game_version": "test fixture",
+            "framework_version": "test fixture",
+            "car_hitbox": "test fixture",
+            "map": lesson["map"],
+            "mutators": {},
+            "starting_state": lesson["starting_state"],
+            "time_base": "game_seconds",
+            "source": {"kind": "synthetic_test_fixture", "origin": "test only; no game telemetry"},
+            "permission": {"distribute": False, "basis": "Test fixture only"},
+            "success_evidence": [],
+        },
+        "outcome": "unfinished",
+        "duration": 0,
+        "events": [],
+        "samples": [
+            {
+                "time": 0,
+                "position": [0, 0, 17],
+                "rotation": [0, 0, 0],
+                "actions": actions,
+            }
+        ],
+        "truncated": False,
+        "label": "Synthetic test fixture",
+    }
+
+
+def test_import_recording_uses_real_dialog_action_and_preserves_fixture_provenance(
+    backend, tmp_path, monkeypatch
+):
+    instance, _, _ = backend
+    source = tmp_path / "synthetic recording.json"
+    source.write_text(json.dumps(_synthetic_recording()), encoding="utf-8")
+    monkeypatch.setattr(bridge.QFileDialog, "getOpenFileName", lambda *_args: (str(source), ""))
+
+    instance.dispatch("import_recording", {})
+
+    assert instance.error == ""
+    assert "not independently certified" in instance.notice
+    entry, = instance.document["recordings"]
+    stored = json.loads((tmp_path / "recordings" / entry["filename"]).read_text(encoding="utf-8"))
+    assert entry["lesson_id"] == "speed-flip"
+    assert stored["metadata"]["source"]["kind"] == "synthetic_test_fixture"
+    assert stored["import_status"] == "Imported personal recording"
+    assert stored["outcome"] == "unfinished"
+
+
+def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, monkeypatch, tmp_path):
+    instance, _, _ = backend
+    started = career.new_career("Receipt Test", seed=841)
+    fixture = career.next_fixture(started)
+    session_id = str(uuid.uuid4())
+    state = dict(instance.document)
+    state["career"] = career.start_fixture(started, session_id)
+    instance._commit(state)
+    result = {
+        "type": "result",
+        "session_id": session_id,
+        "fixture_id": fixture["id"],
+        "home_score": 3,
+        "away_score": 2,
+        "provenance": "game",
+    }
+    receipt = game_worker.persist_result(tmp_path, result)
+    real_save = instance.store.save
+
+    def fail_completed_save(document):
+        if document["career"]["pending_session"] is None:
+            raise OSError("simulated result save failure")
+        return real_save(document)
+
+    monkeypatch.setattr(instance.store, "save", fail_completed_save)
+    instance._recover_outbox()
+
+    assert receipt.exists()
+    assert instance.document["career"]["pending_session"]["session_id"] == session_id
+    assert instance.store.load()["career"]["pending_session"]["session_id"] == session_id
+
+    monkeypatch.setattr(instance.store, "save", real_save)
+    instance._recover_outbox()
+    assert not receipt.exists()
+    instance._event(result)
+
+    saved = instance.store.load()
+    current = saved["career"]["seasons"][saved["career"]["current_season"]]
+    completed = [f for f in current["fixtures"] if f["id"] == fixture["id"] and f["status"] == "completed"]
+    awards = [item for item in saved["career"]["rewards"] if item["type"] == "match_experience"]
+    assert len(completed) == 1
+    assert len(awards) == 1
+    assert completed[0]["result"]["session_id"] == session_id
+
+
+def test_online_transition_clears_stop_reason_and_allows_later_dispatch(backend):
+    instance, game_running, launches = backend
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = str(uuid.uuid4())
+    instance.request = {"session_id": instance.session_id, "lesson_id": None}
+    instance.session_state = "Playing"
+    game_running["value"] = True
+
+    instance.dispatch("online_request", {})
+    instance.dispatch("online_confirm", {"yes": True})
+    assert instance.lifecycle.frozen is True
+    assert instance.stop_reason == "online"
+    assert json.loads(process.writes[-1])["type"] == "shutdown"
+
+    instance._event({"type": "stopped", "session_id": instance.session_id, "id": "shutdown-1"})
+    assert instance.lifecycle.state == "Waiting for Game Exit"
+    assert instance.lifecycle.frozen is True
+
+    process.current_state = QProcess.NotRunning
+    instance._process_finished(0, QProcess.NormalExit)
+    game_running["value"] = False
+    instance._tick()
+
+    assert launches == ["steam"]
+    assert instance.lifecycle.state == "Online Launch Requested"
+    assert instance.lifecycle.frozen is False
+    assert instance.stop_reason is None
+
+    instance.dispatch("settings", {"key": "reduced_motion", "value": True})
+    assert instance.error == ""
+    assert instance.document["settings"]["reduced_motion"] is True
+
+
+def test_completed_worker_state_ignores_late_telemetry(backend):
+    instance, _, _ = backend
+    instance.session_id = str(uuid.uuid4())
+    instance.request = {"lesson_id": None}
+    started = career.new_career("Late Telemetry", seed=204)
+    fixture = career.next_fixture(started)
+    state = dict(instance.document)
+    state["career"] = career.start_fixture(started, instance.session_id)
+    instance._commit(state)
+
+    instance._event({
+        "type": "result",
+        "session_id": instance.session_id,
+        "fixture_id": fixture["id"],
+        "home_score": 2,
+        "away_score": 1,
+        "provenance": "game",
+    })
+    instance._event({"type": "session", "session_id": instance.session_id, "state": "completed"})
+
+    instance._event({"type": "telemetry", "session_id": instance.session_id})
+
+    assert instance.session_state == "Career Ready"
+
+
+def test_attempt_event_acknowledges_the_worker_summary_id(backend):
+    instance, _, _ = backend
+    instance.session_id = str(uuid.uuid4())
+    instance.request = {"lesson_id": "speed-flip"}
+    process = FakeProcess()
+    instance.process = process
+    summary = {"id": "attempt-7", "lesson_id": "speed-flip", "outcome": "unfinished"}
+
+    instance._event({"type": "attempt", "session_id": instance.session_id, "summary": summary})
+
+    ack = json.loads(process.writes[-1])
+    assert ack["type"] == "attempt_ack"
+    assert ack["attempt_id"] == summary["id"]
+
+
+def test_source_worker_ready_ping_and_shutdown_protocol():
+    class FakeThread:
+        def __init__(self):
+            self.started = False
+
+        def start(self):
+            self.started = True
+
+        def is_alive(self):
+            return self.started
+
+        def join(self, timeout=None):
+            self.started = False
+
+    class FakeSession:
+        def __init__(self, command, _emit):
+            self.session_id = command["session_id"]
+            self.thread = FakeThread()
+            self.commands = []
+
+        def command(self, command):
+            self.commands.append(command)
+
+    session_id = str(uuid.uuid4())
+    output = io.StringIO()
+    commands = "\n".join(
+        [
+            json.dumps({"type": "start", "session_id": session_id}),
+            json.dumps({"type": "ping", "id": "bridge-probe"}),
+            json.dumps({"type": "shutdown", "id": "shutdown-2"}),
+            "",
+        ]
+    )
+    process = game_worker.Worker(output, session_factory=FakeSession)
+
+    assert process.run(io.StringIO(commands)) == 0
+    events = [json.loads(line) for line in output.getvalue().splitlines()]
+
+    assert events[0] == {"type": "ready", "protocol": 1, "session_id": None}
+    assert events[1] == {"type": "pong", "id": "bridge-probe", "session_id": session_id}
+    assert process.closed is True
+    assert process.session.commands == [{"type": "shutdown", "id": "shutdown-2"}]
