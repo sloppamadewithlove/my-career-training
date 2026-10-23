@@ -1,4 +1,4 @@
-"""Windows CI installation/upgrade/uninstallation check, using temporary paths."""
+"""Windows CI install/reinstall/uninstall check, using temporary paths."""
 from __future__ import annotations
 
 import argparse
@@ -84,9 +84,10 @@ def main() -> int:
             raise
         run_smoke(install, profile)
         assert sentinel.read_bytes() == original, 'Installed app smoke changed the existing career'
-        # Install the same version over itself: stable identity and upgrade paths.
+        # Reinstall the same version to exercise the repeat-install path.
+        # This does not verify upgrading from an older release.
         subprocess.run(command, check=True, timeout=120)
-        assert sentinel.read_bytes() == original, 'Upgrade changed player data'
+        assert sentinel.read_bytes() == original, 'Reinstall changed player data'
         uninstall_log = root / 'uninstall.log'
         subprocess.run([str(install / 'unins000.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES',
                         '/NORESTART', f'/LOG={uninstall_log}'], check=True, timeout=120)
@@ -98,10 +99,11 @@ def main() -> int:
     evidence_path.write_text(json.dumps({
         'passed': True, 'installer_sha256': hashlib.sha256(args.installer.read_bytes()).hexdigest(),
         'checks': ['silent install', 'offline and management shortcuts', 'frozen package smoke',
-                   'repeat install', 'uninstall',
+                   'same-version reinstall', 'uninstall',
                    'existing career bytes preserved'],
+        'upgrade_verified': False,
     }, indent=2) + '\n', encoding='utf-8')
-    print('Silent installation, repeat installation and save-preserving uninstall passed')
+    print('Silent installation, same-version reinstall and save-preserving uninstall passed; upgrade not tested')
     return 0
 
 

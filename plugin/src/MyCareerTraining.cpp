@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <shellapi.h>
 
-BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.2.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.3.0", PLUGINTYPE_FREEPLAY)
 extern "C" __declspec(dllexport) int mct_protocol_version() { return 1; }
 
 namespace {
@@ -192,7 +192,7 @@ void MyCareerTraining::onLoad() {
         }, "Discard the local native menu diagnostic", PERMISSION_OFFLINE);
         // Do not touch bindings just because BakkesMod loaded the DLL. A normal
         // Steam game (including its frontend) is not an owned career session.
-        cvarManager->log("My Career Training 0.2.0: waiting for the owned offline career service.");
+        cvarManager->log("My Career Training 0.3.0: waiting for the owned offline career service.");
         tick();
     } catch (const std::exception& error) {
         cvarManager->log(std::string("My Career could not start: ") + error.what());
@@ -201,6 +201,7 @@ void MyCareerTraining::onLoad() {
 
 void MyCareerTraining::onUnload() {
     alive_.reset();
+    updateNavigationFlags(false);
     closeNativeMenu();
     offlineReady_ = false;
     removeProbeHooks();
@@ -228,21 +229,32 @@ void MyCareerTraining::acquireMenuBind() {
     for (const char* key : {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}) {
         const auto binding = cvarManager->getBindStringForKey(key);
         if (!binding.empty() && binding != "mct_menu") continue;
-        toggleKey_ = key; previousBind_ = binding;
-        // A binding that existed before us belongs to the user; leave it alone.
-        ownBind_ = binding.empty();
-        if (ownBind_) cvarManager->setBind(toggleKey_, "mct_menu");
+        toggleKey_ = key;
+        // Observe an unused key inside our foreground process only. Never
+        // write global Bakkes bindings, even temporarily: a crash may persist them.
+        toggleVirtualKey_ = binding.empty() ? VK_F1 + std::stoi(toggleKey_.substr(1)) - 1 : 0;
+        shortcut_.reset();
         return;
     }
     toggleKey_ = "BakkesMod console: mct_menu";
 }
 
 void MyCareerTraining::releaseMenuBind() {
-    if (ownBind_ && cvarManager->getBindStringForKey(toggleKey_) == "mct_menu") {
-        if (previousBind_.empty()) cvarManager->removeBind(toggleKey_);
-        else cvarManager->setBind(toggleKey_, previousBind_);
+    bindAttempted_ = false; toggleVirtualKey_ = 0; shortcut_.reset();
+}
+
+void MyCareerTraining::pollMenuShortcut() {
+    if (!toggleVirtualKey_) return; // Existing user mct_menu bindings use the notifier.
+    const auto binding = cvarManager->getBindStringForKey(toggleKey_);
+    if (!binding.empty()) { releaseMenuBind(); return; }
+    DWORD foregroundPid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &foregroundPid);
+    const bool down = (GetAsyncKeyState(toggleVirtualKey_) & 0x8000) != 0;
+    if (shortcut_.observe(down, foregroundPid == GetCurrentProcessId() && offlineReady_)) {
+        closeNativeMenu();
+        menuOpen_ = !menuOpen_.load();
+        if (menuOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
     }
-    ownBind_ = false; bindAttempted_ = false; previousBind_.clear();
 }
 
 void MyCareerTraining::scheduleTick() {
@@ -416,6 +428,7 @@ void MyCareerTraining::tick() {
         }
         if (offlineReady_) {
             acquireMenuBind();
+            pollMenuShortcut();
             next.toggleKey = toggleKey_;
             const auto& state = publishedState;
             const auto session = objectValue(state, "session");
@@ -456,7 +469,7 @@ void MyCareerTraining::tick() {
             if (change != mct::MenuChange::None && !windowOpen_)
                 cvarManager->executeCommand("openmenu mycareertraining", false);
             if (mct::unixTime() - lastStatus_ >= 0.5) {
-                Json status = {{"version", "0.2.0"}, {"sdk_api", 95}, {"online", next.online},
+                Json status = {{"version", "0.3.0"}, {"sdk_api", 95}, {"online", next.online},
                     {"pid", GetCurrentProcessId()}, {"bakkesmod_version", next.bakkesVersion},
                     {"in_game", next.inGame}, {"ui_open", ShouldBlockInput()}, {"menu", next.menu},
                     {"game_build", next.build}, {"logical_actions", next.actions}, {"team_lock_applied", next.teamLockApplied},
@@ -594,9 +607,9 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 if (!existing.empty() && existing != "mct_menu") throw std::runtime_error("That key is already bound. Choose a free menu key.");
                 if (key == toggleKey_) continue;
                 releaseMenuBind();
-                toggleKey_ = key; previousBind_ = existing; bindAttempted_ = true;
-                ownBind_ = existing.empty();
-                if (ownBind_) cvarManager->setBind(toggleKey_, "mct_menu");
+                toggleKey_ = key; bindAttempted_ = true;
+                toggleVirtualKey_ = existing.empty() ? VK_F1 + std::stoi(key.substr(1)) - 1 : 0;
+                shortcut_.reset();
                 result.toggleKey = toggleKey_;
             } else if (request.type == LocalRequest::Resume) {
                 menuOpen_ = false;
@@ -749,18 +762,34 @@ bool MyCareerTraining::command(const std::string& action, Json payload) {
     return bridge_->send(action, std::move(payload));
 }
 void MyCareerTraining::SetImGuiContext(uintptr_t context) {
-    ImGui::SetCurrentContext(reinterpret_cast<ImGuiContext*>(context));
-    hasContext_ = true;
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+    auto* next = reinterpret_cast<ImGuiContext*>(context);
+    if (guiContext_ != next) updateNavigationFlags(false);
+    guiContext_ = next;
+    ImGui::SetCurrentContext(next);
+    hasContext_ = next != nullptr;
+}
+void MyCareerTraining::updateNavigationFlags(bool active) {
+    if (!guiContext_) return;
+    auto* previous = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(guiContext_);
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags = navigationFlags_.update(io.ConfigFlags, active,
+        ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
+    ImGui::SetCurrentContext(previous);
 }
 bool MyCareerTraining::ShouldBlockInput() {
     return mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
 }
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
 void MyCareerTraining::OnOpen() { windowOpen_ = true; }
-void MyCareerTraining::OnClose() { windowOpen_ = false; menuOpen_ = false; }
+void MyCareerTraining::OnClose() {
+    windowOpen_ = false; menuOpen_ = false;
+    updateNavigationFlags(false);
+}
 
 void MyCareerTraining::Render() {
+    updateNavigationFlags(hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
+        bridge_ && bridge_->fresh() && !nativeDialogActive_);
     if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_) return;
     try {
         const auto state = bridge_->state();

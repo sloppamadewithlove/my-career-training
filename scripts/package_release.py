@@ -25,6 +25,8 @@ def main() -> int:
     installation = json.loads((ROOT / 'build/installer-test-receipt.json').read_text(encoding='utf-8'))
     if not smoke.get('passed') or not installation.get('passed'):
         raise RuntimeError('Successful frozen package and installer test receipts are required')
+    if installation.get('upgrade_verified') is not False:
+        raise RuntimeError('Installer test receipt must state accurately whether an upgrade was verified')
     for name, digest in smoke['artifacts'].items():
         if hashlib.sha256((bundle / name).read_bytes()).hexdigest() != digest:
             raise RuntimeError(f'Package artifact changed after smoke test: {name}')
@@ -52,7 +54,9 @@ def main() -> int:
         'version': version, 'source_commit': plugin_details['source_commit'],
         'artifacts': hashes, 'plugin': plugin_details,
         'package_smoke': smoke, 'installation_test': installation,
-        'verification': {'windows_package_smoke': 'passed', 'installer_upgrade_uninstall': 'passed',
+        'verification': {'windows_package_smoke': 'passed',
+                         'installer_install_reinstall_uninstall': 'passed',
+                         'installer_upgrade': 'not verified',
                          'actual_rocket_league_gameplay': 'not verified by build'},
     }, indent=2) + '\n', encoding='utf-8')
     print('Created portable ZIP and SHA256SUMS.txt')

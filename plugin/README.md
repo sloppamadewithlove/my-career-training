@@ -71,12 +71,20 @@ of claiming success. No driving or anti-idle inputs are synthesized. If the nati
 menu stays open, automatic pause capture is temporarily suppressed so the player
 can hide the career hub and close the native menu normally.
 
-The menu uses the first unused F6-F12 key, retaining existing bindings. An
-in-game Settings selector can choose a different unused function key. The actual
-shortcut is shown on the HUD. Gamepad menu navigation uses BakkesMod's SDK-bundled
-ImGui Win32/XInput backend: PlayStation controllers require Steam Input or an
-equivalent XInput presentation. Physical controller navigation needs testing;
-logical PlayStation training visualization does not depend on an XInput device.
+The menu observes the first unused F6-F12 key only while the owned offline game
+has foreground focus. It never writes a global BakkesMod key binding. An
+in-game Settings selector can choose a different unused function key, and the
+actual shortcut is shown on the HUD. Existing user `mct_menu` bindings are left
+untouched. The prototype borrows ImGui navigation flags only while its menu
+owns input, removing only the bits it added on close/unload and preserving
+preexisting flags and unrelated changes. Prototype gamepad navigation still needs a physical
+controller test; the PlayStation action graphic is a separate feature.
+
+An opt-in [native dialog trial](../docs/NATIVE_DIALOG_TRIAL.md) uses the public
+SDK's own dialogs for Career/Training buttons and read-only career details.
+It is not the startup interface or a replacement/lock for the stock menus.
+Native keyboard/controller, Back/Escape and world-transition behavior still
+require a Windows Rocket League test.
 
 ## Implemented training controls
 

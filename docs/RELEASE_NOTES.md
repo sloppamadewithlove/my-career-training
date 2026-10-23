@@ -1,8 +1,28 @@
-# Current development status: native-menu installer held
+# 0.3.0 development: native-menu installer held
 
 There is no downloadable native-menu edition yet. The public installer remains
 held under the owner's native-menu requirement. GitHub source changes and green
 Windows checks must not be presented as a completed download.
+
+The current source adds an opt-in [native dialog trial](NATIVE_DIALOG_TRIAL.md)
+for Career and Training actions, with read-only Schedule, Season and Squad
+views. It uses supported SDK dialogs and checks stale clicks and fixture IDs.
+It does not replace the original menu tree or establish an input lock. No
+successful Windows Rocket League trial has been recorded.
+
+Steam preservation work retires the RLBot custom-map substitution route;
+Workshop browsing and favorites remain, but custom-map startup is unavailable.
+The plugin checks process creation time, executable identity and exact offline
+flags. Its session shortcut observes a free key without writing BakkesMod
+bindings. It removes borrowed ImGui navigation bits when its menu closes,
+preserving preexisting flags and unrelated changes.
+
+Temporary BakkesMod plugin files are journaled before the offline launch.
+Cleanup restores their prior bytes/existence after Rocket League exits; a crash
+leaves a recovery record for the next launch. Changed DLLs and ambiguous config
+edits require review rather than being overwritten. Preexisting autoload entries
+remain user-owned. See the [Windows Codex handoff](WINDOWS_CODEX_HANDOFF.md) for
+a read-only before/after comparison of the separate Steam game installation.
 
 [PR #2](https://github.com/sloppamadewithlove/my-career-training/pull/2) is merged.
 It repairs atomic bridge file sharing on Windows, removes repeated menu-open
@@ -127,7 +147,7 @@ downloads exist; the workflow must succeed before these artifacts are published:
 
 The Windows recipe targets Python 3.12.13, PySide6-Essentials 6.12.0, RLBot
 2.0.0b56/FlatBuffers 0.19.0 and core v5.0.0-rc18. It tests the frozen GUI/worker,
-Unicode paths and installation/upgrade/uninstallation. It preserves AppData saves.
+Unicode paths and installation, same-version reinstall and uninstallation. It preserves AppData saves. Older-version upgrade behavior is not yet verified.
 Builds are unsigned unless an actual verified signing receipt is published.
 A source ZIP is labeled source and requires development tools; it is never an
 installer substitute.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(MyCareerTrainingPlugin VERSION 0.2.0 LANGUAGES CXX)
+project(MyCareerTrainingPlugin VERSION 0.3.0 LANGUAGES CXX)
 
 include(FetchContent)
 FetchContent_Declare(mct_json

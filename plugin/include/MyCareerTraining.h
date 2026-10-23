@@ -62,6 +62,8 @@ private:
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};
+    ImGuiContext* guiContext_ = nullptr;
+    mct::SessionFlags navigationFlags_;
     mutable std::mutex runtimeMutex_;
     MctRuntime runtime_;
     std::deque<LocalRequest> localRequests_;
@@ -73,10 +75,10 @@ private:
     std::string lastProbeMenu_;
     std::string probeExecutableSha256_;
     std::string probeMessage_ = "Ready to capture a local native menu diagnostic.";
-    std::string previousBind_;
     std::string toggleKey_ = "F6";
-    bool ownBind_ = false;
     bool bindAttempted_ = false;
+    int toggleVirtualKey_ = 0;
+    mct::SessionShortcut shortcut_;
     mct::ProcessScope processScope_;
     mct::NativeCareerMenu nativeMenu_;
     std::unique_ptr<ModalWrapper> nativeModal_;
@@ -124,6 +126,8 @@ private:
     bool ownedOfflineNow() const;
     void acquireMenuBind();
     void releaseMenuBind();
+    void pollMenuShortcut();
+    void updateNavigationFlags(bool active);
     void showNativeMenu();
     void closeNativeMenu();
     void processNativeClick();

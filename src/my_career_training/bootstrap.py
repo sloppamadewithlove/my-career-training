@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import time
 
-from .platforms import ProcessIdentity, game_processes
-from .storage import Store
+from .platforms import ProcessIdentity, detect_installations, game_processes, offline_launch_arguments
+from .plugin_session import PluginSession, PluginSessionError
 
 
 def bakkes_directory():
@@ -66,25 +66,38 @@ def plugin_binary():
     raise RuntimeError("The in-game plugin is not built here. Install the Windows package from this release.")
 
 
-def install_plugin():
+def _plugin_session(directory, root=None):
+    return PluginSession(directory, root=root, game_running=lambda: bool(game_processes()))
+
+
+def install_plugin(directory=None):
+    """Journal BakkesMod's current plugin files, then stage this launch's copy.
+
+    The documented in-game command is `plugin load`. BakkesMod also autoloads
+    cfg/plugins.cfg, and it does not document an external one-shot load. This
+    appends that autoload only for the owned launch. restore_plugin_session puts
+    the previous bytes back. A load line that was already there is left alone.
+    """
     root = bakkes_directory()
     if root is None:
         raise RuntimeError("Install BakkesMod from https://bakkesmod.com, open it once, then launch My Career again.")
-    source = plugin_binary()
-    target = root / "plugins/MyCareerTraining.dll"
-    if target.exists() and target.read_bytes() != source.read_bytes():
-        shutil.copy2(target, target.with_suffix(".dll.previous"))
-    if not target.exists() or target.read_bytes() != source.read_bytes():
-        Store._atomic(target, source.read_bytes())
-    config = root / "cfg/plugins.cfg"
-    content = config.read_text(encoding="utf-8-sig") if config.exists() else ""
-    command = "plugin load MyCareerTraining"
-    active = [line.split("//", 1)[0].strip().rstrip(";").lower() for line in content.splitlines()]
-    if command.lower() not in active:
-        if config.exists():
-            shutil.copy2(config, config.with_suffix(".cfg.mct-backup"))
-        Store._atomic(config, (content.rstrip() + "\n" + command + "\n").encode())
+    report = _plugin_session(directory, root).begin(plugin_binary())
+    install_plugin.last_report = report
     return root
+
+
+def recover_plugin_session(directory=None):
+    """Restore an interrupted plugin session once no Rocket League process is running."""
+    return _plugin_session(directory).recover()
+
+
+def restore_plugin_session(directory=None):
+    """Restore owned plugin files, or keep the receipt while a game process is open."""
+    return _plugin_session(directory).finish()
+
+
+def plugin_session_notices(directory=None):
+    return _plugin_session(directory).notices()
 
 
 def ensure_injector_running():
@@ -110,36 +123,71 @@ def preflight_offline(settings):
         executable = executable / "Binaries/Win64/RocketLeague.exe"
     if not executable.is_file() or executable.name.lower() != "rocketleague.exe":
         raise RuntimeError("Choose your Rocket League installation in first-run setup.")
+    verified = False
+    for install in detect_installations():
+        if install.get("launcher") != "steam":
+            continue
+        try:
+            if executable.samefile(install["path"]):
+                verified = True
+                break
+        except (KeyError, OSError):
+            continue
+    if not verified:
+        raise RuntimeError("This executable does not match Steam's recorded Rocket League installation. "
+                           "Choose the game installed by Steam before launching My Career.")
     import psutil
     if not any((p.info.get("name") or "").lower() == "steam.exe" for p in psutil.process_iter(["name"])):
         raise RuntimeError("Open Steam and sign in, then launch My Career again.")
     return executable
 
 
-def launch_offline(settings):
+def _usable_timestamp(value):
+    return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+
+def launch_offline(settings, directory=None):
     import psutil
     executable = preflight_offline(settings)
-    install_plugin()
-    ensure_injector_running()
-    # Current RLBot's Steam launcher uses the installed executable and Steam identity.
-    # -noeac is the official offline mode, never an online anti-cheat bypass.
-    env = dict(os.environ, SteamAppId="252950", SteamGameId="252950")
-    process = subprocess.Popen([str(executable), "-noeac", "-rlbot",
-        "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie"],
-        cwd=executable.parent, env=env, shell=False)
-    owned = psutil.Process(process.pid)
-    return ProcessIdentity(process.pid, owned.create_time(), str(executable.resolve()))
+    recover_plugin_session(directory)
+    try:
+        install_plugin(directory)
+        ensure_injector_running()
+        # A normal Steam launch may have started while dependencies were staged.
+        # Refuse another launch and defer file restoration until that game exits.
+        preflight_offline(settings)
+        # Current RLBot's Steam launcher uses the installed executable and Steam identity.
+        # -noeac is the official offline mode, never an online anti-cheat bypass.
+        env = dict(os.environ, SteamAppId="252950", SteamGameId="252950")
+        process = subprocess.Popen([str(executable), "-noeac", "-rlbot",
+            "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie"],
+            cwd=executable.parent, env=env, shell=False)
+        owned = psutil.Process(process.pid)
+        created = owned.create_time()
+        if not _usable_timestamp(created):
+            raise RuntimeError("Rocket League did not report a valid process start time.")
+        return ProcessIdentity(process.pid, created, str(executable.resolve()))
+    except Exception as exc:
+        try:
+            restore_plugin_session(directory)
+        except PluginSessionError as restore_error:
+            raise RuntimeError(f"{exc} BakkesMod files could not be restored: {restore_error}") from exc
+        raise
 
 
 def verify_owned_offline(identity):
     import psutil
     try:
-        current = psutil.Process(identity.pid)
-        if abs(current.create_time() - identity.created) > .01 or Path(current.exe()).resolve() != Path(identity.executable).resolve():
+        if not _usable_timestamp(identity.created):
             return False
-        args = [arg.lower() for arg in current.cmdline()]
-        return "-rlbot" in args and "-noeac" in args
-    except (psutil.Error, OSError):
+        current = psutil.Process(identity.pid)
+        live = current.create_time()
+        if not _usable_timestamp(live) or abs(live - identity.created) > .01:
+            return False
+        if Path(current.exe()).resolve() != Path(identity.executable).resolve():
+            return False
+        return offline_launch_arguments(current.cmdline())
+    except (psutil.Error, OSError, ValueError, TypeError, AttributeError):
         return False
 
 
@@ -179,6 +227,12 @@ def run_service(directory):
         backend.setup_required = False
         backend._save_current()
     try:
+        recover_plugin_session(directory)
+    except PluginSessionError as exc:
+        backend.store.close()
+        QMessageBox.critical(None, "My Career plugin recovery", str(exc))
+        return 1
+    try:
         preflight_offline(backend.document["settings"])
     except Exception as exc:
         backend.store.close()
@@ -193,12 +247,19 @@ def run_service(directory):
     bridge = FileBridge(directory, backend.dispatch, lambda: backend.state)
     bridge.poll()
     try:
-        backend.owned_game = launch_offline(backend.document["settings"])
+        backend.owned_game = launch_offline(backend.document["settings"], directory)
     except Exception as exc:
+        try:
+            restore_plugin_session(directory)
+        except PluginSessionError as restore_error:
+            exc = RuntimeError(f"{exc} BakkesMod files could not be restored: {restore_error}")
         bridge.close()
         backend.store.close()
         QMessageBox.critical(None, "My Career offline startup", str(exc))
         return 1
+    notices = plugin_session_notices(directory)
+    if notices:
+        QMessageBox.warning(None, "BakkesMod plugin setup", "\n".join(notices))
     started = time.monotonic()
     plugin_seen = False
     connection_warning_shown = False
@@ -221,7 +282,22 @@ def run_service(directory):
     timer = QTimer()
     timer.timeout.connect(tick)
     timer.start(100)
-    result = app.exec()
-    backend.close()
-    bridge.close()
+    result = 1
+    restore_error = None
+    try:
+        result = app.exec()
+    finally:
+        try:
+            backend.close()
+        finally:
+            try:
+                bridge.close()
+            finally:
+                try:
+                    restore_plugin_session(directory)
+                except PluginSessionError as exc:
+                    restore_error = exc
+    if restore_error is not None:
+        QMessageBox.critical(None, "My Career plugin recovery", str(restore_error))
+        return 1
     return result

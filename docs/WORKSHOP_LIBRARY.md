@@ -12,9 +12,9 @@ Cache this result outside the 100ms state publisher; refresh when the player ope
 
 `toggle_favorite(favorites, identity, items)` returns a new ID list; persist it in the user's document and republish state. Unknown IDs are rejected.
 
-`prepare_launch(identity, data_directory, launcher="steam", install_path="", imported_maps=(), steam_roots=None)` resolves IDs from fresh discovery. It returns `import_map` metadata: `path,sha256,size,original_name,launcher,route,game_tested`, with `title,creator,creator_url,workshop_id,dependencies,requires_game_map_recovery`. No action accepts arbitrary paths, console strings, scripts, executable files, archives, or download URLs. A copied map has a SHA-256 filename under private AppData; the source remains untouched. Private imported packages must still match their recorded digest.
+`prepare_launch(identity, data_directory, launcher="steam", install_path="", imported_maps=(), steam_roots=None)` now rejects custom-map startup. It does not return a launch payload or copy a map. All `can_launch` values are false, and the library exposes the unavailable reason. This applies to Steam as well as Epic. Browsing, importing into private AppData and favorites remain available.
 
-A curated row launches its installed package only if exactly one package was found. Multi-package items expose their exact package IDs for explicit selection: some `.upk` files are texture dependencies rather than entry maps. A recognized Unreal header is not proof of package safety, role, or compatibility.
+A curated row identifies its installed package only if exactly one package was found. Multi-package items expose their exact package IDs: some `.upk` files are texture dependencies rather than entry maps. A recognized Unreal header is not proof of package safety, role, or compatibility.
 
 ## Steam discovery
 
@@ -24,9 +24,9 @@ The provenance describes a downloaded package in the local Steam Workshop direct
 
 ## Launch and restoration contract
 
-RLBot's [configuration documentation](https://wiki.rlbot.org/v5/botmaking/config-files/) and [match schema](https://github.com/RLBot/flatbuffers-schema/blob/main/schema/matchconfig.fbs) document custom `game_map_upk` on Steam and built-in Psyonix maps only on Epic. The controlled adapter owns this route. This module imports/identifies bytes and never changes installed game files.
+The pinned RLBot core `v5.0.0-rc18` accepts a custom file through `game_map_upk`, but its [CustomMap implementation](https://github.com/RLBot/core/blob/v5.0.0-rc18/RLBotCS/ManagerTools/CustomMap.cs) replaces the installed `Haunted_TrainStation_P.upk`. Passing an absolute path does not avoid that write. Therefore this integration refuses custom-map requests before creating a worker session or sending a match configuration. Built-in career and training arenas remain available. A future custom-map loader must demonstrate a route that does not modify the Steam installation.
 
-If the selected core temporarily replaces `Haunted_TrainStation_P.upk`, the worker must preserve a durable original-byte backup and journal **before** replacement, confirm SHA-256 identities, and restore on normal stop, failure, and next-launch recovery before permitting another session. Never overwrite a pre-existing recovery backup or restore over an unrelated externally changed map. Keep the replacement inside the owned offline session and surface a recovery error instead of continuing silently. `requires_game_map_recovery` is explicit metadata for the caller, not proof that the adapter fulfilled restoration. No alternative BakkesMod console-map-open route was verified in this pass.
+`MapGuard.prepare` is retired and cannot begin another substitution. Recovery exists only for a journal created by an older version. It must preserve the backup on conflict, restore only exact recorded bytes, and refuse to replace a file while any Rocket League process is running. Restoring a legacy file is still a write to the Steam installation; it is not a new map-loading mechanism. No alternative BakkesMod console-map-open route has been verified.
 
 Map-specific textures or plugins remain creator dependencies. Do not execute a map directory's scripts or automatically install those dependencies. Exact current Rocket League loading, map controls, return-to-hub, texture availability and recovery require Steam Windows game tests.
 

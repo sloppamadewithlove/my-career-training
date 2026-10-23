@@ -18,9 +18,11 @@ def flat_module():
 
 
 def match_config(request):
+    from .map_guard import refuse_custom_map_launch
+    refuse_custom_map_launch(request)
     f = flat_module()
     fixture = request.get("fixture") or {}
-    training = bool(request.get("lesson_id") or request.get("workshop"))
+    training = bool(request.get("lesson_id"))
     size = 1 if training else fixture["format"]
     if type(size) is not int or size not in range(1, 5):
         raise ValueError("Only 1v1 through 4v4 Soccar is supported.")
@@ -44,16 +46,7 @@ def match_config(request):
     players.append(f.PlayerConfiguration(variety=f.Human(), team=human_team))
     arena = fixture.get("map", "Stadium_P")
     arena = MAPS.get(arena, arena)
-    if request.get("workshop"):
-        from .map_guard import digest
-        custom = request["workshop"]
-        if launcher != "steam" or custom.get("route") != "rlbot_steam_local_map":
-            raise ValueError("This Workshop map has no supported launch route.")
-        map_path = Path(custom["path"])
-        if not map_path.is_absolute() or not map_path.is_file() or digest(map_path) != custom["sha256"]:
-            raise ValueError("The prepared Workshop map is missing or changed.")
-        arena = str(map_path)
-    elif arena not in {"Stadium_P", "EuroStadium_P", "CS_P", "UtopiaStadium_P", "Park_P"}:
+    if arena not in {"Stadium_P", "EuroStadium_P", "CS_P", "UtopiaStadium_P", "Park_P"}:
         raise ValueError(f"Unsupported built-in arena: {arena}")
     mutators = f.MutatorSettings(match_length=f.MatchLengthMutator.Unlimited if training else f.MatchLengthMutator.FiveMinutes,
         max_score=f.MaxScoreMutator.Unlimited, overtime=f.OvertimeMutator.Unlimited,
