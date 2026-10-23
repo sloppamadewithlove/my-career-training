@@ -1,5 +1,17 @@
 # My Career Training
 
+## Download for Windows
+
+**[Download Windows installer (.exe · 50 MB)](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-setup.exe)**
+
+[Portable ZIP · 78 MB](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-portable.zip)
+ · [Setup guide](docs/PLAYER_GUIDE.md)
+ · [All downloads and checksums](https://github.com/sloppamadewithlove/my-career-training/releases/tag/v0.1.0)
+
+Close Rocket League, run the installer, then choose Steam or Epic and your game
+location in **Settings**. Try the optional calibration match first. The current
+download is the unsigned **0.1.0 Windows x64 testing preview**.
+
 A local Windows career and practice companion for your installed **Rocket League**.
 Drive your own car, recruit four specialist bots, play a short Soccar season, and
 choose optional lessons including speed flips and flip resets.
@@ -12,10 +24,8 @@ there is no Diamond-strength guarantee.
 
 ## Try it on Windows
 
-Open [GitHub Releases](https://github.com/sloppamadewithlove/my-career-training/releases)
-and look for the actual versioned Windows installer or portable package. If no
-binary assets are attached, there is no ready-to-install download yet. GitHub's
-“Source code” ZIP is source, not the Windows application.
+Use the installer linked above, or extract the entire portable ZIP and open
+**MyCareerTraining.exe**. Keep its worker and `_internal` folder beside it.
 
 Follow the [player guide](docs/PLAYER_GUIDE.md) for installation, first setup,
 career matches, lessons, backups and Play Online. You need Windows x64, your own

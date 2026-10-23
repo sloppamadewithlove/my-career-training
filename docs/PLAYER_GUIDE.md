@@ -7,9 +7,8 @@ and keep the evidence separate from the application's local checks.
 
 ## Install
 
-1. Open [GitHub Releases](https://github.com/sloppamadewithlove/my-career-training/releases).
-   Download `MyCareerTraining-0.1.0-windows-x64-setup.exe` **if that actual asset is
-   attached**. If only source archives are listed, a Windows download is not ready.
+1. [Download the Windows installer](https://github.com/sloppamadewithlove/my-career-training/releases/download/v0.1.0/MyCareerTraining-0.1.0-windows-x64-setup.exe)
+   and open `MyCareerTraining-0.1.0-windows-x64-setup.exe`.
 2. Run the installer. It installs for your Windows user, offers a desktop
    shortcut, and adds a Start menu entry. The build is unsigned unless the
    release explicitly documents a verified signature. Do not disable Windows
