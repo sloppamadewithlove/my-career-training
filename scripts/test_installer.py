@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -15,6 +14,7 @@ from my_career_training.career import new_career, validate_career
 from my_career_training.storage import Store, default_state
 
 from smoke_package import run_smoke
+from windows_shortcuts import programs_folders, read_shortcut
 
 
 def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
@@ -41,32 +41,10 @@ def wait_for_uninstaller_log_release(path: Path, timeout: float = 30) -> None:
 
 
 def check_shortcuts(group: str, install: Path) -> None:
-    environment = dict(os.environ, MCT_TEST_SHORTCUTGROUP=group)
-    script = """
-    $ErrorActionPreference = 'Stop'
-    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-    $shell = New-Object -ComObject WScript.Shell
-    $roots = @($shell.SpecialFolders.Item('Programs'), $shell.SpecialFolders.Item('AllUsersPrograms')) | Select-Object -Unique
-    $directories = @($roots | ForEach-Object { Join-Path $_ $env:MCT_TEST_SHORTCUTGROUP })
-    $links = @(foreach ($directory in $directories) {
-        if (Test-Path -LiteralPath $directory) {
-            Get-ChildItem -LiteralPath $directory -Filter *.lnk | ForEach-Object {
-                $shortcut = $shell.CreateShortcut($_.FullName)
-                @{target=$shortcut.TargetPath; arguments=$shortcut.Arguments}
-            }
-        }
-    })
-    ConvertTo-Json -InputObject @{directories=$directories; shortcuts=$links} -Depth 4 -Compress
-    """
-    encoded = base64.b64encode(script.encode('utf-16le')).decode('ascii')
-    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
-                            capture_output=True, text=True, encoding='utf-8',
-                            timeout=30, env=environment)
-    if result.returncode:
-        raise RuntimeError(f'Shortcut inspection failed: {result.stderr}')
-    if not result.stdout.strip():
-        raise AssertionError(f'Shortcut inspection returned no JSON: {result.stderr}')
-    report = json.loads(result.stdout)
+    directories = [root / group for root in programs_folders()]
+    report = {'directories': [str(path) for path in directories],
+              'shortcuts': [read_shortcut(path) for directory in directories
+                            for path in directory.glob('*.lnk')]}
     expected = install / 'MyCareerTraining.exe'
     # Windows shell links may expand a short path (RUNNER~1) to its long name.
     # Compare the actual file identity rather than spelling or case alone.
