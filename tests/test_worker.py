@@ -103,6 +103,7 @@ def test_bot_controls_cannot_target_human(tmp_path):
 
 def test_unexpected_packet_human_mapping_fails_before_controls(tmp_path, monkeypatch):
     instance, packet = simulated_session(tmp_path, monkeypatch, [])
+    packet.match_info.match_phase = 3
     monkeypatch.setattr(adapter, "normalized_packet", lambda *a: {"cars": [{"index": 0, "team": 0, "is_bot": False}]})
     with pytest.raises(RuntimeError, match="human-player"):
         instance.process_packet(packet)
@@ -191,3 +192,123 @@ def test_sdk_contract_roundtrip_on_windows():
     with renderer.context("test-contract"):
         renderer.draw_line_3d(flat.Vector3(0, 0, 0), flat.Vector3(100, 0, 100))
     assert emitted[0].pack()
+
+
+def test_high_rate_inbox_is_bounded_and_preserves_active_before_terminal():
+    inbox = worker.SessionInbox()
+    for index in range(10000):
+        packet = NS(match_info=NS(match_phase=3), number=index)
+        inbox.put(("packet", packet))
+        inbox.put(("prediction", index))
+    assert inbox.qsize() == 2
+    end = NS(match_info=NS(match_phase=7), number=10000)
+    inbox.put(("packet", end))
+    inbox.put(("command", {"type": "stop"}))
+    inbox.put(("packet", NS(match_info=NS(match_phase=7), number=10001)))
+    assert inbox.qsize() == 4
+    assert inbox.get()[1].number == 9999
+    assert inbox.get() == ("prediction", 9999)
+    assert inbox.get() == ("packet", end)
+    assert inbox.get() == ("command", {"type": "stop"})
+
+
+def test_inbox_replacement_keeps_latest_arrival_order():
+    inbox = worker.SessionInbox()
+    inbox.put(("prediction", 1))
+    inbox.put(("command", {"type": "preferences"}))
+    inbox.put(("prediction", 2))
+    assert inbox.get()[0] == "command"
+    assert inbox.get() == ("prediction", 2)
+    with pytest.raises(worker.queue.Empty):
+        inbox.get(timeout=0)
+
+
+def test_stop_request_blocks_bot_controls_before_queued_stop_is_processed(tmp_path, monkeypatch):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    instance.mapping = {1: [0]}
+    instance.controllers = {0: NS(intent=None, step=lambda *a: pytest.fail("Bot ran after stop"))}
+    instance.relays = {1: NS(send_msg=lambda *a: pytest.fail("Bot input sent after stop"))}
+    instance.seen_active = True
+    instance.command({"type": "stop", "id": "stop-before-drain"})
+    assert not instance.stopping  # Stop event is pending; immediate stop flag still applies.
+    instance.process_packet(packet)
+    assert any(event["type"] == "result" for event in events)
+
+
+def test_stop_request_blocks_reset_engine_and_ghost_work(tmp_path, monkeypatch):
+    instance, packet = simulated_session(tmp_path, monkeypatch, [])
+    instance.engine = NS(update=lambda *a: pytest.fail("Training continued after stop"))
+    instance.renderer = NS(can_render=True)
+    instance.command({"type": "stop"})
+    instance.process_packet(packet)
+    instance.reset()
+    instance.render({})
+    assert not instance.applied_reset
+
+
+def test_calibration_receipt_retains_calibration_identity(tmp_path, monkeypatch):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    instance.request["calibration"] = True
+    instance.seen_active = True
+    instance.process_packet(packet)
+    result = next(event for event in events if event["type"] == "result")
+    assert result["calibration"] is True
+    receipt = json.loads(Path(tmp_path, "outbox", instance.session_id + ".json").read_text())
+    assert receipt["calibration"] is True
+
+
+def test_observed_hitbox_records_real_dimensions_and_offset():
+    player = NS(hitbox=NS(length=118.01, width=84.2, height=36.3), hitbox_offset=NS(x=13.9, y=0, z=20.75))
+    assert worker.observed_hitbox(player) == {"dimensions": [118.01, 84.2, 36.3], "offset": [13.9, 0, 20.75],
+                                             "source": "RLBot game packet"}
+    player.hitbox.width = float("nan")
+    assert worker.observed_hitbox(player) == "unknown"
+    assert worker.observed_hitbox(NS()) == "unknown"
+
+
+def test_file_version_unknown_outside_windows(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert worker.game_file_version("game.exe") == "unknown"
+
+
+def test_initial_inactive_and_partial_roster_wait_without_controls(tmp_path, monkeypatch):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    instance.mapping = {1: [0]}
+    instance.controllers = {0: NS(intent=None, step=lambda *a: pytest.fail("Bot ran before complete active roster"))}
+    packet.players = []
+    packet.match_info.match_phase = 0
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *a: pytest.fail("Inactive roster normalized"))
+    instance.process_packet(packet)
+    packet.match_info.match_phase = 1
+    instance.process_packet(packet)
+    assert not events
+    assert not instance.first_packet
+    assert not instance.seen_active
+    # Once Active arrives, an incomplete roster is an error rather than a waiting state.
+    packet.match_info.match_phase = 3
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *a: {"cars": []})
+    with pytest.raises(RuntimeError, match="human-player"):
+        instance.process_packet(packet)
+
+
+def test_full_roster_before_kickoff_does_not_send_controls(tmp_path, monkeypatch):
+    instance, packet = simulated_session(tmp_path, monkeypatch, [])
+    instance.mapping = {1: [0]}
+    instance.controllers = {0: NS(intent=None, step=lambda *a: pytest.fail("Bot ran during countdown"))}
+    packet.match_info.match_phase = 1
+    instance.process_packet(packet)
+    assert instance.first_packet
+    assert not instance.seen_active
+
+
+@pytest.mark.parametrize("agent_id,expected", [("", False), ("my-career-training/team-0", True)])
+def test_core_requires_bot_relay_close_between_matches(tmp_path, agent_id, expected):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    relay = NS(agent_id=agent_id)
+    calls = []
+    instance.connect(lambda **kwargs: calls.append(kwargs), relay, 24123)
+    assert calls[0]["close_between_matches"] is expected
+    assert calls[0]["rlbot_server_port"] == 24123

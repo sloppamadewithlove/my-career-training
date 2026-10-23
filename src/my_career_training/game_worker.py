@@ -263,7 +263,7 @@ class GameSession:
             relay.connection_timeout = .5
             try:
                 connector(wants_match_communications=False, wants_ball_predictions=predictions,
-                          close_between_matches=False, rlbot_server_port=port)
+                          close_between_matches=bool(getattr(relay, "agent_id", "")), rlbot_server_port=port)
                 self.check_cancel()
                 return
             except (OSError, TimeoutError):
@@ -411,15 +411,30 @@ class GameSession:
         self._discover_game()
         if self.owned is None:
             return  # Never accept packets or control from an unowned game.
+        phase = int(packet.match_info.match_phase)
+        if not self.seen_active and phase == 0:
+            return  # The owned game may still be loading the requested match.
+        # Core spawns asynchronously. Inspect the cheap roster before normalizing
+        # physics; incomplete pre-Active records may not contain usable bodies.
+        players = getattr(packet, "players", None)
+        if not self.seen_active and phase != 3 and players is not None and len(players) != len(self.descriptors) + 1:
+            return
         frame = adapter.normalized_packet(packet, self.prediction, self.field_info)
         humans = [car for car in frame["cars"] if not car["is_bot"]]
-        if len(humans) != 1 or humans[0]["index"] != self.human_index or humans[0]["team"] != self.human_team:
-            raise RuntimeError("The game has an unexpected human-player layout. Controls were withheld.")
-        if len(frame["cars"]) != len(self.descriptors) + 1:
-            raise RuntimeError("The game player count differs from the selected fixture.")
-        for index, descriptor in self.descriptors.items():
-            if not frame["cars"][index]["is_bot"] or frame["cars"][index]["team"] != descriptor["team"]:
-                raise RuntimeError("The game bot layout differs from the selected fixture.")
+        human_valid = (len(humans) == 1 and humans[0]["index"] == self.human_index
+                       and humans[0]["team"] == self.human_team)
+        count_valid = len(frame["cars"]) == len(self.descriptors) + 1
+        bots_valid = count_valid and all(frame["cars"][index]["is_bot"]
+            and frame["cars"][index]["team"] == descriptor["team"]
+            for index, descriptor in self.descriptors.items())
+        if not (human_valid and count_valid and bots_valid):
+            if not self.seen_active and phase != 3:
+                return  # Existing startup timeout still bounds this wait.
+            if not human_valid:
+                raise RuntimeError("The game has an unexpected human-player layout. Controls were withheld.")
+            if not count_valid:
+                raise RuntimeError("The game player count differs from the selected fixture.")
+            raise RuntimeError("The game bot layout differs from the selected fixture.")
         if packet.match_info.match_phase == flat.MatchPhase.Active:
             self.seen_active = True
         if not self.first_packet:
@@ -427,7 +442,8 @@ class GameSession:
             self.event("session", state="training" if self.engine else "running", message="Offline game connected.")
         now = time.monotonic()
         frame["match_ended"] = packet.match_info.match_phase == flat.MatchPhase.Ended
-        if not self.cancel_start.is_set() and not self.stopping and now - self.last_controls >= 1 / 120:
+        if (phase in {2, 3} and not self.cancel_start.is_set() and not self.stopping
+                and now - self.last_controls >= 1 / 120):
             intents = [controller.intent for controller in self.controllers.values() if controller.intent]
             for team, indices in self.mapping.items():
                 for index in indices:
