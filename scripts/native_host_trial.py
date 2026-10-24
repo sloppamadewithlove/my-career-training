@@ -67,7 +67,7 @@ def configuration_hashes(root):
     return result
 
 
-def prepare(game, baseline):
+def prepare(game, baseline, *, object_header_trial=False):
     game = _root(game)
     settings = {"launcher": "steam", "install_path": str(game / "Binaries/Win64/RocketLeague.exe")}
     executable = bootstrap.preflight_offline(settings)
@@ -99,7 +99,7 @@ def prepare(game, baseline):
               "bakkes": str(bakkes), "source_dll": str(plugin), "dll_sha256": digest(plugin),
               "destination": str(bakkes / "plugins" / (name + ".dll")), "plugin_name": name,
               "configuration_before": configuration_hashes(bakkes), "autoload_modified": False,
-              "menu_rewrite_verified": False}
+              "menu_rewrite_verified": False, "object_header_trial": object_header_trial is True}
     write_new(directory / "plan.json", record)
     return directory, record
 
@@ -154,7 +154,8 @@ def launch(directory):
     issued = time.time()
     write_new(directory / "session.json", {"protocol": 1, "kind": "mct_native_host_probe",
               "nonce": plan["nonce"], "pid": process.pid, "created": created,
-              "executable_sha256": OBSERVED_SHA256, "issued_at": issued, "expires_at": issued + 300})
+              "executable_sha256": OBSERVED_SHA256, "issued_at": issued, "expires_at": issued + 300,
+              "object_header_trial": plan.get("object_header_trial") is True})
     return {"pid": process.pid, "created": created, "load_command": "plugin load " + plan["plugin_name"],
             "unload_command": "plugin unload " + plan["plugin_name"], "expires_at": issued + 300}
 
@@ -208,6 +209,7 @@ def main():
     prep = commands.add_parser("prepare")
     prep.add_argument("--game-dir", type=Path, required=True)
     prep.add_argument("--baseline", type=Path, required=True)
+    prep.add_argument("--object-header-trial", action="store_true")
     for command in ("launch", "finish"):
         commands.add_parser(command).add_argument("directory", type=Path)
     command = commands.add_parser("command-context")
@@ -215,7 +217,7 @@ def main():
     command.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
     if args.command == "prepare":
-        directory, plan = prepare(args.game_dir, args.baseline)
+        directory, plan = prepare(args.game_dir, args.baseline, object_header_trial=args.object_header_trial)
         print(json.dumps({"directory": str(directory), "plugin_name": plan["plugin_name"],
                           "dll_sha256": plan["dll_sha256"], "game_launched": False}, indent=2))
     elif args.command == "command-context":

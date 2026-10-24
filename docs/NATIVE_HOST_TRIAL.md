@@ -10,9 +10,18 @@ The 24 October 2026 SLAVAPC trial loaded and unloaded successfully. It observed
 BakkesMod **229**, game build **261013.63066.530866**, and the startup movie
 **StartMenuMovie**. The game was offline and outside a match. The temporary DLL
 was removed after the game closed; every inspected BakkesMod configuration file
-retained its original SHA-256. A separate full game-file comparison is required
-before reporting preservation of the installation. These observations do not
+retained its original SHA-256. The full comparison of 21,409 installation files
+reported zero changed, missing, added or unreadable files. These observations do not
 verify the home menu, normal online launch, or the actual My Career features.
+
+The follow-up object-header trial matched the three bounded candidate headers
+and also loaded/unloaded and removed its temporary DLL. Its BakkesMod settings
+and all four inspected game configuration files were unchanged. The game itself
+downloaded `RLSaveData` and exported/rotated its normal local save files, so save
+bytes were **not** unchanged. The load and save export log reported success;
+this is not a semantic comparison of player progression. A verified private
+backup of the current seven configuration/save files was made before further
+trials. `-noeac -rlbot` establishes the gameplay mode, not network isolation.
 
 ## Build and run
 

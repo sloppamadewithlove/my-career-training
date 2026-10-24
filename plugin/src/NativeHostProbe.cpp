@@ -3,6 +3,7 @@
 #include <shellapi.h>
 #include "ExecutableHash.h"
 #include "LocalBridge.h"
+#include "NativeMenuIdentityTrial.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include <fstream>
@@ -72,6 +73,17 @@ bool identifier(const std::string& value) {
               (c >= '0' && c <= '9') || c == '_' || c == '.' || c == '-' || c == ' ')) return false;
     return true;
 }
+
+bool readCurrentProcess(std::uint64_t address, unsigned char* output, std::size_t size) {
+    if (!mct::NativeMenuIdentityTrial::pointer(address) || size != mct::NativeMenuIdentityTrial::headerBytes) return false;
+    MEMORY_BASIC_INFORMATION region{};
+    if (!VirtualQuery(reinterpret_cast<const void*>(address), &region, sizeof(region)) ||
+        region.State != MEM_COMMIT || (region.Protect & (PAGE_GUARD | PAGE_NOACCESS))) return false;
+    const auto base = reinterpret_cast<std::uintptr_t>(region.BaseAddress);
+    if (address < base || address - base > region.RegionSize || size > region.RegionSize - (address - base)) return false;
+    SIZE_T read = 0;
+    return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address), output, size, &read) && read == size;
+}
 }
 
 class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
@@ -139,9 +151,24 @@ public:
                 receipt("refused", {{"reason", "Unrecognized diagnostic identifiers"}}); return;
             }
             accepted_ = true;
-            receipt("loaded", {{"bakkesmod_version", version}, {"game_build", build},
+            mct::Json details = {{"bakkesmod_version", version}, {"game_build", build},
                 {"executable_sha256", observedExecutable}, {"top_menu", menu},
-                {"in_game", gameWrapper->IsInGame()}, {"online", false}, {"menu_available", !menu.empty()}});
+                {"in_game", gameWrapper->IsInGame()}, {"online", false}, {"menu_available", !menu.empty()}};
+            std::ifstream sessionFile(directory_ / L"session.json");
+            const auto session = mct::Json::parse(sessionFile);
+            if (mct::boolValue(session, "object_header_trial") && stack && permitted()) {
+                const int menuToken = gameWrapper->GetFNameIndexByString("GFxData_MenuStack_TA");
+                const int classToken = gameWrapper->GetFNameIndexByString("Class");
+                // The SDK provides these two tokens. Never send an integer read
+                // from candidate memory into GetFNameByIndex.
+                if (menuToken > 0 && classToken > 0 &&
+                    gameWrapper->GetFNameByIndex(menuToken) == "GFxData_MenuStack_TA" &&
+                    gameWrapper->GetFNameByIndex(classToken) == "Class" && permitted()) {
+                    details["object_header_trial"] = mct::NativeMenuIdentityTrial::inspect(
+                        stack.memory_address, menuToken, classToken, readCurrentProcess);
+                } else details["object_header_trial"] = {{"reason", "sdk_name_tokens_unavailable"}};
+            }
+            if (permitted()) receipt("loaded", std::move(details));
         } catch (...) {
             // No recovery commands, game writes or exception text containing paths.
             try { if (permitted()) receipt("refused", {{"reason", "Host observation failed"}}); } catch (...) {}
@@ -153,4 +180,4 @@ public:
     }
 };
 
-BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.1.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.2.0", PLUGINTYPE_FREEPLAY)
