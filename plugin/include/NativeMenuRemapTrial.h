@@ -6,10 +6,14 @@
 
 namespace mct {
 
-// Development-only calibration. This class never writes memory or calls the game.
-// One observed session is not a name table: do not reuse its FName indexes here.
+// Development-only calibration. This class never writes memory, calls the SDK,
+// looks up an FName, or touches files. One observed session is not a name table:
+// do not reuse its FName indexes here.
 enum class RemapMenu { Root, Garage, Options, Other };
 enum class RemapPhase { Pre, Post };
+// RestoreAtPost offers A's bytes on the matching POST. LeaveInputForCall leaves
+// the replacement in that call and does not offer a later write.
+enum class RemapPolicy { RestoreAtPost, LeaveInputForCall };
 
 struct RemapScope {
     bool owned = false;
@@ -45,7 +49,10 @@ struct RemapStatus {
     bool restoreAttempted = false;
     bool restoreAcknowledged = false;
     bool restoreAborted = false;
+    bool postReplacementObserved = false; // Applied write, then a POST that reads C.
+    bool restorationRequired = false; // RestoreAtPost only, from applied write until restore ack.
     int pairs = 0;
+    const char* policy = "restore_at_post";
     const char* state = "idle";
     const char* reason = "idle";
 };
@@ -61,8 +68,10 @@ public:
     static constexpr const char* kObservedBakkesMod = "229";
     static constexpr const char* kObservedGameBuild = "261013.63066.530866";
 
-    bool start(const RemapScope& scope, double now) {
-        if (!openScope(scope) || !std::isfinite(now) || now < 0.0) return false;
+    // policy is stored only after the scope, clock, and enumerator validate.
+    // An unknown enumerator leaves the machine unchanged and does not arm a rewrite.
+    bool start(const RemapScope& scope, double now, RemapPolicy policy = RemapPolicy::RestoreAtPost) {
+        if (!knownPolicy(policy) || !openScope(scope) || !std::isfinite(now) || now < 0.0) return false;
         stage_ = Stage::ExpectPre;
         pair_ = 0;
         havePending_ = false;
@@ -71,6 +80,8 @@ public:
         parameterRewriteApplied_ = false;
         restoreAttempted_ = false;
         restoreAcknowledged_ = false;
+        postReplacementObserved_ = false;
+        policy_ = policy;
         reason_ = "calibrating";
         session_ = scope.session;
         thread_ = scope.threadToken;
@@ -144,7 +155,11 @@ public:
         out.restoreAttempted = restoreAttempted_;
         out.restoreAcknowledged = restoreAcknowledged_;
         out.restoreAborted = restoreAborted_;
+        out.postReplacementObserved = postReplacementObserved_;
+        out.restorationRequired = policy_ == RemapPolicy::RestoreAtPost && parameterRewriteApplied_ &&
+                                  !restoreAcknowledged_;
         out.pairs = pair_;
+        out.policy = policyName();
         out.reason = reason_;
         out.state = stateName();
         return out;
@@ -155,6 +170,9 @@ private:
         Idle, ExpectPre, ExpectPost, Armed, ReplaceOffered, AwaitPost, RestoreOffered, Done, Refused
     };
 
+    static bool knownPolicy(RemapPolicy policy) {
+        return policy == RemapPolicy::RestoreAtPost || policy == RemapPolicy::LeaveInputForCall;
+    }
     static bool wellFormed(RemapName name) {
         return name.index >= 0 && name.number >= 0 && name.index <= kMaxNameIndex;
     }
@@ -199,6 +217,10 @@ private:
         return stage_ == Stage::ReplaceOffered || stage_ == Stage::AwaitPost ||
                stage_ == Stage::RestoreOffered;
     }
+    bool leavesInput() const { return policy_ == RemapPolicy::LeaveInputForCall; }
+    const char* policyName() const {
+        return leavesInput() ? "leave_input_for_call" : "restore_at_post";
+    }
     RemapProposal terminal() const {
         RemapProposal out;
         out.refused = true;
@@ -217,7 +239,9 @@ private:
         return out;
     }
     RemapProposal abort(const char* reason) {
-        if (pendingWrite()) {
+        // LeaveInputForCall never owes a POST write-back, so a refusal must not
+        // claim that an aborted restoration was required.
+        if (pendingWrite() && policy_ == RemapPolicy::RestoreAtPost) {
             restoreAborted_ = true;
             reason_ = "restore_aborted";
         } else reason_ = reason;
@@ -255,7 +279,14 @@ private:
     }
     RemapProposal fifthPost(RemapPhase phase, RemapMenu menu, RemapName name, std::uint64_t param) {
         if (phase != RemapPhase::Post || menu != RemapMenu::Root || param != fifthParam_ ||
-            !name.same(names_[2])) return abort("restore_mismatch");
+            !name.same(names_[2]))
+            return abort(leavesInput() ? "post_mismatch" : "restore_mismatch");
+        postReplacementObserved_ = true;
+        if (leavesInput()) {
+            stage_ = Stage::Done;
+            reason_ = "post_replacement_observed";
+            return done("post_replacement_observed", false);
+        }
         stage_ = Stage::RestoreOffered;
         reason_ = "restore_offered";
         RemapProposal out;
@@ -281,6 +312,7 @@ private:
     }
 
     Stage stage_ = Stage::Idle;
+    RemapPolicy policy_ = RemapPolicy::RestoreAtPost;
     int pair_ = 0;
     bool havePending_ = false;
     bool restoreAborted_ = false;
@@ -288,6 +320,7 @@ private:
     bool parameterRewriteApplied_ = false;
     bool restoreAttempted_ = false;
     bool restoreAcknowledged_ = false;
+    bool postReplacementObserved_ = false;
     const char* reason_ = "idle";
     std::string session_;
     std::string thread_;

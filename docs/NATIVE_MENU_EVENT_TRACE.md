@@ -47,7 +47,8 @@ Exports keep `verified_abi` and `action_consumption_verified` false, and
 experiment must set it, so its trace is not represented as a read-only session.
 `native_mutations` conservatively flags any host write attempt, while
 `host_parameter_write_attempted` and the host receipt describe the actual
-attempt and verified restoration. A normal observation-only trace keeps both
+attempt, selected input policy, and any observed write or restoration result.
+A normal observation-only trace keeps both
 flags false. Passing this reporting flag cannot authorize a write.
 
 | Function | Record | Fields |

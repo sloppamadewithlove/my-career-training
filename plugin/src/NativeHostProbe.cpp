@@ -107,12 +107,7 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
     bool remapEnabled_ = false;
     bool nativeWriteAttempted_ = false;
     bool remapWriteSpent_ = false;
-    bool pendingRestore_ = false;
-    bool currentParameterRestored_ = false;
-    std::uintptr_t pendingParameter_ = 0;
-    std::uintptr_t pendingCaller_ = 0;
-    std::uint64_t originalParameter_ = 0;
-    std::uint64_t replacementParameter_ = 0;
+    bool failedWriteRestored_ = false;
     mct::Json buttonMenus_ = mct::Json::array();
     const std::array<const char*, 3> menuNames_{{"RootMenuMovie", "GarageMainMenuMovie", "OptionsMenuMovie"}};
     std::array<int, 3> menuNameTokens_{};
@@ -153,23 +148,9 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
                 scope.session, scope.threadToken};
     }
 
-    // Cleanup may finish after a trace/lease expires, but only on this exact
-    // original call's current POST buffer. Never dereference the retained
-    // parameter identity or attempt deferred restoration on unload.
-    mct::NativeParameterWrite restoreCurrentParameter(std::uintptr_t caller, void* params) {
-        if (!pendingRestore_ || GetCurrentThreadId() != loadThread_ || caller != pendingCaller_ ||
-            reinterpret_cast<std::uintptr_t>(params) != pendingParameter_) return {};
-        const auto result = mct::replaceNativeParameter(reinterpret_cast<std::uintptr_t>(params),
-                                                        replacementParameter_, originalParameter_);
-        nativeWriteAttempted_ = nativeWriteAttempted_ || result.attempted;
-        currentParameterRestored_ = result.applied;
-        pendingRestore_ = false;
-        return result;
-    }
-
     void remap(mct::NativeMenuEventPhase phase, const mct::NativeMenuEventScope& scope,
                const std::string& menu, const unsigned char* bytes, void* params,
-               std::uintptr_t caller, double now, const mct::NativeParameterWrite& restored) {
+               double now) {
         if (!remapEnabled_) return;
         mct::RemapName name;
         std::memcpy(&name.index, bytes, 4);
@@ -180,11 +161,11 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
         const auto proposal = remapTrial_.observe(remapScope(scope),
             phase == mct::NativeMenuEventPhase::Pre ? mct::RemapPhase::Pre : mct::RemapPhase::Post,
             currentMenu, name, reinterpret_cast<std::uintptr_t>(params), now);
-        if (proposal.offerRestore) remapTrial_.acknowledgeRestore(restored.applied);
         if (!proposal.offerReplace) return;
         // Independently enforce one shot at the write boundary, even if a
         // future calibrator regression offers another replacement.
-        if (remapWriteSpent_ || pendingRestore_ || !eventScope().scopeValid) {
+        if (phase != mct::NativeMenuEventPhase::Pre || menu != "RootMenuMovie" ||
+            remapWriteSpent_ || !eventScope().scopeValid) {
             remapTrial_.acknowledgeWrite(false);
             return;
         }
@@ -195,14 +176,10 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
         const auto result = mct::replaceNativeParameter(reinterpret_cast<std::uintptr_t>(params),
                                                         original, replacement);
         nativeWriteAttempted_ = nativeWriteAttempted_ || result.attempted;
+        failedWriteRestored_ = result.originalRestored;
         remapTrial_.acknowledgeWrite(result.applied);
-        if (result.applied) {
-            originalParameter_ = original;
-            replacementParameter_ = replacement;
-            pendingParameter_ = reinterpret_cast<std::uintptr_t>(params);
-            pendingCaller_ = caller;
-            pendingRestore_ = true;
-        }
+        // The new scalar is input to this call. Do not keep a write pointer or
+        // write after the callback returns. POST only observes the result.
     }
 
     void observe(std::size_t index, mct::NativeMenuEventPhase phase, ActorWrapper caller, void* params) {
@@ -215,20 +192,6 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
             const bool button = event.kind == mct::NativeMenuEventKind::ButtonTriggered;
             const bool stackEvent = button || event.kind == mct::NativeMenuEventKind::PushMenu ||
                 event.kind == mct::NativeMenuEventKind::PopMenu;
-            // Preserve the POST observation before restoring the current slot.
-            // This path remains available even after the diagnostic stops.
-            std::array<unsigned char, 8> beforeRestore{};
-            mct::NativeParameterWrite restored;
-            bool capturedRestore = false;
-            if (button && phase == mct::NativeMenuEventPhase::Post && pendingRestore_) {
-                capturedRestore = readCurrentProcess(reinterpret_cast<std::uintptr_t>(params),
-                                                     beforeRestore.data(), beforeRestore.size());
-                restored = restoreCurrentParameter(caller.memory_address, params);
-                if (restored.applied && !capturedRestore) {
-                    std::memcpy(beforeRestore.data(), &replacementParameter_, 8);
-                    capturedRestore = true;
-                }
-            }
             if (!eventTrace_.active()) return;
             const auto scope = eventScope();
             if (!scope.scopeValid) {
@@ -256,7 +219,6 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
                 if (hook.paramsRejected < 1000000) ++hook.paramsRejected;
                 return;
             }
-            if (capturedRestore) std::copy(beforeRestore.begin(), beforeRestore.end(), bytes.begin());
             const mct::NativeMenuEventTrace::Read reader = readCurrentProcess;
             const double now = mct::unixTime();
             if (eventTrace_.observe(scope, hook.kind, phase, bytes.data(), size, now, &reader)) {
@@ -278,8 +240,7 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
                     }
                 }
             }
-            if (button && stack) remap(phase, scope, stack.GetTopMenu(), bytes.data(), params,
-                                       caller.memory_address, now, restored);
+            if (button && stack) remap(phase, scope, stack.GetTopMenu(), bytes.data(), params, now);
         } catch (...) { remapEnabled_ = false; eventTrace_.clear(); buttonMenus_.clear(); }
     }
 
@@ -334,10 +295,10 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
         return {{"hooks", std::move(stats)}, {"button_menu_observations", buttonMenus_},
             {"remap_trial", {{"state", remap.state}, {"reason", remap.reason}, {"calibrated_pairs", remap.pairs},
                 {"parameter_rewrite_applied", remap.parameterRewriteApplied},
-                {"restore_acknowledged", remap.restoreAcknowledged},
-                {"current_parameter_restored", currentParameterRestored_},
-                {"parameter_restore_unresolved", remap.parameterRewriteApplied && !currentParameterRestored_},
-                {"restore_pending", pendingRestore_}, {"native_write_attempted", nativeWriteAttempted_},
+                {"post_replacement_observed", remap.postReplacementObserved},
+                {"parameter_policy", "leave_input_for_call"},
+                {"failed_write_restored_synchronously", failedWriteRestored_},
+                {"native_write_attempted", nativeWriteAttempted_},
                 {"action_consumption_verified", false}, {"menu_rewrite_verified", false}}}};
     }
 
@@ -434,8 +395,10 @@ public:
                     {"same_load_thread_required", true}, {"maximum_seconds", 60}};
                 if (mct::boolValue(session, "menu_remap_trial") &&
                     mct::boolValue(details["menu_event_trace"], "hooks_requested")) {
-                    remapEnabled_ = remapTrial_.start(remapScope(eventScope()), mct::unixTime());
+                    remapEnabled_ = remapTrial_.start(remapScope(eventScope()), mct::unixTime(),
+                                                     mct::RemapPolicy::LeaveInputForCall);
                     details["menu_remap_trial"] = {{"calibration_started", remapEnabled_},
+                        {"parameter_policy", "leave_input_for_call"},
                         {"action_consumption_verified", false}, {"one_parameter_rewrite_maximum", true}};
                 }
             }
@@ -480,4 +443,4 @@ public:
     }
 };
 
-BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.5.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.6.0", PLUGINTYPE_FREEPLAY)

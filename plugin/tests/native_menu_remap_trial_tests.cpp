@@ -76,7 +76,7 @@ bool learn(mct::NativeMenuRemapTrial& trial, const mct::RemapScope& current, dou
     }
     const auto status = trial.status();
     return status.pairs == 4 && same(status.state, "armed") && closed(status) && !status.parameterRewriteApplied &&
-           !status.rewriteAttempted;
+           !status.rewriteAttempted && !status.postReplacementObserved && !status.restorationRequired;
 }
 
 } // namespace
@@ -103,12 +103,19 @@ int main() {
         trial.acknowledgeWrite(true);
         expect(trial.status().parameterRewriteApplied && trial.status().rewriteAttempted && closed(trial.status()),
                "write ack");
+        expect(trial.status().restorationRequired && !trial.status().postReplacementObserved &&
+                   same(trial.status().policy, "restore_at_post"),
+               "restore is required only after the applied write");
         now += 1.0;
         const auto post = mct::remapPost(trial, current, mct::RemapMenu::Root, fn(33), identity, now);
         expect(post.offerRestore && !post.offerReplace && post.originalBytesAvailable && bytesAre(post.bytes, 11, 0),
                "restore offer");
+        expect(trial.status().postReplacementObserved && trial.status().restorationRequired,
+               "matched C before restore ack");
         trial.acknowledgeRestore(true);
-        expect(trial.status().restoreAcknowledged && !trial.status().restoreAborted && closed(trial.status()),
+        expect(trial.status().restoreAcknowledged && !trial.status().restoreAborted &&
+                   !trial.status().restorationRequired && trial.status().postReplacementObserved &&
+                   closed(trial.status()),
                "restore ack");
         now += 1.0;
         const auto sixth = trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 99, now);
@@ -205,6 +212,7 @@ int main() {
         expect(offer.offerReplace && !trial.status().parameterRewriteApplied, "write not applied yet");
         trial.acknowledgeWrite(false);
         expect(trial.status().rewriteAttempted && !trial.status().parameterRewriteApplied &&
+                   !trial.status().postReplacementObserved && !trial.status().restorationRequired &&
                    !trial.status().restoreAborted && closed(trial.status()),
                "failed write ack");
         mustRefuse(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 10, now + 1.0),
@@ -228,7 +236,8 @@ int main() {
                    mismatched.originalBytesAvailable && bytesAre(mismatched.bytes, 11, 0),
                "restore_aborted");
         expect(trial.status().parameterRewriteApplied && !trial.status().menuRewriteVerified &&
-                   !trial.status().actionConsumptionVerified && trial.status().restoreAborted,
+                   !trial.status().actionConsumptionVerified && trial.status().restoreAborted &&
+                   trial.status().restorationRequired && !trial.status().postReplacementObserved,
                "ack remains distinct from a failed read");
         trial.acknowledgeRestore(true);
         expect(!trial.status().restoreAcknowledged, "restore ack after mismatch is ignored");
@@ -247,6 +256,8 @@ int main() {
         const auto readBack = mct::remapPost(trial, current, mct::RemapMenu::Root, fn(11), 9, now);
         expect(readBack.restoreAborted && !readBack.offerRestore && bytesAre(readBack.bytes, 11, 0),
                "post must read C");
+        expect(trial.status().restorationRequired && !trial.status().postReplacementObserved,
+               "A is not the observed replacement");
     }
 
     {
@@ -313,6 +324,158 @@ int main() {
         expect(idle.start(current, 5.0), "index cap restart");
         mustRefuse(idle.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(1000001), 1, 6.0),
                    "malformed_name");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        double now = 1.0;
+        const auto identity = 0xA5A5A5A5A5A5A5A5ULL;
+        expect(trial.start(current, now, mct::RemapPolicy::LeaveInputForCall), "leave start");
+        expect(same(trial.status().policy, "leave_input_for_call"), "leave policy text");
+        expect(learn(trial, current, now, synthetic), "leave calibration");
+        const auto offer = trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), identity, now);
+        expect(offer.offerReplace && !offer.offerRestore && !offer.refused && bytesAre(offer.bytes, 33, 0),
+               "leave still offers C once");
+        expect(!trial.status().postReplacementObserved && !trial.status().parameterRewriteApplied &&
+                   !trial.status().restorationRequired,
+               "offer is not the POST observation");
+        trial.acknowledgeWrite(true);
+        expect(trial.status().parameterRewriteApplied && !trial.status().postReplacementObserved &&
+                   !trial.status().restorationRequired && closed(trial.status()),
+               "applied write still waits for C");
+        now += 1.0;
+        const auto post = mct::remapPost(trial, current, mct::RemapMenu::Root, fn(33), identity, now);
+        unsigned char zeros[8] = {};
+        expect(!post.offerRestore && !post.offerReplace && !post.refused && !post.restoreAborted &&
+                   !post.originalBytesAvailable && same(post.reason, "post_replacement_observed") &&
+                   std::memcmp(post.bytes, zeros, 8) == 0,
+               "leave post does not offer a restore");
+        const auto done = trial.status();
+        expect(done.postReplacementObserved && done.parameterRewriteApplied && !done.restorationRequired &&
+                   !done.restoreAborted && !done.restoreAcknowledged && !done.restoreAttempted &&
+                   same(done.state, "done") && same(done.policy, "leave_input_for_call") && closed(done),
+               "matched post records C and finishes");
+        trial.acknowledgeRestore(true);
+        expect(!trial.status().restoreAcknowledged && trial.status().postReplacementObserved,
+               "leave ignores restore ack");
+        now += 1.0;
+        const auto sixth = trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 99, now);
+        mustRefuse(sixth, "one_shot_spent");
+        expect(same(trial.status().state, "done") && trial.status().postReplacementObserved &&
+                   !trial.status().restorationRequired,
+               "no sixth rewrite");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        double now = 1.0;
+        expect(trial.start(current, now, mct::RemapPolicy::LeaveInputForCall), "early post start");
+        expect(learn(trial, current, now, synthetic), "early post calibration");
+        const auto identity = 41ULL;
+        expect(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), identity, now).offerReplace,
+               "early post offer");
+        now += 1.0;
+        const auto early = mct::remapPost(trial, current, mct::RemapMenu::Root, fn(33), identity, now);
+        expect(early.refused && !early.restoreAborted && !early.offerRestore && !early.originalBytesAvailable &&
+                   same(early.reason, "nested_pre"),
+               "C before write ack is not an observation");
+        expect(!trial.status().postReplacementObserved && !trial.status().parameterRewriteApplied &&
+                   !trial.status().restorationRequired,
+               "unacked post stays unobserved");
+        trial.acknowledgeWrite(true);
+        expect(!trial.status().parameterRewriteApplied && !trial.status().postReplacementObserved,
+               "late ack after an early post cannot apply");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        double now = 1.0;
+        expect(trial.start(current, now, mct::RemapPolicy::LeaveInputForCall), "leave mismatch start");
+        expect(learn(trial, current, now, synthetic), "leave mismatch calibration");
+        const auto identity = 21ULL;
+        expect(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), identity, now).offerReplace,
+               "leave mismatch offer");
+        trial.acknowledgeWrite(true);
+        now += 1.0;
+        const auto mismatched = mct::remapPost(trial, current, mct::RemapMenu::Root, fn(11), identity, now);
+        unsigned char zeros[8] = {};
+        expect(mismatched.refused && !mismatched.restoreAborted && !mismatched.offerRestore &&
+                   !mismatched.offerReplace && !mismatched.originalBytesAvailable &&
+                   same(mismatched.reason, "post_mismatch") && std::memcmp(mismatched.bytes, zeros, 8) == 0,
+               "A read back is not a leave restore");
+        expect(trial.status().parameterRewriteApplied && !trial.status().postReplacementObserved &&
+                   !trial.status().restorationRequired && !trial.status().restoreAborted && closed(trial.status()),
+               "failed leave read is not an observed C");
+        mustRefuse(trial.observe(current, mct::RemapPhase::Post, mct::RemapMenu::Root, fn(33), identity, now + 1.0),
+                   "post_mismatch");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        double now = 1.0;
+        expect(trial.start(current, now, mct::RemapPolicy::LeaveInputForCall), "leave scope start");
+        expect(learn(trial, current, now, synthetic), "leave scope calibration");
+        const auto identity = 22ULL;
+        expect(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), identity, now).offerReplace,
+               "leave scope offer");
+        trial.acknowledgeWrite(true);
+        auto other = scope("bbbbbbbb-cccc-4ddd-8eee-ffffffffffff");
+        now += 1.0;
+        const auto lost = trial.observe(other, mct::RemapPhase::Post, mct::RemapMenu::Root, fn(33), identity, now);
+        expect(lost.refused && !lost.restoreAborted && !lost.offerRestore && !lost.originalBytesAvailable &&
+                   same(lost.reason, "scope"),
+               "leave scope loss is not an aborted restore");
+        expect(trial.status().parameterRewriteApplied && !trial.status().postReplacementObserved &&
+                   !trial.status().restorationRequired && !trial.status().restoreAborted && closed(trial.status()),
+               "scope loss does not observe C");
+        mustRefuse(trial.observe(current, mct::RemapPhase::Post, mct::RemapMenu::Root, fn(33), identity, now + 1.0),
+                   "scope");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        double now = 1.0;
+        expect(trial.start(current, now, mct::RemapPolicy::LeaveInputForCall), "leave write-fail start");
+        expect(learn(trial, current, now, synthetic), "leave write-fail calibration");
+        expect(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 9, now).offerReplace,
+               "leave write-fail offer");
+        trial.acknowledgeWrite(false);
+        expect(trial.status().rewriteAttempted && !trial.status().parameterRewriteApplied &&
+                   !trial.status().postReplacementObserved && !trial.status().restorationRequired &&
+                   !trial.status().restoreAborted && closed(trial.status()),
+               "failed leave write reports neither applied nor observed");
+        mustRefuse(trial.observe(current, mct::RemapPhase::Post, mct::RemapMenu::Root, fn(33), 9, now + 1.0),
+                   "write_not_applied");
+    }
+
+    {
+        mct::NativeMenuRemapTrial trial;
+        auto current = scope();
+        expect(!trial.start(current, 1.0, static_cast<mct::RemapPolicy>(2)), "invalid policy");
+        expect(same(trial.status().state, "idle") && same(trial.status().policy, "restore_at_post") &&
+                   !trial.status().rewriteAttempted,
+               "invalid policy does not arm");
+        mustRefuse(trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 1, 2.0), "not_started");
+        auto online = scope();
+        online.online = true;
+        expect(!trial.start(online, 1.0, mct::RemapPolicy::LeaveInputForCall), "invalid scope does not store policy");
+        expect(same(trial.status().state, "idle") && same(trial.status().policy, "restore_at_post"),
+               "rejected start leaves the default policy");
+        expect(trial.start(current, 3.0, mct::RemapPolicy::LeaveInputForCall), "leave start after rejection");
+        expect(same(trial.status().policy, "leave_input_for_call") && same(trial.status().state, "calibrating"),
+               "policy stored after validation");
+        expect(!trial.observe(current, mct::RemapPhase::Pre, mct::RemapMenu::Root, fn(11), 1, 4.0).refused,
+               "open pair after a valid policy");
+        expect(!trial.start(current, 5.0, static_cast<mct::RemapPolicy>(9)), "invalid policy is not a restart");
+        expect(same(trial.status().state, "await_post") && same(trial.status().policy, "leave_input_for_call") &&
+                   trial.status().pairs == 0 && !trial.status().rewriteAttempted &&
+                   !trial.status().postReplacementObserved,
+               "rejected policy leaves the open pair");
     }
 
     if (failures != 0) {

@@ -97,21 +97,30 @@ eight-byte callback parameter and writes only an aligned private read/write
 slot with the expected original value. It never changes memory protections,
 code pages, game assets, or arbitrary object fields.
 
-The exact original value is restored only on the same call's current post-hook
-buffer, with matching caller, thread, parameter identity and replacement
-bytes. This cleanup remains available when the observation timer or lease
-expires. A missing or mismatched post callback is reported as unresolved;
-no cached pointer is written later during unload. Unit fixtures test page
+Host 0.6 leaves the changed scalar as input for that call. Its POST hook only
+observes whether the same parameter carries the replacement. The host retains
+no pointer for a later write, and unload never attempts to write a returned
+callback buffer. A failed write attempts to restore the original bytes
+synchronously inside the current PRE callback. Unit fixtures test page
 protection and comparison behavior in test-owned allocations, not in the game.
 
+This input-rewrite pattern is supported by the official BakkesMod
+[MechanicalPlugin example](https://github.com/bakkesmodorg/BakkesMod2-Plugins/blob/master/MechanicalPlugin/mechanicalplugin.cpp),
+which changes scalar controller inputs in PRE and returns. That example does
+not establish the menu FName layout or prove navigation control. The observed
+FName pairs and current-session calibration provide the separate evidence for
+this limited experiment. Normal process closure ends its memory state; it is
+not a rollback guarantee for side effects of a selected menu action.
+
 Both host receipts and event exports flag write attempts. A verified parameter
-replacement/restoration is distinct from a verified destination change. Inspect
+replacement and matched POST are distinct from a verified destination change. Inspect
 the final native menu stack and the user's observed screen before concluding
 that navigation changed; `ButtonTriggered` may merely notify another handler.
-Restoring the parameter in POST also means code after `ProcessEvent` sees its
-original value. An unchanged screen therefore does not, by itself, establish
-that the parameter is only a notification. The bounded PushMenu/PopMenu
-observations record the following transitions to help locate later routing.
+The bounded PushMenu/PopMenu observations record following transitions to help
+locate later routing. An unchanged screen by itself does not prove exactly
+where the original route is chosen. The older POST-restoration policy remains
+a pure fixture option; the active host uses `LeaveInputForCall` so it does not
+restore the original parameter before downstream work could consume it.
 No public installer or general menu-mutation capability is enabled by this test.
 
 Close that game normally and run:
