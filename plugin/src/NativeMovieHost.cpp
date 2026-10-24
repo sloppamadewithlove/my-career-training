@@ -131,6 +131,8 @@ struct NativeMovieHost::State {
     std::function<bool()> ownedOffline;
     std::function<NativeCosmeticContext()> cosmeticContext;
     std::function<bool(const NativeCosmeticRequest&)> applyCosmetic;
+    std::function<NativeWorkshopContext()> workshopContext;
+    std::function<bool(const NativeWorkshopRequest&)> requestWorkshop;
     std::shared_ptr<int> alive = std::make_shared<int>(1);
     mutable std::mutex mutex;
     NativeMovieProtocol protocol;
@@ -168,6 +170,7 @@ struct NativeMovieHost::State {
     bool liveNow(const std::string& sessionId) const;
     bool drain(const CareerLayoutScope& scope, double monotonic);
     void apply(CareerLayoutEffect effect, const CareerLayoutScope& scope);
+    NativeWorkshopContext workshopNow() const;
 #endif
 };
 
@@ -239,7 +242,8 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
     if (!bridge) return;
     Json wire;
     try {
-        wire = protocol.publish(scope, state, wall, cosmeticContext ? cosmeticContext() : NativeCosmeticContext{});
+        wire = protocol.publish(scope, state, wall, cosmeticContext ? cosmeticContext() : NativeCosmeticContext{},
+            workshopNow());
         LocalBridge::atomicWrite(bridge->directory() / kViewName, wire.dump());
     } catch (...) {
         std::lock_guard<std::mutex> guard(mutex);
@@ -372,6 +376,15 @@ void NativeMovieHost::State::apply(CareerLayoutEffect effect, const CareerLayout
         count(applied, applied ? "local_effect_applied" : "local_effect_refused");
         return;
     }
+    if (effect.kind == CareerLayoutEffectKind::LocalWorkshop) {
+        // Starts preparation only. The launcher polls and dispatches later on
+        // this same game thread. This host does not call the console.
+        bool started = false;
+        try { started = liveNow(scope.nonce) && requestWorkshop && requestWorkshop(effect.workshop); }
+        catch (...) { started = false; }
+        count(started, started ? "workshop_preparing" : "workshop_refused");
+        return;
+    }
     // Local navigation and the movie's stock routes never become bridge actions.
     if (effect.kind == CareerLayoutEffectKind::Navigate || effect.kind == CareerLayoutEffectKind::PreserveStockRoute) {
         count(true, effect.kind == CareerLayoutEffectKind::Navigate ? "navigated" :
@@ -416,7 +429,7 @@ bool NativeMovieHost::State::drain(const CareerLayoutScope& scope, double monoto
         catch (...) { return false; }
         if (stringValue(latest, "bridge_session") != scope.nonce || !liveNow(scope.nonce)) return false;
         apply(protocol.select(decision.body, scope, latest, true,
-            cosmeticContext ? cosmeticContext() : NativeCosmeticContext{}), scope);
+            cosmeticContext ? cosmeticContext() : NativeCosmeticContext{}, workshopNow()), scope);
     }
     return true;
 }
@@ -504,7 +517,7 @@ void NativeMovieHost::State::tick() {
         scope.generation = kScopeGeneration;
         if (!opened) {
             opened = protocol.open(scope, bridgeState,
-                cosmeticContext ? cosmeticContext() : NativeCosmeticContext{});
+                cosmeticContext ? cosmeticContext() : NativeCosmeticContext{}, workshopNow());
             if (!opened) { suspend("layout_unavailable", sessionId); return; }
         }
         const double monotonic = monotonicSeconds();
@@ -546,6 +559,12 @@ void NativeMovieHost::State::tick() {
     }
 }
 
+NativeWorkshopContext NativeMovieHost::State::workshopNow() const {
+    if (!workshopContext) return {};
+    try { return workshopContext(); }
+    catch (...) { return {}; }
+}
+
 void NativeMovieHost::State::stop() {
     bool unhook = false;
     {
@@ -578,7 +597,9 @@ void NativeMovieHost::State::stop() {
 
 NativeMovieHost::NativeMovieHost(std::shared_ptr<GameWrapper> game, LocalBridge& bridge, std::function<bool()> ownedOffline,
     std::function<NativeCosmeticContext()> cosmeticContext,
-    std::function<bool(const NativeCosmeticRequest&)> applyCosmetic)
+    std::function<bool(const NativeCosmeticRequest&)> applyCosmetic,
+    std::function<NativeWorkshopContext()> workshopContext,
+    std::function<bool(const NativeWorkshopRequest&)> requestWorkshop)
     : state_(std::make_unique<State>()) {
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     state_->game = std::move(game);
@@ -586,12 +607,16 @@ NativeMovieHost::NativeMovieHost(std::shared_ptr<GameWrapper> game, LocalBridge&
     state_->ownedOffline = std::move(ownedOffline);
     state_->cosmeticContext = std::move(cosmeticContext);
     state_->applyCosmetic = std::move(applyCosmetic);
+    state_->workshopContext = std::move(workshopContext);
+    state_->requestWorkshop = std::move(requestWorkshop);
 #else
     (void)game;
     (void)bridge;
     (void)ownedOffline;
     (void)cosmeticContext;
     (void)applyCosmetic;
+    (void)workshopContext;
+    (void)requestWorkshop;
 #endif
 }
 
@@ -614,6 +639,28 @@ bool NativeMovieHost::movieReady() const {
     if (!state_) return false;
     std::lock_guard<std::mutex> guard(state_->mutex);
     return state_->scopeLive && !state_->stopped && state_->session.ready(monotonicSeconds());
+#else
+    return false;
+#endif
+}
+
+bool NativeMovieHost::verifiedBuild(std::string& executableSha256, std::string& bakkesCore,
+                                    std::string& gameBuild) const {
+    executableSha256.clear();
+    bakkesCore.clear();
+    gameBuild.clear();
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!state_ || !state_->hashMatched || state_->buildRefused || !state_->game) return false;
+    try {
+        if (state_->game->GetBakkesModVersion() != kBakkesVersion) return false;
+        if (state_->game->GetPsyBuildID() != kBuildId) return false;
+    } catch (...) {
+        return false;
+    }
+    executableSha256 = kExecutableSha256;
+    bakkesCore = std::to_string(kBakkesVersion);
+    gameBuild = kBuildId;
+    return true;
 #else
     return false;
 #endif

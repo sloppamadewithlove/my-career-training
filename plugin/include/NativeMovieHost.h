@@ -2,6 +2,7 @@
 
 #include "LocalBridge.h"
 #include "NativeCosmeticContext.h"
+#include "NativeWorkshopContext.h"
 
 #include <functional>
 #include <memory>
@@ -22,7 +23,9 @@ class NativeMovieHost {
 public:
     NativeMovieHost(std::shared_ptr<GameWrapper> game, LocalBridge& bridge, std::function<bool()> ownedOffline,
         std::function<NativeCosmeticContext()> cosmeticContext = {},
-        std::function<bool(const NativeCosmeticRequest&)> applyCosmetic = {});
+        std::function<bool(const NativeCosmeticRequest&)> applyCosmetic = {},
+        std::function<NativeWorkshopContext()> workshopContext = {},
+        std::function<bool(const NativeWorkshopRequest&)> requestWorkshop = {});
     ~NativeMovieHost();
     NativeMovieHost(const NativeMovieHost&) = delete;
     NativeMovieHost& operator=(const NativeMovieHost&) = delete;
@@ -30,6 +33,10 @@ public:
     void tick();
     void stop();
     bool movieReady() const;
+    // True only after this host has hashed the running executable and the live
+    // BakkesMod version and Psyonix build still match that check. The strings
+    // are filled only in that case.
+    bool verifiedBuild(std::string& executableSha256, std::string& bakkesCore, std::string& gameBuild) const;
     Json status() const;
 
 private:

@@ -215,6 +215,52 @@ int main() {
             pickedPrimary.cosmetic.secondary == std::array<float, 3>{} && pickedPrimary.cosmetic.draftCount == 0 &&
             pickedPrimary.action.empty() && pickedPrimary.payload.empty(),
             "Primary selection took authority from the movie");
+        NativeMovieProtocol workshopMovie;
+        auto workshopState = state();
+        const std::string package =
+            "C:\\Steam Library\\steamapps\\workshop\\content\\252950\\4242424242\\My Map.upk";
+        const std::string otherPackage =
+            "C:\\Steam Library\\steamapps\\workshop\\content\\252950\\4242424242\\Other.upk";
+        workshopState["workshop"] = {{"items", Json::array({
+            {{"id", "steam:library:4242424242"}, {"workshop_id", "4242424242"}, {"title", "Dribble"},
+                {"path", package}, {"origin", "steam_workshop"}, {"installed", true}}
+        })}};
+        const auto exe = "C:\\Steam Library\\steamapps\\common\\rocketleague\\Binaries\\Win64\\RocketLeague.exe";
+        auto workshop = NativeCareerLayout::bindWorkshop(workshopState, exe, live.nonce, 4, true, false, false);
+        require(workshop.packages.size() == 1, "Protocol fixture did not bind the installed map");
+        require(workshopMovie.open(live, workshopState, {}, workshop), "Workshop movie did not open");
+        auto workshopRoot = workshopMovie.publish(live, workshopState, 400, {}, workshop);
+        requireMovieWire(workshopRoot);
+        require(workshopRoot.dump().find(package) == std::string::npos, "Root published a package path");
+        require(workshopRoot.dump().find("load_workshop") == std::string::npos, "Root published a workshop command");
+        require(workshopMovie.select(command(workshopRoot, NativeCareerLayout::kWorkshop), live, workshopState, true, {}, workshop).accepted,
+            "Workshop page did not open");
+        auto workshopMenu = workshopMovie.publish(live, workshopState, 401, {}, workshop);
+        requireMovieWire(workshopMenu);
+        require(workshopMenu.dump().find(package) == std::string::npos, "Workshop wire published a package path");
+        require(workshopMenu.dump().find("load_workshop") == std::string::npos, "Workshop wire published a command");
+        const auto play = command(workshopMenu, "workshop.play.steam:library:4242424242");
+        auto forged = Json::parse(play);
+        forged["path"] = package;
+        forged["action"] = "play_workshop";
+        require(!workshopMovie.select(forged.dump(), live, workshopState, true, {}, workshop).accepted,
+            "Movie path or command was accepted");
+        auto changedState = workshopState;
+        changedState["workshop"]["items"][0]["path"] = otherPackage;
+        auto changedWorkshop = NativeCareerLayout::bindWorkshop(changedState, exe, live.nonce, 4, true, false, false);
+        auto stalePlay = workshopMovie.select(play, live, changedState, true, {}, changedWorkshop);
+        require(!stalePlay.accepted && stalePlay.action.empty() && stalePlay.workshop.packagePath.empty(),
+            "A changed package reused the published click");
+        auto republishedWorkshop = workshopMovie.publish(live, changedState, 402, {}, changedWorkshop);
+        requireMovieWire(republishedWorkshop);
+        require(republishedWorkshop.at("generation") != workshopMenu.at("generation"), "Path change kept the generation");
+        require(republishedWorkshop.dump().find(otherPackage) == std::string::npos, "Changed path was published");
+        require(!workshopMovie.select(play, live, changedState, true, {}, changedWorkshop).accepted, "Stale workshop generation accepted");
+        auto currentPlay = workshopMovie.select(command(republishedWorkshop, "workshop.play.steam:library:4242424242"),
+            live, changedState, true, {}, changedWorkshop);
+        require(currentPlay.accepted && currentPlay.kind == CareerLayoutEffectKind::LocalWorkshop &&
+            currentPlay.action.empty() && currentPlay.payload.empty() && currentPlay.workshop.packagePath == otherPackage &&
+            currentPlay.workshop.workshopId == "4242424242", "Play was not a typed local request");
         std::cout << "Native movie protocol checks passed; no game was launched.\n";
         return 0;
     } catch (const std::exception& error) {

@@ -8,6 +8,7 @@ namespace mct {
 // Development transport for the authored native movie. The caller supplies the
 // live owned-session scope; a JSON document never grants ownership or freshness.
 // Cosmetic authority is the NativeCosmeticContext argument, never movie JSON.
+// Workshop authority is the NativeWorkshopContext argument, never movie JSON.
 // No engine calls, files, console commands or production gates live here.
 class NativeMovieProtocol {
 public:
@@ -16,14 +17,15 @@ public:
     static constexpr bool kRuntimeVerified = false;
     static constexpr bool kProductionReady = false;
 
-    bool open(const CareerLayoutScope& scope, const Json& state, const NativeCosmeticContext& cosmetics = {}) {
+    bool open(const CareerLayoutScope& scope, const Json& state, const NativeCosmeticContext& cosmetics = {},
+              const NativeWorkshopContext& workshop = {}) {
         invalidate();
         lastSignature_.clear();
-        return layout_.open(scope, state, cosmetics);
+        return layout_.open(scope, state, cosmetics, workshop);
     }
 
     Json publish(const CareerLayoutScope& scope, const Json& state, double now,
-                 const NativeCosmeticContext& cosmetics = {}) {
+                 const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {}) {
         Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"published_at", now},
             {"active", false}, {"runtime_verified", kRuntimeVerified}, {"production_ready", kProductionReady},
             {"controls", Json::array()}};
@@ -32,7 +34,7 @@ public:
             invalidate();
             return wire;
         }
-        auto view = layout_.view(scope, state, cosmetics);
+        auto view = layout_.view(scope, state, cosmetics, workshop);
         if (!view.offersReplacement) {
             invalidate();
             return wire;
@@ -68,7 +70,8 @@ public:
 
     CareerLayoutEffect select(const std::string& message, const CareerLayoutScope& live,
                               const Json& state, bool customMovieCallback,
-                              const NativeCosmeticContext& cosmetics = {}) {
+                              const NativeCosmeticContext& cosmetics = {},
+                              const NativeWorkshopContext& workshop = {}) {
         CareerLayoutEffect refused;
         refused.reason = "The menu changed. Choose the control again.";
         if (!customMovieCallback || !published_ || message.size() > kMaxCommandBytes) return refused;
@@ -84,7 +87,7 @@ public:
                 if (choice.id != id || std::to_string(choice.revision) != revision) continue;
                 // The authored movie calls only its own dispatcher. It has no
                 // stock click to replay after this callback returns.
-                auto effect = layout_.choose(choice, live, state, true, cosmetics);
+                auto effect = layout_.choose(choice, live, state, true, cosmetics, workshop);
                 if (effect.accepted) invalidate();
                 return effect;
             }
@@ -125,7 +128,12 @@ private:
             {"cosmetic_palette", choice.cosmetic.paletteIndex},
             {"cosmetic_primary", {choice.cosmetic.primary[0], choice.cosmetic.primary[1], choice.cosmetic.primary[2]}},
             {"cosmetic_secondary", {choice.cosmetic.secondary[0], choice.cosmetic.secondary[1], choice.cosmetic.secondary[2]}},
-            {"cosmetic_stamp", std::to_string(choice.cosmeticStamp)}};
+            {"cosmetic_stamp", std::to_string(choice.cosmeticStamp)},
+            {"workshop_row", choice.workshop.rowId}, {"workshop_id", choice.workshop.workshopId},
+            {"workshop_root", choice.workshop.contentRoot}, {"workshop_path", choice.workshop.packagePath},
+            {"workshop_nonce", choice.workshop.nonce},
+            {"workshop_generation", std::to_string(choice.workshop.generation)},
+            {"workshop_stamp", std::to_string(choice.workshopStamp)}};
     }
 
     bool advance() {

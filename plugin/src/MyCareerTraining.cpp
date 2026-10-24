@@ -1,10 +1,13 @@
 #include "MyCareerTraining.h"
 #include "ExecutableHash.h"
+#include "NativeCareerLayout.h"
 #include "CosmeticDesignCode.h"
+#include "NativeWorkshopDispatch.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
 #include <algorithm>
 #include <cctype>
+#include <limits>
 #include <cstdlib>
 #include <fstream>
 #include <set>
@@ -106,9 +109,17 @@ void MyCareerTraining::onLoad() {
     try {
         bridge_ = std::make_unique<mct::LocalBridge>(bridgeDirectory());
         processScope_ = currentProcessScope();
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+        workshopLauncher_ = std::make_unique<mct::NativeWorkshopLauncher>(
+            [this] { return workshopScope(); },
+            [this](const std::string& command) { dispatchWorkshopCommand(command); },
+            true);
+#endif
         nativeMovie_ = std::make_unique<mct::NativeMovieHost>(gameWrapper, *bridge_, [this] { return ownedOfflineNow(); },
             [this] { return nativeCosmeticContext(); },
-            [this](const mct::NativeCosmeticRequest& request) { return applyNativeCosmetic(request); });
+            [this](const mct::NativeCosmeticRequest& request) { return applyNativeCosmetic(request); },
+            [this] { return nativeWorkshopContext(); },
+            [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
             if (!offlineReady_ || !ownedOfflineNow()) return;
@@ -148,6 +159,10 @@ void MyCareerTraining::onUnload() {
     nativeMovieReady_ = false;
     if (nativeMovie_) nativeMovie_->stop();
     nativeMovie_.reset();
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (workshopLauncher_) workshopLauncher_->shutdown();
+    workshopLauncher_.reset();
+#endif
     if (!restoreCosmetics())
         cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
     updateNavigationFlags(false);
@@ -414,6 +429,112 @@ bool MyCareerTraining::applyNativeCosmetic(const mct::NativeCosmeticRequest& req
     return true;
 }
 
+mct::WorkshopLoadScope MyCareerTraining::workshopScope() const {
+    mct::WorkshopLoadScope scope;
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    scope.developmentTrial = workshopLauncher_ != nullptr;
+    if (!bridge_ || !gameWrapper) return scope;
+    std::string sha;
+    std::string bakkes;
+    std::string build;
+    const bool verified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, bakkes, build);
+    const bool online = gameWrapper->IsInOnlineGame();
+    const bool inGame = gameWrapper->IsInGame();
+    const bool replay = gameWrapper->IsInReplay();
+    const bool owned = ownedOfflineNow();
+    const auto state = bridge_->state();
+    const auto session = mct::objectValue(state, "session");
+    scope.owned = owned;
+    scope.offline = owned && !online;
+    scope.fresh = bridge_->fresh();
+    scope.online = online;
+    scope.steamFrontend = owned && gameWrapper->IsUsingSteamVersion() && !online && !inGame && !replay;
+    scope.inGame = inGame;
+    scope.replay = replay;
+    scope.busy = !session.is_object() || !session.contains("busy") || !session["busy"].is_boolean() ||
+        session["busy"].get<bool>();
+    if (verified) {
+        scope.executableSha256 = sha;
+        scope.bakkesCore = bakkes;
+        scope.gameBuild = build;
+    }
+    scope.nonce = mct::stringValue(state, "bridge_session");
+    scope.generation = workshopGeneration_;
+#else
+    scope.developmentTrial = false;
+#endif
+    return scope;
+}
+
+mct::NativeWorkshopContext MyCareerTraining::nativeWorkshopContext() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!bridge_ || !gameWrapper) return {};
+    const auto state = bridge_->state();
+    std::string sha;
+    std::string bakkes;
+    std::string build;
+    const bool verified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, bakkes, build);
+    const bool ready = offlineReady_ && verified && bridge_->fresh() && !gameWrapper->IsInOnlineGame() &&
+        !gameWrapper->IsInGame() && !gameWrapper->IsInReplay();
+    const bool preparing = workshopLauncher_ && workshopLauncher_->preparing();
+    const bool held = workshopLauncher_ && workshopLauncher_->holding();
+    return mct::NativeCareerLayout::bindWorkshop(state, processScope_.executable, mct::stringValue(state, "bridge_session"),
+        workshopGeneration_, ready, preparing, held);
+#else
+    return {};
+#endif
+}
+
+bool MyCareerTraining::requestNativeWorkshop(const mct::NativeWorkshopRequest& request) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!workshopLauncher_ || !offlineReady_ || gameWrapper->IsInOnlineGame() || gameWrapper->IsInGame() ||
+        gameWrapper->IsInReplay())
+        return false;
+    mct::WorkshopPackageSelection selection;
+    selection.contentRoot = request.contentRoot;
+    selection.packagePath = request.packagePath;
+    selection.itemId = request.workshopId;
+    selection.nonce = request.nonce;
+    selection.generation = request.generation;
+    const auto started = workshopLauncher_->begin(selection);
+    return started.preparing;
+#else
+    (void)request;
+    return false;
+#endif
+}
+
+void MyCareerTraining::dispatchWorkshopCommand(const std::string& command) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!mct::dispatchNativeWorkshopCommand(command, cvarManager != nullptr,
+            [this](const std::string& validated) { cvarManager->executeCommand(validated, false); }))
+        throw std::runtime_error("The workshop command was refused before dispatch.");
+#else
+    (void)command;
+#endif
+}
+
+void MyCareerTraining::maintainWorkshop() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!workshopLauncher_ || !bridge_ || !gameWrapper) return;
+    const auto nonce = mct::stringValue(bridge_->state(), "bridge_session");
+    if (!nonce.empty()) {
+        if (workshopSession_.empty()) workshopSession_ = nonce;
+        else if (nonce != workshopSession_) {
+            workshopLauncher_->cancelPending();
+            workshopSession_ = nonce;
+            if (workshopGeneration_ != std::numeric_limits<std::uint64_t>::max()) ++workshopGeneration_;
+        }
+    }
+    // Scope loss cancels pending dispatch without joining a file-reading worker
+    // on the game tick. Already-dispatched package holds last until unload.
+    if ((workshopLauncher_->holding() || workshopLauncher_->preparing()) &&
+        (!ownedOfflineNow() || gameWrapper->IsInOnlineGame()))
+        workshopLauncher_->cancelPending();
+    workshopLauncher_->poll();
+#endif
+}
+
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
     try {
@@ -434,6 +555,7 @@ void MyCareerTraining::tick() {
         next.toggleKey = toggleKey_;
         const auto publishedState = bridge_->state();
         offlineReady_ = fresh && ownedOfflineNow();
+        maintainWorkshop();
         if (nativeMovie_) {
             nativeMovie_->tick();
             nativeMovieReady_ = offlineReady_ && nativeMovie_->movieReady();

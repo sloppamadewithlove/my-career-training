@@ -83,8 +83,9 @@ static Json readyState() {
 }
 
 static CareerLayoutEffect choose(NativeCareerLayout& layout, const CareerLayoutChoice& choice,
-                                 const CareerLayoutScope& scope, const Json& state, bool consumed) {
-    auto effect = layout.choose(choice, scope, state, consumed);
+                                 const CareerLayoutScope& scope, const Json& state, bool consumed,
+                                 const NativeWorkshopContext& workshop = {}) {
+    auto effect = layout.choose(choice, scope, state, consumed, {}, workshop);
     require(!effect.compatibilityGrant && !effect.consumesUnlistedCallback, "Effect claims a grant or a global swallow");
     require(effect.action.empty() || NativeCareerLayout::supportedAction(effect.action), "Effect action is not supported");
     if (effect.kind == CareerLayoutEffectKind::PreserveStockRoute)
@@ -92,10 +93,14 @@ static CareerLayoutEffect choose(NativeCareerLayout& layout, const CareerLayoutC
     if (effect.kind != CareerLayoutEffectKind::LocalCosmetic)
         require(effect.cosmetic.kind == NativeCosmeticRequestKind::None && effect.cosmetic.draftCount == 0,
             "Non-cosmetic effect carried a local cosmetic request");
+    if (effect.kind != CareerLayoutEffectKind::LocalWorkshop)
+        require(effect.workshop.rowId.empty() && effect.workshop.packagePath.empty(),
+            "Non-workshop effect carried a map");
     if (!effect.accepted) {
         require(effect.action.empty() && !effect.leaveMenu, "Refused effect still dispatches");
         require(effect.cosmetic.kind == NativeCosmeticRequestKind::None && effect.cosmetic.draftCount == 0,
             "Refused effect kept a cosmetic request");
+        require(effect.workshop.packagePath.empty(), "Refused effect kept a map path");
     }
     return effect;
 }
@@ -505,6 +510,9 @@ int main() {
         activate.kind = CareerLayoutEffectKind::Dispatch;
         require(choose(layout, activate, scope, state, true).action.empty(), "Forged activation dispatched");
         require(community.body.find("https://example.invalid") == std::string::npos, "Community URL was shown");
+        auto paste = choose(layout, findChoice(community, "community.paste"), scope, state, true);
+        require(paste.accepted && paste.action == "community_paste_link" && paste.payload.empty(), "Paste link payload");
+        community = layout.view(scope, state);
         auto lookup = choose(layout, findChoice(community, "community.lookup.223"), scope, state, true);
         require(lookup.accepted && lookup.action == "community_lookup" && lookup.payload == Json({{"id", "223"}}), "Lookup payload");
         auto download = choose(layout, findChoice(layout.view(scope, state), "community.download"), scope, state, true);
@@ -526,6 +534,7 @@ int main() {
         auto busyCommunity = layout.view(scope, downloading);
         audit(busyCommunity);
         require(!findChoice(busyCommunity, "community.lookup.223").enabled, "Lookup stayed enabled while downloading");
+        require(!findChoice(busyCommunity, "community.paste").enabled, "Paste stayed enabled while downloading");
         require(!findChoice(busyCommunity, "community.download").enabled, "Download stayed enabled while downloading");
         auto cancel = findChoice(busyCommunity, "community.cancel");
         require(cancel.enabled, "Cancel was disabled while downloading");
@@ -625,6 +634,114 @@ int main() {
         auto laterFavorite = findChoice(revisions.view(scope, state), favoriteButton.id);
         require(laterFavorite.revision != favoriteButton.revision, "Re-render did not mint a new favorite");
         require(choose(revisions, laterFavorite, scope, state, true).payload == favoriteButton.payload, "Later favorite lost its id");
+
+        const std::string exe = "C:\\Steam Library\\steamapps\\common\\rocketleague\\Binaries\\Win64\\RocketLeague.exe";
+        const std::string content = "C:\\Steam Library\\steamapps\\workshop\\content\\252950";
+        const auto packageFor = [&](const std::string& workshopId) {
+            return content + "\\" + workshopId + "\\Map.upk";
+        };
+        auto installedMaps = state;
+        installedMaps["workshop"]["items"] = Json::array();
+        for (int index = 0; index < 70; ++index) {
+            const auto workshopId = std::to_string(1000000000 + index);
+            installedMaps["workshop"]["items"].push_back({{"id", "steam:library:" + workshopId}, {"workshop_id", workshopId},
+                {"title", "Map " + std::to_string(index)}, {"path", packageFor(workshopId)},
+                {"origin", "steam_workshop"}, {"installed", true}, {"can_launch", true}});
+        }
+        auto ready = NativeCareerLayout::bindWorkshop(installedMaps, exe, scope.nonce, 7, true, false, false);
+        require(ready.bound && ready.libraryConfirmed && ready.packages.size() == 70, "Installed maps past the old scan were dropped");
+        NativeCareerLayout pages;
+        require(pages.open(scope, installedMaps, {}, ready), "Workshop pages did not open");
+        require(choose(pages, findChoice(pages.view(scope, installedMaps, {}, ready), NativeCareerLayout::kWorkshop), scope, installedMaps, false, ready).accepted,
+            "Bound workshop page did not open");
+        for (int page = 0; page < 8; ++page) {
+            auto current = pages.view(scope, installedMaps, {}, ready);
+            audit(current);
+            require(hasChoice(current, "workshop.page.next"), "More maps was missing");
+            require(choose(pages, findChoice(current, "workshop.page.next"), scope, installedMaps, false, ready).accepted, "More maps did not advance");
+        }
+        auto lastPage = pages.view(scope, installedMaps, {}, ready);
+        audit(lastPage);
+        require(hasChoice(lastPage, "workshop.play.steam:library:1000000064"), "A map past the first 64 was unreachable");
+        require(!hasChoice(lastPage, "workshop.play.steam:library:1000000000"), "The first page stayed on screen");
+        auto latePlay = findChoice(lastPage, "workshop.play.steam:library:1000000064");
+        require(latePlay.enabled && latePlay.kind == CareerLayoutEffectKind::LocalWorkshop && latePlay.action.empty() &&
+            latePlay.payload.empty() && latePlay.workshop.packagePath == packageFor("1000000064"),
+            "A later installed map was not a typed play request");
+        auto lateEffect = choose(pages, latePlay, scope, installedMaps, true, ready);
+        require(lateEffect.accepted && lateEffect.kind == CareerLayoutEffectKind::LocalWorkshop && lateEffect.action.empty() &&
+            lateEffect.payload.empty() && lateEffect.workshop.packagePath == packageFor("1000000064") &&
+            lateEffect.workshop.workshopId == "1000000064" && lateEffect.workshop.generation == 7, "Typed play did not bind the row");
+        latePlay.action = "play_workshop";
+        latePlay.kind = CareerLayoutEffectKind::Dispatch;
+        latePlay.payload = {{"path", latePlay.workshop.packagePath}};
+        require(choose(pages, latePlay, scope, installedMaps, true, ready).action.empty(), "Forged workshop command dispatched");
+
+        auto aliasState = state;
+        aliasState["workshop"]["items"] = Json::array({
+            {{"id", "steam:library:4242424242"}, {"workshop_id", "4242424242"}, {"title", "Installed file"},
+                {"path", packageFor("4242424242")}, {"origin", "steam_workshop"}, {"installed", true}},
+            {{"id", "dribble-challenge"}, {"title", "Dribble Challenge"}, {"origin", "catalog"}, {"installed", true},
+                {"launch_id", "steam:library:4242424242"}},
+            {{"id", "local-map"}, {"title", "Imported"}, {"origin", "local_import"}, {"installed", true},
+                {"workshop_id", "1"}, {"path", packageFor("1")}},
+            {{"id", "steam:other:11"}, {"workshop_id", "11"}, {"title", "Other library"},
+                {"path", "D:\\Other Library\\steamapps\\workshop\\content\\252950\\11\\Map.upk"},
+                {"origin", "steam_workshop"}, {"installed", true}},
+            {{"id", "steam:library:77"}, {"workshop_id", "77"}, {"title", "One"}, {"path", packageFor("77")},
+                {"origin", "steam_workshop"}, {"installed", true}},
+            {{"id", "steam:library:77"}, {"workshop_id", "78"}, {"title", "Two"}, {"path", packageFor("78")},
+                {"origin", "steam_workshop"}, {"installed", true}},
+            {{"id", "ambiguous"}, {"title", "Ambiguous"}, {"origin", "catalog"}, {"installed", true},
+                {"launch_id", "steam:library:77"}}
+        });
+        auto bound = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, true, false, false);
+        NativeCareerLayout aliasLayout;
+        require(aliasLayout.open(scope, aliasState, {}, bound), "Alias workshop did not open");
+        require(choose(aliasLayout, findChoice(aliasLayout.view(scope, aliasState, {}, bound), NativeCareerLayout::kWorkshop),
+            scope, aliasState, false, bound).accepted, "Alias page did not open");
+        auto aliasView = aliasLayout.view(scope, aliasState, {}, bound);
+        audit(aliasView);
+        auto aliasPlay = findChoice(aliasView, "workshop.play.dribble-challenge");
+        require(aliasPlay.enabled && aliasPlay.workshop.rowId == "dribble-challenge" &&
+            aliasPlay.workshop.packagePath == packageFor("4242424242") && aliasPlay.workshop.workshopId == "4242424242",
+            "A unique curated row did not use the installed file");
+        require(findChoice(aliasView, "workshop.play.local-map").reason == "Imported maps cannot be played from this menu yet.",
+            "Imported map reason");
+        require(findChoice(aliasView, "workshop.play.steam:other:11").reason == "This map is in another Steam library.",
+            "Foreign library reason");
+        require(findChoice(aliasView, "workshop.play.ambiguous").reason == "Choose the installed map file.",
+            "Ambiguous alias reason");
+        require(choose(aliasLayout, findChoice(aliasView, "workshop.favorite.dribble-challenge"), scope, aliasState, true, bound).action ==
+            "workshop_favorite", "Favorite stopped working for a curated row");
+        require(choose(aliasLayout, findChoice(aliasLayout.view(scope, aliasState, {}, bound), "workshop.refresh"), scope, aliasState, true, bound).action ==
+            "refresh_workshop", "Refresh stopped working");
+        auto stalePlay = findChoice(aliasLayout.view(scope, aliasState, {}, bound), "workshop.play.dribble-challenge");
+        auto moved = aliasState;
+        moved["workshop"]["items"][0]["path"] = packageFor("4242424243");
+        moved["workshop"]["items"][0]["workshop_id"] = "4242424243";
+        auto movedContext = NativeCareerLayout::bindWorkshop(moved, exe, scope.nonce, 7, true, false, false);
+        require(choose(aliasLayout, stalePlay, scope, moved, true, movedContext).refusal == CareerLayoutRefusal::StaleChoice,
+            "A changed package reused the old play control");
+
+        auto waiting = aliasState;
+        waiting["session"]["busy"] = true;
+        auto waitingView = aliasLayout.view(scope, waiting, {}, bound);
+        require(findChoice(waitingView, "workshop.play.dribble-challenge").reason ==
+            std::string("Wait for the current game transition to finish."), "Busy play reason");
+        auto held = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, true, false, true);
+        require(findChoice(aliasLayout.view(scope, aliasState, {}, held), "workshop.play.dribble-challenge").reason ==
+            "A map is open for this offline session.", "Held play reason");
+        auto preparing = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, true, true, false);
+        require(findChoice(aliasLayout.view(scope, aliasState, {}, preparing), "workshop.play.dribble-challenge").reason ==
+            "Preparing this map.", "Preparing play reason");
+        auto offlineContext = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, false, false, false);
+        require(findChoice(aliasLayout.view(scope, aliasState, {}, offlineContext), "workshop.play.dribble-challenge").reason ==
+            "Play is available during an offline career session.", "Offline play reason");
+        auto unconfirmed = NativeCareerLayout::bindWorkshop(aliasState, "C:\\Games\\RocketLeague.exe", scope.nonce, 7, true, false, false);
+        require(!unconfirmed.libraryConfirmed, "A non-Steam executable confirmed a library");
+        require(findChoice(aliasLayout.view(scope, aliasState, {}, unconfirmed), "workshop.play.steam:library:4242424242").reason ==
+            "This game's Steam library could not be confirmed.", "Unconfirmed library reason");
 
         std::cout << "Native career layout: passthrough, menu mapping, consumption, stale scope, and supported actions passed.\n";
         return 0;

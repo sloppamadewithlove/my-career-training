@@ -2,6 +2,7 @@
 
 #include "LocalBridge.h"
 #include "NativeCosmeticContext.h"
+#include "NativeWorkshopContext.h"
 
 #include <algorithm>
 #include <cstring>
@@ -27,7 +28,7 @@ enum class CareerLayoutPage {
 };
 
 enum class CareerLayoutEffectKind {
-    None, Navigate, PreserveStockRoute, Dispatch, Unavailable, LocalCosmetic
+    None, Navigate, PreserveStockRoute, Dispatch, Unavailable, LocalCosmetic, LocalWorkshop
 };
 
 enum class CareerLayoutRefusal {
@@ -82,6 +83,9 @@ struct CareerLayoutChoice {
     NativeCosmeticRequest cosmetic;
     // Catalog and draft stamp. Same visible label with a different stamp is stale.
     std::uint64_t cosmeticStamp = 0;
+    // Local workshop binding. The movie never receives the path or command.
+    NativeWorkshopRequest workshop;
+    std::uint64_t workshopStamp = 0;
     // Monotonic render generation. Logical ids stay stable; this value does not.
     std::uint64_t revision = 0;
 };
@@ -115,6 +119,8 @@ struct CareerLayoutEffect {
     std::string reason;
     // Set only for an accepted LocalCosmetic effect. Refusals leave this empty.
     NativeCosmeticRequest cosmetic;
+    // Set only for an accepted LocalWorkshop effect. Refusals leave this empty.
+    NativeWorkshopRequest workshop;
 };
 
 struct NativeRouteDecision {
@@ -143,6 +149,7 @@ public:
     static constexpr std::size_t kMaxRows = 8;
     static constexpr std::size_t kMaxSquad = 4;
     static constexpr std::size_t kScanCap = 64;
+    static constexpr std::size_t kMaxWorkshopRows = 512;
     static constexpr const char* kCareer = "career.open";
     static constexpr const char* kTraining = "training.open";
     static constexpr const char* kGarage = "garage.open";
@@ -177,19 +184,23 @@ public:
         return action == "play_match" || action == "select_lesson" || action == "start_lesson" ||
             action == "assistance" || action == "lesson_variant" || action == "restore_explanations" ||
             action == "loadout" || action == "refresh_workshop" || action == "workshop_favorite" ||
-            action == "community_lookup" || action == "community_download" || action == "community_library" ||
+            action == "community_lookup" || action == "community_paste_link" ||
+            action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "training_settings" || action == "quit_game";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.
-    bool open(const CareerLayoutScope& scope, const Json& state, const NativeCosmeticContext& cosmetics = {}) {
+    bool open(const CareerLayoutScope& scope, const Json& state, const NativeCosmeticContext& cosmetics = {},
+              const NativeWorkshopContext& workshop = {}) {
         (void)cosmetics;
+        (void)workshop;
         page_ = CareerLayoutPage::Root;
         lessonPage_ = 0;
         lessonId_.clear();
         cosmeticSlot_ = -1;
         cosmeticPage_ = 0;
         cosmeticProductId_ = 0;
+        workshopPage_ = 0;
         opened_ = false;
         if (!scopeOk(scope) || !stateMatches(state, scope)) return false;
         // Advance even when the supplied scope is unchanged, so a choice captured
@@ -203,7 +214,8 @@ public:
     // current is the live owned-session scope. state.offline is not that signal.
     // There is no overload that plans from the captured open scope alone.
     [[nodiscard]] CareerLayoutView view(const CareerLayoutScope& current, const Json& state,
-                                       const NativeCosmeticContext& cosmetics = {}) const {
+                                       const NativeCosmeticContext& cosmetics = {},
+                                       const NativeWorkshopContext& workshop = {}) const {
         if (!planActive(current, state)) return passthrough();
         CareerLayoutView out;
         out.offersReplacement = true;
@@ -229,7 +241,7 @@ public:
         case CareerLayoutPage::CosmeticColors: buildCosmeticColors(out, cosmetics); break;
         case CareerLayoutPage::CosmeticPrimary: buildCosmeticChannel(out, cosmetics, true); break;
         case CareerLayoutPage::CosmeticAccent: buildCosmeticChannel(out, cosmetics, false); break;
-        case CareerLayoutPage::Workshop: buildWorkshop(out, state); break;
+        case CareerLayoutPage::Workshop: buildWorkshop(out, state, workshop); break;
         case CareerLayoutPage::Community: buildCommunity(out, state); break;
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
         }
@@ -243,13 +255,14 @@ public:
     // A refusal does not ask the adapter to swallow unrelated native callbacks.
     [[nodiscard]] CareerLayoutEffect choose(const CareerLayoutChoice& shown, const CareerLayoutScope& click,
                                             const Json& latestState, bool originalConsumed,
-                                            const NativeCosmeticContext& cosmetics = {}) {
+                                            const NativeCosmeticContext& cosmetics = {},
+                                            const NativeWorkshopContext& workshop = {}) {
         CareerLayoutEffect effect;
         if (!opened_ || !scopeOk(openedScope_)) return refuse(effect, CareerLayoutRefusal::NoPlan, kNoPlan);
         if (!sameScope(click, openedScope_) || !stateMatches(latestState, openedScope_))
             return refuse(effect, CareerLayoutRefusal::StaleScope, kStaleScope);
         if (!revisionUsable()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
-        const auto current = view(click, latestState, cosmetics);
+        const auto current = view(click, latestState, cosmetics, workshop);
         const CareerLayoutChoice* match = nullptr;
         for (const auto& choice : current.choices)
             if (choice.id == shown.id) { match = &choice; break; }
@@ -259,7 +272,9 @@ public:
             const bool wasSpecific = !shown.lessonId.empty() || !shown.fixtureId.empty() ||
                 shown.kind == CareerLayoutEffectKind::Dispatch || shown.kind == CareerLayoutEffectKind::Unavailable ||
                 shown.kind == CareerLayoutEffectKind::LocalCosmetic ||
+                shown.kind == CareerLayoutEffectKind::LocalWorkshop ||
                 shown.cosmetic.kind != NativeCosmeticRequestKind::None ||
+                !shown.workshop.rowId.empty() ||
                 shown.target == CareerLayoutPage::Appearance || shown.target == CareerLayoutPage::CosmeticItems ||
                 shown.target == CareerLayoutPage::CosmeticPaints || shown.target == CareerLayoutPage::CosmeticColors ||
                 shown.target == CareerLayoutPage::CosmeticPrimary || shown.target == CareerLayoutPage::CosmeticAccent;
@@ -323,7 +338,91 @@ public:
             effect.reason.clear();
             return effect;
         }
+        if (match->kind == CareerLayoutEffectKind::LocalWorkshop) {
+            // Not a bridge action and not play_workshop. The live context is checked
+            // again here; the movie click does not carry the package path.
+            const auto* live = findNativeWorkshopPackage(workshop, match->workshop.rowId);
+            if (!match->action.empty() || !match->payload.empty() || match->stock != StockRoute::None || !live ||
+                live->packagePath != match->workshop.packagePath || live->contentRoot != match->workshop.contentRoot ||
+                live->workshopId != match->workshop.workshopId || workshop.nonce != match->workshop.nonce ||
+                workshop.generation != match->workshop.generation || !workshop.scopeReady || workshop.preparing ||
+                workshop.held)
+                return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true;
+            effect.kind = CareerLayoutEffectKind::LocalWorkshop;
+            effect.workshop = match->workshop;
+            effect.action.clear();
+            effect.payload = Json::object();
+            effect.stock = StockRoute::None;
+            effect.leaveMenu = false;
+            effect.page = page_;
+            effect.reason.clear();
+            return effect;
+        }
         return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+    }
+
+    // Host-side binding. Rows come from the bridge workshop object. Paths outside
+    // the executable's own Steam library are left unbound.
+    static NativeWorkshopContext bindWorkshop(const Json& state, const std::string& executablePath,
+                                              const std::string& nonce, std::uint64_t generation, bool scopeReady,
+                                              bool preparing, bool held) {
+        NativeWorkshopContext context;
+        context.bound = true;
+        context.scopeReady = scopeReady;
+        context.preparing = preparing;
+        context.held = held;
+        context.nonce = nonce;
+        context.generation = generation;
+        context.libraryRoot = nativeWorkshopLibraryRoot(executablePath);
+        context.libraryConfirmed = !context.libraryRoot.empty();
+        const auto contentRoot = nativeWorkshopContentRoot(context.libraryRoot);
+        if (held) context.status = "A map is open for this offline session.";
+        else if (preparing) context.status = "Preparing this map.";
+        else if (!scopeReady) context.status = "Play is available during an offline career session.";
+        else if (!context.libraryConfirmed) context.status = "This game's Steam library could not be confirmed.";
+        if (!context.libraryConfirmed) return context;
+        const auto items = array(object(state, "workshop"), "items");
+        const auto stop = (std::min)(items.size(), kMaxWorkshopRows);
+        std::vector<NativeWorkshopPackage> steam;
+        for (std::size_t index = 0; index < stop; ++index) {
+            const auto& item = items[index];
+            if (text(item, "origin") != "steam_workshop" || !flag(item, "installed", false)) continue;
+            const auto id = text(item, "id");
+            const auto workshopId = text(item, "workshop_id");
+            if (!safeId(id) || !digitsOnly(workshopId)) continue;
+            const auto parsed = workshop_load_detail::parsePath(text(item, "path"));
+            if (parsed.reason || !nativeWorkshopPackageTrusted(contentRoot, parsed.canonical, workshopId)) continue;
+            NativeWorkshopPackage package;
+            package.rowId = id;
+            package.workshopId = workshopId;
+            package.title = text(item, "title", "Map");
+            package.contentRoot = contentRoot;
+            package.packagePath = parsed.canonical;
+            steam.push_back(std::move(package));
+        }
+        context.packages = steam;
+        for (std::size_t index = 0; index < stop; ++index) {
+            const auto& item = items[index];
+            if (text(item, "origin") != "catalog" || !flag(item, "installed", false)) continue;
+            const auto id = text(item, "id");
+            const auto launchId = text(item, "launch_id");
+            if (!safeId(id) || launchId.empty() || launchId == id) continue;
+            const NativeWorkshopPackage* match = nullptr;
+            int matches = 0;
+            for (const auto& package : steam) {
+                if (package.rowId != launchId) continue;
+                match = &package;
+                ++matches;
+            }
+            if (matches != 1 || !match) continue;
+            NativeWorkshopPackage alias = *match;
+            alias.rowId = id;
+            alias.title = text(item, "title", match->title);
+            context.packages.push_back(std::move(alias));
+        }
+        return context;
     }
 
     [[nodiscard]] NativeRouteDecision route(NativeRouteId id, const CareerLayoutScope& current, const Json& state) const {
@@ -377,6 +476,7 @@ private:
     int cosmeticSlot_ = -1;
     std::size_t cosmeticPage_ = 0;
     int cosmeticProductId_ = 0;
+    std::size_t workshopPage_ = 0;
     bool opened_ = false;
     CareerLayoutScope openedScope_{};
     std::uint64_t revision_ = 0;
@@ -414,6 +514,7 @@ private:
         effect.compatibilityGrant = false;
         effect.consumesUnlistedCallback = false;
         effect.cosmetic = {};
+        effect.workshop = {};
         if (refusal != CareerLayoutRefusal::NotConsumed) effect.originalConsumptionRequired = false;
         effect.reason = reason.empty() ? kUnknown : reason;
         return effect;
@@ -428,6 +529,7 @@ private:
         if (choice->kind == CareerLayoutEffectKind::Navigate) {
             page_ = choice->target;
             if (choice->target == CareerLayoutPage::Training) lessonPage_ = choice->page;
+            if (choice->target == CareerLayoutPage::Workshop) workshopPage_ = choice->page;
             if (choice->target == CareerLayoutPage::CosmeticItems) {
                 cosmeticSlot_ = choice->cosmetic.slot;
                 cosmeticPage_ = choice->page;
@@ -494,6 +596,7 @@ private:
             a.target == b.target && a.page == b.page && a.lessonId == b.lessonId && a.careerId == b.careerId &&
             a.fixtureId == b.fixtureId && a.recruitId == b.recruitId && a.itemId == b.itemId &&
             a.cosmetic == b.cosmetic && a.cosmeticStamp == b.cosmeticStamp &&
+            a.workshop == b.workshop && a.workshopStamp == b.workshopStamp &&
             a.revision == b.revision;
     }
 
@@ -1045,23 +1148,63 @@ private:
         back(view, CareerLayoutPage::Root);
     }
 
-    void buildWorkshop(CareerLayoutView& view, const Json& state) const {
+    static bool digitsOnly(const std::string& value) {
+        if (value.empty() || value.size() > 20) return false;
+        for (unsigned char character : value)
+            if (character < '0' || character > '9') return false;
+        return true;
+    }
+
+    static std::uint64_t stampWorkshop(const NativeWorkshopRequest& request) {
+        std::uint64_t hash = kStampBasis;
+        hash = mixStamp(hash, request.rowId);
+        hash = mixStamp(hash, request.workshopId);
+        hash = mixStamp(hash, request.contentRoot);
+        hash = mixStamp(hash, request.packagePath);
+        hash = mixStamp(hash, request.nonce);
+        hash = mixStamp(hash, request.generation);
+        return hash;
+    }
+
+    static const char* workshopBlock(const Json& item, const NativeWorkshopContext& workshop, bool waiting) {
+        if (waiting) return kWait;
+        if (workshop.held) return "A map is open for this offline session.";
+        if (workshop.preparing) return "Preparing this map.";
+        if (!workshop.scopeReady) return "Play is available during an offline career session.";
+        if (findNativeWorkshopPackage(workshop, text(item, "id"))) return nullptr;
+        const auto origin = text(item, "origin");
+        if (origin == "local_import") return "Imported maps cannot be played from this menu yet.";
+        if (item.is_object() && item.contains("installed") && item["installed"].is_boolean() &&
+            !item["installed"].get<bool>())
+            return "Not installed";
+        if (origin == "catalog") return "Choose the installed map file.";
+        if (!workshop.libraryConfirmed) return "This game's Steam library could not be confirmed.";
+        return "This map is in another Steam library.";
+    }
+
+    void buildWorkshop(CareerLayoutView& view, const Json& state, const NativeWorkshopContext& workshop) const {
         view.title = "Workshop";
-        const auto workshop = object(state, "workshop");
-        const auto note = text(workshop, "note");
+        const auto library = object(state, "workshop");
+        const auto note = text(library, "note");
         const char* published =
             "Browse installed maps and save favorites. Custom map launch is paused while a loader "
             "that preserves your Steam game is being developed.";
-        addLine(view.body, note == published ? published : "Browse installed maps and save favorites.");
+        if (workshop.bound && !workshop.status.empty()) addLine(view.body, workshop.status);
+        else addLine(view.body, note == published ? published : "Browse installed maps and save favorites.");
         const bool canEdit = !busy(state);
         dispatch(view, "workshop.refresh", "Refresh library", canEdit, kWait, "refresh_workshop", Json::object());
-        const auto items = array(workshop, "items");
-        std::size_t shown = 0;
-        const auto stop = (std::min)(items.size(), kScanCap);
-        for (std::size_t i = 0; i < stop && shown < kMaxRows; ++i) {
-            const auto& item = items[i];
+        const auto items = array(library, "items");
+        const auto stop = (std::min)(items.size(), workshop.bound ? kMaxWorkshopRows : kScanCap);
+        std::vector<std::size_t> rows;
+        for (std::size_t index = 0; index < stop; ++index)
+            if (safeId(text(items[index], "id"))) rows.push_back(index);
+        const std::size_t pages = rows.empty() ? 1 : (rows.size() + kMaxRows - 1) / kMaxRows;
+        const std::size_t page = workshopPage_ < pages ? workshopPage_ : pages - 1;
+        const std::size_t first = page * kMaxRows;
+        const std::size_t last = (std::min)(rows.size(), first + kMaxRows);
+        for (std::size_t slot = first; slot < last; ++slot) {
+            const auto& item = items[rows[slot]];
             const auto id = text(item, "id");
-            if (!safeId(id)) continue;
             const auto title = plain(text(item, "title", "Map"), 48);
             const bool favorite = flag(item, "favorite", false);
             dispatch(view, "workshop.favorite." + id, (favorite ? "Remove " : "Save ") + title + (favorite ? " from favorites" : " to favorites"),
@@ -1069,14 +1212,39 @@ private:
             CareerLayoutChoice play;
             play.id = "workshop.play." + id;
             play.label = "Play " + title;
-            play.enabled = false;
-            play.kind = CareerLayoutEffectKind::Unavailable;
-            play.reason = mapReason(item);
             play.itemId = id;
+            if (!workshop.bound) {
+                play.enabled = false;
+                play.kind = CareerLayoutEffectKind::Unavailable;
+                play.reason = mapReason(item);
+            } else if (const char* block = workshopBlock(item, workshop, !canEdit)) {
+                play.enabled = false;
+                play.kind = CareerLayoutEffectKind::Unavailable;
+                play.reason = block;
+            } else {
+                const auto* package = findNativeWorkshopPackage(workshop, id);
+                play.enabled = package != nullptr;
+                play.kind = package ? CareerLayoutEffectKind::LocalWorkshop : CareerLayoutEffectKind::Unavailable;
+                if (!package) {
+                    play.reason = "Not installed";
+                } else {
+                    play.workshop.rowId = package->rowId;
+                    play.workshop.workshopId = package->workshopId;
+                    play.workshop.title = title;
+                    play.workshop.contentRoot = package->contentRoot;
+                    play.workshop.packagePath = package->packagePath;
+                    play.workshop.nonce = workshop.nonce;
+                    play.workshop.generation = workshop.generation;
+                    play.workshopStamp = stampWorkshop(play.workshop);
+                }
+            }
             push(view, std::move(play));
-            ++shown;
         }
-        if (!shown) addLine(view.body, "No workshop maps are in the library yet.");
+        if (page > 0)
+            navigate(view, "workshop.page.previous", "Previous maps", CareerLayoutPage::Workshop, page - 1);
+        if (last < rows.size())
+            navigate(view, "workshop.page.next", "More maps", CareerLayoutPage::Workshop, page + 1);
+        if (rows.empty()) addLine(view.body, "No workshop maps are in the library yet.");
         back(view, CareerLayoutPage::Root);
     }
 
@@ -1087,6 +1255,9 @@ private:
         const auto message = text(plugins, "message");
         if (!message.empty()) addLine(view.body, message);
         const bool waiting = flag(plugins, "busy", false) || busy(state);
+        addLine(view.body, "Copy a plugin page link, then choose Paste plugin link.");
+        dispatch(view, "community.paste", "Paste plugin link", !waiting, kWait,
+            "community_paste_link", Json::object());
         const auto catalog = array(plugins, "catalog");
         std::size_t shown = 0;
         const auto stop = (std::min)(catalog.size(), kScanCap);

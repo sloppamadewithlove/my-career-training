@@ -5,6 +5,9 @@
 #include "OwnedSession.h"
 #include "NativeCareerMenu.h"
 #include "NativeMovieHost.h"
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+#include "NativeWorkshopLauncher.h"
+#endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
@@ -62,6 +65,11 @@ private:
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
     std::unique_ptr<mct::NativeMovieHost> nativeMovie_;
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    std::unique_ptr<mct::NativeWorkshopLauncher> workshopLauncher_;
+    std::string workshopSession_;
+    std::uint64_t workshopGeneration_ = 1;
+#endif
     std::atomic<bool> nativeMovieReady_{false};
     std::atomic<bool> menuOpen_{true};
     std::atomic<bool> windowOpen_{false};
@@ -154,6 +162,11 @@ private:
     bool queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());
     mct::NativeCosmeticContext nativeCosmeticContext();
     bool applyNativeCosmetic(const mct::NativeCosmeticRequest& request);
+    mct::NativeWorkshopContext nativeWorkshopContext();
+    bool requestNativeWorkshop(const mct::NativeWorkshopRequest& request);
+    mct::WorkshopLoadScope workshopScope() const;
+    void dispatchWorkshopCommand(const std::string& command);
+    void maintainWorkshop();
     void loadPreferences();
     void savePreferences();
     bool command(const std::string& action, mct::Json payload = mct::Json::object());
