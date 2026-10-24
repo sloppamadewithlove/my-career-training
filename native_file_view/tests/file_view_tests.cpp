@@ -471,6 +471,13 @@ int CheckCommonReads(const std::map<std::string, std::string>& fields, const Mct
                      const std::string& mixedHex, const std::string& relativeHex) {
     if (int rc = Expect(fields, "first_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "first_hex", firstHex, outcome)) return rc;
+    if (int rc = Expect(fields, "metadata_err", "0", outcome)) return rc;
+    const auto readSize = std::to_string(firstHex.size() / 2);
+    if (int rc = Expect(fields, "handle_size", readSize, outcome)) return rc;
+    if (int rc = Expect(fields, "standard_size", readSize, outcome)) return rc;
+    // Path-based queries are not redirected; metadata on the opened private
+    // handle must still agree with the bytes that handle actually reads.
+    if (int rc = Expect(fields, "path_size", std::to_string(std::strlen(kOriginal)), outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_hex", HexText(kUnrelated), outcome)) return rc;
     if (int rc = Expect(fields, "sibling_err", "0", outcome)) return rc;

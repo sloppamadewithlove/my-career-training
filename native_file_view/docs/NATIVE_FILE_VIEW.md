@@ -46,9 +46,18 @@ Verified by those tests:
 
 Scratch cleanup deletes only a canonical `mct-nfv-*` directory directly under the process temporary directory, and only children of that directory.
 
+The plain, redirected, and inactive-scope reads also query `GetFileSizeEx` and
+`GetFileInformationByHandleEx(FileStandardInfo)` on their opened handles. Both
+sizes match the bytes actually read, including the deliberately different
+original/private lengths. A `GetFileAttributesExW` query of the original path
+still reports the original size. This documents an API boundary: path metadata
+is not redirected. These assertions passed with all eleven scenarios; they do
+not establish which metadata calls Rocket League uses.
+
 Not verified:
 
 - Any installed game, its package reader, or a process that was already running.
-- File APIs other than `CreateFileW` in this fixture. This hook does not observe other open calls.
+- Other file-open APIs. Only `CreateFileW` is hooked; the two handle metadata
+  queries above work on the genuine redirected handle without another hook.
 - A callback from the hook into the career app.
 - That lexical path matching follows junctions or covers every path a game binary might open.

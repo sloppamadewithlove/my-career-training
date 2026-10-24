@@ -21,6 +21,10 @@ std::string HexBytes(const unsigned char* bytes, DWORD size) {
 struct ReadProbe {
     DWORD error = 0;
     std::string hex;
+    DWORD metadataError = 0;
+    long long handleSize = -1;
+    long long standardSize = -1;
+    long long pathSize = -1;
 };
 
 ReadProbe ReadExisting(const std::wstring& path) {
@@ -35,6 +39,19 @@ ReadProbe ReadExisting(const std::wstring& path) {
     DWORD read = 0;
     const BOOL ok = ReadFile(file, buffer, sizeof(buffer), &read, nullptr);
     const DWORD readError = ok ? 0 : GetLastError();
+    LARGE_INTEGER size{};
+    FILE_STANDARD_INFO standard{};
+    WIN32_FILE_ATTRIBUTE_DATA attributes{};
+    if (!GetFileSizeEx(file, &size) ||
+        !GetFileInformationByHandleEx(file, FileStandardInfo, &standard, sizeof(standard)) ||
+        !GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &attributes)) {
+        probe.metadataError = GetLastError();
+    } else {
+        probe.handleSize = size.QuadPart;
+        probe.standardSize = standard.EndOfFile.QuadPart;
+        probe.pathSize = static_cast<long long>((static_cast<unsigned long long>(attributes.nFileSizeHigh) << 32) |
+            attributes.nFileSizeLow);
+    }
     CloseHandle(file);
     if (!ok) {
         probe.error = readError;
@@ -170,6 +187,10 @@ int wmain(int argc, wchar_t** argv) {
     AppendField(&receipt, "scope", static_cast<DWORD>(scopeActive));
     AppendField(&receipt, "first_err", first.error);
     AppendField(&receipt, "first_hex", first.hex);
+    AppendField(&receipt, "metadata_err", first.metadataError);
+    AppendField(&receipt, "handle_size", std::to_string(first.handleSize));
+    AppendField(&receipt, "standard_size", std::to_string(first.standardSize));
+    AppendField(&receipt, "path_size", std::to_string(first.pathSize));
     AppendField(&receipt, "unrelated_err", unrelatedProbe.error);
     AppendField(&receipt, "unrelated_hex", unrelatedProbe.hex);
     AppendField(&receipt, "sibling_err", siblingProbe.error);
