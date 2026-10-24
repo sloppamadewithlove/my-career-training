@@ -954,7 +954,7 @@ private:
         const auto careerId = text(career, "id");
         const auto fixtureId = text(unfinished, "fixture_id");
         const auto sessionId = text(unfinished, "session_id");
-        const bool canRestart = !busy(state) && !workerLikely(state) && validId(careerId) &&
+        const bool canRestart = !busy(state) && !flag(sessionOf(state), "worker_running", true) && validId(careerId) &&
             validId(fixtureId) && validId(sessionId);
         dispatch(view, "career.recover.confirm", "Confirm restart", canRestart,
             "Return from the current activity first. If no unfinished match remains, go Back.",

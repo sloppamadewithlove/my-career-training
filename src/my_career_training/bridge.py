@@ -131,6 +131,7 @@ class Backend(QObject):
                 self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
                 "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
+                "worker_running": self._worker_active(),
                 "can_exit": not self.lifecycle.frozen and self.session_state not in
                     ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "id": self.session_id,
@@ -515,6 +516,9 @@ class Backend(QObject):
                 self._begin_stop("abandon")
             else:
                 self._career_change(domain.abandon_fixture)
+                self.request = None
+                self.session_state = "Idle"
+                self.session_message = ""
                 self.notice = "The unfinished match is ready to restart from kickoff. No result was added."
         elif action == "recover_result":
             if self._worker_active() or game_processes():

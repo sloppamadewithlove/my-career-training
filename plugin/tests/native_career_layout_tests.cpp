@@ -54,7 +54,7 @@ static CareerLayoutScope ownedScope() {
 
 static Json readyState() {
     Json state = {{"protocol", 1}, {"offline", true}, {"bridge_session", "0123456789abcdef0123456789abcdef"},
-        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}}},
+        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}, {"worker_running", false}}},
         {"career", {{"id", "career-a"}, {"team_name", "Orbit"}, {"current_season", 0}, {"pending_session", nullptr},
             {"squad", {"anchor", "shield", "relay", "comet"}}, {"lineup", {"anchor", "shield"}},
             {"recruits", {{"anchor", {{"name", "Anchor"}, {"role", "keeper"}}},
@@ -881,8 +881,17 @@ int main() {
             "Old confirmation restarted a different attempt");
         auto activeAttempt = recoveryState;
         activeAttempt["session"]["kind"] = "career";
+        activeAttempt["session"]["worker_running"] = true;
         require(!findChoice(recovery.view(scope, activeAttempt), "career.recover.confirm").enabled,
             "Recovery offered to clear a live match");
+        activeAttempt["session"].erase("worker_running");
+        require(!findChoice(recovery.view(scope, activeAttempt), "career.recover.confirm").enabled,
+            "Recovery guessed that an unknown worker was stopped");
+        auto failedAttempt = recoveryState;
+        failedAttempt["session"]["kind"] = "career";
+        failedAttempt["session"]["state"] = "Error/Recovery";
+        require(findChoice(recovery.view(scope, failedAttempt), "career.recover.confirm").enabled,
+            "Recovery stayed blocked by a failed worker's previous request");
         auto recovered = choose(recovery, confirmation, scope, recoveryState, true);
         require(recovered.accepted && recovered.action == "abandon_fixture" && !recovered.leaveMenu &&
             recovered.page == CareerLayoutPage::Career && recovered.payload.at("expected_fixture_id") == "fixture-a",

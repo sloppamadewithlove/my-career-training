@@ -77,6 +77,10 @@ def unfinished_career(instance):
 def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedule(backend):
     instance, _, _ = backend
     payload = unfinished_career(instance)
+    instance.process = FakeProcess(QProcess.NotRunning)
+    instance.request = {"fixture": {"id": payload["expected_fixture_id"]}}
+    instance.session_state = "Error/Recovery"
+    assert instance.state["session"]["worker_running"] is False
     before = json.loads(json.dumps(instance.document["career"]))
     instance.dispatch("abandon_fixture", payload)
     assert instance.error == ""
@@ -89,6 +93,8 @@ def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedul
     assert fixture["id"] == payload["expected_fixture_id"]
     assert fixture["status"] == "scheduled"
     assert fixture["result"] is None
+    assert instance.state["session"]["state"] == "Idle"
+    assert instance.state["session"]["kind"] == "hub"
 
 
 @pytest.mark.parametrize("change", ["career", "fixture", "attempt", "missing", "extra", "active"])
