@@ -26,7 +26,9 @@ def _load_reader():
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load native package reader from {path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # This helper is also loaded from the immutable packaged runtime. Keep it
+    # free of bytecode-cache writes, including its sibling reader dependency.
+    exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     return module
 
 
