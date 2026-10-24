@@ -652,6 +652,23 @@ def test_valid_archive_is_cached_privately_and_not_enabled(tmp_path):
     assert cached_plugins(cache) == [receipt]
 
 
+def test_cached_archive_preserves_binary_newlines_and_control_z(tmp_path):
+    # Windows CRT text mode translates CRLF and treats 0x1a as EOF. Store the
+    # payload without compression so these bytes necessarily reach the reader.
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as bundle:
+        bundle.writestr("plugins/Fixture.dll", b"MZ\r\nstart\x1amiddle\xff\r\nend")
+    archive = buffer.getvalue()
+    opener, _seen = service(archive=archive)
+    record = lookup_plugin("223", opener=opener)
+    cache = tmp_path / "cache"
+    receipt = download_plugin(record, cache, opener=opener)
+    assert (cache / receipt["archive"]).read_bytes() == archive
+    assert receipt["artifact_sha256"] == hashlib.sha256(archive).hexdigest()
+    assert cached_plugins(cache) == [receipt]
+    assert list(cache.rglob("*.dll")) == []
+
+
 def test_cached_listing_rejects_identity_mismatch_and_partial_objects(tmp_path):
     opener, _seen = service()
     record = lookup_plugin("223", opener=opener)

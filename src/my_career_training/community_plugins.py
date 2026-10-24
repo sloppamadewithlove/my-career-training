@@ -765,7 +765,9 @@ def _atomic_write(folder: Path, name: str, data: bytes) -> None:
 def _read_nofollow(path: Path, limit: int) -> bytes:
     if path.is_symlink() or _is_junction(path):
         raise CommunityPluginError("Cached plugin is not a regular file.")
-    flags = os.O_RDONLY
+    # The Windows CRT otherwise translates CRLF and treats byte 0x1a as EOF.
+    # Integrity checks must compare the original archive bytes on every OS.
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags | nofollow)
