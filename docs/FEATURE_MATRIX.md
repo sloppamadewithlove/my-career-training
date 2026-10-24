@@ -1,5 +1,10 @@
 # Feature evidence matrix — 0.1.0 testing prerelease
 
+Historical evidence snapshot. For the active native-menu repair, current
+installer checks and remaining live acceptance, start with
+[PROJECT_STATUS.md](PROJECT_STATUS.md). Do not read this older matrix as the
+status of a later candidate.
+
 Evidence date: **22 October 2026**. This is a development snapshot, not a completed
 V1 acceptance certificate. App version 0.1.0; Python 3.12.13; PySide6-Essentials
 6.12.0; RLBot interface 2.0.0b56; FlatBuffers 0.19.0; core v5.0.0-rc18. The player's

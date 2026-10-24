@@ -30,9 +30,19 @@ Do not label a replacement playable until its live acceptance checks pass.
 - A numeric-only live trace then measured the mismatch: the game queried a
   3,418,271-byte path and opened a 3,450,552-byte private handle. The repair makes
   exact-path attribute queries describe the same private file as the open.
-  The recompressed test remained running after this change; visual acceptance
-  was paused when Windows switched to its screen saver. Custom-menu and gameplay
-  acceptance are still pending. Directory enumeration is not redirected.
+  Both the recompressed and metadata-only tests then reached the visible stock
+  main menu. Directory enumeration is not redirected.
+- The authored menu still appeared blank after the size repair. A private live
+  test preserved the original class initializer, renamed its root class, and
+  supplied a separately compiled root wrapper under the original timeline name.
+  That test displayed the authored controls and its Exit button closed the game.
+- A separate live transport probe established that this Scaleform runtime reads
+  the validated local file through its decoded Windows path, but fails on the
+  `file:///` URL. The native JSON API then raised `ReferenceError #1069`.
+  A pinned, BSD-licensed AS3 JSON codec successfully read and parsed the view;
+  all seven career buttons appeared and the plugin acknowledged the menu's
+  handshake. These were private diagnostic builds, not release acceptance.
+  Button actions, practice and career gameplay are under live test.
 - Exact GPT-6 Luna with max reasoning ran through Codex CLI. Its broad source
   run passed 862 tests and skipped 14; four temporary-map tests detected the real
   open game. The four pass with that dependency isolated. Their fixtures are
@@ -46,12 +56,20 @@ Do not label a replacement playable until its live acceptance checks pass.
 - The frozen app passed its offscreen UI, private-worker protocol and runtime
   checks from a Unicode path. The new installer review added full bundle hashes,
   a clean-source rebuild, a pinned compiler and fresh-output enforcement.
-- Existing product registration prevented a safe isolated installer lifecycle
-  test on the player PC. A dedicated GitHub-hosted Windows workflow builds and
-  tests the exact installer without touching that registration. Its result is
-  pending; this is not an installer-pass claim.
-- Grok 4.7 High runs through Cursor CLI are investigating the format/runtime
-  failure. Agent participation is not evidence of a successful game fix.
+- A GitHub-hosted Windows run for `e947322` passed 897 Python tests, 25 native
+  plugin tests and 12 launcher tests, then compiled and smoke-tested the real
+  installer. Install, reinstall, removal of the obsolete public worker,
+  uninstall, one player shortcut, all 4,467 installed file hashes and career
+  byte preservation passed. The previous-release upgrade and gameplay remain
+  unverified. See [the exact run](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40138066348).
+  This installer predates the live-proven class and transport repairs; it is
+  not the replacement player download.
+- Grok 4.7 High through Cursor CLI implements the difficult fixes; GPT-6 Luna
+  with max reasoning through Codex CLI independently researches and tests them.
+  Agent participation alone is not evidence of a successful game fix.
+- The production [download page](https://my-career-training.vercel.app/) now
+  explains the repair and no longer offers the known-broken ZIP as its download.
+  A replacement installer is held until its exact build passes live checks.
 
 ## Supported target and remaining acceptance
 
