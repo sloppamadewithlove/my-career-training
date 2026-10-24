@@ -24,6 +24,7 @@ if str(_SCRIPTS) not in sys.path:
 
 import plugin_artifact  # noqa: E402
 import stage_native_runtime as stage_menu  # noqa: E402
+from fetch_runtime import SHA256 as RLBOT_SHA256  # noqa: E402
 from my_career_training import native_launch, native_menu_assets as menu_assets  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -242,17 +243,17 @@ def bundle_entries(root: Path | None = None) -> list[tuple[str, str]]:
     return entries
 
 
-def check_runtime_tree(runtime: Path) -> dict:
+def check_runtime_tree(runtime: Path, *, bundled_core: bool = False) -> dict:
     """Allowlists, image hashes, PE machine, and false capability flags."""
     runtime = Path(runtime)
-    _runtime_listing(runtime)
+    _runtime_listing(runtime, bundled_core=bundled_core)
     plugin = _check_plugin(runtime / "plugins")
     native = confirm_native_runtime(runtime / "native")
     menu = load_menu_runtime(runtime / "native-menu")
     return {"plugin": plugin, "native": native, "native_menu": _menu_receipt(menu)}
 
 
-def check_manifest(path: Path, runtime: Path) -> dict:
+def check_manifest(path: Path, runtime: Path, *, bundled_core: bool = False) -> dict:
     manifest = _load_json(Path(path), MAX_PLUGIN_RECEIPT)
     if set(manifest) != _MANIFEST_KEYS or manifest.get("schema") != 1:
         raise CandidateBuildError("candidate manifest is not the fixed record")
@@ -266,7 +267,7 @@ def check_manifest(path: Path, runtime: Path) -> dict:
         raise CandidateBuildError("candidate build switches are not the native menu candidate")
     if not manifest.get("source_commit") or not manifest.get("source_files") or not manifest.get("dependencies"):
         raise CandidateBuildError("candidate manifest is missing source provenance")
-    staged = _runtime_hashes(runtime)
+    staged = _runtime_hashes(runtime, bundled_core=bundled_core)
     if manifest.get("staged_hashes") != staged:
         raise CandidateBuildError("candidate manifest hashes do not match the staged runtime")
     _check_notice_record(manifest.get("notice"), runtime)
@@ -695,12 +696,18 @@ def _check_image_record(images: object, runtime: Path) -> None:
             raise CandidateBuildError(f"candidate {name} image hash does not match the staged file")
 
 
-def _runtime_listing(runtime: Path) -> None:
+def _runtime_listing(runtime: Path, *, bundled_core: bool = False) -> None:
     if not runtime.is_dir() or _is_reparse(runtime):
         raise CandidateBuildError("candidate runtime directory is missing")
     names = {item.name for item in runtime.iterdir()}
-    if names != set(_COMPONENT_ALLOWLISTS):
-        unexpected = sorted(names - set(_COMPONENT_ALLOWLISTS))
+    expected = set(_COMPONENT_ALLOWLISTS)
+    if bundled_core:
+        expected.add("RLBotServer.exe")
+        core = _read_file(runtime / "RLBotServer.exe", 100 * 1024 * 1024)
+        if _sha(core) != RLBOT_SHA256:
+            raise CandidateBuildError("bundled RLBot core checksum does not match the pinned runtime")
+    if names != expected:
+        unexpected = sorted(names - expected)
         if unexpected:
             raise CandidateBuildError(f"candidate runtime has an unexpected entry: {unexpected[0]}")
         raise CandidateBuildError("candidate runtime is missing plugins, native, or native-menu")
@@ -717,8 +724,8 @@ def _runtime_listing(runtime: Path) -> None:
             raise CandidateBuildError(f"candidate {component} runtime is not the allowlist")
 
 
-def _runtime_hashes(runtime: Path) -> dict[str, dict[str, int | str]]:
-    _runtime_listing(runtime)
+def _runtime_hashes(runtime: Path, *, bundled_core: bool = False) -> dict[str, dict[str, int | str]]:
+    _runtime_listing(runtime, bundled_core=bundled_core)
     found = {}
     for component, allowlist in _COMPONENT_ALLOWLISTS.items():
         for name in sorted(allowlist):

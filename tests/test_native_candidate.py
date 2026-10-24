@@ -21,6 +21,7 @@ from my_career_training import native_launch, native_menu_assets as menu_assets 
 
 COMMIT = "a" * 40
 NOTICE = b"Microsoft Research Detours project notice\n"
+CORE = b"MZ synthetic pinned RLBot core fixture"
 
 
 def test_plan_commands_stay_on_the_candidate_cmake_cache(tmp_path):
@@ -214,6 +215,7 @@ def test_freeze_is_explicit_and_does_not_launch_or_clean(tmp_path, monkeypatch):
 
 
 def test_smoke_rejects_missing_runtime_wrong_flag_hash_and_proprietary_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(candidate, "RLBOT_SHA256", hashlib.sha256(CORE).hexdigest())
     world = _build(tmp_path, monkeypatch)
     bundle = tmp_path / "bundle"
     _as_bundle(world, bundle)
@@ -255,6 +257,20 @@ def test_smoke_rejects_missing_runtime_wrong_flag_hash_and_proprietary_file(tmp_
     with pytest.raises(candidate.CandidateBuildError, match="unexpected entry"):
         smoke.validate_bundle(owned)
     assert extra.read_bytes() == b"game"
+
+    wrong_core = tmp_path / "wrong-core"
+    _as_bundle(world, wrong_core)
+    core = wrong_core / "_internal/my_career_training/runtime/RLBotServer.exe"
+    core.write_bytes(b"MZ changed core")
+    with pytest.raises(candidate.CandidateBuildError, match="RLBot core checksum"):
+        smoke.validate_bundle(wrong_core)
+    core.unlink()
+    with pytest.raises(candidate.CandidateBuildError, match="missing"):
+        smoke.validate_bundle(wrong_core)
+    # The compile/stage tree remains narrower than the finished player bundle.
+    core.write_bytes(CORE)
+    with pytest.raises(candidate.CandidateBuildError, match="unexpected entry"):
+        candidate.check_runtime_tree(core.parent)
 
 
 @pytest.mark.parametrize("filename", ["package-smoke-receipt.json", "PACKAGE-SMOKE-RECEIPT.JSON"])
@@ -481,6 +497,7 @@ def _as_bundle(world: SimpleNamespace, bundle: Path) -> None:
         for path in (runtime / component).iterdir():
             (target / path.name).write_bytes(path.read_bytes())
     manifest = candidate.candidate_dir(world.root) / candidate.MANIFEST_NAME
+    (destination / "RLBotServer.exe").write_bytes(CORE)
     (bundle / "_internal" / candidate.MANIFEST_NAME).write_bytes(manifest.read_bytes())
 
 

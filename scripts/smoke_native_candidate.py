@@ -51,8 +51,8 @@ def validate_bundle(bundle: Path) -> dict:
         raise candidate.CandidateBuildError("candidate bundle is missing")
     runtime = bundle / "_internal" / "my_career_training" / "runtime"
     manifest = bundle / "_internal" / "candidate-manifest.json"
-    tree = candidate.check_runtime_tree(runtime)
-    body = candidate.check_manifest(manifest, runtime)
+    tree = candidate.check_runtime_tree(runtime, bundled_core=True)
+    body = candidate.check_manifest(manifest, runtime, bundled_core=True)
     if tree["plugin"].get("native_movie_trial") is not True or body["build"].get("native_movie_trial") is not True:
         raise candidate.CandidateBuildError("candidate bundle was not built with the native movie trial")
     if body["flags"] != candidate.FALSE_FLAGS:

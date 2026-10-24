@@ -32,6 +32,9 @@ if not core.is_file():
     raise SystemExit("Run scripts/fetch_runtime.py before packaging")
 if not icon.is_file():
     raise SystemExit("The original app icon is missing")
+for notice in ("RLBot-core-LICENSE.txt", "Python-LICENSE.txt", "dependency-manifest.json", "SOURCE_MANIFEST.json"):
+    if not (root / "packaging" / "licenses" / notice).is_file():
+        raise SystemExit("Run scripts/collect_licenses.py before packaging the native candidate")
 try:
     staged = candidate.bundle_entries(root)
 except candidate.CandidateBuildError as exc:
