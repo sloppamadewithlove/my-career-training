@@ -17,6 +17,10 @@
 #include <windows.h>
 #include <shellapi.h>
 
+// The SDK normally embeds __FILE__, including the builder's private home path.
+// Keep the same public metadata field and ABI with a repository-relative name.
+#undef BAKKESMOD_STANDARD_PLUGIN_STUFF
+#define BAKKESMOD_STANDARD_PLUGIN_STUFF BAKKESMOD_PLUGIN_API_VERSION, "plugin/src/MyCareerTraining.cpp"
 BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.3.0", PLUGINTYPE_FREEPLAY)
 extern "C" __declspec(dllexport) int mct_protocol_version() { return 1; }
 
