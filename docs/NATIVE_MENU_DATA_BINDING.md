@@ -79,6 +79,12 @@ Global budget is 4096 reads and 256 KiB. A single read is at most 256 bytes. `re
 
 ## Re-resolution later
 
+The later [static main-menu asset inspection](NATIVE_MENU_ASSET_BINDINGS.md)
+found that normal root captions are movie-localized constants. The event button
+has a data-store label source, but the inspected menu-tree row wrapper has no
+label/title getter. Treat this reader as data-store discovery, not as an
+established root-caption adapter.
+
 `GFxDataStore_X.GetValue(Table, Row, Column)` in the same metadata snapshot takes an FName table, an int row, and an FName column. The coordinate above is that candidate key. The public BakkesMod SDK does not expose a callable wrapper for this data-store method; a later adapter still needs a verified engine call boundary and must re-resolve the current store. This module does not call `GetValue`, `SetASValue`, or any other store function.
 
 A later native-label step still has to prove which movie shows the cell, that the string is the visible caption rather than a duplicate in another table, and that a write would refresh the widget. Those proofs are outside this result. Until they exist, the three mutation flags stay false.

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-10-24",
+  "inspection": "read_only_local_package",
+  "game_launched": false,
+  "game_files_written": false,
+  "proprietary_payload_in_repository": false,
+  "package": {
+    "name": "GFX_MainMenu_SF.upk",
+    "bytes": 3418271,
+    "sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
+    "file_version": 868,
+    "licensee_version": 34,
+    "flags": "0x0288028D",
+    "full_ctr_flag_present": false,
+    "header_bytes": 30909,
+    "header_tables_read": true,
+    "name_count": 163,
+    "name_offset": 1369,
+    "import_count": 10,
+    "import_offset": 6156,
+    "export_count": 113,
+    "export_offset": 6436,
+    "depends_offset": 14572,
+    "chunk_count": 6,
+    "chunk_descriptor_bytes": 36,
+    "chunk_nonce_extension_all_zero": true
+  },
+  "movie": {
+    "export_index": 5,
+    "name": "MainMenu",
+    "class": "SwfMovie",
+    "logical_serial_offset": 7508523,
+    "serial_bytes": 1137139,
+    "raw_data_bytes": 1136465,
+    "raw_data_sha256": "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0",
+    "signature": "GFX",
+    "swf_version": 20,
+    "actionscript_version": 3,
+    "file_attributes": "0x8",
+    "frames": 1,
+    "abc_blocks": 1,
+    "abc_version": "46.16",
+    "abc_classes": 714,
+    "abc_method_bodies": 11502,
+    "symbol_class_mappings": 95,
+    "selected_symbols": [
+      "MainMenuScreen", "RootMenuMovie", "GarageMainMenuMovie", "CareerMenuMovie"
+    ]
+  },
+  "limits": [
+    "Private inspection identified the current package format and movie; it does not implement a native menu replacement.",
+    "Menu and ExternalInterface identifiers alone do not establish a callable host bridge or visible label binding.",
+    "Current 36-byte compression records differ from older UEViewer's 24-byte legacy layout even without the full-CTR flag.",
+    "No custom movie loading, native parameter write, label change, action remap, or rollback was exercised here."
+  ],
+  "production_native_mutation_allowed": false
+}
