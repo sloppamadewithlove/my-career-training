@@ -1,6 +1,7 @@
 package menus
 {
     import flash.events.Event;
+    import com.adobe.serialization.json.JSON;
     import flash.display.InteractiveObject;
     import flash.events.IOErrorEvent;
     import flash.events.SecurityErrorEvent;
@@ -12,6 +13,7 @@ package menus
     import flash.utils.Timer;
     import flash.utils.getTimer;
     import projectx.core.UIMenu;
+    import projectx.core.UIScreen;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
     import tagame.api.DevUtil;
@@ -132,11 +134,22 @@ package menus
             super.refreshMenu();
             for each (var control:UIComponent in m_controls)
                 if (control.name == focusId && control.enabled) currentFocus = control;
-            if (details != null)
-            {
-                details.x = Math.max(380, m_controlContainer.width + 40);
-                details.y = m_controlContainer.y;
-            }
+            layoutDetails();
+        }
+
+        override protected function handleStageResized(event:Event = null) : void
+        {
+            super.handleStageResized(event);
+            layoutDetails();
+        }
+
+        private function layoutDetails() : void
+        {
+            if (details == null) return;
+            details.x = Math.max(380, m_controlContainer.width + 40);
+            details.width = Math.max(260, UIScreen.ContentStageWidth - details.x - 40);
+            details.height = Math.min(530, Math.max(120, UIScreen.ContentStageHeight - 160));
+            details.y = Math.max(40, Math.min(m_controlContainer.y, UIScreen.ContentStageHeight - details.height - 120));
         }
 
         override protected function getDirectionalFocus(direction:String) : InteractiveObject
@@ -244,7 +257,7 @@ package menus
             }
             busy = true;
             busyStarted = getTimer();
-            DevUtil.Log("MCT_NATIVE_UI_V1", JSON.stringify({protocol:1, session:SESSION,
+            DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                 generation:generation, revision:String(item.revision), control:String(item.id)}));
             refreshMenu();
         }
@@ -264,7 +277,7 @@ package menus
             loader.addEventListener(IOErrorEvent.IO_ERROR, failed, false, 0, true);
             loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, failed, false, 0, true);
             loadStarted = getTimer();
-            try { loader.load(new URLRequest(VIEW_URL)); }
+            try { loader.load(new URLRequest(decodeURIComponent(VIEW_URL.substr(8)))); }
             catch (error:Error) { failed(); }
         }
 
@@ -276,7 +289,7 @@ package menus
             if (raw.length > 65536) { loseConnection(); return; }
             try
             {
-                var incoming:Object = JSON.parse(raw);
+                var incoming:Object = com.adobe.serialization.json.JSON.decode(raw, true);
                 if (incoming == null || !(incoming.controls is Array) || incoming.controls.length > 24)
                     throw new Error("Invalid menu");
                 for each (var item:Object in incoming.controls)
@@ -286,7 +299,7 @@ package menus
                 if (!validView(incoming)) { loseConnection(); return; }
                 if (getTimer() - lastHello >= 1000)
                 {
-                    DevUtil.Log("MCT_NATIVE_UI_V1", JSON.stringify({protocol:1, session:SESSION, event:"ready"}));
+                    DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION, event:"ready"}));
                     lastHello = getTimer();
                 }
                 if (!isFrontMenu())

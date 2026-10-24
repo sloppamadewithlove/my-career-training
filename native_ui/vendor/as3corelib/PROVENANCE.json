@@ -1,0 +1,76 @@
+{
+  "name": "as3corelib",
+  "upstream": "https://github.com/mikechambers/as3corelib",
+  "commit": "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559",
+  "license": "BSD-3-Clause",
+  "license_file": "README",
+  "copyright": "Copyright (c) 2008, Adobe Systems Incorporated",
+  "closure": [
+    "src/com/adobe/serialization/json/JSON.as",
+    "src/com/adobe/serialization/json/JSONDecoder.as",
+    "src/com/adobe/serialization/json/JSONEncoder.as",
+    "src/com/adobe/serialization/json/JSONParseError.as",
+    "src/com/adobe/serialization/json/JSONToken.as",
+    "src/com/adobe/serialization/json/JSONTokenType.as",
+    "src/com/adobe/serialization/json/JSONTokenizer.as"
+  ],
+  "files": [
+    {
+      "path": "src/com/adobe/serialization/json/JSON.as",
+      "bytes": 3132,
+      "sha256": "9414b8263250237f8671f5e05ad86c92536cdbd840f52bf47ee5367b99fae5c8",
+      "git_blob_sha1": "81b143c7ea8103d26380567e147e832258b8f746",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSON.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONDecoder.as",
+      "bytes": 9726,
+      "sha256": "4f11d1427099c93135d818c70cc1f7201faa02d5375aaeaef12874531d6dfb65",
+      "git_blob_sha1": "09fbe887a9c19122a67d940a3f653eb8c45fd372",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONDecoder.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONEncoder.as",
+      "bytes": 9542,
+      "sha256": "ae997d2e420d4115b6c9b6a2ee449879b0fdf4c67bd9f2433e3ef58d9f277c31",
+      "git_blob_sha1": "db694940dfa2001931db90c3e3601a36c7aba254",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONEncoder.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONParseError.as",
+      "bytes": 2899,
+      "sha256": "83cbdd7157d513cbc81a6c564e4f4e5e14daa58d98bafbab05ed4df4418e3638",
+      "git_blob_sha1": "835836b3f096e3791af5e18f4db9722b2c9bceaa",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONParseError.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONToken.as",
+      "bytes": 3003,
+      "sha256": "80ee91dbdebac33f6739d3b6026a59ff9ea14fd8bd906a1e06e83988ed9c34a8",
+      "git_blob_sha1": "59f907dec4dafacb8ce08d80914239005fa5a554",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONToken.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONTokenType.as",
+      "bytes": 2312,
+      "sha256": "b29490ba39abb965a4b691b5693453a2b561d24bc44f47a2960a89b5845ab595",
+      "git_blob_sha1": "8002b322718e1a2ba231cd72edc6ce18b8e5fe88",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONTokenType.as"
+    },
+    {
+      "path": "src/com/adobe/serialization/json/JSONTokenizer.as",
+      "bytes": 18773,
+      "sha256": "e3749db0046d7dc0f4542fa76d439b29f9100a60c8380c0c03963c191b4e16f2",
+      "git_blob_sha1": "0072f6fcc2eac9e2ea34ce5a7d264e10c10d66c8",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/src/com/adobe/serialization/json/JSONTokenizer.as"
+    },
+    {
+      "path": "README",
+      "bytes": 1850,
+      "sha256": "d2085963bde4505f6de3d3760b53d30777b482ed443b205736f74da3c3fbc756",
+      "git_blob_sha1": "227a6fa4a12c77f6a662462e1a91508d29ca24a9",
+      "source_url": "https://raw.githubusercontent.com/mikechambers/as3corelib/24c6c16aecbf0d8fcc043ae671e689b0d4b4c559/README"
+    }
+  ],
+  "note": "Upstream tree has no standalone LICENSE file. README is the retained BSD 3-Clause text. Source headers retain the same copyright, conditions, and disclaimer."
+}

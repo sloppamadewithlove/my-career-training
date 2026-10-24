@@ -33,10 +33,17 @@ that build. This module does not read BakkesMod.
 | Movie SHA-256 | `57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0` |
 
 The staged ABC, manifest, and `native_movie_compose.py` pins must agree,
-including the authored classes `menus::MctRootMenu`, `MctMainMenuScreen`,
-and `MctRootMenuMovie`, the wrapper source hash, and document character `0`
-bound to `MctMainMenuScreen`. A mismatch refuses staging. The stage script
-does not edit those files and does not unpin them.
+including the project classes `menus::MctRootMenu`, `MctMainMenuScreen`,
+and `MctRootMenuMovie`, the seven `com.adobe.serialization.json` library
+classes, the vendored source, README, and provenance hashes, the wrapper
+source hash, and document character `0` bound to `MctMainMenuScreen`.
+`authored_classes` are the project classes. `library_classes` are as3corelib.
+`classes` is the parsed definition order. The receipt pin `classes` stays the
+three project classes. A mismatch refuses staging before the compiled ABC is
+accepted. The stage script does not edit those files and does not unpin them.
+The BSD terms for the JSON codec are in `THIRD_PARTY_NOTICES.md`, which both
+package specs copy next to the executable. That notice does not make this ABC
+`runtime_verified`.
 
 ## Decoder configuration
 

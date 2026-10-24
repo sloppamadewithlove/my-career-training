@@ -60,6 +60,39 @@ READER_RELATIVE = "scripts/native_package_reader.py"
 REWRITE_RELATIVE = "scripts/native_package_rewrite.py"
 COMPOSE_RELATIVE = "scripts/native_movie_compose.py"
 AUTHORED_CLASSES = ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
+LIBRARY_COMMIT = "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559"
+LIBRARY_CLASSES = [
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONParseError",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+]
+COMPILED_CLASSES = [
+    "menus::MctRootMenu",
+    "MctMainMenuScreen",
+    "MctRootMenuMovie",
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONParseError",
+]
+LIBRARY_FILES = {
+    "native_ui/vendor/as3corelib/PROVENANCE.json": "f4f0d2420b305100cf2c0ae1d36e0be3ab7a77f8cba201dc1d874491b4662ea7",
+    "native_ui/vendor/as3corelib/README": "d2085963bde4505f6de3d3760b53d30777b482ed443b205736f74da3c3fbc756",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as": "9414b8263250237f8671f5e05ad86c92536cdbd840f52bf47ee5367b99fae5c8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONDecoder.as": "4f11d1427099c93135d818c70cc1f7201faa02d5375aaeaef12874531d6dfb65",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONEncoder.as": "ae997d2e420d4115b6c9b6a2ee449879b0fdf4c67bd9f2433e3ef58d9f277c31",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONParseError.as": "83cbdd7157d513cbc81a6c564e4f4e5e14daa58d98bafbab05ed4df4418e3638",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONToken.as": "80ee91dbdebac33f6739d3b6026a59ff9ea14fd8bd906a1e06e83988ed9c34a8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenType.as": "b29490ba39abb965a4b691b5693453a2b561d24bc44f47a2960a89b5845ab595",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenizer.as": "e3749db0046d7dc0f4542fa76d439b29f9100a60c8380c0c03963c191b4e16f2",
+}
 
 PAYLOAD_NAMES = (
     "native_package_reader.py",
@@ -293,6 +326,7 @@ def _accept_license(data: bytes) -> bytes:
 def _repo_payload(repo: Path) -> dict[str, bytes]:
     manifest_bytes = _repo_file(repo, MANIFEST_RELATIVE, _MAX_MANIFEST)
     manifest = _manifest(manifest_bytes)
+    _require_library_files(repo, manifest)
     abc = _repo_file(repo, ABC_RELATIVE, _MAX_ABC)
     source = _repo_file(repo, SOURCE_RELATIVE, _MAX_SOURCE)
     screen = _repo_file(repo, SCREEN_RELATIVE, _MAX_SOURCE)
@@ -319,6 +353,15 @@ def _repo_payload(repo: Path) -> dict[str, bytes]:
     }
 
 
+def _require_library_files(repo: Path, manifest: dict) -> None:
+    recorded = manifest["library_files"]
+    for relative, digest in LIBRARY_FILES.items():
+        blob = _repo_file(repo, relative, _MAX_SOURCE)
+        actual = _sha(blob)
+        if actual != recorded.get(relative) or actual != digest:
+            raise StageNativeRuntimeError("vendored library file does not match the manifest")
+
+
 def _manifest(data: bytes) -> dict:
     try:
         manifest = json.loads(data.decode("utf-8"))
@@ -332,8 +375,20 @@ def _manifest(data: bytes) -> dict:
         or manifest.get("root_movie_source") != ROOT_MOVIE_RELATIVE
     ):
         raise StageNativeRuntimeError("menu manifest paths are not the authored sources")
-    if manifest.get("classes") != AUTHORED_CLASSES:
+    if manifest.get("authored_classes") != AUTHORED_CLASSES:
         raise StageNativeRuntimeError("menu manifest classes are not the authored classes")
+    if manifest.get("library_classes") != LIBRARY_CLASSES:
+        raise StageNativeRuntimeError("menu manifest classes are not the library classes")
+    if manifest.get("classes") != COMPILED_CLASSES:
+        raise StageNativeRuntimeError("menu manifest classes are not the compiled classes")
+    if manifest.get("library_commit") != LIBRARY_COMMIT:
+        raise StageNativeRuntimeError("menu manifest library commit does not match")
+    recorded = manifest.get("library_files")
+    if type(recorded) is not dict or set(recorded) != set(LIBRARY_FILES):
+        raise StageNativeRuntimeError("menu manifest library files are not the vendored closure")
+    for digest in recorded.values():
+        if type(digest) is not str or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+            raise StageNativeRuntimeError("menu manifest library files are not the vendored closure")
     if manifest.get("game_classes_linked") is not False:
         raise StageNativeRuntimeError("menu manifest links game classes")
     if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
@@ -374,6 +429,10 @@ def _require_composer(path: Path, manifest: dict) -> None:
         root_movie_source = module.ROOT_MOVIE_SOURCE_SHA256
         original_root = module.ORIGINAL_ROOT_NAME
         renamed_root = module.RENAMED_ORIGINAL_ROOT
+        library_commit = module.LIBRARY_COMMIT
+        library_classes = list(module.LIBRARY_CLASSES)
+        compiled_classes = list(module.COMPILED_CLASSES)
+        library_files = module.LIBRARY_FILES
         character = module.DOCUMENT_CHARACTER
         target = module.DOCUMENT_TARGET_NAME
     except AttributeError:
@@ -392,6 +451,10 @@ def _require_composer(path: Path, manifest: dict) -> None:
         raise StageNativeRuntimeError("composer authored classes do not match")
     if original_root != "RootMenuMovie" or renamed_root != "MctOriginalRootMenuMovie":
         raise StageNativeRuntimeError("composer root alias does not match")
+    if library_commit != LIBRARY_COMMIT or library_classes != LIBRARY_CLASSES or compiled_classes != COMPILED_CLASSES:
+        raise StageNativeRuntimeError("composer library pin does not match the manifest")
+    if library_files != manifest.get("library_files"):
+        raise StageNativeRuntimeError("composer library pin does not match the manifest")
     if character != 0 or target != "MctMainMenuScreen":
         raise StageNativeRuntimeError("composer document binding does not match")
     if not callable(getattr(module, "compose_movie", None)):

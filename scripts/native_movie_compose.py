@@ -24,6 +24,39 @@ ROOT_MOVIE_CLASS = "MctRootMenuMovie"
 ORIGINAL_ROOT_NAME = "RootMenuMovie"
 RENAMED_ORIGINAL_ROOT = "MctOriginalRootMenuMovie"
 AUTHORED_CLASSES = [f"menus::{NEW_CLASS}", SCREEN_CLASS, ROOT_MOVIE_CLASS]
+LIBRARY_COMMIT = "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559"
+LIBRARY_CLASSES = [
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONParseError",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+]
+COMPILED_CLASSES = [
+    f"menus::{NEW_CLASS}",
+    SCREEN_CLASS,
+    ROOT_MOVIE_CLASS,
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONParseError",
+]
+LIBRARY_FILES = {
+    "native_ui/vendor/as3corelib/PROVENANCE.json": "f4f0d2420b305100cf2c0ae1d36e0be3ab7a77f8cba201dc1d874491b4662ea7",
+    "native_ui/vendor/as3corelib/README": "d2085963bde4505f6de3d3760b53d30777b482ed443b205736f74da3c3fbc756",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as": "9414b8263250237f8671f5e05ad86c92536cdbd840f52bf47ee5367b99fae5c8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONDecoder.as": "4f11d1427099c93135d818c70cc1f7201faa02d5375aaeaef12874531d6dfb65",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONEncoder.as": "ae997d2e420d4115b6c9b6a2ee449879b0fdf4c67bd9f2433e3ef58d9f277c31",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONParseError.as": "83cbdd7157d513cbc81a6c564e4f4e5e14daa58d98bafbab05ed4df4418e3638",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONToken.as": "80ee91dbdebac33f6739d3b6026a59ff9ea14fd8bd906a1e06e83988ed9c34a8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenType.as": "b29490ba39abb965a4b691b5693453a2b561d24bc44f47a2960a89b5845ab595",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenizer.as": "e3749db0046d7dc0f4542fa76d439b29f9100a60c8380c0c03963c191b4e16f2",
+}
 VIEW_SENTINEL = "__MCT_VIEW_URL__"
 SESSION_SENTINEL = "__MCT_SESSION__"
 ADDED_DOABC_NAME = "MCTNativeMenu"
@@ -32,9 +65,9 @@ DOCUMENT_SOURCE_NAME = "MainMenuScreen"
 DOCUMENT_TARGET_NAME = "MctMainMenuScreen"
 MOVIE_SHA256 = "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
 ORIGINAL_ABC_SHA256 = "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-MOD_ABC_SHA256 = "d2f569fe0201eeb31b9571b77d353279076f588e4bb40f3cb16d42946d0504b8"
-SOURCE_SHA256 = "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
-SCREEN_SOURCE_SHA256 = "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a"
+MOD_ABC_SHA256 = "d4924678b0e84a689b67de71f600034430f735447361105a453b2424134cbfaa"
+SOURCE_SHA256 = "bcd0373aaa1d9ef4524521ab9d1b268c01d14c21b30a22b6534e13c4c420a496"
+SCREEN_SOURCE_SHA256 = "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd"
 ROOT_MOVIE_SOURCE_SHA256 = "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432"
 _OLD_SUPER_MULTINAME = 5940
 _SESSION_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -602,6 +635,8 @@ def _metadata(
         "root_movie_source_sha256": profile.root_movie_source_sha256,
         "authored_class_count": len(AUTHORED_CLASSES),
         "authored_classes": list(AUTHORED_CLASSES),
+        "library_classes": list(LIBRARY_CLASSES),
+        "compiled_classes": list(COMPILED_CLASSES),
         "class_name": f"menus::{NEW_CLASS}",
         "runtime_root_class": ORIGINAL_ROOT_NAME,
         "original_root_alias": RENAMED_ORIGINAL_ROOT,

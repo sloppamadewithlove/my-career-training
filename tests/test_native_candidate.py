@@ -425,8 +425,12 @@ def _write_menu(directory: Path) -> None:
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": hashlib.sha256(abc).hexdigest(),
-        "classes": list(menu_assets.AUTHORED_CLASSES),
+        "authored_classes": list(menu_assets.AUTHORED_CLASSES),
+        "classes": list(menu_assets.COMPILED_CLASSES),
         "game_classes_linked": False,
+        "library_classes": list(menu_assets.LIBRARY_CLASSES),
+        "library_commit": menu_assets.LIBRARY_COMMIT,
+        "library_files": dict(menu_assets.LIBRARY_FILES),
         "production_ready": False,
         "runtime_verified": False,
         "screen_source_sha256": screen_sha,

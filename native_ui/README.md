@@ -1,8 +1,10 @@
 # Native My Career movie
 
 `menus/MctRootMenu.as`, `MctMainMenuScreen.as`, and `MctRootMenuMovie.as` are original code.
-`compiled/MctRootMenu.abc` contains their compiled AVM2 code, intended for a
-private, version-checked menu composition.
+`vendor/as3corelib/` is the unchanged JSON closure from as3corelib commit
+`24c6c16aecbf0d8fcc043ae671e689b0d4b4c559`, not project code.
+`compiled/MctRootMenu.abc` contains those three classes plus the seven library
+classes, intended for a private, version-checked menu composition.
 It is not a replacement game file and is not enabled in the release.
 
 `MctRootMenuMovie` is a public dynamic, zero-argument wrapper around `menus.MctRootMenu`.
@@ -11,19 +13,29 @@ It is compiled under that name because the private SDK already exports
 after session binding and renames the original movie's `RootMenuMovie` string
 to `MctOriginalRootMenuMovie`. It does not reparent the original class.
 
-Development build shape, using an already prepared private external SDK:
+`MctRootMenu` imports `com.adobe.serialization.json.JSON` and calls the fully
+qualified `encode` and `decode` methods. After the canonical `file:///` guard,
+the request uses `decodeURIComponent` of the path. The compiler needs those
+classes on one source path. mxmlc drops a source path that sits inside another,
+so the reproducible build copies the three authored files and
+`native_ui/vendor/as3corelib/src/com` into one owned directory. The tracked
+sources stay where they are. The game SDK is only an external library.
 
 ```text
-mxmlc -debug=false -target-player=32.0 -swf-version=20 -source-path=native_ui
+mxmlc -debug=false -target-player=32.0 -swf-version=20 -source-path=OWNED_SOURCE
   -includes=MctMainMenuScreen,MctRootMenuMovie
   -external-library-path+=PRIVATE/MainMenu-private-sdk-abc.swc
-  -output=PRIVATE/MctRootMenu-only.swf native_ui/menus/MctRootMenu.as
+  -output=PRIVATE/MctRootMenu-only.swf OWNED_SOURCE/menus/MctRootMenu.as
 ```
 
-Inspect the output before extracting its single DoABC payload. Require exactly
-the three original mod classes and no linked game classes. The `VIEW_URL` and `SESSION`
-placeholder strings are bound for the owned session when composing the private
-movie. See [the composition limits](../docs/NATIVE_MOVIE_COMPOSE.md).
+`OWNED_SOURCE` contains `MctMainMenuScreen.as`, `MctRootMenuMovie.as`,
+`menus/MctRootMenu.as`, and `com/adobe/serialization/json/`. Inspect the
+single DoABC before keeping it. The definition order and hashes are in
+`compiled/manifest.json`: three project classes and seven library classes,
+with no linked game classes. `runtime_verified` and `production_ready` stay
+false until that exact ABC is checked in game. The `VIEW_URL` and `SESSION`
+placeholders are bound for the owned session when composing the private movie.
+See [the composition limits](../docs/NATIVE_MOVIE_COMPOSE.md).
 
 Keep private SDKs and game assets out of this directory. These build tools are
 developer dependencies, not player prerequisites.

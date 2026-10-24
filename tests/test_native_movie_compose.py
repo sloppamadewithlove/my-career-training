@@ -245,9 +245,9 @@ def test_production_profile_pins_the_measured_layout():
     profile = compose.PRODUCTION_PROFILE
     assert profile.movie_sha256 == "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
     assert profile.abc_sha256 == "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-    assert profile.mod_abc_sha256 == "d2f569fe0201eeb31b9571b77d353279076f588e4bb40f3cb16d42946d0504b8"
-    assert profile.source_sha256 == "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
-    assert profile.screen_source_sha256 == "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a"
+    assert profile.mod_abc_sha256 == "d4924678b0e84a689b67de71f600034430f735447361105a453b2424134cbfaa"
+    assert profile.source_sha256 == "bcd0373aaa1d9ef4524521ab9d1b268c01d14c21b30a22b6534e13c4c420a496"
+    assert profile.screen_source_sha256 == "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd"
     assert profile.root_movie_source_sha256 == "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432"
     assert profile.super_offset == 446019
     assert profile.super_bytes == _u30(OLD_MULTINAME) == SUPER_BYTES
@@ -326,6 +326,8 @@ def test_root_rename_preserves_superclass_and_script_bytes():
     assert metadata["authored_string_delta"] == -3
     assert metadata["authored_class_count"] == 3
     assert metadata["authored_classes"] == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
+    assert metadata["library_classes"] == compose.LIBRARY_CLASSES
+    assert metadata["compiled_classes"] == compose.COMPILED_CLASSES
     assert metadata["runtime_root_class"] == "RootMenuMovie"
     assert metadata["original_root_alias"] == "MctOriginalRootMenuMovie"
     assert metadata["timeline_character"] == 83
@@ -642,8 +644,8 @@ def _skip_trait(data: bytes, offset: int) -> int:
     return offset
 
 
-def _instance_flags(abc: bytes) -> dict[str, int]:
-    """Return instance_info flags keyed by the class multiname string."""
+def _instance_flags(abc: bytes) -> tuple[dict[str, int], list[str]]:
+    """Return instance flags and definition order from parsed class multinames."""
 
     offset = 4
     for kind in ("int", "uint", "double"):
@@ -662,9 +664,11 @@ def _instance_flags(abc: bytes) -> dict[str, int]:
         strings.append(abc[offset : offset + length].decode("utf-8"))
         offset += length
     namespace_count, offset = _take(abc, offset)
+    namespaces = [""]
     for _ in range(1, namespace_count):
         offset += 1
-        _name, offset = _take(abc, offset)
+        name, offset = _take(abc, offset)
+        namespaces.append(strings[name])
     set_count, offset = _take(abc, offset)
     for _ in range(1, set_count):
         inner, offset = _take(abc, offset)
@@ -676,9 +680,10 @@ def _instance_flags(abc: bytes) -> dict[str, int]:
         kind = abc[offset]
         offset += 1
         if kind in (0x07, 0x0D):
-            _namespace, offset = _take(abc, offset)
+            namespace, offset = _take(abc, offset)
             name, offset = _take(abc, offset)
-            multinames.append(strings[name])
+            package = namespaces[namespace]
+            multinames.append(f"{package}::{strings[name]}" if package else strings[name])
         elif kind in (0x0F, 0x10, 0x1B, 0x1C):
             _value, offset = _take(abc, offset)
             multinames.append("")
@@ -722,6 +727,7 @@ def _instance_flags(abc: bytes) -> dict[str, int]:
             _value, offset = _take(abc, offset)
     class_count, offset = _take(abc, offset)
     found = {}
+    ordered = []
     for _ in range(class_count):
         name_index, offset = _take(abc, offset)
         _super, offset = _take(abc, offset)
@@ -734,8 +740,9 @@ def _instance_flags(abc: bytes) -> dict[str, int]:
             _interface, offset = _take(abc, offset)
         _initializer, offset = _take(abc, offset)
         offset = _skip_trait_list(abc, offset)
+        ordered.append(multinames[name_index])
         found[multinames[name_index]] = flags
-    return found
+    return found, ordered
 
 
 def _skip_trait_list(data: bytes, offset: int) -> int:
@@ -753,9 +760,12 @@ def test_compiled_abc_matches_the_public_pin():
     wrapper = (root / "native_ui" / "MctRootMenuMovie.as").read_bytes()
     manifest = json.loads((root / "native_ui" / "compiled" / "manifest.json").read_text(encoding="utf-8"))
     assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256 == manifest["abc_sha256"]
-    assert len(abc) == manifest["abc_bytes"] == 8834
-    assert manifest["method_bodies"] == 41
-    assert manifest["classes"] == compose.AUTHORED_CLASSES
+    assert len(abc) == manifest["abc_bytes"] == 17595
+    assert manifest["method_bodies"] == 93
+    assert manifest["classes"] == compose.COMPILED_CLASSES
+    assert manifest["authored_classes"] == compose.AUTHORED_CLASSES
+    assert manifest["library_classes"] == compose.LIBRARY_CLASSES
+    assert manifest["library_files"] == compose.LIBRARY_FILES
     assert manifest["game_classes_linked"] is False
     assert manifest["runtime_verified"] is False
     assert manifest["production_ready"] is False
@@ -776,8 +786,17 @@ def test_compiled_abc_matches_the_public_pin():
     assert renamed[: info["start"]] == abc[: info["start"]]
     assert renamed[info["start"] + 14 :] == abc[info["end"] :]
     assert renamed[info["start"] : info["start"] + 14] == b"\x0dRootMenuMovie"
-    flags = _instance_flags(abc)
+    flags, defined = _instance_flags(abc)
     sealed = 0x01
+    assert defined == compose.COMPILED_CLASSES
+    assert set(defined) == set(compose.AUTHORED_CLASSES) | set(compose.LIBRARY_CLASSES)
+    assert len(defined) == len(compose.AUTHORED_CLASSES) + len(compose.LIBRARY_CLASSES)
     assert flags["MctRootMenuMovie"] & sealed == 0
-    assert flags["MctRootMenu"] & sealed == sealed
+    assert flags["menus::MctRootMenu"] & sealed == sealed
     assert flags["MctMainMenuScreen"] & sealed == sealed
+    assert all(flags[name] & sealed == sealed for name in compose.LIBRARY_CLASSES)
+    assert texts.count("file:///") == 1
+    assert b"debugfile" not in abc.lower()
+    assert b":\\" not in abc
+    for relative, digest in compose.LIBRARY_FILES.items():
+        assert hashlib.sha256((root / relative).read_bytes()).hexdigest() == digest

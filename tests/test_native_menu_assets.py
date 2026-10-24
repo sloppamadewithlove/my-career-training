@@ -74,6 +74,23 @@ def _pin_decoder(monkeypatch, source: bytes, license_text: bytes) -> None:
     monkeypatch.setattr(stage, "LICENSE_SHA256", _sha(normalized_license))
 
 
+def _library_lines(module) -> str:
+    return (
+        f"LIBRARY_COMMIT = {module.LIBRARY_COMMIT!r}\n"
+        f"LIBRARY_CLASSES = {list(module.LIBRARY_CLASSES)!r}\n"
+        f"COMPILED_CLASSES = {list(module.COMPILED_CLASSES)!r}\n"
+        f"LIBRARY_FILES = {module.LIBRARY_FILES!r}\n"
+    )
+
+
+def _copy_vendor(root: Path) -> None:
+    for relative in stage.LIBRARY_FILES:
+        source = REPO.joinpath(*Path(relative).parts)
+        target = root.joinpath(*Path(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+
+
 def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     abc = b"abc-fixture"
     source = b"menu-source"
@@ -82,8 +99,12 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": list(stage.AUTHORED_CLASSES),
+        "authored_classes": list(stage.AUTHORED_CLASSES),
+        "classes": list(stage.COMPILED_CLASSES),
         "game_classes_linked": False,
+        "library_classes": list(stage.LIBRARY_CLASSES),
+        "library_commit": stage.LIBRARY_COMMIT,
+        "library_files": dict(stage.LIBRARY_FILES),
         "production_ready": False,
         "root_movie_source": "native_ui/MctRootMenuMovie.as",
         "root_movie_source_sha256": _sha(wrapper),
@@ -99,6 +120,7 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     (root / "native_ui" / "menus" / "MctRootMenu.as").write_bytes(source)
     (root / "native_ui" / "MctMainMenuScreen.as").write_bytes(screen)
     (root / "native_ui" / "MctRootMenuMovie.as").write_bytes(wrapper)
+    _copy_vendor(root)
     (root / "native_ui" / "compiled" / "MctRootMenu.abc").write_bytes(abc)
     manifest_path = root / "native_ui" / "compiled" / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -127,6 +149,7 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
         "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
+        f"{_library_lines(stage)}"
         "def compose_movie(*args, **kwargs):\n"
         "    raise RuntimeError('stage must not compose')\n"
     )
@@ -239,6 +262,7 @@ def _compose_source(
         "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
+        f"{_library_lines(assets)}"
         "def compose_movie(original_gfx, mod_abc, *, session, view_url):\n"
         f"{mutation}"
         "    return {'data': b'composed-movie', 'metadata': {'runtime_verified': False, 'production_ready': False}}\n"
@@ -256,8 +280,12 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": list(assets.AUTHORED_CLASSES),
+        "authored_classes": list(assets.AUTHORED_CLASSES),
+        "classes": list(assets.COMPILED_CLASSES),
         "game_classes_linked": False,
+        "library_classes": list(assets.LIBRARY_CLASSES),
+        "library_commit": assets.LIBRARY_COMMIT,
+        "library_files": dict(assets.LIBRARY_FILES),
         "production_ready": False,
         "root_movie_source": "native_ui/MctRootMenuMovie.as",
         "root_movie_source_sha256": _sha(wrapper),
@@ -363,8 +391,91 @@ def test_documented_pins_match():
     assert stage.UEVIEWER_COMMIT in stage.SOURCE_URL
     assert assets.AUTHORED_CLASSES == stage.AUTHORED_CLASSES
     assert assets.AUTHORED_CLASSES == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
+    assert assets.LIBRARY_CLASSES == stage.LIBRARY_CLASSES
+    assert assets.COMPILED_CLASSES == stage.COMPILED_CLASSES
+    assert assets.LIBRARY_COMMIT == stage.LIBRARY_COMMIT == "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559"
+    assert assets.LIBRARY_FILES == stage.LIBRARY_FILES
+    assert set(assets.COMPILED_CLASSES) == set(assets.AUTHORED_CLASSES) | set(assets.LIBRARY_CLASSES)
+    assert len(assets.COMPILED_CLASSES) == 10
     assert assets.default_runtime_directory().name == "native-menu"
     assert assets.default_runtime_directory().parent.name == "runtime"
+
+
+_CRLF_VENDOR = {
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONDecoder.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONEncoder.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONParseError.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONToken.as",
+}
+
+
+def test_vendored_json_bytes_survive_git_checkout(tmp_path):
+    spec = importlib.util.spec_from_file_location("mct_compose_pins", REPO / "scripts" / "native_movie_compose.py")
+    assert spec is not None and spec.loader is not None
+    compose = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = compose
+    try:
+        spec.loader.exec_module(compose)
+    finally:
+        sys.modules.pop(spec.name, None)
+    assert compose.LIBRARY_FILES == stage.LIBRARY_FILES == assets.LIBRARY_FILES
+    assert compose.COMPILED_CLASSES == stage.COMPILED_CLASSES
+    for relative, digest in stage.LIBRARY_FILES.items():
+        raw = (REPO / relative).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == digest
+        if relative in _CRLF_VENDOR:
+            assert b"\r\n" in raw
+        else:
+            assert b"\r\n" not in raw
+        blob = hashlib.sha1(f"blob {len(raw)}\0".encode("ascii") + raw).hexdigest()
+        recorded = subprocess.run(
+            ["git", "hash-object", "--path", relative, "--", relative],
+            cwd=REPO, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        assert recorded == blob
+    env = os.environ.copy()
+    env["GIT_INDEX_FILE"] = str(tmp_path / "index")
+    subprocess.run(["git", "add", "--", "native_ui/vendor/as3corelib"], cwd=REPO, env=env, check=True)
+    listed = subprocess.run(
+        ["git", "ls-files", "--eol", "--", "native_ui/vendor/as3corelib"],
+        cwd=REPO, env=env, check=True, capture_output=True, text=True,
+    )
+    rows = {}
+    for line in listed.stdout.splitlines():
+        index_eol, work_eol, _attr, path = line.split(None, 3)
+        rows[path.replace("\\", "/")] = (index_eol, work_eol)
+    assert set(rows) == set(stage.LIBRARY_FILES)
+    for path, (index_eol, work_eol) in rows.items():
+        ending = "crlf" if path in _CRLF_VENDOR else "lf"
+        assert index_eol == f"i/{ending}"
+        assert work_eol == f"w/{ending}"
+    notices = (REPO / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    for required in (
+        "Copyright (c) 2008, Adobe Systems Incorporated",
+        "Redistribution and use in source and binary forms",
+        "Neither the name of Adobe Systems Incorporated",
+        "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS",
+    ):
+        assert required in notices
+    for name in ("my-career-training.spec", "my-career-training-native.spec"):
+        packaged = (REPO / "packaging" / name).read_text(encoding="utf-8")
+        assert 'THIRD_PARTY_NOTICES.md' in packaged
+
+
+@pytest.mark.parametrize("relative", [
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as",
+    "native_ui/vendor/as3corelib/README",
+    "native_ui/vendor/as3corelib/PROVENANCE.json",
+])
+def test_stage_refuses_a_changed_vendor_file(monkeypatch, tmp_path, relative):
+    repo, source_path, license_path, destination, _key, _manifest = _stage_ready(monkeypatch, tmp_path)
+    target = repo.joinpath(*Path(relative).parts)
+    target.write_bytes(target.read_bytes() + b" ")
+    with pytest.raises(stage.StageNativeRuntimeError, match="vendored library"):
+        stage.stage_native_runtime(
+            destination, repo_root=repo, source_path=source_path, license_path=license_path,
+        )
 
 
 def test_runtime_module_does_not_import_network_or_processes():

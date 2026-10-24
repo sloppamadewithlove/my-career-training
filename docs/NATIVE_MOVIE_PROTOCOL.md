@@ -10,7 +10,8 @@ typed routes; online/store controls are absent from this authored class.
 `MctMainMenuScreen` derives from the original document class and preserves its
 menu-stack, screen-filter, resize and car-camera handling. It omits the parent's
 challenge, friends and matchmaking listener registration, hides the challenge
-and debug widgets, and deactivates the shell's party/friends taskbar. The root
+and debug widgets, hides the shell news view on every offline chrome pass, and
+deactivates the shell's party/friends taskbar. The root
 also overrides the inherited rightward focus path into matchmaking. These
 changes belong only to the privately composed offline movie. Shell changes
 remain within that game process; the normal online handoff closes it first.

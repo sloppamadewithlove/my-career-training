@@ -122,7 +122,7 @@ package
             if (shell == null) return;
             // These are UI state changes in this offline process. Returning to
             // normal online play closes it and starts the unmodified game.
-            if (event == null || shell.bIsNewsViewExpanded) shell.bShowNewsView = false;
+            shell.bShowNewsView = false;
             if (event == null) shell.hideTopNavigation();
             if (shell.matchmakingView != null && shell.matchmakingView.visible) shell.hideMatchmakingView();
             if (shell.bIsFriendsViewShown) shell.hideFriendsView();

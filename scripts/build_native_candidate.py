@@ -591,8 +591,12 @@ def _validate_menu_files(files: dict[str, bytes]) -> None:
     manifest = _load_manifest(files["manifest.json"])
     if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
         raise CandidateBuildError("native-menu manifest grants runtime capability")
-    if manifest.get("game_classes_linked") is not False or manifest.get("classes") != list(menu_assets.AUTHORED_CLASSES):
+    if manifest.get("game_classes_linked") is not False or manifest.get("authored_classes") != list(menu_assets.AUTHORED_CLASSES):
         raise CandidateBuildError("native-menu manifest classes are not the authored classes")
+    if manifest.get("library_classes") != list(menu_assets.LIBRARY_CLASSES) or manifest.get("classes") != list(menu_assets.COMPILED_CLASSES):
+        raise CandidateBuildError("native-menu manifest classes are not the compiled classes")
+    if manifest.get("library_commit") != menu_assets.LIBRARY_COMMIT or manifest.get("library_files") != menu_assets.LIBRARY_FILES:
+        raise CandidateBuildError("native-menu manifest library pin does not match")
     if pins["abc_sha256"] != _sha(files["MctRootMenu.abc"]) or pins["abc_bytes"] != len(files["MctRootMenu.abc"]):
         raise CandidateBuildError("staged ABC does not match the native-menu receipt")
     _require_hex(pins.get("abc_sha256"), "native-menu receipt pins are malformed")
@@ -636,6 +640,12 @@ def _require_fixed_pins(pins: dict, provenance: dict) -> None:
 def _require_menu_contract() -> None:
     if set(stage_menu.PAYLOAD_NAMES) != set(menu_assets.PAYLOAD_NAMES):
         raise CandidateBuildError("native menu allowlists disagree")
+    if stage_menu.AUTHORED_CLASSES != list(menu_assets.AUTHORED_CLASSES):
+        raise CandidateBuildError("native menu class inventories disagree")
+    if stage_menu.LIBRARY_CLASSES != list(menu_assets.LIBRARY_CLASSES) or stage_menu.COMPILED_CLASSES != list(menu_assets.COMPILED_CLASSES):
+        raise CandidateBuildError("native menu class inventories disagree")
+    if stage_menu.LIBRARY_COMMIT != menu_assets.LIBRARY_COMMIT or stage_menu.LIBRARY_FILES != menu_assets.LIBRARY_FILES:
+        raise CandidateBuildError("native menu library pins disagree")
     if stage_menu.RECEIPT_NAME != menu_assets.RECEIPT_NAME:
         raise CandidateBuildError("native menu receipt names disagree")
     if stage_menu.STAGED_NAMES != set(stage_menu.PAYLOAD_NAMES) | {stage_menu.RECEIPT_NAME}:
