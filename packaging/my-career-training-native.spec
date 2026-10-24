@@ -10,6 +10,7 @@ sys.path.insert(0, str(root / "src"))
 sys.path.insert(0, str(root / "scripts"))
 
 import build_native_candidate as candidate
+from package_qt_runtime import windows_qt_binaries
 
 try:
     from PyInstaller.config import CONF
@@ -68,5 +69,5 @@ gui = EXE(PYZ(a.pure), a.scripts, [], exclude_binaries=True,
 worker = EXE(PYZ(b.pure), b.scripts, [], exclude_binaries=True,
              name="MyCareerTrainingWorker", debug=False, bootloader_ignore_signals=False,
              strip=False, upx=False, console=True, icon=str(icon))
-coll = COLLECT(gui, worker, a.binaries, a.datas, b.binaries, b.datas,
+coll = COLLECT(gui, worker, windows_qt_binaries(a.binaries), a.datas, windows_qt_binaries(b.binaries), b.datas,
                strip=False, upx=False, name=candidate.BUNDLE_NAME)
