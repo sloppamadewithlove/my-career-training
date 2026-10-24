@@ -131,8 +131,8 @@ def curated_catalog() -> list[dict]:
 
 
 def lookup_plugin(plugin_id, *, opener: Callable[..., object] | None = None) -> dict:
-    """Fetch official metadata for one canonical numeric plugin id."""
-    identity = _coerce_id(plugin_id)
+    """Fetch official metadata for a numeric id or canonical official page link."""
+    identity = _lookup_id(plugin_id)
     payload = _request(
         _opener(opener),
         _metadata_url(identity),
@@ -265,6 +265,21 @@ def _coerce_id(value) -> str:
 
 def _metadata_url(identity: str) -> str:
     return f"https://bakkesplugins.com/api/v1/plugins/get/short?pluginids={identity}"
+
+
+def _lookup_id(value) -> str:
+    # A pasted page is an ID source only; it is never fetched or used as a
+    # download URL. Keep receipt IDs strictly numeric via _coerce_id.
+    if type(value) is str:
+        match = re.fullmatch(r"https://bakkesplugins\.com/plugin/([1-9][0-9]{0,9})/?", value)
+        if match:
+            return match[1]
+    try:
+        return _coerce_id(value)
+    except CommunityPluginError:
+        raise CommunityPluginError(
+            "Enter a BakkesPlugins ID or a link like https://bakkesplugins.com/plugin/223."
+        ) from None
 
 
 def _listing_identity(identity: str) -> dict:

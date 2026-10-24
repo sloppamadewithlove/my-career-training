@@ -201,6 +201,40 @@ def test_lookup_reads_official_metadata_shape():
     assert lookup_plugin(223, opener=opener)["version"] == 21
 
 
+@pytest.mark.parametrize("page", [
+    "https://bakkesplugins.com/plugin/223", "https://bakkesplugins.com/plugin/223/",
+])
+def test_page_link_lookup_uses_only_fixed_metadata_endpoint(page):
+    opener, seen = service()
+    record = lookup_plugin(page, opener=opener)
+    assert record["id"] == "223"
+    assert record["download_url"] == DOWNLOAD
+    assert seen == [METADATA]
+
+
+@pytest.mark.parametrize("page", [
+    "http://bakkesplugins.com/plugin/223",
+    "https://bakkesplugins.com.evil.example/plugin/223",
+    "https://bakkesplugins.com@evil.example/plugin/223",
+    "https://evil.example@bakkesplugins.com/plugin/223",
+    "https://bakkesplugins.com:443/plugin/223",
+    "https://bakkesplugins.com/plugin/223?download=https://evil.example/file.zip",
+    "https://bakkesplugins.com/plugin/223#fragment",
+    "https://bakkesplugins.com/plugin/%32%32%33",
+    "https://bakkesplugins.com/plugin/0223",
+    "https://bakkesplugins.com/plugin/223\n",
+    "https://bakkesplugins.com/plugin/223/../286",
+    "https://cdn.bakkesplugins.com/uploads/plugin.zip",
+    "file:///C:/private/plugin.zip",
+])
+def test_noncanonical_plugin_link_never_uses_network(page):
+    def opener(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    with pytest.raises(CommunityPluginError, match="ID or a link"):
+        lookup_plugin(page, opener=opener)
+
+
 @pytest.mark.parametrize("plugin_id", [
     "0", "0223", "223 ", "", 0, True, None, "223\n1", "１２３", "١٢٣",
     "10000000000", -1,

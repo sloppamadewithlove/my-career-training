@@ -520,18 +520,17 @@ ApplicationWindow {
                 Layout.fillWidth:true
                 property var plugins: root.view.community_plugins || {}
                 Copy { text:"Community plugin downloads"; tone:"heading"; scale:root.textScale }
-                Copy { text:"Enter the number from a BakkesPlugins page. Downloads stay in My Career's library; enabling them in the game still needs verified offline loading."; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
+                Copy { text:"Paste a BakkesPlugins page link or enter its plugin number. Downloads stay in My Career's library; enabling them in the game still needs verified offline loading."; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
                 RowLayout {
                     TextField {
                         id: communityPluginId
                         text:"223"
-                        placeholderText:"BakkesPlugins ID"
-                        maximumLength:10
-                        validator:RegularExpressionValidator { regularExpression:/[1-9][0-9]{0,9}/ }
-                        Accessible.name:"BakkesPlugins ID"
+                        placeholderText:"BakkesPlugins link or ID"
+                        maximumLength:256
+                        Accessible.name:"BakkesPlugins link or ID"
                         Layout.fillWidth:true
                     }
-                    ActionButton { text:"Check release"; enabled:communityPluginId.acceptableInput && !pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_lookup",{id:communityPluginId.text}) }
+                    ActionButton { text:"Check release"; enabled:communityPluginId.text.trim().length > 0 && !pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_lookup",{id:communityPluginId.text.trim()}) }
                 }
                 Copy { text:pluginPanel.plugins.selected ? pluginPanel.plugins.selected.title : "No release selected"; Layout.fillWidth:true; scale:root.textScale }
                 RowLayout {

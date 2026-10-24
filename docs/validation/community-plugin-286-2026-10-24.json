@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-10-24",
+  "plugin_id": "286",
+  "title": "Speedflip Trainer",
+  "creator": "tyni",
+  "page_version": "1.0.3",
+  "details_url": "https://bakkesplugins.com/plugin/286",
+  "metadata_url": "https://bakkesplugins.com/api/v1/plugins/get/short?pluginids=286",
+  "api_version": 3,
+  "site_verified": true,
+  "site_verified_is_signature": false,
+  "source_url": "https://github.com/tynidev/SpeedFlipTrainer",
+  "source_commit": "8a4a94fc120db4919c3155052dbd7099ef834ba7",
+  "source_license": "GPL-3.0",
+  "download_url": "https://cdn.bakkesplugins.com/uploads/4_3af4e39dddc7eb76e136f32052d7b3dfdaf152719074cef7cd01347c6a08a478.zip",
+  "archive_sha256": "b75ff28a86e4d54b0083b4ea09068a93b409bc18746b150b70030cab1d4f795d",
+  "archive_members": [
+    {"name": "plugins/", "kind": "directory"},
+    {
+      "name": "plugins/SpeedFlipTrainer.dll",
+      "kind": "file",
+      "bytes": 691200,
+      "sha256": "2203874a6921df54d06c1042a4281c7694d3e415b9c6b0618e33769db401ef11",
+      "pe_machine": "0x8664"
+    }
+  ],
+  "archive_downloaded_to_private_research_cache": true,
+  "dll_read_in_memory_for_hash_and_header": true,
+  "dll_extracted_to_filesystem": false,
+  "installed": false,
+  "executed": false,
+  "current_game_compatibility_verified": false,
+  "production_activation_allowed": false,
+  "limits": [
+    "Source commit and downloaded DLL are separate artifacts; no reproducible-build equivalence is established.",
+    "AMD64 PE header shape is not plugin ABI or behavior validation.",
+    "Source registers save-to-config sf_* cvars and can create speedflip data directories; DLL cleanup alone cannot undo these effects.",
+    "Source unload does not explicitly remove both outer training load/destroy hooks; core cleanup behavior remains unverified.",
+    "No game or injector was launched for this inspection."
+  ]
+}

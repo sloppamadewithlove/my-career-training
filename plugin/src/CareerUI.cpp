@@ -474,13 +474,11 @@ void MyCareerTraining::renderWorkshop(const Json& state) {
     if (ImGui::CollapsingHeader("COMMUNITY PLUGIN DOWNLOADS")) {
         const auto plugins = objectValue(state, "community_plugins");
         const bool busy = boolValue(plugins, "busy");
-        static char pluginId[11] = "223";
-        ImGui::SetNextItemWidth(180);
-        ImGui::InputText("BakkesPlugins ID", pluginId, sizeof(pluginId), ImGuiInputTextFlags_CharsDecimal);
+        static char pluginId[257] = "223";
+        ImGui::SetNextItemWidth(360);
+        ImGui::InputText("BakkesPlugins link or ID", pluginId, sizeof(pluginId));
         const std::string pluginIdentity(pluginId);
-        const bool validPluginId = !pluginIdentity.empty() && pluginIdentity.front() != '0' &&
-            std::all_of(pluginIdentity.begin(), pluginIdentity.end(), [](char value) { return value >= '0' && value <= '9'; });
-        if (button("CHECK CURRENT RELEASE", !busy && validPluginId)) command("community_lookup", {{"id", pluginIdentity}});
+        if (button("CHECK CURRENT RELEASE", !busy && !pluginIdentity.empty())) command("community_lookup", {{"id", pluginIdentity}});
         ImGui::SameLine();
         if (button("CHECK DOWNLOADED FILES", !busy)) command("community_library");
         const auto selectedPlugin = objectValue(plugins, "selected");
