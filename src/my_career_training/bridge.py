@@ -131,6 +131,8 @@ class Backend(QObject):
                 self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
                 "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
+                "can_exit": not self.lifecycle.frozen and self.session_state not in
+                    ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "id": self.session_id,
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
@@ -387,6 +389,7 @@ class Backend(QObject):
             state = copy.deepcopy(self.document)
             state["career"] = domain.new_career(p["team_name"], int(p.get("format", 3)), recruits=p.get("recruits"))
             self._commit(state)
+            self.latest_result = None
             self.page = "hub"
         elif action in ("career_name_clipboard", "rename_recruit_clipboard"):
             from PySide6.QtGui import QGuiApplication

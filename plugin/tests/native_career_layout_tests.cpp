@@ -30,7 +30,7 @@ static void audit(const CareerLayoutView& view) {
     require(view.offersReplacement ? view.suppress.size() == 6 : view.suppress.empty(), "Suppression list size");
     for (const auto& choice : view.choices) {
         require(choice.action != "play_workshop" && choice.action != "community_activate", "Unsupported action shown");
-        require(choice.action != "open_link" && choice.action != "import_map" && choice.action != "settings", "Out of menu action");
+        require(choice.action != "open_link" && choice.action != "import_map", "Out of menu action");
         if (!choice.enabled || choice.kind != CareerLayoutEffectKind::Dispatch)
             require(choice.action.empty() && choice.payload.empty(), "Disabled or non-dispatch control carries an action");
         if (!choice.action.empty()) require(NativeCareerLayout::supportedAction(choice.action), "Action is not supported");
@@ -53,7 +53,7 @@ static CareerLayoutScope ownedScope() {
 }
 
 static Json readyState() {
-    return {{"protocol", 1}, {"offline", true}, {"bridge_session", "0123456789abcdef0123456789abcdef"},
+    Json state = {{"protocol", 1}, {"offline", true}, {"bridge_session", "0123456789abcdef0123456789abcdef"},
         {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}}},
         {"career", {{"id", "career-a"}, {"team_name", "Orbit"}, {"current_season", 0}, {"pending_session", nullptr},
             {"squad", {"anchor", "shield", "relay", "comet"}}, {"lineup", {"anchor", "shield"}},
@@ -61,9 +61,9 @@ static Json readyState() {
                 {"shield", {{"name", "Shield"}, {"role", "defender"}}},
                 {"relay", {{"name", "Relay"}, {"role", "passer"}}},
                 {"comet", {{"name", "Comet"}, {"role", "attacker"}}}}},
-            {"seasons", {{{"clubs", {{{"id", "human"}, {"name", "Orbit"}}, {{"id", "rival"}, {"name", "Nova"}}}},
-                {"fixtures", {{{"id", "fixture-a"}, {"home", "human"}, {"away", "rival"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
-        {"next_fixture", {{"id", "fixture-a"}, {"home", "human"}, {"away", "rival"}, {"round", 1}, {"status", "scheduled"}}},
+            {"seasons", {{{"clubs", {{{"id", "human"}, {"name", "Orbit"}}, {{"id", "aurora"}, {"name", "Nova"}}}},
+                {"fixtures", {{{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
+        {"next_fixture", {{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}},
         {"standings", {{{"name", "Orbit"}, {"points", 9}}}},
         {"lessons", {{{"id", "speed-flip"}, {"title", "Speed flip"}, {"description", "A timed kickoff lesson."},
                 {"steps", {"Drive", "Jump"}}},
@@ -80,6 +80,18 @@ static Json readyState() {
             {"downloaded", Json::array()}, {"busy", false}, {"can_activate", false},
             {"message", "Current release found. Downloading does not enable it."}}},
         {"content", {{{"title", "Aim training"}, {"creator", "CoCo"}, {"url", "https://example.invalid/map"}}}}};
+    state["career"]["format"] = 3;
+    state["career"]["difficulty"] = {{"baseline", 0.5}, {"curve", "gentle"}};
+    state["career"]["recruits"]["orbit"] = {{"name", "Orbit Bot"}, {"role", "all-rounder"}};
+    for (auto& item : state["career"]["recruits"].items()) {
+        item.value()["id"] = item.key();
+        item.value()["level"] = 1;
+    }
+    state["selected_provider"] = "necto";
+    state["providers"] = {{{"id", "mct-specialist-baseline"}, {"available", true}, {"supported_formats", {1,2,3,4}}},
+        {{"id", "necto"}, {"available", true}, {"supported_formats", {1,2,3}}},
+        {{"id", "nexto"}, {"available", false}, {"supported_formats", {1,2,3}}}};
+    return state;
 }
 
 static CareerLayoutEffect choose(NativeCareerLayout& layout, const CareerLayoutChoice& choice,
@@ -113,9 +125,10 @@ int main() {
         require(NativeCareerLayout::supportedAction("quit_game") && NativeCareerLayout::supportedAction("loadout"), "Supported actions");
         require(!NativeCareerLayout::supportedAction("play_workshop") && !NativeCareerLayout::supportedAction("community_activate"),
             "Missing capabilities were marked supported");
+        require(NativeCareerLayout::supportedAction("community_trial_prepare"), "Trial prepare is not a supported action");
         require(!NativeCareerLayout::supportedAction("open_link") && !NativeCareerLayout::supportedAction("import_map"),
             "Non-bridge actions were marked supported");
-        require(!NativeCareerLayout::supportedAction("settings") && !NativeCareerLayout::supportedAction("navigate"),
+        require(NativeCareerLayout::supportedAction("settings") && !NativeCareerLayout::supportedAction("navigate"),
             "Stock or local navigation was marked as a bridge action");
         require(!NativeCareerLayout::supportedAction("apply_cosmetics") && !NativeCareerLayout::supportedAction("restore_cosmetics"),
             "Local cosmetic requests were marked as bridge actions");
@@ -260,7 +273,7 @@ int main() {
         finished["next_fixture"]["status"] = "completed";
         require(!findChoice(layout.view(scope, finished), "career.play").enabled, "Finished match still enabled");
         auto botsOnly = state;
-        botsOnly["next_fixture"]["home"] = "rival";
+        botsOnly["next_fixture"]["home"] = "aurora";
         botsOnly["next_fixture"]["away"] = "other";
         require(findChoice(layout.view(scope, botsOnly), "career.play").reason.find("does not include your club") != std::string::npos, "Bot match reason");
         auto noCareer = state;
@@ -296,16 +309,65 @@ int main() {
         choose(layout, findChoice(layout.view(scope, state), "career.standings"), scope, state, false);
         auto season = layout.view(scope, state);
         audit(season);
-        require(season.body.find("Season 1 league table.") != std::string::npos, "Season heading missing");
+        require(season.body.find("Season 1.") != std::string::npos, "Season heading missing");
         require(season.body.find("1. Orbit - 9 points") != std::string::npos, "Standings row missing");
-        require(season.choices.size() == 1, "Standings offered a command");
-        choose(layout, season.choices[0], scope, state, false);
+        require(!findChoice(season, "season.next.unavailable").enabled, "Unfinished season can advance");
+        choose(layout, findChoice(season, "nav.back"), scope, state, false);
         choose(layout, findChoice(layout.view(scope, state), "career.squad"), scope, state, false);
         auto squad = layout.view(scope, state);
         audit(squad);
-        require(squad.body.find("Anchor - keeper - starter") != std::string::npos, "Squad row missing");
-        require(squad.body.find("Comet - attacker - bench") != std::string::npos, "Bench row missing");
-        require(squad.choices.size() == 1, "Squad offered a lineup command");
+        require(squad.body.find("Anchor - keeper - level 1 - starter") != std::string::npos, "Squad row missing");
+        require(squad.body.find("Comet - attacker - level 1 - bench") != std::string::npos, "Bench row missing");
+        require(findChoice(squad, "squad.lineup.anchor.shield").enabled, "Current lineup unavailable");
+        auto lineup = findChoice(squad, "squad.lineup.anchor.relay");
+        require(lineup.payload == Json({{"ids", {"anchor", "relay"}}}), "Wrong lineup payload");
+        auto rosterChanged = state;
+        rosterChanged["career"]["lineup"] = {"shield", "relay"};
+        auto currentLineup = findChoice(squad, "squad.lineup.anchor.shield");
+        require(!choose(layout, currentLineup, scope, rosterChanged, true).accepted, "Stale lineup label accepted");
+        auto squadEffect = choose(layout, lineup, scope, state, true);
+        require(squadEffect.accepted && squadEffect.action == "lineup", "Lineup did not dispatch");
+
+        NativeCareerLayout management;
+        auto emptyCareer = state;
+        emptyCareer["career"] = nullptr;
+        emptyCareer["career_draft"] = {{"team_name", "Night Owls"}};
+        management.open(scope, emptyCareer);
+        choose(management, findChoice(management.view(scope, emptyCareer), NativeCareerLayout::kCareer), scope, emptyCareer, false);
+        choose(management, findChoice(management.view(scope, emptyCareer), "career.create"), scope, emptyCareer, false);
+        auto creation = management.view(scope, emptyCareer);
+        audit(creation);
+        CareerLayoutChoice createThree;
+        for (const auto& item : creation.choices)
+            if (item.action == "new_career" && item.payload.value("format", 0) == 3) createThree = item;
+        require(createThree.payload == Json({{"team_name", "Night Owls"}, {"format", 3}}), "Career creation payload");
+        auto renamedDraft = emptyCareer;
+        renamedDraft["career_draft"]["team_name"] = "New name";
+        require(!choose(management, createThree, scope, renamedDraft, true).accepted, "Stale club draft accepted");
+        auto created = choose(management, createThree, scope, emptyCareer, true);
+        require(created.accepted && created.action == "new_career" && created.page == CareerLayoutPage::Career,
+            "Creating career did not return to Career");
+        auto four = state;
+        four["career"]["format"] = 4;
+        four["career"]["lineup"] = {"anchor", "shield", "relay"};
+        management.open(scope, four);
+        choose(management, findChoice(management.view(scope, four), NativeCareerLayout::kCareer), scope, four, false);
+        require(!findChoice(management.view(scope, four), "career.play").enabled, "Unsupported learned 4v4 launched");
+        choose(management, findChoice(management.view(scope, four), "career.rules"), scope, four, false);
+        auto rules = management.view(scope, four);
+        audit(rules);
+        require(!findChoice(rules, "rules.provider.necto").enabled, "Necto offered for 4v4");
+        auto provider = choose(management, findChoice(rules, "rules.provider.mct-specialist-baseline"), scope, four, true);
+        require(provider.accepted && provider.action == "choose_provider" &&
+            provider.payload == Json({{"id", "mct-specialist-baseline"}}), "Explicit 4v4 provider route missing");
+        four["selected_provider"] = "mct-specialist-baseline";
+        choose(management, findChoice(management.view(scope, four), "nav.back"), scope, four, false);
+        require(findChoice(management.view(scope, four), "career.play").enabled, "Supported 4v4 remains blocked");
+        choose(management, findChoice(management.view(scope, four), "career.standings"), scope, four, false);
+        four["career"]["seasons"][0]["champion"] = "human";
+        auto advanced = choose(management, findChoice(management.view(scope, four), "season.next.human"), scope, four, true);
+        require(advanced.accepted && advanced.action == "next_season" && advanced.page == CareerLayoutPage::Career,
+            "Completed season cannot advance from native menu");
 
         auto wide = state;
         wide["career"]["seasons"][0]["fixtures"] = Json::array();
@@ -313,11 +375,11 @@ int main() {
         wide["career"]["squad"] = Json::array();
         for (int i = 1; i <= 12; ++i) {
             wide["career"]["seasons"][0]["fixtures"].push_back({{"id", "fixture-" + std::to_string(i)}, {"home", "human"},
-                {"away", "rival"}, {"round", i}, {"status", "scheduled"}});
+                {"away", "aurora"}, {"round", i}, {"status", "scheduled"}});
             wide["standings"].push_back({{"name", "Club" + std::to_string(i)}, {"points", i}});
         }
-        wide["career"]["seasons"][0]["fixtures"].push_back({{"home", "rival"}, {"away", "other"}, {"round", 1}, {"status", "scheduled"}});
-        wide["career"]["seasons"][0]["fixtures"].push_back({{"home", "human"}, {"away", "rival"}, {"round", 2}, {"status", "completed"}});
+        wide["career"]["seasons"][0]["fixtures"].push_back({{"home", "aurora"}, {"away", "other"}, {"round", 1}, {"status", "scheduled"}});
+        wide["career"]["seasons"][0]["fixtures"].push_back({{"home", "human"}, {"away", "aurora"}, {"round", 2}, {"status", "completed"}});
         for (const char* id : {"anchor", "shield", "relay", "comet", "orbit", "extra"})
             wide["career"]["squad"].push_back(id);
         wide["career"]["recruits"]["orbit"] = {{"name", "Orbit Bot"}, {"role", "all-rounder"}};
@@ -334,10 +396,10 @@ int main() {
         auto boundedSeason = layout.view(scope, wide);
         require(boundedSeason.body.find("8. Club8 - 8 points") != std::string::npos, "Eighth standing missing");
         require(boundedSeason.body.find("9. Club9") == std::string::npos, "Standings were not capped");
-        choose(layout, boundedSeason.choices[0], scope, wide, false);
+        choose(layout, findChoice(boundedSeason, "nav.back"), scope, wide, false);
         choose(layout, findChoice(layout.view(scope, wide), "career.squad"), scope, wide, false);
         auto boundedSquad = layout.view(scope, wide);
-        require(boundedSquad.body.find("Comet") != std::string::npos && boundedSquad.body.find("Extra") == std::string::npos, "Squad was not capped at four");
+        require(boundedSquad.choices.size() == 1 && boundedSquad.choices[0].id == "nav.back", "Malformed roster offered mutations");
         require(boundedSquad.body.find("Orbit Bot") == std::string::npos, "Fifth squad member was shown");
 
         layout.open(scope, state);
@@ -504,6 +566,7 @@ int main() {
         audit(community);
         auto activate = findChoice(community, "community.activate");
         require(!activate.enabled && activate.action.empty() && activate.reason == NativeCareerLayout::kActivationReason, "Activation was offered");
+        require(!hasChoice(community, "community.trial.286"), "Trial button appeared without a staged trial");
         require(choose(layout, activate, scope, state, true).action.empty(), "Activation dispatched after consumption");
         activate.action = "community_activate";
         activate.enabled = true;
@@ -572,6 +635,14 @@ int main() {
         layout.open(scope, stopping);
         auto stoppingRoot = layout.view(scope, stopping);
         require(stoppingRoot.choices.size() == 7 && !findChoice(stoppingRoot, NativeCareerLayout::kExit).enabled, "Exit stayed enabled while busy");
+        auto restartRequired = state;
+        restartRequired["session"]["busy"] = true;
+        restartRequired["session"]["can_exit"] = true;
+        restartRequired["native_community_trial"] = {{"requires_restart", true}};
+        NativeCareerLayout exitRecovery;
+        exitRecovery.open(scope, restartRequired);
+        auto recoveryExit = findChoice(exitRecovery.view(scope, restartRequired), NativeCareerLayout::kExit);
+        require(recoveryExit.enabled && recoveryExit.action == "quit_game", "Uncertain community trial trapped the player");
         require(findChoice(stoppingRoot, NativeCareerLayout::kExit).action.empty(), "Busy exit still has an action");
         choose(layout, findChoice(stoppingRoot, NativeCareerLayout::kSettings), scope, stopping, false);
         require(findChoice(layout.view(scope, stopping), "settings.options").enabled, "Game options were disabled while busy");
@@ -742,6 +813,54 @@ int main() {
         require(!unconfirmed.libraryConfirmed, "A non-Steam executable confirmed a library");
         require(findChoice(aliasLayout.view(scope, aliasState, {}, unconfirmed), "workshop.play.steam:library:4242424242").reason ==
             "This game's Steam library could not be confirmed.", "Unconfirmed library reason");
+
+        auto trialState = state;
+        trialState["community_plugins"]["selected"] = {{"id", "286"}, {"title", "Speedflip Trainer"}, {"can_activate", false}};
+        trialState["native_community_trial"] = {{"available", true}, {"can_prepare", true}, {"site_id", "286"},
+            {"status", "staged"}, {"message", "The trial file is staged and is not loaded yet."}};
+        NativeCareerLayout trialLayout;
+        require(trialLayout.open(scope, trialState), "Trial menu did not open");
+        require(choose(trialLayout, findChoice(trialLayout.view(scope, trialState), NativeCareerLayout::kCommunity),
+            scope, trialState, false).accepted, "Trial community page did not open");
+        auto trialView = trialLayout.view(scope, trialState);
+        audit(trialView);
+        require(trialView.body.find("plugin load") == std::string::npos && trialView.body.find(".dll") == std::string::npos &&
+            trialView.body.find('\\') == std::string::npos, "Trial status leaked a path or command");
+        require(trialView.body.find("not loaded yet") != std::string::npos, "Staged trial status was hidden");
+        auto trialButton = findChoice(trialView, "community.trial.286");
+        require(trialButton.enabled && trialButton.label == "Try Speedflip Trainer" &&
+            trialButton.action == "community_trial_prepare" && trialButton.payload.empty(), "Trial button");
+        auto prepared = choose(trialLayout, trialButton, scope, trialState, true);
+        require(prepared.accepted && prepared.action == "community_trial_prepare" && prepared.payload.empty(),
+            "Trial prepare payload");
+        auto forgedTrial = trialButton;
+        forgedTrial.payload = {{"command", "plugin load SpeedFlipTrainer"}, {"path", "C:\\plugins\\SpeedFlipTrainer.dll"}};
+        require(choose(trialLayout, forgedTrial, scope, trialState, true).action.empty(), "Forged trial payload dispatched");
+        auto flaggedTrial = trialState;
+        flaggedTrial["community_plugins"]["can_activate"] = true;
+        flaggedTrial["community_plugins"]["selected"]["can_activate"] = true;
+        auto flaggedView = trialLayout.view(scope, flaggedTrial);
+        require(!findChoice(flaggedView, "community.activate").enabled &&
+            findChoice(flaggedView, "community.activate").action.empty(), "Activation flag enabled a game command");
+        require(hasChoice(flaggedView, "community.trial.286"), "Trial record lost its button");
+        auto busyTrial = trialState;
+        busyTrial["community_plugins"]["busy"] = true;
+        require(!hasChoice(trialLayout.view(scope, busyTrial), "community.trial.286"), "Busy session offered the trial");
+        auto loadedTrial = trialState;
+        loadedTrial["native_community_trial"]["status"] = "loaded";
+        loadedTrial["native_community_trial"]["message"] = "C:\\plugins\\SpeedFlipTrainer.dll plugin load";
+        auto loadedView = trialLayout.view(scope, loadedTrial);
+        require(!hasChoice(loadedView, "community.trial.286"), "Loaded trial stayed actionable");
+        require(loadedView.body.find("loaded for this offline session") != std::string::npos, "Loaded status was hidden");
+        require(loadedView.body.find(".dll") == std::string::npos && loadedView.body.find("plugin load") == std::string::npos,
+            "Loaded status kept a path");
+        auto otherSite = state;
+        otherSite["native_community_trial"] = trialState["native_community_trial"];
+        NativeCareerLayout otherLayout;
+        require(otherLayout.open(scope, otherSite), "Other site menu did not open");
+        require(choose(otherLayout, findChoice(otherLayout.view(scope, otherSite), NativeCareerLayout::kCommunity),
+            scope, otherSite, false).accepted, "Other site page did not open");
+        require(!hasChoice(otherLayout.view(scope, otherSite), "community.trial.286"), "Trial button appeared for another plugin");
 
         std::cout << "Native career layout: passthrough, menu mapping, consumption, stale scope, and supported actions passed.\n";
         return 0;

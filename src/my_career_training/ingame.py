@@ -19,7 +19,7 @@ ALLOWED_ACTIONS = frozenset({
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
     "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
     "community_trial_prepare",
-    "career_name_clipboard", "rename_recruit_clipboard", "backup_save",
+    "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data",
 })
 
 

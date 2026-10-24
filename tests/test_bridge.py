@@ -750,6 +750,7 @@ def test_pending_community_load_blocks_other_activity_but_keeps_exit_available(b
     instance, _, _ = backend
     instance.native_community = SimpleNamespace(state=lambda: {"busy": True}, request=lambda: {})
     assert instance.state["session"]["busy"]
+    assert instance.state["session"]["can_exit"]
     instance.dispatch("new_career", {"team_name": "Wait", "format": 3})
     assert "community plugin confirmation" in instance.error
     assert instance.document["career"] is None
@@ -786,6 +787,16 @@ def test_native_recruit_paste_and_manual_backup_use_existing_domain_validation(b
     backups = list(instance.store.directory.glob("career-backup-*.json"))
     assert len(backups) == 1
     assert json.loads(backups[0].read_text(encoding="utf-8"))["career"] == instance.document["career"]
+
+
+def test_new_career_clears_previous_clubs_latest_result(backend):
+    instance, _, _ = backend
+    instance.dispatch("new_career", {"team_name": "First", "format": 3})
+    instance.latest_result = {"fixture_id": "old-fixture", "home_score": 5, "away_score": 2}
+    instance.dispatch("new_career", {"team_name": "Second", "format": 3})
+    assert not instance.error
+    assert instance.latest_result is None
+    assert instance.document["career"]["team_name"] == "Second"
 
 
 def test_community_late_cancel_keeps_committed_download_visible(backend, monkeypatch):

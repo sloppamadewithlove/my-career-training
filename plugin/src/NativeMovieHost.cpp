@@ -670,16 +670,29 @@ Json NativeMovieHost::status() const {
     Json result = {{"trial_enabled", MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0}, {"view_published", false},
         {"movie_callback_seen", false}, {"commands_accepted", 0}, {"commands_rejected", 0},
         {"parameter_abi_verified", false}, {"runtime_verified", false}, {"production_ready", false},
+        {"movie_ready", false},
         {"reason", MCT_ENABLE_NATIVE_MOVIE_TRIAL ? "waiting_for_session" : "trial_compiled_out"}};
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
-    if (!state_) return result;
-    std::lock_guard<std::mutex> guard(state_->mutex);
-    result["view_published"] = state_->viewPublished && state_->scopeLive;
-    result["movie_callback_seen"] = state_->movieCallbackSeen;
-    result["commands_accepted"] = state_->accepted;
-    result["commands_rejected"] = state_->rejected;
-    result["reason"] = state_->reason;
+    if (state_) {
+        std::lock_guard<std::mutex> guard(state_->mutex);
+        result["view_published"] = state_->viewPublished && state_->scopeLive;
+        result["movie_callback_seen"] = state_->movieCallbackSeen;
+        result["commands_accepted"] = state_->accepted;
+        result["commands_rejected"] = state_->rejected;
+        result["reason"] = state_->reason;
+        result["movie_ready"] = state_->scopeLive && !state_->stopped && state_->session.ready(monotonicSeconds());
+    }
+    std::string executableSha;
+    std::string bakkesCore;
+    std::string gameBuild;
+    if (verifiedBuild(executableSha, bakkesCore, gameBuild)) {
+        result["executable_sha256"] = executableSha;
+        result["bakkes_core"] = bakkesCore;
+        result["game_build"] = gameBuild;
+    }
 #endif
+    result["runtime_verified"] = false;
+    result["production_ready"] = false;
     return result;
 }
 

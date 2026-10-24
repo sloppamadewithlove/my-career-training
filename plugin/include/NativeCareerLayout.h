@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LocalBridge.h"
+#include "NativeCareerManagement.h"
 #include "NativeCosmeticContext.h"
 #include "NativeWorkshopContext.h"
 
@@ -24,7 +25,8 @@ namespace mct {
 
 enum class CareerLayoutPage {
     Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings,
-    Appearance, CosmeticItems, CosmeticPaints, CosmeticColors, CosmeticPrimary, CosmeticAccent
+    Appearance, CosmeticItems, CosmeticPaints, CosmeticColors, CosmeticPrimary, CosmeticAccent,
+    CreateCareer, CareerRules
 };
 
 enum class CareerLayoutEffectKind {
@@ -181,12 +183,16 @@ public:
     // Actions this layout may put on an effect. A subset of the bridge allowlist.
     // play_workshop and any activation command are intentionally absent.
     static bool supportedAction(const std::string& action) {
-        return action == "play_match" || action == "select_lesson" || action == "start_lesson" ||
+        return NativeCareerManagement::allowedAction(action) ||
+            action == "choose_provider" || action == "settings" || action == "backup_save" ||
+            action == "open_data" || action == "diagnostics" ||
+            action == "play_match" || action == "select_lesson" || action == "start_lesson" ||
             action == "assistance" || action == "lesson_variant" || action == "restore_explanations" ||
             action == "loadout" || action == "refresh_workshop" || action == "workshop_favorite" ||
             action == "community_lookup" || action == "community_paste_link" ||
             action == "community_download" || action == "community_library" ||
-            action == "community_cancel" || action == "training_settings" || action == "quit_game";
+            action == "community_cancel" || action == "community_trial_prepare" ||
+            action == "training_settings" || action == "quit_game";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.
@@ -244,6 +250,8 @@ public:
         case CareerLayoutPage::Workshop: buildWorkshop(out, state, workshop); break;
         case CareerLayoutPage::Community: buildCommunity(out, state); break;
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
+        case CareerLayoutPage::CreateCareer: buildCreate(out, state); break;
+        case CareerLayoutPage::CareerRules: buildRules(out, state); break;
         }
         if (out.body.size() > kMaxBody) out.body.resize(utf8Prefix(out.body, kMaxBody));
         for (auto& choice : out.choices) choice.revision = revision_;
@@ -287,6 +295,8 @@ public:
         if (match->kind == CareerLayoutEffectKind::Dispatch) {
             effect.originalConsumptionRequired = true;
             if (!supportedAction(match->action) || !match->payload.is_object() || match->stock != StockRoute::None)
+                return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+            if (match->action == "community_trial_prepare" && !match->payload.empty())
                 return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
             if (!originalConsumed) return refuse(effect, CareerLayoutRefusal::NotConsumed, kNotReady);
             if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
@@ -547,6 +557,8 @@ private:
             lessonId_ = choice->lessonId;
             page_ = CareerLayoutPage::Lesson;
         }
+        if (choice->action == "new_career" || choice->action == "next_season")
+            page_ = CareerLayoutPage::Career;
         return page_;
     }
 
@@ -885,7 +897,7 @@ private:
         navigate(view, kWorkshop, "Workshop", CareerLayoutPage::Workshop);
         navigate(view, kCommunity, "Community", CareerLayoutPage::Community);
         navigate(view, kSettings, "Settings", CareerLayoutPage::Settings);
-        const bool canExit = !busy(state);
+        const bool canExit = flag(object(state, "session"), "can_exit", !busy(state));
         dispatch(view, kExit, "Exit", canExit, kWait, "quit_game", Json::object());
     }
 
@@ -895,6 +907,8 @@ private:
         const auto fixture = object(state, "next_fixture");
         if (career.empty()) addLine(view.body, "No career exists yet.");
         else addLine(view.body, plain(text(career, "team_name", "My club"), 48));
+        addLine(view.body, NativeCareerManagement::careerSummary(state));
+        navigate(view, "career.create", "New career", CareerLayoutPage::CreateCareer);
         CareerLayoutChoice play;
         play.id = "career.play";
         play.label = "Play Next Match";
@@ -908,6 +922,8 @@ private:
         else if (text(fixture, "status") != "scheduled") play.reason = "That match is already finished.";
         else if (flag(state, "setup_required", true)) play.reason = "Finish setup before playing a match.";
         else if (!ready(state)) play.reason = kRecover;
+        else if (career.value("format", Json()) == 4 && text(state, "selected_provider") != "mct-specialist-baseline")
+            play.reason = "Choose Ground Specialists in Career rules for 4v4.";
         else {
             play.enabled = true;
             play.careerId = text(career, "id");
@@ -920,6 +936,7 @@ private:
         navigate(view, "career.squad", "Squad", CareerLayoutPage::Squad);
         navigate(view, "career.schedule", "Schedule", CareerLayoutPage::Schedule);
         navigate(view, "career.standings", "Season", CareerLayoutPage::Standings);
+        navigate(view, "career.rules", "Career rules", CareerLayoutPage::CareerRules);
         back(view, CareerLayoutPage::Root);
     }
 
@@ -989,8 +1006,11 @@ private:
             struct Speed { const char* id; const char* label; double value; };
             const Speed speeds[] = {{"quarter", "Practice speed: quarter", 0.25}, {"half", "Practice speed: half", 0.5},
                 {"three-quarter", "Practice speed: three quarters", 0.75}, {"normal", "Practice speed: normal", 1.0}};
+            const auto preferences = objectKey(object(state, "lesson_preferences"), lessonId_);
+            const double selectedSpeed = numberValue(preferences, "playback_speed", 1.0);
             for (const auto& speed : speeds)
-                dispatch(view, std::string("training.speed.") + speed.id, speed.label, canEdit, kWait, "assistance",
+                dispatch(view, std::string("training.speed.") + speed.id,
+                    std::string(speed.label) + (selectedSpeed == speed.value ? " (selected)" : ""), canEdit, kWait, "assistance",
                     {{"id", lessonId_}, {"key", "playback_speed"}, {"value", speed.value}});
             const bool canVariant = canEdit && !workerLikely(state);
             const char* variantWait = workerLikely(state) ? "Stop the lesson before changing its starting setup." : kWait;
@@ -1045,63 +1065,70 @@ private:
         back(view, CareerLayoutPage::Career);
     }
 
+    static void management(CareerLayoutView& view, const Json& state, const NativeManagementView& source) {
+        view.title = source.title;
+        view.body = source.body;
+        for (const auto& item : source.choices) {
+            CareerLayoutChoice choice;
+            choice.id = item.id;
+            choice.label = item.label;
+            choice.enabled = item.enabled;
+            choice.reason = item.reason;
+            choice.kind = CareerLayoutEffectKind::Dispatch;
+            choice.action = item.action;
+            choice.payload = item.payload;
+            choice.careerId = text(careerOf(state), "id");
+            push(view, std::move(choice));
+        }
+    }
+
+    void buildCreate(CareerLayoutView& view, const Json& state) const {
+        management(view, state, NativeCareerManagement::create(state));
+        back(view, CareerLayoutPage::Career);
+    }
+
     void buildStandings(CareerLayoutView& view, const Json& state) const {
-        view.title = "Season";
-        const auto career = careerOf(state);
-        if (career.empty()) addLine(view.body, "No career exists yet.");
-        else {
-            const auto season = currentSeason(career);
-            std::string heading = "League table.";
-            if (!season.empty() && career.contains("current_season") && career["current_season"].is_number_integer()) {
-                const auto index = career["current_season"];
-                std::uint64_t number = index.is_number_unsigned() ? index.get<std::uint64_t>() : static_cast<std::uint64_t>(index.get<std::int64_t>());
-                if (number < 1000) heading = "Season " + std::to_string(number + 1) + " league table.";
-            }
-            addLine(view.body, heading);
-        }
-        const auto rows = array(state, "standings");
-        const auto stop = (std::min)(rows.size(), kMaxRows);
-        if (!stop) addLine(view.body, "No standings are published yet.");
-        for (std::size_t i = 0; i < stop; ++i) {
-            int points = 0;
-            std::string line = std::to_string(i + 1) + ". " + plain(text(rows[i], "name", "Club"), 48);
-            if (whole(rows[i], "points", points, 0, 1000000)) line += " - " + std::to_string(points) + " points";
-            addLine(view.body, line);
-        }
+        management(view, state, NativeCareerManagement::season(state));
         back(view, CareerLayoutPage::Career);
     }
 
     void buildSquad(CareerLayoutView& view, const Json& state) const {
-        view.title = "Squad";
+        management(view, state, NativeCareerManagement::squad(state));
+        back(view, CareerLayoutPage::Career);
+    }
+
+    void buildRules(CareerLayoutView& view, const Json& state) const {
+        management(view, state, NativeCareerManagement::rules(state));
+        addLine(view.body, "Ground Specialists use the difficulty settings. Necto and Nexto use fixed trained policies.");
+        addLine(view.body, "For 4v4, choose Ground Specialists.");
         const auto career = careerOf(state);
-        if (career.empty()) addLine(view.body, "No career exists yet.");
-        else addLine(view.body, plain(text(career, "team_name", "My club"), 48));
-        const auto squad = array(career, "squad");
-        const auto lineup = array(career, "lineup");
-        const auto recruits = object(career, "recruits");
-        std::size_t shown = 0;
-        const auto stop = (std::min)(squad.size(), kScanCap);
-        for (std::size_t i = 0; i < stop && shown < kMaxSquad; ++i) {
-            if (!squad[i].is_string()) continue;
-            const auto id = squad[i].get<std::string>();
-            if (!validId(id)) continue;
-            const auto recruit = objectKey(recruits, id);
-            if (recruit.empty()) continue;
-            bool starter = false;
-            const auto lineupStop = (std::min)(lineup.size(), kScanCap);
-            for (std::size_t n = 0; n < lineupStop; ++n)
-                if (lineup[n].is_string() && lineup[n].get<std::string>() == id) starter = true;
-            addLine(view.body, plain(text(recruit, "name", "Bot"), 48) + " - " + plain(text(recruit, "role", "bot"), 32) +
-                (starter ? " - starter" : " - bench"));
-            ++shown;
+        int format = 0;
+        const bool canEdit = ready(state) && whole(career, "format", format, 1, 4);
+        const auto providers = array(state, "providers");
+        struct Provider { const char* id; const char* name; };
+        const Provider known[] = {{"mct-specialist-baseline", "Ground Specialists"}, {"necto", "Necto"}, {"nexto", "Nexto"}};
+        for (const auto& item : known) {
+            Json provider = Json::object();
+            for (std::size_t index = 0; index < (std::min)(providers.size(), kScanCap); ++index)
+                if (text(providers[index], "id") == item.id) { provider = providers[index]; break; }
+            const auto formats = array(provider, "supported_formats");
+            bool supports = false;
+            for (std::size_t index = 0; index < (std::min)(formats.size(), kScanCap); ++index)
+                if (formats[index].is_number_integer() && formats[index] == format) supports = true;
+            const bool available = flag(provider, "available", false);
+            const bool enabled = canEdit && available && supports;
+            std::string reason = !canEdit ? kRecover : !available ? text(provider, "reason", "This bot provider is unavailable.") :
+                "This provider does not support the current format.";
+            const std::string label = std::string(text(state, "selected_provider") == item.id ? "Selected: " : "Bots: ") + item.name;
+            dispatch(view, std::string("rules.provider.") + item.id, label, enabled, reason,
+                "choose_provider", {{"id", item.id}});
         }
-        if (career.empty() || !shown) addLine(view.body, "No squad is published yet.");
-        else addLine(view.body, "Lineup changes stay in the current squad controls.");
         back(view, CareerLayoutPage::Career);
     }
 
     void buildGarage(CareerLayoutView& view, const Json& state) const {
         view.title = "Garage";
+        addLine(view.body, NativeCareerManagement::rewardSummary(state));
         addLine(view.body, "Your car stays in the game's garage.");
         addLine(view.body, "Bot presets below are local career appearances. They do not add items to your garage.");
         addLine(view.body, "Local appearance is a separate machine override, not a bot preset.");
@@ -1286,6 +1313,29 @@ private:
         activate.kind = CareerLayoutEffectKind::Unavailable;
         activate.reason = kActivationReason;
         push(view, std::move(activate));
+        const auto trial = object(state, "native_community_trial");
+        const auto trialStatus = text(trial, "status");
+        const auto trialMessage = text(trial, "message");
+        if (!trialStatus.empty() || !trialMessage.empty()) {
+            std::string trialShown = trialMessage;
+            const bool unsafe = trialShown.find('\\') != std::string::npos || trialShown.find('/') != std::string::npos ||
+                                trialShown.find("plugin load") != std::string::npos || trialShown.find(".dll") != std::string::npos;
+            if (unsafe || trialShown.empty()) {
+                if (trialStatus == "loaded") trialShown = "Speedflip Trainer is loaded for this offline session.";
+                else if (trialStatus == "staged" || trialStatus == "pending")
+                    trialShown = "The trial file is staged and is not loaded yet.";
+                else if (trialStatus == "refused" || trialStatus == "unknown")
+                    trialShown = "The Speedflip Trainer trial did not load.";
+                else trialShown.clear();
+            }
+            if (!trialShown.empty()) addLine(view.body, plain(trialShown, 160));
+        }
+        const bool trialReady = flag(trial, "available", false) && flag(trial, "can_prepare", false) &&
+                                text(trial, "site_id") == "286" && selectedId == "286" && !waiting &&
+                                trialStatus != "loaded" && trialStatus != "refused" && trialStatus != "unknown";
+        if (trialReady)
+            dispatch(view, "community.trial.286", "Try Speedflip Trainer", true, "", "community_trial_prepare",
+                     Json::object());
         const auto downloaded = array(plugins, "downloaded");
         const auto downloadedStop = (std::min)(downloaded.size(), kMaxRows);
         for (std::size_t i = 0; i < downloadedStop; ++i) {
@@ -1329,6 +1379,18 @@ private:
         for (const auto& item : views)
             dispatch(view, std::string("settings.view.") + item.id, item.label, canEdit, kWait, "training_settings",
                 {{"key", "ghost_view"}, {"value", item.value}});
+        navigate(view, "settings.career.rules", "Career rules", CareerLayoutPage::CareerRules);
+        const char* profiles[] = {"actions", "keyboard", "playstation", "xbox"};
+        const char* labels[] = {"Game actions", "Keyboard", "PlayStation", "Xbox"};
+        for (std::size_t index = 0; index < 4; ++index) {
+            const bool selected = text(object(state, "settings"), "binding_profile", "actions") == profiles[index];
+            dispatch(view, std::string("settings.bindings.") + profiles[index],
+                std::string("Input labels: ") + labels[index] + (selected ? " (selected)" : ""),
+                canEdit, kWait, "settings", {{"key", "binding_profile"}, {"value", profiles[index]}});
+        }
+        dispatch(view, "settings.backup", "Back up career", canEdit, kWait, "backup_save", Json::object());
+        dispatch(view, "settings.data", "Open save folder", canEdit, kWait, "open_data", Json::object());
+        dispatch(view, "settings.diagnostics", "Refresh diagnostics", canEdit, kWait, "diagnostics", Json::object());
         back(view, CareerLayoutPage::Root);
     }
 

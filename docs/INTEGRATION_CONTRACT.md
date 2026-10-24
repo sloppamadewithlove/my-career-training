@@ -59,6 +59,9 @@ for that session and sets `requires_restart`; it never silently resends later.
 Interrupted community journals are recovered before offline startup, final plugin
 restoration, and normal online handoff. Game/helper presence or a changed file keeps
 the journal and prevents handoff; no live community plugin unload is issued.
+`session.can_exit` is independent of the community activity lock, so pending or
+unconfirmed trials keep the native Exit control available. Actual game/worker
+shutdown transitions still disable repeated exit requests.
 
 Native career setup uses ephemeral `career_draft.team_name`, initially `My Career
 Club`. `career_name_clipboard {}` reads a 1–40-character printable name only after

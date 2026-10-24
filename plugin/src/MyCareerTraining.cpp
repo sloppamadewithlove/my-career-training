@@ -1,12 +1,14 @@
 #include "MyCareerTraining.h"
 #include "ExecutableHash.h"
 #include "NativeCareerLayout.h"
+#include "bakkesmod/wrappers/PluginManagerWrapper.h"
 #include "CosmeticDesignCode.h"
 #include "NativeWorkshopDispatch.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <limits>
 #include <cstdlib>
 #include <fstream>
@@ -114,6 +116,10 @@ void MyCareerTraining::onLoad() {
             [this] { return workshopScope(); },
             [this](const std::string& command) { dispatchWorkshopCommand(command); },
             true);
+        communityHost_ = std::make_unique<mct::NativeCommunityHost>(
+            [this](const std::string& command) { communityExecute(command); },
+            [this](const std::string& name, double& value) { return communityReadCvar(name, value); },
+            [this](const std::string& name, double value) { return communityWriteCvar(name, value); });
 #endif
         nativeMovie_ = std::make_unique<mct::NativeMovieHost>(gameWrapper, *bridge_, [this] { return ownedOfflineNow(); },
             [this] { return nativeCosmeticContext(); },
@@ -162,6 +168,8 @@ void MyCareerTraining::onUnload() {
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     if (workshopLauncher_) workshopLauncher_->shutdown();
     workshopLauncher_.reset();
+    shutdownCommunity();
+    if (communityHost_) communityHost_.reset();
 #endif
     if (!restoreCosmetics())
         cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
@@ -535,6 +543,161 @@ void MyCareerTraining::maintainWorkshop() {
 #endif
 }
 
+namespace {
+std::string utf8FromWide(const std::wstring& wide) {
+    if (wide.empty()) return {};
+    const int chars = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide.c_str(), static_cast<int>(wide.size()),
+                                          nullptr, 0, nullptr, nullptr);
+    if (chars <= 0) return {};
+    std::string out(static_cast<std::size_t>(chars), '\0');
+    WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide.c_str(), static_cast<int>(wide.size()), out.data(), chars,
+                        nullptr, nullptr);
+    return out;
+}
+}
+
+void MyCareerTraining::maintainCommunity() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!communityHost_ || !bridge_) return;
+    try {
+        communityHost_->tick(bridge_->state(), [this] { return communityObservation(); });
+    } catch (...) {
+        cvarManager->log("My Career: the community trial tick stopped.");
+    }
+#else
+#endif
+}
+
+void MyCareerTraining::shutdownCommunity() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (communityHost_) communityHost_->shutdown(cvarManager != nullptr && gameWrapper != nullptr);
+#endif
+}
+
+mct::Json MyCareerTraining::communityStatus() const {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (communityHost_) return communityHost_->status();
+#endif
+    return {{"status", "idle"}, {"reason", "trial_compiled_out"}, {"game_verified", false}, {"production_allowed", false}};
+}
+
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+mct::NativeCommunityObservation MyCareerTraining::communityObservation() const {
+    mct::NativeCommunityObservation observation;
+    observation.now = mct::unixTime();
+    observation.pid = GetCurrentProcessId();
+    observation.created = processScope_.created;
+    observation.processAvailable = cvarManager != nullptr && gameWrapper != nullptr;
+    observation.ownedOffline = ownedOfflineNow();
+    observation.fresh = bridge_ && bridge_->fresh();
+    observation.movieReady = nativeMovie_ && nativeMovie_->movieReady();
+    std::string sha;
+    std::string core;
+    std::string build;
+    observation.buildVerified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, core, build);
+    if (observation.buildVerified) {
+        observation.exeSha = sha;
+        observation.core = core;
+        observation.build = build;
+    }
+    observation.pluginsDirectory = communityPluginsDirectory();
+    observation.loadedPluginsKnown = communityLoadedNames(observation.loaded);
+    observation.frontend = false;
+    if (gameWrapper) {
+        try {
+            observation.frontend = !gameWrapper->IsInGame() && !gameWrapper->IsInReplay() && !gameWrapper->IsInOnlineGame();
+        } catch (...) {
+            observation.frontend = false;
+        }
+    }
+    if (bridge_) {
+        try {
+            const auto published = bridge_->state();
+            if (published.is_object() && published.contains("bridge_session") && published["bridge_session"].is_string())
+                observation.nonce = published["bridge_session"].get<std::string>();
+        } catch (...) {
+            observation.nonce.clear();
+        }
+    }
+    return observation;
+}
+
+std::string MyCareerTraining::communityPluginsDirectory() const {
+    if (!gameWrapper) return {};
+    std::filesystem::path base;
+    try {
+        base = gameWrapper->GetBakkesModPath();
+    } catch (...) {
+        base.clear();
+    }
+    if (base.empty()) {
+        try {
+            base = gameWrapper->GetDataFolder().parent_path();
+        } catch (...) {
+            return {};
+        }
+    }
+    return utf8FromWide((base / "plugins").wstring());
+}
+
+bool MyCareerTraining::communityLoadedNames(std::vector<std::string>& names) const {
+    names.clear();
+    if (!gameWrapper) return false;
+    try {
+        auto manager = gameWrapper->GetPluginManager();
+        if (manager.memory_address == 0) return false;
+        const auto* plugins = manager.GetLoadedPlugins();
+        if (!plugins) return false;
+        for (const auto& item : *plugins) {
+            if (!item) continue;
+            if (!item->_filename.empty()) names.push_back(item->_filename);
+            if (!item->_details) continue;
+            if (item->_details->fileName && item->_details->fileName[0]) names.push_back(item->_details->fileName);
+            if (item->_details->pluginName && item->_details->pluginName[0]) names.push_back(item->_details->pluginName);
+            if (item->_details->className && item->_details->className[0]) names.push_back(item->_details->className);
+        }
+        return true;
+    } catch (...) {
+        names.clear();
+        return false;
+    }
+}
+
+bool MyCareerTraining::communityReadCvar(const std::string& name, double& value) const {
+    value = 0;
+    if (!cvarManager) return false;
+    try {
+        auto cvar = cvarManager->getCvar(name);
+        if (!cvar) return false;
+        value = cvar.getFloatValue();
+        return std::isfinite(value);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool MyCareerTraining::communityWriteCvar(const std::string& name, double value) const {
+    if (!cvarManager || !std::isfinite(value)) return false;
+    try {
+        auto cvar = cvarManager->getCvar(name);
+        if (!cvar) return false;
+        cvar.setValue(static_cast<float>(value));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void MyCareerTraining::communityExecute(const std::string& command) {
+    if (!cvarManager || command.rfind("plugin load MCTCommunity_286_", 0) != 0)
+        throw std::runtime_error("The community trial command is not the derived load.");
+    if (command.find(' ') != command.rfind(' ') || command.find('\\') != std::string::npos ||
+        command.find('/') != std::string::npos)
+        throw std::runtime_error("The community trial command is not the derived load.");
+    cvarManager->executeCommand(command, false);
+}
+#endif
+
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
     try {
@@ -560,6 +723,7 @@ void MyCareerTraining::tick() {
             nativeMovie_->tick();
             nativeMovieReady_ = offlineReady_ && nativeMovie_->movieReady();
         } else nativeMovieReady_ = false;
+        maintainCommunity();
         if (nativeDialogActive_ && (!offlineReady_ || next.inGame || next.replay ||
             nativeNonce_ != stringValue(publishedState, "bridge_session"))) closeNativeMenu();
         // Empty observations enforce timeout/scope without recording tick spam.
@@ -631,7 +795,10 @@ void MyCareerTraining::tick() {
                     {"cosmetic_restoration_pending", cosmeticOverride_.restorationPending()},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
                     {"menu_mode", nativeMovieReady_ ? "authored native movie development trial" : "full-screen custom PluginWindow with input capture"},
+                    {"in_replay", next.replay},
+                    {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
+                    {"native_community_status", communityStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
@@ -648,6 +815,17 @@ void MyCareerTraining::tick() {
             next.actions = Json::object();
             menuLifecycle_.observe({});
             menuOpen_ = false;
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+            if (communityHost_ && communityHost_->active() && bridge_ && mct::unixTime() - lastStatus_ >= 0.5) {
+                Json status = {{"version", "0.3.0"}, {"online", next.online}, {"in_game", next.inGame},
+                    {"in_replay", next.replay}, {"frontend", !next.inGame && !next.replay && !next.online},
+                    {"pid", GetCurrentProcessId()}, {"native_community_status", communityStatus()},
+                    {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
+                    {"runtime_verified", false}, {"production_ready", false}};
+                bridge_->publishStatus(std::move(status));
+                lastStatus_ = mct::unixTime();
+            }
+#endif
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             localRequests_.clear();
             next.probeActive = false;

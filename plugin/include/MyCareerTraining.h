@@ -7,6 +7,7 @@
 #include "NativeMovieHost.h"
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
 #include "NativeWorkshopLauncher.h"
+#include "NativeCommunityHost.h"
 #endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
@@ -67,8 +68,15 @@ private:
     std::unique_ptr<mct::NativeMovieHost> nativeMovie_;
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     std::unique_ptr<mct::NativeWorkshopLauncher> workshopLauncher_;
+    std::unique_ptr<mct::NativeCommunityHost> communityHost_;
     std::string workshopSession_;
     std::uint64_t workshopGeneration_ = 1;
+    mct::NativeCommunityObservation communityObservation() const;
+    std::string communityPluginsDirectory() const;
+    bool communityLoadedNames(std::vector<std::string>& names) const;
+    bool communityReadCvar(const std::string& name, double& value) const;
+    bool communityWriteCvar(const std::string& name, double value) const;
+    void communityExecute(const std::string& command);
 #endif
     std::atomic<bool> nativeMovieReady_{false};
     std::atomic<bool> menuOpen_{true};
@@ -167,6 +175,9 @@ private:
     mct::WorkshopLoadScope workshopScope() const;
     void dispatchWorkshopCommand(const std::string& command);
     void maintainWorkshop();
+    void maintainCommunity();
+    void shutdownCommunity();
+    mct::Json communityStatus() const;
     void loadPreferences();
     void savePreferences();
     bool command(const std::string& action, mct::Json payload = mct::Json::object());
