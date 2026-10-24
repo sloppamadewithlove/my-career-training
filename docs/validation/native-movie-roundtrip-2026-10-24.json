@@ -1,0 +1,22 @@
+{
+  "kind": "private_authored_native_movie_roundtrip",
+  "installed_source_unchanged": true,
+  "installed_package_sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
+  "original_movie_sha256": "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0",
+  "authored_abc_sha256": "9d423d2e39743473bec792c0ca38f3b28946238183b03bbfb0a4681767721768",
+  "private_movie_sha256": "14a822445a51c8250f719459efd2fd765b61f45235717c1b116eda535f32b320",
+  "private_package_sha256": "42edb2aa7e09c0605b5306517d45a614a455dd6b5d39f025afed53099ebd21d4",
+  "private_movie_bytes": 1142751,
+  "private_package_bytes": 3422416,
+  "original_classes_retained": 714,
+  "original_method_bodies_retained": 11501,
+  "original_script_initializers_changed": [
+    11548
+  ],
+  "original_non_abc_tags_identical": true,
+  "new_class_count": 1,
+  "private_package_roundtrip_equal": true,
+  "runtime_verified": false,
+  "production_ready": false,
+  "game_launched": false
+}
