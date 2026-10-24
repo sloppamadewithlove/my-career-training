@@ -24,14 +24,10 @@ patch = importlib.util.module_from_spec(SPEC)
 sys.modules["native_menu_patch"] = patch
 SPEC.loader.exec_module(patch)
 
-PRIVATE_AS = Path(
-    r"C:\Users\aporo\Documents\Codex\2026-10-24\nam\work\research"
-    r"\private-menu-methods\scripts\menus\RootMenu.as"
-)
-PRIVATE_PCODE = Path(
-    r"C:\Users\aporo\Documents\Codex\2026-10-24\nam\work\research"
-    r"\private-menu-pcode\scripts\menus\RootMenu.pcode"
-)
+# Optional locally extracted research is never committed or tied to one user.
+PRIVATE_RESEARCH = Path(__file__).resolve().parents[1] / "work" / "private-menu-research"
+PRIVATE_AS = PRIVATE_RESEARCH / "private-menu-methods/scripts/menus/RootMenu.as"
+PRIVATE_PCODE = PRIVATE_RESEARCH / "private-menu-pcode/scripts/menus/RootMenu.pcode"
 
 
 def _method_header(name: str, maxstack: int, localcount: int, *, optional: bool = False) -> str:

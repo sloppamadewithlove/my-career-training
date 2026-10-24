@@ -68,6 +68,11 @@ gui = EXE(PYZ(a.pure), a.scripts, [], exclude_binaries=True,
           strip=False, upx=False, console=False, icon=str(icon))
 worker = EXE(PYZ(b.pure), b.scripts, [], exclude_binaries=True,
              name="MyCareerTrainingWorker", debug=False, bootloader_ignore_signals=False,
-             strip=False, upx=False, console=True, icon=str(icon))
-coll = COLLECT(gui, worker, windows_qt_binaries(a.binaries), a.datas, windows_qt_binaries(b.binaries), b.datas,
+             strip=False, upx=False, console=True, hide_console="hide-early",
+             contents_directory=".", icon=str(icon))
+# The worker shares the support directory with the GUI. It is never a second
+# player entry point, and its bootloader resolves dependencies beside itself.
+worker_files = [("_internal/MyCareerTrainingWorker.exe", worker.name, "EXECUTABLE")]
+coll = COLLECT(gui, worker_files, worker.dependencies,
+               windows_qt_binaries(a.binaries), a.datas, windows_qt_binaries(b.binaries), b.datas,
                strip=False, upx=False, name=candidate.BUNDLE_NAME)

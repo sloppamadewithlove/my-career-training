@@ -1,4 +1,7 @@
-# Windows Codex handoff
+# Historical Windows handoff
+
+For the current candidate and repair, start at [PROJECT_STATUS.md](PROJECT_STATUS.md)
+and [BUILDING.md](BUILDING.md). The notes below describe earlier checkpoints.
 
 Installing Codex CLI on the Windows PC does not automatically connect that PC
 to this Mac session. A local Codex session can perform the checks below. No remote

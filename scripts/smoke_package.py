@@ -13,9 +13,13 @@ import tempfile
 from plugin_artifact import inspect_plugin
 
 CORE_SHA256 = '454986c71bacebfcb923a8eeddba7ea62ecc6c42d28b4cab89f653e2eab1ccd1'
+WORKER_PATH = '_internal/MyCareerTrainingWorker.exe'
 
 
 def run_smoke(bundle: Path, data: Path) -> None:
+    visible_apps = {path.name for path in bundle.glob('*.exe') if not path.name.startswith('unins')}
+    if visible_apps != {'MyCareerTraining.exe'}:
+        raise AssertionError('The player folder must have exactly one app: MyCareerTraining.exe')
     environment = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software',
                        SDL_VIDEODRIVER='dummy')
     core = bundle / '_internal' / 'my_career_training' / 'runtime' / 'RLBotServer.exe'
@@ -37,7 +41,7 @@ def run_smoke(bundle: Path, data: Path) -> None:
         raise AssertionError('A native build must not claim gameplay verification')
     # Run the console self-test first so native/model import failures produce
     # a traceback rather than a hidden Windows GUI exception dialog.
-    probe = subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe'), '--self-test'],
+    probe = subprocess.run([str(bundle / WORKER_PATH), '--self-test'],
                            capture_output=True, text=True, encoding='utf-8',
                            timeout=60, env=environment)
     if probe.returncode:
@@ -46,7 +50,7 @@ def run_smoke(bundle: Path, data: Path) -> None:
         subprocess.run([str(bundle / 'MyCareerTraining.exe'), flag, '--data-dir', str(data)],
                        check=True, timeout=60, env=environment)
     requests = [dict(id='package-ping', type='ping'), dict(id='package-stop', type='shutdown')]
-    result = subprocess.run([str(bundle / 'MyCareerTrainingWorker.exe')],
+    result = subprocess.run([str(bundle / WORKER_PATH), '--worker'],
                             input=''.join(json.dumps(item) + '\n' for item in requests),
                             capture_output=True, text=True, encoding='utf-8',
                             check=True, timeout=30, env=environment)
@@ -73,7 +77,7 @@ def main() -> int:
     evidence = {
         'passed': True,
         'artifacts': {str(path.relative_to(bundle)): hashlib.sha256(path.read_bytes()).hexdigest()
-                      for path in (bundle / 'MyCareerTraining.exe', bundle / 'MyCareerTrainingWorker.exe',
+                      for path in (bundle / 'MyCareerTraining.exe', bundle / WORKER_PATH,
                                    bundle / '_internal/my_career_training/runtime/plugins/MyCareerTraining.dll')},
         'checks': ['frozen UI', 'worker pipes', 'RLBot checksum', 'plugin PE exports/imports'],
         'gameplay_verified': False,

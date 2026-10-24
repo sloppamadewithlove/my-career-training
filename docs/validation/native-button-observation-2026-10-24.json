@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "sanitized_native_button_observation",
-  "host": "SLAVAPC",
+  "host": "windows-test-host",
   "game_executable_sha256": "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7",
   "bakkesmod_core": 229,
   "game_build": "261013.63066.530866",

@@ -108,7 +108,8 @@ def legacy_journal(tmp_path, slot, custom_sha):
     return guard
 
 
-def test_interrupted_workshop_restores_only_exact_owned_substitution(tmp_path):
+def test_interrupted_workshop_restores_only_exact_owned_substitution(tmp_path, monkeypatch):
+    monkeypatch.setattr("my_career_training.platforms.game_processes", lambda: [])
     _exe, slot, custom = game_map(tmp_path)
     guard = legacy_journal(tmp_path, slot, digest(custom))
     slot.write_bytes(custom.read_bytes())
@@ -117,7 +118,8 @@ def test_interrupted_workshop_restores_only_exact_owned_substitution(tmp_path):
     assert not guard.receipt.exists()
 
 
-def test_recovery_preserves_unrelated_map_modifications(tmp_path):
+def test_recovery_preserves_unrelated_map_modifications(tmp_path, monkeypatch):
+    monkeypatch.setattr("my_career_training.platforms.game_processes", lambda: [])
     _exe, slot, custom = game_map(tmp_path)
     guard = legacy_journal(tmp_path, slot, digest(custom))
     slot.write_bytes(b"another tool changed this")
@@ -139,7 +141,8 @@ def test_legacy_recovery_does_not_write_while_rocket_league_is_running(tmp_path,
     assert guard.receipt.exists()
 
 
-def test_prepare_does_not_start_or_consume_a_map_replacement(tmp_path):
+def test_prepare_does_not_start_or_consume_a_map_replacement(tmp_path, monkeypatch):
+    monkeypatch.setattr("my_career_training.platforms.game_processes", lambda: [])
     exe, slot, custom = game_map(tmp_path)
     guard = legacy_journal(tmp_path, slot, digest(custom))
     slot.write_bytes(custom.read_bytes())
@@ -227,6 +230,7 @@ def test_setup_rejects_workshop_before_recovery_or_launch(tmp_path, monkeypatch)
 
 
 def test_allowed_session_restores_legacy_map_before_the_runtime(tmp_path, monkeypatch):
+    monkeypatch.setattr("my_career_training.platforms.game_processes", lambda: [])
     exe, slot, custom = game_map(tmp_path)
     guard = legacy_journal(tmp_path, slot, digest(custom))
     slot.write_bytes(custom.read_bytes())
