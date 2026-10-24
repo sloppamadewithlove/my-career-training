@@ -123,6 +123,28 @@ a pure fixture option; the active host uses `LeaveInputForCall` so it does not
 restore the original parameter before downstream work could consume it.
 No public installer or general menu-mutation capability is enabled by this test.
 
+## Menu data candidates (host 0.7)
+
+`--menu-data-binding-trial` enables the bounded reader described in
+`NATIVE_MENU_DATA_BINDING.md` and implies the object-header check. It is off by
+default and does not enable the parameter-remap experiment. The host invokes it
+only from the owned offline home menu, after the candidate menu-stack header
+matches. It can be combined with the button trace in one future session.
+
+The reader first checks the menu stack's data-store row identity, then looks
+for fixed public labels in small tables in that store. Results are store-wide
+label candidates: they do not prove which visible control uses a cell. Packed
+12-byte column records use bounded unaligned byte reads; object and array
+pointer alignment checks remain in the typed readers. It exports coordinates
+and allowlisted labels, never raw pointers or other decoded strings. It makes
+no writes and grants no compatibility or action-consumption capability.
+
+On 24 October the proposed remap session was closed without loading its probe;
+no parameter mutation was attempted. Its staged DLL was removed and the full
+installation comparison again reported no changed, added, missing or unreadable
+files. Further game sessions were deferred at the user's request. Host 0.7 and
+the new layout model are source/fixture work, not additional live-game evidence.
+
 Close that game normally and run:
 
 ```powershell

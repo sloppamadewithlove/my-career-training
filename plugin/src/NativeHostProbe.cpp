@@ -5,6 +5,7 @@
 #include "LocalBridge.h"
 #include "NativeMenuIdentityTrial.h"
 #include "NativeMenuGraphTrial.h"
+#include "NativeMenuDataBinding.h"
 #include "NativeMenuEventTrace.h"
 #include "NativeMenuRemapTrial.h"
 #include "NativeParameterSlot.h"
@@ -83,8 +84,12 @@ bool identifier(const std::string& value) {
     return true;
 }
 
-bool readCurrentProcess(std::uint64_t address, unsigned char* output, std::size_t size) {
-    if (!mct::NativeMenuIdentityTrial::pointer(address) || size == 0 || size > 256) return false;
+bool readCurrentProcessBytes(std::uint64_t address, unsigned char* output, std::size_t size) {
+    // Packed 12-byte column descriptors contain unaligned fields. Alignment is
+    // enforced by the typed reader for object/array pointers, not byte spans.
+    constexpr std::uint64_t limit = 0x0000800000000000ULL;
+    if (!output || address < 0x10000 || address >= limit || size == 0 || size > 256 ||
+        size > limit - address) return false;
     MEMORY_BASIC_INFORMATION region{};
     if (!VirtualQuery(reinterpret_cast<const void*>(address), &region, sizeof(region)) ||
         region.State != MEM_COMMIT || (region.Protect & (PAGE_GUARD | PAGE_NOACCESS))) return false;
@@ -92,6 +97,10 @@ bool readCurrentProcess(std::uint64_t address, unsigned char* output, std::size_
     if (address < base || address - base > region.RegionSize || size > region.RegionSize - (address - base)) return false;
     SIZE_T read = 0;
     return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address), output, size, &read) && read == size;
+}
+
+bool readCurrentProcess(std::uint64_t address, unsigned char* output, std::size_t size) {
+    return mct::NativeMenuIdentityTrial::pointer(address) && readCurrentProcessBytes(address, output, size);
 }
 }
 
@@ -385,6 +394,15 @@ public:
                         if (permitted()) details["menu_graph_trial"] = mct::NativeMenuGraphTrial::inspect(
                             stack.memory_address, tokens, readCurrentProcess);
                     }
+                    if (mct::boolValue(session, "menu_data_binding_trial") && menu == "RootMenuMovie" &&
+                        !gameWrapper->IsInGame() && permitted() &&
+                        mct::boolValue(details["object_header_trial"], "candidate_invariants_matched")) {
+                        const mct::NativeMenuDataBinding::Tokens tokens{menuToken,
+                            knownToken("GFxShell_X"), knownToken("GFxShell_TA"),
+                            knownToken("GFxDataStore_X"), classToken};
+                        details["menu_data_binding_trial"] = mct::NativeMenuDataBinding::inspect(
+                            stack.memory_address, tokens, readCurrentProcessBytes);
+                    }
                 } else details["object_header_trial"] = {{"reason", "sdk_name_tokens_unavailable"}};
             }
             if (mct::boolValue(session, "menu_event_trace") && menu == "RootMenuMovie" &&
@@ -443,4 +461,4 @@ public:
     }
 };
 
-BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.6.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.7.0", PLUGINTYPE_FREEPLAY)

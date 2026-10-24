@@ -4,6 +4,7 @@
 #include "NativeMenuProbe.h"
 #include "OwnedSession.h"
 #include "NativeCareerMenu.h"
+#include "CosmeticOverrideState.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -94,9 +95,7 @@ private:
     int productScanCursor_ = 0;
     bool scanningProducts_ = true;
     std::vector<MctProduct> productScan_;
-    std::string originalItemCode_;
-    bool originalItemEnabled_ = false;
-    bool changedItemMod_ = false;
+    mct::CosmeticOverrideState cosmeticOverride_;
     bool resumePending_ = false;
     bool resumeEscapeSent_ = false;
     bool pauseCaptureSuppressed_ = false;
@@ -140,7 +139,7 @@ private:
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
     void processLocalRequests(MctRuntime& result);
-    void restoreCosmetics();
+    bool restoreCosmetics();
     void advanceResume(MctRuntime& result);
     MctRuntime runtimeSnapshot() const;
     void queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());

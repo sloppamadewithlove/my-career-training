@@ -1,11 +1,10 @@
 #include "MyCareerTraining.h"
 #include "ExecutableHash.h"
+#include "CosmeticDesignCode.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
 #include <algorithm>
-#include <array>
 #include <cctype>
-#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <set>
@@ -78,64 +77,6 @@ mct::ProcessScope currentProcessScope() {
     return scope;
 }
 
-// Original implementation of BakkesMod's documented v3 loadout wire format.
-// Supported IDs are 13-bit and only supported cosmetic slots are sent. The
-// game's inventory, entitlement database and car physics are never changed.
-std::string cosmeticCode(const Json& request) {
-    std::array<unsigned char, 256> bytes{};
-    size_t bit = 0;
-    auto put = [&](unsigned int value, int count) {
-        for (int index = 0; index < count; ++index, ++bit) {
-            if ((value >> index) & 1u) bytes.at(bit / 8) |= static_cast<unsigned char>(1u << (bit % 8));
-        }
-    };
-    const auto items = arrayValue(request, "items");
-    if (items.size() > 15) throw std::runtime_error("Choose at most 15 cosmetic slots.");
-    put(3, 6); put(0, 18); put(1, 1); // version, header space, same visual design for both teams
-    put(static_cast<unsigned int>(items.size()), 4);
-    const std::set<int> slots{1, 2, 3, 4, 5, 7, 12, 13, 14, 15, 18};
-    for (const auto& item : items) {
-        const auto slot = static_cast<int>(mct::numberValue(item, "slot", -1));
-        const auto product = static_cast<int>(mct::numberValue(item, "product_id"));
-        const auto paint = static_cast<int>(mct::numberValue(item, "paint"));
-        if (!slots.count(slot) || product < 1 || product > 8191 || paint < 0 || paint > 18)
-            throw std::runtime_error("That product is outside the local item override's supported range.");
-        put(static_cast<unsigned int>(slot), 5); put(static_cast<unsigned int>(product), 13);
-        put(paint != 0, 1); if (paint != 0) put(static_cast<unsigned int>(paint), 6);
-    }
-    const bool colors = mct::boolValue(request, "override_colors");
-    put(colors, 1);
-    if (colors) {
-        for (const char* key : {"primary", "secondary"}) {
-            const auto color = arrayValue(request, key);
-            if (color.size() != 3) throw std::runtime_error("Choose three valid color channels.");
-            for (const auto& component : color) {
-                if (!component.is_number()) throw std::runtime_error("Invalid color channel.");
-                const double value = component.get<double>();
-                if (!std::isfinite(value) || value < 0 || value > 1) throw std::runtime_error("Invalid color channel.");
-                put(static_cast<unsigned int>(value * 255.0 + 0.5), 8);
-            }
-        }
-    }
-    put(0, 6); // no esports wheel team override
-    const auto length = (bit + 7) / 8;
-    unsigned int checksum = 255;
-    for (size_t index = 3; index < length; ++index) checksum ^= bytes[index];
-    const size_t lastBit = bit;
-    bit = 6; put(static_cast<unsigned int>(length), 10); put(checksum, 8); bit = lastBit;
-    static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::string encoded;
-    for (size_t index = 0; index < length; index += 3) {
-        const unsigned int word = (static_cast<unsigned int>(bytes[index]) << 16) |
-            (index + 1 < length ? static_cast<unsigned int>(bytes[index + 1]) << 8 : 0) |
-            (index + 2 < length ? static_cast<unsigned int>(bytes[index + 2]) : 0);
-        encoded += alphabet[(word >> 18) & 63]; encoded += alphabet[(word >> 12) & 63];
-        encoded += index + 1 < length ? alphabet[(word >> 6) & 63] : '=';
-        encoded += index + 2 < length ? alphabet[word & 63] : '=';
-    }
-    return encoded;
-}
-
 Json findPendingFixture(const Json& state) {
     const auto explicitFixture = objectValue(state, "active_fixture");
     if (!explicitFixture.empty()) return explicitFixture;
@@ -201,6 +142,8 @@ void MyCareerTraining::onLoad() {
 
 void MyCareerTraining::onUnload() {
     alive_.reset();
+    if (!restoreCosmetics())
+        cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
     updateNavigationFlags(false);
     closeNativeMenu();
     offlineReady_ = false;
@@ -209,7 +152,6 @@ void MyCareerTraining::onUnload() {
     probeExecutableSha256_.clear();
     probeSaveFailed_ = false;
     releaseMenuBind();
-    restoreCosmetics();
 }
 
 bool MyCareerTraining::ownedOfflineNow() const {
@@ -478,6 +420,7 @@ void MyCareerTraining::tick() {
                     {"in_game", next.inGame}, {"ui_open", ShouldBlockInput()}, {"menu", next.menu},
                     {"game_build", next.build}, {"logical_actions", next.actions}, {"team_lock_applied", next.teamLockApplied},
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
+                    {"cosmetic_restoration_pending", cosmeticOverride_.restorationPending()},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
                     {"menu_mode", "full-screen custom PluginWindow with input capture"},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
@@ -489,7 +432,7 @@ void MyCareerTraining::tick() {
             // Restoring previously captured local cvars is also necessary on an
             // online transition. Leaving an override enabled would leak a
             // career-only choice into the player's ordinary Rocket League.
-            restoreCosmetics();
+            if (!restoreCosmetics()) next.cosmeticMessage = "Original cosmetic settings could not be fully restored. Restoration will be retried.";
             resumePending_ = false;
             // No wrapper writes, commands, menu capture or telemetry in an
             // online match, stale service or unrelated game session.
@@ -508,6 +451,7 @@ void MyCareerTraining::tick() {
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        restoreCosmetics();
         nativeProbe_.clear();
         removeProbeHooks();
         probeExecutableSha256_.clear();
@@ -631,21 +575,33 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 auto code = cvarManager->getCvar("cl_itemmod_code");
                 if (!enabled || !code) throw std::runtime_error("This BakkesMod build does not expose local cosmetic overrides.");
                 if (request.type == LocalRequest::RestoreCosmetics) {
-                    restoreCosmetics();
+                    if (!restoreCosmetics()) throw std::runtime_error("Original cosmetic settings could not be fully restored. Please try Restore again.");
                     result.cosmeticMessage = "Original cosmetic overrides restored.";
                 } else {
+                    const auto design = mct::validateCosmeticDesign(request.payload);
                     // Validate against products actually read from this game.
-                    for (const auto& item : arrayValue(request.payload, "items")) {
-                        const int product = static_cast<int>(mct::numberValue(item, "product_id"));
-                        const int slot = static_cast<int>(mct::numberValue(item, "slot", -1));
+                    for (const auto& item : design.items) {
                         const auto found = std::find_if(result.products->begin(), result.products->end(), [&](const MctProduct& p) {
-                            return p.id == product && p.slot == slot;
+                            return p.id == item.productId && p.slot == item.slot;
                         });
                         if (found == result.products->end()) throw std::runtime_error("Refresh the installed cosmetic catalog before applying this item.");
+                        if (item.paint != 0 && !found->paintable)
+                            throw std::runtime_error("This item does not support paint. Choose its original color.");
                     }
-                    const auto encoded = cosmeticCode(request.payload);
-                    if (!changedItemMod_) { originalItemCode_ = code.getStringValue(); originalItemEnabled_ = enabled.getBoolValue(); }
-                    enabled.setValue(1); code.setValue(encoded); changedItemMod_ = true;
+                    const auto encoded = mct::encodeCosmeticDesign(design);
+                    const auto applied = cosmeticOverride_.apply(encoded,
+                        [&]() -> std::optional<mct::CosmeticOverrideValues> {
+                            return mct::CosmeticOverrideValues{code.getStringValue(), enabled.getBoolValue()};
+                        },
+                        [&](const std::string& value) { code.setValue(value); },
+                        [&](bool value) { enabled.setValue(value ? 1 : 0); });
+                    using ApplyResult = mct::CosmeticOverrideState::ApplyResult;
+                    if (applied == ApplyResult::HostUnavailable)
+                        throw std::runtime_error("The current cosmetic settings could not be read. No new design was applied.");
+                    if (applied == ApplyResult::FailedRestored)
+                        throw std::runtime_error("The design could not be applied. Your original cosmetic settings were restored.");
+                    if (applied == ApplyResult::RestorePending)
+                        throw std::runtime_error("The design failed and original cosmetic settings still need restoration. Please select Restore.");
                     result.cosmeticMessage = "Local cosmetic design sent to BakkesMod. Actual scene appearance still needs game verification.";
                 }
             }
@@ -665,15 +621,19 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
     }
 }
 
-void MyCareerTraining::restoreCosmetics() {
-    if (!changedItemMod_) return;
-    auto code = cvarManager->getCvar("cl_itemmod_code");
-    auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
-    if (code && enabled) {
-        code.setValue(originalItemCode_);
-        enabled.setValue(originalItemEnabled_ ? 1 : 0);
-        changedItemMod_ = false;
-    }
+bool MyCareerTraining::restoreCosmetics() {
+    if (!cosmeticOverride_.restorationPending()) return true;
+    try {
+        auto code = cvarManager->getCvar("cl_itemmod_code");
+        auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
+        if (!code || !enabled) return false;
+        return cosmeticOverride_.restore(
+            [&]() -> std::optional<mct::CosmeticOverrideValues> {
+                return mct::CosmeticOverrideValues{code.getStringValue(), enabled.getBoolValue()};
+            },
+            [&](const std::string& value) { code.setValue(value); },
+            [&](bool value) { enabled.setValue(value ? 1 : 0); });
+    } catch (...) { return false; }
 }
 
 void MyCareerTraining::advanceResume(MctRuntime& result) {
@@ -727,24 +687,27 @@ void MyCareerTraining::loadPreferences() {
                 const auto value = stringValue(bindings, entry.key().c_str(), entry.value().get<std::string>());
                 if (buttons.count(value)) entry.value() = value;
             }
-            const std::set<int> slots{1, 2, 3, 4, 5, 7, 12, 13, 14, 15, 18};
-            for (const auto& item : arrayValue(saved, "cosmetic_items")) {
-                const int slot = static_cast<int>(mct::numberValue(item, "slot", -1));
-                const int product = static_cast<int>(mct::numberValue(item, "product_id"));
-                const int paint = static_cast<int>(mct::numberValue(item, "paint"));
-                if (slots.count(slot) && product > 0 && product <= 8191 && paint >= 0 && paint <= 18)
-                    cosmeticItems_[slot] = {product, paint};
+            try {
+                const auto design = mct::validateCosmeticDesign({
+                    {"items", arrayValue(saved, "cosmetic_items")}, {"override_colors", false}});
+                for (const auto& item : design.items)
+                    cosmeticItems_[item.slot] = {item.productId, item.paint};
+            } catch (const std::exception&) {
+                // Invalid saved designs are ignored without converting or
+                // applying their numeric fields. Other preferences still load.
+                cosmeticItems_.clear();
             }
-            overrideColors_ = mct::boolValue(saved, "override_colors");
-            for (const char* key : {"primary", "secondary"}) {
-                const auto color = arrayValue(saved, key);
-                if (color.size() == 3) for (size_t index = 0; index < 3; ++index) {
-                    if (!color[index].is_number()) continue;
-                    const double value = color[index].get<double>();
-                    if (std::isfinite(value) && value >= 0 && value <= 1)
-                        (std::string(key) == "primary" ? primaryColor_ : secondaryColor_)[index] = static_cast<float>(value);
-                }
-            }
+            try {
+                // Validate both triples before changing either color. Keep
+                // valid saved selections even while their override is off.
+                mct::validateCosmeticDesign({{"override_colors", true},
+                    {"primary", saved.at("primary")}, {"secondary", saved.at("secondary")}});
+                for (const char* key : {"primary", "secondary"})
+                    for (size_t index = 0; index < 3; ++index)
+                        (std::string(key) == "primary" ? primaryColor_ : secondaryColor_)[index] =
+                            saved.at(key).at(index).get<float>();
+                overrideColors_ = mct::boolValue(saved, "override_colors");
+            } catch (const std::exception&) { overrideColors_ = false; }
         }
     }
 }

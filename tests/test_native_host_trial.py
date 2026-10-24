@@ -505,6 +505,7 @@ def test_menu_remap_optins_are_disabled_by_default_in_plan_and_session(tmp_path,
     assert plan["menu_event_trace"] is False
     assert plan["object_header_trial"] is False
     assert plan["menu_graph_trial"] is False
+    assert plan["menu_data_binding_trial"] is False
 
     monkeypatch.setattr(
         subprocess,
@@ -524,6 +525,31 @@ def test_menu_remap_optins_are_disabled_by_default_in_plan_and_session(tmp_path,
     assert session["menu_event_trace"] is False
     assert session["object_header_trial"] is False
     assert session["menu_graph_trial"] is False
+    assert session["menu_data_binding_trial"] is False
+
+
+def test_menu_data_binding_cli_is_read_only_and_propagates_to_session(tmp_path, monkeypatch, capsys):
+    world = _world(tmp_path, create_trial=False)
+    _mock_host(monkeypatch, world)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "prepare", "--game-dir", str(world.game),
+                                   "--baseline", str(world.baseline), "--menu-data-binding-trial"])
+    trial.main()
+    output = json.loads(capsys.readouterr().out)
+    directory = Path(output["directory"])
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    assert plan["menu_data_binding_trial"] is True
+    assert plan["object_header_trial"] is True
+    assert not plan["menu_remap_trial"] and not plan["menu_event_trace"]
+    assert output["game_launched"] is False
+    assert not world.destination.exists()
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: SimpleNamespace(pid=4321))
+    monkeypatch.setattr(trial.psutil, "Process", lambda _pid: SimpleNamespace(create_time=lambda: 50.0))
+    monkeypatch.setattr(trial.time, "time", lambda: 150.0)
+    trial.launch(directory)
+    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    assert session["menu_data_binding_trial"] is True
+    assert session["object_header_trial"] is True
+    assert not session["menu_remap_trial"] and not session["menu_event_trace"]
 
 
 def test_command_context_is_repeatable_and_read_only_for_live_session(tmp_path, monkeypatch):

@@ -561,7 +561,7 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
         "Forest green", "Purple", "Pink", "Orange", "Grey", "Titanium white", "Saffron", "Gold", "Rose gold", "White gold", "Onyx", "Platinum"};
     const bool supported = garageSlot_ != 0 && garageSlot_ != 16 && garageSlot_ != 20 && garageSlot_ != 21;
     if (supported) {
-        if (ImGui::Checkbox("Show equipable items only", &equipableOnly)) page = 0;
+        if (ImGui::Checkbox("Show supported local items only", &equipableOnly)) page = 0;
     } else detail("Browse only. This category cannot be equipped by the local override.");
     std::vector<const MctProduct*> filtered;
     for (const auto& product : *runtime.products)

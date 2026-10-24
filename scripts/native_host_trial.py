@@ -68,7 +68,7 @@ def configuration_hashes(root):
 
 
 def prepare(game, baseline, *, object_header_trial=False, menu_graph_trial=False,
-            menu_event_trace=False, menu_remap_trial=False):
+            menu_event_trace=False, menu_remap_trial=False, menu_data_binding_trial=False):
     game = _root(game)
     settings = {"launcher": "steam", "install_path": str(game / "Binaries/Win64/RocketLeague.exe")}
     executable = bootstrap.preflight_offline(settings)
@@ -102,10 +102,12 @@ def prepare(game, baseline, *, object_header_trial=False, menu_graph_trial=False
               "configuration_before": configuration_hashes(bakkes), "autoload_modified": False,
               "menu_rewrite_verified": False,
               "object_header_trial": (object_header_trial is True or menu_graph_trial is True
-                                      or menu_event_trace is True or menu_remap_trial is True),
+                                      or menu_event_trace is True or menu_remap_trial is True
+                                      or menu_data_binding_trial is True),
               "menu_graph_trial": menu_graph_trial is True,
               "menu_event_trace": menu_event_trace is True or menu_remap_trial is True,
-              "menu_remap_trial": menu_remap_trial is True}
+              "menu_remap_trial": menu_remap_trial is True,
+              "menu_data_binding_trial": menu_data_binding_trial is True}
     write_new(directory / "plan.json", record)
     return directory, record
 
@@ -164,7 +166,8 @@ def launch(directory):
               "object_header_trial": plan.get("object_header_trial") is True,
               "menu_graph_trial": plan.get("menu_graph_trial") is True,
               "menu_event_trace": plan.get("menu_event_trace") is True,
-              "menu_remap_trial": plan.get("menu_remap_trial") is True})
+              "menu_remap_trial": plan.get("menu_remap_trial") is True,
+              "menu_data_binding_trial": plan.get("menu_data_binding_trial") is True})
     return {"pid": process.pid, "created": created, "load_command": "plugin load " + plan["plugin_name"],
             "unload_command": "plugin unload " + plan["plugin_name"], "expires_at": issued + 300}
 
@@ -222,6 +225,7 @@ def main():
     prep.add_argument("--menu-graph-trial", action="store_true")
     prep.add_argument("--menu-event-trace", action="store_true")
     prep.add_argument("--menu-remap-trial", action="store_true")
+    prep.add_argument("--menu-data-binding-trial", action="store_true")
     for command in ("launch", "finish"):
         commands.add_parser(command).add_argument("directory", type=Path)
     command = commands.add_parser("command-context")
@@ -231,7 +235,8 @@ def main():
     if args.command == "prepare":
         directory, plan = prepare(args.game_dir, args.baseline, object_header_trial=args.object_header_trial,
                                   menu_graph_trial=args.menu_graph_trial, menu_event_trace=args.menu_event_trace,
-                                  menu_remap_trial=args.menu_remap_trial)
+                                  menu_remap_trial=args.menu_remap_trial,
+                                  menu_data_binding_trial=args.menu_data_binding_trial)
         print(json.dumps({"directory": str(directory), "plugin_name": plan["plugin_name"],
                           "dll_sha256": plan["dll_sha256"], "game_launched": False}, indent=2))
     elif args.command == "command-context":
