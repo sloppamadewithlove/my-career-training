@@ -558,6 +558,24 @@ def test_community_unchecked_download_and_activation_are_rejected(backend, monke
     assert "community_activate" not in ALLOWED_ACTIONS
 
 
+@pytest.mark.parametrize("action", ["community_lookup", "community_library"])
+def test_community_cancel_during_library_read_discards_uncommitted_result(backend, monkeypatch, action):
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+    monkeypatch.setattr(plugins, "lookup_plugin", lambda _id: {"id": "223"})
+
+    def cached(_directory):
+        instance._community_cancel.set()
+        return [{"id": "223", "status": "downloaded_not_enabled"}]
+
+    monkeypatch.setattr(plugins, "cached_plugins", cached)
+    instance.dispatch(action, {"id": "223"})
+    _finish_community(instance)
+    assert instance.community_state["selected"] is None
+    assert instance.community_state["downloaded"] == []
+    assert "cancelled" in instance.community_state["message"]
+
+
 def test_community_failure_returns_to_retryable_state(backend, monkeypatch):
     instance, _, _ = backend
     from my_career_training import community_plugins as plugins

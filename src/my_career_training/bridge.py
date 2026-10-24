@@ -179,6 +179,9 @@ class Backend(QObject):
                     results.put(("cancelled", operation, None, []))
                     return
                 library = community_plugins.cached_plugins(directory)
+                if cancelled.is_set() and operation != "download":
+                    results.put(("cancelled", operation, None, []))
+                    return
                 results.put(("ok", operation, result, library))
             except community_plugins.DownloadCancelled:
                 results.put(("cancelled", operation, None, []))
