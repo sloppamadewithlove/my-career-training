@@ -19,6 +19,7 @@
 #include "NativeMovieProtocol.h"
 #include "NativeMovieSession.h"
 #include "bakkesmod/wrappers/Engine/ActorWrapper.h"
+#include "bakkesmod/wrappers/GameEvent/ServerWrapper.h"
 
 #include <chrono>
 #include <mutex>
@@ -34,7 +35,6 @@ constexpr const char* kBuildId = "261013.63066.530866";
 constexpr const char* kExecutableSha256 =
     "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7";
 constexpr int kBakkesVersion = 229;
-constexpr std::uint64_t kScopeGeneration = 1;
 
 double monotonicSeconds() {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -100,18 +100,6 @@ bool readProcess(std::uint64_t address, unsigned char* output, std::size_t size)
     return ReadProcessMemory(GetCurrentProcess(), pointer, output, size, &received) && received == size;
 }
 
-bool helloMessage(const std::string& message, const std::string& nonce) {
-    try {
-        const auto json = Json::parse(message);
-        return json.is_object() && json.size() == 3 && json.contains("protocol") && json.contains("session") &&
-            json.contains("event") && json["protocol"].is_number_integer() && json["protocol"] == 1 &&
-            json["session"].is_string() && json["session"].get<std::string>() == nonce &&
-            json["event"].is_string() && json["event"].get<std::string>() == "ready";
-    } catch (const Json::exception&) {
-        return false;
-    }
-}
-
 bool helloAttempt(const std::string& message) {
     try {
         const auto json = Json::parse(message);
@@ -155,6 +143,8 @@ struct NativeMovieHost::State {
     bool viewPublished = false;
     bool movieReady = false;
     bool movieCallbackSeen = false;
+    NativeMenuSurface surface = NativeMenuSurface::None;
+    std::uint64_t scopeGeneration = 0;
 
     void tick();
     void count(bool accept, const char* why);
@@ -168,6 +158,7 @@ struct NativeMovieHost::State {
     void publish(const CareerLayoutScope& scope, const Json& state, double wall, double monotonic);
     bool preconditions(std::string& sessionId, Json& state, const char*& why);
     bool liveNow(const std::string& sessionId) const;
+    NativeMenuSurface observedSurface() const;
     bool drain(const CareerLayoutScope& scope, double monotonic);
     void apply(CareerLayoutEffect effect, const CareerLayoutScope& scope);
     NativeWorkshopContext workshopNow() const;
@@ -175,10 +166,19 @@ struct NativeMovieHost::State {
 };
 
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+NativeMenuSurface NativeMovieHost::State::observedSurface() const {
+    if (!game || game->IsInOnlineGame() || game->IsInReplay()) return NativeMenuSurface::None;
+    if (!game->IsInGame()) return NativeMenuSurface::Frontend;
+    auto server = game->GetGameEventAsServer();
+    if (!server) return NativeMenuSurface::None;
+    if (server.GetbMatchEnded()) return NativeMenuSurface::Results;
+    return game->IsPaused() ? NativeMenuSurface::Pause : NativeMenuSurface::None;
+}
+
 bool NativeMovieHost::State::liveNow(const std::string& sessionId) const {
     try {
         if (!ownedOffline || !ownedOffline() || !bridge || !bridge->fresh() || !game) return false;
-        if (game->IsInOnlineGame() || game->IsInGame() || game->IsInReplay()) return false;
+        if (surface == NativeMenuSurface::None || observedSurface() != surface) return false;
         return sessionEnvironment() == sessionId && stringValue(bridge->state(), "bridge_session") == sessionId;
     } catch (...) {
         return false;
@@ -195,8 +195,8 @@ bool NativeMovieHost::State::preconditions(std::string& sessionId, Json& bridgeS
     catch (...) { why = "stale_bridge"; return false; }
     if (stringValue(bridgeState, "bridge_session") != sessionId) { why = "session_mismatch"; return false; }
     if (game->IsInOnlineGame()) { why = "online"; return false; }
-    if (game->IsInGame()) { why = "in_game"; return false; }
     if (game->IsInReplay()) { why = "replay"; return false; }
+    if (observedSurface() == NativeMenuSurface::None) { why = "in_game"; return false; }
     if (!bridge->fresh()) { why = "stale_bridge"; return false; }
     bool owned = false;
     try { owned = ownedOffline && ownedOffline(); }
@@ -212,6 +212,7 @@ void NativeMovieHost::State::suspend(const char* why, const std::string& current
         movieReady = false;
         movieCallbackSeen = false;
         viewPublished = false;
+        surface = NativeMenuSurface::None;
         session.release();
         movieReady = false;
         reason = why;
@@ -399,8 +400,8 @@ bool NativeMovieHost::State::drain(const CareerLayoutScope& scope, double monoto
     {
         std::lock_guard<std::mutex> guard(mutex);
         if (!scopeLive) return false;
-        batch = session.drain(monotonic, [](const std::string& body, const std::string& nonce) {
-            return helloMessage(body, nonce);
+        batch = session.drain(monotonic, [this, &scope](const std::string& body, const std::string&) {
+            return protocol.readyMessage(body, scope);
         });
     }
     for (const auto& decision : batch) {
@@ -494,11 +495,28 @@ void NativeMovieHost::State::tick() {
             if (stopped || !hooked) return;
         }
         bool rotated = false;
+        const auto observed = observedSurface();
+        if (observed == NativeMenuSurface::None) { suspend("scope_lost", sessionId); return; }
         {
             std::lock_guard<std::mutex> guard(mutex);
             if (stopped) return;
+            const bool surfaceChanged = observed != surface;
+            if (surfaceChanged) {
+                // A pause, results screen or frontend must earn a new handshake.
+                // Drop queued callbacks before a different movie can see them.
+                session.release();
+                surface = observed;
+            }
             rotated = session.bind(sessionId);
+            rotated = rotated || surfaceChanged;
             if (rotated) {
+                if (scopeGeneration == std::numeric_limits<std::uint64_t>::max()) {
+                    buildRefused = true;
+                    scopeLive = false;
+                    movieReady = false;
+                    return;
+                }
+                ++scopeGeneration;
                 movieReady = false;
                 movieCallbackSeen = false;
                 reason = "session_rotated";
@@ -514,7 +532,8 @@ void NativeMovieHost::State::tick() {
         scope.fresh = true;
         scope.online = false;
         scope.nonce = sessionId;
-        scope.generation = kScopeGeneration;
+        scope.generation = scopeGeneration;
+        scope.surface = surface;
         if (!opened) {
             opened = protocol.open(scope, bridgeState,
                 cosmeticContext ? cosmeticContext() : NativeCosmeticContext{}, workshopNow());
@@ -680,6 +699,7 @@ Json NativeMovieHost::status() const {
         result["commands_accepted"] = state_->accepted;
         result["commands_rejected"] = state_->rejected;
         result["reason"] = state_->reason;
+        result["surface"] = nativeSurfaceName(state_->surface);
         result["movie_ready"] = state_->scopeLive && !state_->stopped && state_->session.ready(monotonicSeconds());
     }
     std::string executableSha;

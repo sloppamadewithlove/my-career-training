@@ -218,3 +218,114 @@ def test_completed_fixture_worker_restart_keeps_same_owned_game(in_game_backend)
     assert instance.request["owned_game"] == game_identity.as_dict()
     assert instance.owned_game is game_identity
     assert verified_identities == [game_identity, game_identity]
+
+
+@pytest.mark.parametrize("changed", ["expected_session_id", "expected_fixture_id", "extra"])
+def test_native_return_rejects_changed_activity_before_shutdown(in_game_backend, changed):
+    instance, _, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Return Guard", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    payload = {"expected_session_id": instance.session_id,
+               "expected_fixture_id": instance.request["fixture"]["id"], "abandon": True}
+    payload[changed] = "different"
+    before = json.dumps(instance.document, sort_keys=True)
+    instance.dispatch("return_hub", payload)
+    assert "activity changed" in instance.error
+    assert not processes[-1].writes
+    assert instance.stop_reason is None
+    assert json.dumps(instance.document, sort_keys=True) == before
+
+
+def test_native_return_drains_final_score_and_clears_old_activity(in_game_backend, monkeypatch):
+    instance, identity, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Late Score", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    sid = instance.session_id
+    fid = instance.request["fixture"]["id"]
+    instance.dispatch("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": True})
+    result = {"type": "result", "session_id": sid, "fixture_id": fid,
+              "home_score": 3, "away_score": 1, "provenance": "game"}
+    receipt = game_worker.persist_result(instance.store.directory, result)
+    worker = processes[-1]
+    worker.current_state = FakeWorkerProcess.NotRunning
+    instance._event({"type": "stopped", "session_id": sid})
+    pending = [json.dumps(result).encode() + b"\n"]
+    monkeypatch.setattr(worker, "readAllStandardOutput", lambda: pending.pop() if pending else b"")
+    instance._tick()
+    assert instance.session_state == "Idle"
+    assert instance.request is None and instance.session_id is None
+    assert instance.state["session"]["kind"] == "hub"
+    assert instance.owned_game == identity
+    assert instance.document["career"]["pending_session"] is None
+    completed = next(f for f in career._all_fixtures(instance.document["career"]) if f["id"] == fid)
+    assert completed["status"] == "completed" and completed["result"]["home_score"] == 3
+    assert not receipt.exists()
+    before = json.dumps(instance.document, sort_keys=True)
+    instance._event(result)
+    assert json.dumps(instance.document, sort_keys=True) == before
+
+
+def test_native_return_preserves_uncommitted_result_receipt(in_game_backend, monkeypatch):
+    instance, _, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Save Recovery", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    sid = instance.session_id
+    fid = instance.request["fixture"]["id"]
+    instance.dispatch("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": True})
+    receipt = game_worker.persist_result(instance.store.directory, {
+        "type": "result", "session_id": sid, "fixture_id": fid,
+        "home_score": 2, "away_score": 1, "provenance": "game"})
+    processes[-1].current_state = FakeWorkerProcess.NotRunning
+    instance._event({"type": "stopped", "session_id": sid})
+    monkeypatch.setattr(instance, "_commit_result", lambda _event: (_ for _ in ()).throw(OSError("save unavailable")))
+    instance._tick()
+    assert instance.session_state == "Error/Recovery"
+    assert "final score" in instance.error
+    assert instance.request["fixture"]["id"] == fid
+    assert instance.document["career"]["pending_session"]["session_id"] == sid
+    assert receipt.exists()
+    for action, payload in (("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": True}),
+                            ("abandon_fixture", {"expected_session_id": sid, "expected_fixture_id": fid,
+                                                 "expected_career_id": instance.document["career"]["id"]})):
+        instance.dispatch(action, payload)
+        assert "final score" in instance.error
+        assert instance.document["career"]["pending_session"]["session_id"] == sid
+        assert receipt.exists()
+
+
+def test_native_lesson_retry_requires_current_worker_and_activity(in_game_backend):
+    instance, _, processes, _ = in_game_backend
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    instance.session_state = "training"
+    instance.dispatch("retry_lesson", {"expected_session_id": "other"})
+    assert "lesson changed" in instance.error and not processes[-1].writes
+    instance.dispatch("retry_lesson", {"expected_session_id": instance.session_id})
+    assert not instance.error and json.loads(processes[-1].writes[-1])["type"] == "retry"
+
+
+@pytest.mark.parametrize("phase", ["Waiting for Worker", "Waiting for Game Exit"])
+def test_abandonment_commit_failure_stays_recoverable(in_game_backend, monkeypatch, phase):
+    instance, _, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Preserved Fixture", "format": 1})
+    instance.dispatch("play_match", {})
+    sid = instance.session_id
+    instance.stop_reason = "abandon"
+    instance.stopping_worker = True
+    instance.session_state = phase
+    processes[-1].current_state = FakeWorkerProcess.NotRunning
+    monkeypatch.setattr(bridge, "is_alive", lambda _identity: False)
+    save = instance.store.save
+    def fail_abandonment(document):
+        if document["career"]["pending_session"] is None:
+            raise OSError("Could not save the restarted fixture")
+        return save(document)
+    monkeypatch.setattr(instance.store, "save", fail_abandonment)
+    instance._tick()
+    assert instance.session_state == "Error/Recovery"
+    assert "Could not save" in instance.error
+    assert instance.stop_reason is None
+    assert instance.document["career"]["pending_session"]["session_id"] == sid
+    assert instance.request and instance.session_id == sid

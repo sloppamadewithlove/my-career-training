@@ -37,7 +37,18 @@ enum class CareerLayoutRefusal {
     None, NoPlan, StaleScope, StaleChoice, NotConsumed, Disabled, UnknownControl
 };
 
-enum class StockRoute { None, Garage, Options };
+enum class StockRoute { None, Garage, Options, Resume };
+
+enum class NativeMenuSurface { None, Frontend, Pause, Results };
+
+inline const char* nativeSurfaceName(NativeMenuSurface surface) {
+    switch (surface) {
+    case NativeMenuSurface::Frontend: return "frontend";
+    case NativeMenuSurface::Pause: return "pause";
+    case NativeMenuSurface::Results: return "results";
+    default: return "";
+    }
+}
 
 // Fixed native routes. There is no string parser and no catch-all callback sink.
 enum class NativeRouteId : int {
@@ -62,6 +73,7 @@ struct CareerLayoutScope {
     bool online = true;
     std::string nonce;
     std::uint64_t generation = 0;
+    NativeMenuSurface surface = NativeMenuSurface::Frontend;
 };
 
 struct CareerLayoutChoice {
@@ -192,7 +204,8 @@ public:
             action == "community_lookup" || action == "community_paste_link" ||
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
-            action == "training_settings" || action == "quit_game" || action == "abandon_fixture";
+            action == "training_settings" || action == "quit_game" || action == "abandon_fixture" ||
+            action == "retry_lesson" || action == "return_hub";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.
@@ -579,14 +592,15 @@ private:
     }
 
     static bool scopeOk(const CareerLayoutScope& scope) {
-        return scope.owned && scope.offline && scope.fresh && !scope.online &&
+        return scope.surface == NativeMenuSurface::Frontend &&
+            scope.owned && scope.offline && scope.fresh && !scope.online &&
             scope.generation != 0 && validNonce(scope.nonce);
     }
 
     static bool sameScope(const CareerLayoutScope& click, const CareerLayoutScope& opened) {
         return scopeOk(click) && click.owned == opened.owned && click.offline == opened.offline &&
             click.fresh == opened.fresh && click.online == opened.online &&
-            click.generation == opened.generation && click.nonce == opened.nonce;
+            click.generation == opened.generation && click.nonce == opened.nonce && click.surface == opened.surface;
     }
 
     static bool stateMatches(const Json& state, const CareerLayoutScope& scope) {
