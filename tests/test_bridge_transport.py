@@ -10,7 +10,7 @@ from ctypes import wintypes
 
 import pytest
 
-from my_career_training.ingame import FileBridge
+from my_career_training.ingame import FileBridge, _read_shared
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows handle sharing only")
@@ -58,7 +58,8 @@ def test_plugin_status_reader_allows_writer_delete_access(tmp_path):
     path.write_text(json.dumps({"published_at": time.time(), "bridge_session": pipe.session}))
     kernel, handle = _open_handle(path, 0x00010000, 0x1 | 0x2 | 0x4)
     try:
-        assert pipe.plugin_status()["bridge_session"] == pipe.session
+        status = pipe.plugin_status()
+        assert status.get("bridge_session") == pipe.session, {"status": status, "read": _read_shared(path, 4096)}
     finally:
         kernel.CloseHandle(handle)
 

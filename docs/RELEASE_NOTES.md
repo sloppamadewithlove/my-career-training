@@ -4,6 +4,15 @@ There is no downloadable native-menu edition yet. The public installer remains
 held under the owner's native-menu requirement. GitHub source changes and green
 Windows checks must not be presented as a completed download.
 
+The development community library now separates downloading from enabling a
+plugin. A player can check an official BakkesPlugins ID and cache its archive
+through a cancellable request; no third-party code is extracted or loaded.
+See [the community download boundary](COMMUNITY_PLUGINS.md). The read-only
+[Windows baseline collector](WINDOWS_VALIDATION.md) identifies the user's
+installed game without launching it, and menu diagnostic schema 2 records the
+full bounded SDK menu stack. These prepare Windows testing; they do not implement
+native button replacement or lift the installer hold.
+
 The current source adds an opt-in [native dialog trial](NATIVE_DIALOG_TRIAL.md)
 for Career and Training actions, with read-only Schedule, Season and Squad
 views. It uses supported SDK dialogs and checks stale clicks and fixture IDs.

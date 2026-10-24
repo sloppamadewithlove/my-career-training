@@ -28,6 +28,7 @@ struct NativeProbeScope {
 class NativeMenuProbe {
 public:
     static constexpr std::size_t kMaxEvents = 1000;
+    static constexpr std::size_t kMaxStackDepth = 32;
     static constexpr double kMaxSeconds = 120.0;
     static constexpr const char* kOutputName = "native-menu-probe.json";
 
@@ -48,7 +49,8 @@ public:
     // transition destroys the entire trace immediately, even after a limit was
     // reached. The caller should invoke this on each tick and hooked event.
     bool observe(const NativeProbeScope& scope, const std::string& eventName,
-                 const std::string& topMenu, bool inGame, double now) {
+                 const std::string& topMenu, bool inGame, double now,
+                 const std::vector<std::string>& menuStack = {}) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!safeCurrentScope(scope) || !std::isfinite(now) || now < startedAt_) {
             clearLocked();
@@ -60,9 +62,12 @@ public:
             finishReason_ = "duration_limit";
             return false;
         }
-        if (!allowedEvent(eventName) || !safeIdentifier(topMenu, 128)) return false;
+        if (!allowedEvent(eventName) || !safeIdentifier(topMenu, 128) ||
+            menuStack.size() > kMaxStackDepth) return false;
+        for (const auto& menu : menuStack)
+            if (menu.empty() || !safeIdentifier(menu, 128)) return false;
         events_.push_back({{"time", now}, {"event", eventName},
-                           {"top_menu", topMenu}, {"in_game", inGame},
+                           {"top_menu", topMenu}, {"menu_stack", menuStack}, {"in_game", inGame},
                            {"online", false}});
         if (events_.size() >= kMaxEvents) {
             active_ = false;
@@ -81,13 +86,15 @@ public:
         }
         active_ = false;
         if (finishReason_.empty()) finishReason_ = "operator_stop";
-        const Json trace = {{"schema_version", 1}, {"kind", "native_menu_read_only_probe"},
+        const Json trace = {{"schema_version", 2}, {"kind", "native_menu_read_only_probe"},
                      {"started_at", startedAt_}, {"finished_at", now},
                      {"scope", {{"bridge_session", nonce_}, {"game_build", build_},
                                 {"executable_sha256", executableSha256_.empty() ? Json(nullptr) : Json(executableSha256_)},
                                 {"bakkesmod_version", bakkesVersion_},
                                 {"owned_offline_session", true}}},
-                     {"limits", {{"duration_seconds", kMaxSeconds}, {"event_count", kMaxEvents}}},
+                     {"limits", {{"duration_seconds", kMaxSeconds}, {"event_count", kMaxEvents},
+                                 {"stack_depth", kMaxStackDepth}}},
+                     {"observation_scope", "menu_names_and_event_occurrences_only"},
                      {"finish_reason", finishReason_.empty() ? "operator_stop" : finishReason_},
                      {"native_mutations", false}, {"events", events_}};
         LocalBridge::atomicWrite(bridge.directory() / kOutputName, trace.dump(2));

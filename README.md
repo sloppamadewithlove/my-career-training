@@ -53,6 +53,12 @@ on the player's installed Steam build. It does not edit game memory, replace
 menus, or certify compatibility. Native button ownership, click routing,
 controller navigation and restoration still need real Windows game evidence.
 
+The development [community plugin library](docs/COMMUNITY_PLUGINS.md) can check
+creator releases and download packages into a private cache. Downloads are not
+enabled in the game: isolated third-party loading remains unverified. The
+[Windows baseline helper](docs/WINDOWS_VALIDATION.md) collects a sanitized game
+identity report without launching or changing Steam, Rocket League or BakkesMod.
+
 ## Setup direction
 
 BakkesMod is the third-party framework targeted by the current in-game plugin.
@@ -76,6 +82,7 @@ before making any changes.
 - [Acceptance record](docs/IN_GAME_ACCEPTANCE.md)
 - [Native menu investigation and release gate](docs/NATIVE_MENU_RESEARCH.md)
 - [Native implementation plan](docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md) and [cross-game precedents](docs/research/NATIVE_MENU_PRECEDENTS.md)
+- [Runtime adapter follow-up](docs/research/NATIVE_RUNTIME_ADAPTERS.md)
 - [Read-only menu diagnostic](docs/NATIVE_MENU_PROBE.md)
 - [Windows Codex handoff and read-only game-file comparison](docs/WINDOWS_CODEX_HANDOFF.md)
 - [Design-engineer handoff for Opus 5.5](docs/OPUS_DESIGN_BRIEF.md) — a brief; no completed Opus review is claimed.

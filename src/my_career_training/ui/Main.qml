@@ -515,6 +515,36 @@ ApplicationWindow {
             spacing:20
             Copy { text:"Made by the community"; tone:"title"; scale:root.textScale }
             Copy { text:"Discover original creators and optional maps. All core lessons work without community downloads. Check the creator's permission and launcher requirements before importing."; tone:"muted"; scale:root.textScale; Layout.fillWidth:true }
+            Panel {
+                id: pluginPanel
+                Layout.fillWidth:true
+                property var plugins: root.view.community_plugins || {}
+                Copy { text:"Community plugin downloads"; tone:"heading"; scale:root.textScale }
+                Copy { text:"Enter the number from a BakkesPlugins page. Downloads stay in My Career's library; enabling them in the game still needs verified offline loading."; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
+                RowLayout {
+                    TextField {
+                        id: communityPluginId
+                        text:"223"
+                        placeholderText:"BakkesPlugins ID"
+                        maximumLength:10
+                        validator:RegularExpressionValidator { regularExpression:/[1-9][0-9]{0,9}/ }
+                        Accessible.name:"BakkesPlugins ID"
+                        Layout.fillWidth:true
+                    }
+                    ActionButton { text:"Check release"; enabled:communityPluginId.acceptableInput && !pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_lookup",{id:communityPluginId.text}) }
+                }
+                Copy { text:pluginPanel.plugins.selected ? pluginPanel.plugins.selected.title : "No release selected"; Layout.fillWidth:true; scale:root.textScale }
+                RowLayout {
+                    ActionButton { text:"Download to library"; enabled:!!pluginPanel.plugins.selected && !pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_download") }
+                    ActionButton { text:"Check downloaded files"; enabled:!pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_library") }
+                    ActionButton { text:"Cancel"; visible:!!pluginPanel.plugins.busy; textScale:root.textScale; onClicked:root.act("community_cancel") }
+                }
+                Copy { text:pluginPanel.plugins.message || ""; tone:"muted"; Layout.fillWidth:true; scale:root.textScale }
+                Repeater {
+                    model:pluginPanel.plugins.downloaded || []
+                    delegate: Copy { required property var modelData; text:"Plugin " + modelData.id + " · downloaded, not enabled"; tone:"small"; Layout.fillWidth:true; scale:root.textScale }
+                }
+            }
             Repeater {
                 model:root.view.content || []
                 delegate: Panel {

@@ -73,6 +73,7 @@ private:
     bool probeHooksInstalled_ = false;
     bool probeSaveFailed_ = false;
     std::string lastProbeMenu_;
+    std::vector<std::string> lastProbeStack_;
     std::string probeExecutableSha256_;
     std::string probeMessage_ = "Ready to capture a local native menu diagnostic.";
     std::string toggleKey_ = "F6";

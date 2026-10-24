@@ -221,7 +221,8 @@ bool LocalBridge::allowedAction(const std::string& action) {
         "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson",
         "retry_lesson", "stop_session", "assistance", "settings", "diagnostics", "loadout",
         "restore_explanations", "return_hub", "quit_game", "workshop_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
-        "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording"
+        "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording",
+        "community_lookup", "community_download", "community_library", "community_cancel"
     };
     return actions.count(action) != 0;
 }
