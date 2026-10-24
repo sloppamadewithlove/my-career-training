@@ -254,6 +254,14 @@ public:
         case CareerLayoutPage::CareerRules: buildRules(out, state); break;
         case CareerLayoutPage::RecoverCareer: buildRecovery(out, state); break;
         }
+        // Keep action failures and save/launch feedback visible in the native
+        // menu, just as they are in the service UI. Put feedback before long
+        // page descriptions so the body limit cannot hide it.
+        auto feedback = plain(text(state, "error"), 320);
+        if (!feedback.empty()) feedback = "Could not finish: " + feedback;
+        else if (busy(state)) feedback = plain(text(sessionOf(state), "message"), 240);
+        else feedback = plain(text(state, "notice"), 240);
+        if (!feedback.empty()) out.body = feedback + "\n\n" + out.body;
         if (out.body.size() > kMaxBody) out.body.resize(utf8Prefix(out.body, kMaxBody));
         for (auto& choice : out.choices) choice.revision = revision_;
         return out;

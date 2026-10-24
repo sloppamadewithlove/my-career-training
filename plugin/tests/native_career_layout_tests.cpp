@@ -244,6 +244,18 @@ int main() {
         require(career.body.find("Orbit vs Nova") != std::string::npos, "Next match text missing");
         auto play = findChoice(career, "career.play");
         require(play.enabled && play.action == "play_match", "Play Next Match was not executable");
+        auto failedLaunch = state;
+        failedLaunch["error"] = "The game worker could not start.";
+        failedLaunch["notice"] = "An older saved notice.";
+        const auto failureView = layout.view(scope, failedLaunch);
+        require(failureView.body.find("Could not finish: The game worker could not start.") == 0,
+            "Native menu hid the backend launch failure");
+        require(failureView.body.find("An older saved notice.") == std::string::npos,
+            "Old success notice obscured the current failure");
+        auto savedNotice = state;
+        savedNotice["notice"] = "Club name ready for the new career.";
+        require(layout.view(scope, savedNotice).body.find("Club name ready for the new career.") == 0,
+            "Native menu hid saved-action feedback");
         require(play.payload == Json({{"expected_career_id", "career-a"}, {"expected_fixture_id", "career-a:s1:league:1:0"}}), "Match payload");
         auto notConsumed = choose(layout, play, scope, state, false);
         require(!notConsumed.accepted && notConsumed.action.empty() && notConsumed.payload.empty(), "Match fired before consumption");
