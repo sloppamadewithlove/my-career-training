@@ -502,10 +502,20 @@ class Backend(QObject):
         elif action == "stop_session":
             self._begin_stop("stop")
         elif action == "abandon_fixture":
+            if p:
+                career = self.document["career"]
+                pending = career and career.get("pending_session")
+                expected = {"expected_career_id", "expected_fixture_id", "expected_session_id"}
+                if (set(p) != expected or not pending or self._worker_active() or
+                        p["expected_career_id"] != career["id"] or
+                        p["expected_fixture_id"] != pending["fixture_id"] or
+                        p["expected_session_id"] != pending["session_id"]):
+                    raise ValueError("That unfinished match changed. Open My Career and review it again.")
             if self._worker_active():
                 self._begin_stop("abandon")
             else:
                 self._career_change(domain.abandon_fixture)
+                self.notice = "The unfinished match is ready to restart from kickoff. No result was added."
         elif action == "recover_result":
             if self._worker_active() or game_processes():
                 raise ValueError("Close the game before entering a manual recovery result.")

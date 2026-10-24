@@ -26,7 +26,7 @@ namespace mct {
 enum class CareerLayoutPage {
     Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings,
     Appearance, CosmeticItems, CosmeticPaints, CosmeticColors, CosmeticPrimary, CosmeticAccent,
-    CreateCareer, CareerRules
+    CreateCareer, CareerRules, RecoverCareer
 };
 
 enum class CareerLayoutEffectKind {
@@ -192,7 +192,7 @@ public:
             action == "community_lookup" || action == "community_paste_link" ||
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
-            action == "training_settings" || action == "quit_game";
+            action == "training_settings" || action == "quit_game" || action == "abandon_fixture";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.
@@ -252,6 +252,7 @@ public:
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
         case CareerLayoutPage::CreateCareer: buildCreate(out, state); break;
         case CareerLayoutPage::CareerRules: buildRules(out, state); break;
+        case CareerLayoutPage::RecoverCareer: buildRecovery(out, state); break;
         }
         if (out.body.size() > kMaxBody) out.body.resize(utf8Prefix(out.body, kMaxBody));
         for (auto& choice : out.choices) choice.revision = revision_;
@@ -557,7 +558,7 @@ private:
             lessonId_ = choice->lessonId;
             page_ = CareerLayoutPage::Lesson;
         }
-        if (choice->action == "new_career" || choice->action == "next_season")
+        if (choice->action == "new_career" || choice->action == "next_season" || choice->action == "abandon_fixture")
             page_ = CareerLayoutPage::Career;
         return page_;
     }
@@ -908,6 +909,10 @@ private:
         if (career.empty()) addLine(view.body, "No career exists yet.");
         else addLine(view.body, plain(text(career, "team_name", "My club"), 48));
         addLine(view.body, NativeCareerManagement::careerSummary(state));
+        if (pending(career)) {
+            addLine(view.body, "Your last match did not finish. Restart it before playing or training.");
+            navigate(view, "career.recover", "Restart unfinished match", CareerLayoutPage::RecoverCareer);
+        }
         navigate(view, "career.create", "New career", CareerLayoutPage::CreateCareer);
         CareerLayoutChoice play;
         play.id = "career.play";
@@ -938,6 +943,24 @@ private:
         navigate(view, "career.standings", "Season", CareerLayoutPage::Standings);
         navigate(view, "career.rules", "Career rules", CareerLayoutPage::CareerRules);
         back(view, CareerLayoutPage::Root);
+    }
+
+    void buildRecovery(CareerLayoutView& view, const Json& state) const {
+        view.title = "Restart unfinished match";
+        addLine(view.body, "The unfinished match will return to the schedule, ready to play from kickoff.");
+        addLine(view.body, "No score or reward will be added. Completed matches and your squad stay saved.");
+        const auto career = careerOf(state);
+        const auto unfinished = object(career, "pending_session");
+        const auto careerId = text(career, "id");
+        const auto fixtureId = text(unfinished, "fixture_id");
+        const auto sessionId = text(unfinished, "session_id");
+        const bool canRestart = !busy(state) && !workerLikely(state) && validId(careerId) &&
+            validId(fixtureId) && validId(sessionId);
+        dispatch(view, "career.recover.confirm", "Confirm restart", canRestart,
+            "Return from the current activity first. If no unfinished match remains, go Back.",
+            "abandon_fixture", {{"expected_career_id", careerId}, {"expected_fixture_id", fixtureId},
+                {"expected_session_id", sessionId}});
+        back(view, CareerLayoutPage::Career);
     }
 
     void buildTraining(CareerLayoutView& view, const Json& state) const {

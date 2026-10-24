@@ -862,6 +862,34 @@ int main() {
             scope, otherSite, false).accepted, "Other site page did not open");
         require(!hasChoice(otherLayout.view(scope, otherSite), "community.trial.286"), "Trial button appeared for another plugin");
 
+        auto recoveryState = readyState();
+        recoveryState["career"]["pending_session"] = {{"fixture_id", "fixture-a"}, {"session_id", "attempt-a"}};
+        NativeCareerLayout recovery;
+        require(recovery.open(scope, recoveryState), "Recovery menu did not open");
+        choose(recovery, findChoice(recovery.view(scope, recoveryState), NativeCareerLayout::kCareer), scope, recoveryState, false);
+        auto recoveryEntry = findChoice(recovery.view(scope, recoveryState), "career.recover");
+        require(recoveryEntry.kind == CareerLayoutEffectKind::Navigate && recoveryEntry.action.empty(),
+            "Recovery entry changed a save without confirmation");
+        choose(recovery, recoveryEntry, scope, recoveryState, false);
+        auto confirmation = findChoice(recovery.view(scope, recoveryState), "career.recover.confirm");
+        audit(recovery.view(scope, recoveryState));
+        require(confirmation.enabled && confirmation.payload.at("expected_session_id") == "attempt-a",
+            "Recovery confirmation did not bind the unfinished attempt");
+        auto changedAttempt = recoveryState;
+        changedAttempt["career"]["pending_session"]["session_id"] = "attempt-b";
+        require(!choose(recovery, confirmation, scope, changedAttempt, true).accepted,
+            "Old confirmation restarted a different attempt");
+        auto activeAttempt = recoveryState;
+        activeAttempt["session"]["kind"] = "career";
+        require(!findChoice(recovery.view(scope, activeAttempt), "career.recover.confirm").enabled,
+            "Recovery offered to clear a live match");
+        auto recovered = choose(recovery, confirmation, scope, recoveryState, true);
+        require(recovered.accepted && recovered.action == "abandon_fixture" && !recovered.leaveMenu &&
+            recovered.page == CareerLayoutPage::Career && recovered.payload.at("expected_fixture_id") == "fixture-a",
+            "Confirmed recovery did not return to Career with the bound fixture");
+        require(!hasChoice(recovery.view(scope, readyState()), "career.recover"),
+            "Recovery remained visible after the unfinished match cleared");
+
         std::cout << "Native career layout: passthrough, menu mapping, consumption, stale scope, and supported actions passed.\n";
         return 0;
     } catch (const std::exception& error) {

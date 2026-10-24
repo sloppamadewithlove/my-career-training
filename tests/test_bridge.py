@@ -64,6 +64,56 @@ class FakeProcess:
         return True
 
 
+def unfinished_career(instance):
+    instance.dispatch("new_career", {"team_name": "Recovery test", "format": 1})
+    state = instance.document.copy()
+    state["career"] = career.start_fixture(state["career"], "attempt-a")
+    instance._commit(state)
+    pending = state["career"]["pending_session"]
+    return {"expected_career_id": state["career"]["id"],
+            "expected_fixture_id": pending["fixture_id"], "expected_session_id": pending["session_id"]}
+
+
+def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedule(backend):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    before = json.loads(json.dumps(instance.document["career"]))
+    instance.dispatch("abandon_fixture", payload)
+    assert instance.error == ""
+    saved = instance.store.load()["career"]
+    assert saved["pending_session"] is None
+    assert saved["id"] == before["id"]
+    assert saved["recruits"] == before["recruits"]
+    assert saved["rewards"] == before["rewards"]
+    fixture = career.next_fixture(saved)
+    assert fixture["id"] == payload["expected_fixture_id"]
+    assert fixture["status"] == "scheduled"
+    assert fixture["result"] is None
+
+
+@pytest.mark.parametrize("change", ["career", "fixture", "attempt", "missing", "extra", "active"])
+def test_native_restart_rejects_changed_or_live_attempt_without_saving(backend, change):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    if change in {"career", "fixture"}:
+        payload[f"expected_{change}_id"] = "different"
+    elif change == "attempt":
+        payload["expected_session_id"] = "different"
+    elif change == "missing":
+        del payload["expected_session_id"]
+    elif change == "extra":
+        payload["score"] = 7
+    else:
+        instance.process = FakeProcess()
+    before = json.dumps(instance.document, sort_keys=True)
+    saved = instance.store.load()
+    instance.dispatch("abandon_fixture", payload)
+    assert "unfinished match changed" in instance.error
+    assert json.dumps(instance.document, sort_keys=True) == before
+    assert instance.store.load() == saved
+    instance.process = None
+
+
 def test_dispatch_persists_career_lineup_settings_and_assistance_preferences(backend):
     instance, _, _ = backend
 
