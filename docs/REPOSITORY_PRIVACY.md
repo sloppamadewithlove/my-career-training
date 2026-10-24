@@ -14,6 +14,8 @@ results. Raw game logs can contain account IDs and authentication details even
 when the relevant crash line looks harmless.
 
 Review `git diff --cached` and the exact release file list before publication.
+Review compiled metadata too. The BakkesMod SDK normally embeds the builder's
+absolute source path; this plugin supplies a repository-relative metadata name.
 Ignore rules help prevent accidents; they cannot guarantee no secret is ever
 committed. Preserve upstream license attribution and official public project
 URLs. Example account IDs and paths must be clearly synthetic.
