@@ -1,13 +1,22 @@
-// Development-only host experiment. No UI, hooks, gameplay writes or autoload.
+// Development-only host experiment. One explicit parameter-remap opt-in; no autoload.
 #include <windows.h>
 #include <shellapi.h>
 #include "ExecutableHash.h"
 #include "LocalBridge.h"
 #include "NativeMenuIdentityTrial.h"
+#include "NativeMenuGraphTrial.h"
+#include "NativeMenuEventTrace.h"
+#include "NativeMenuRemapTrial.h"
+#include "NativeParameterSlot.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
+#include "bakkesmod/wrappers/Engine/ActorWrapper.h"
 #include <fstream>
 #include <cmath>
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <mutex>
 
 namespace {
 constexpr const char* observedExecutable =
@@ -75,7 +84,7 @@ bool identifier(const std::string& value) {
 }
 
 bool readCurrentProcess(std::uint64_t address, unsigned char* output, std::size_t size) {
-    if (!mct::NativeMenuIdentityTrial::pointer(address) || size != mct::NativeMenuIdentityTrial::headerBytes) return false;
+    if (!mct::NativeMenuIdentityTrial::pointer(address) || size == 0 || size > 256) return false;
     MEMORY_BASIC_INFORMATION region{};
     if (!VirtualQuery(reinterpret_cast<const void*>(address), &region, sizeof(region)) ||
         region.State != MEM_COMMIT || (region.Protect & (PAGE_GUARD | PAGE_NOACCESS))) return false;
@@ -90,6 +99,247 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
     std::filesystem::path directory_;
     std::string nonce_;
     bool accepted_ = false;
+    mct::NativeMenuEventTrace eventTrace_;
+    std::mutex eventMutex_;
+    DWORD loadThread_ = 0;
+    int classToken_ = 0;
+    mct::NativeMenuRemapTrial remapTrial_;
+    bool remapEnabled_ = false;
+    bool nativeWriteAttempted_ = false;
+    bool remapWriteSpent_ = false;
+    bool pendingRestore_ = false;
+    bool currentParameterRestored_ = false;
+    std::uintptr_t pendingParameter_ = 0;
+    std::uintptr_t pendingCaller_ = 0;
+    std::uint64_t originalParameter_ = 0;
+    std::uint64_t replacementParameter_ = 0;
+    mct::Json buttonMenus_ = mct::Json::array();
+    const std::array<const char*, 3> menuNames_{{"RootMenuMovie", "GarageMainMenuMovie", "OptionsMenuMovie"}};
+    std::array<int, 3> menuNameTokens_{};
+    struct Hook {
+        const char* function;
+        const char* callerClass;
+        mct::NativeMenuEventKind kind;
+        int classToken = 0;
+        bool preRegistered = false;
+        bool postRegistered = false;
+        unsigned calls = 0;
+        unsigned classRejected = 0;
+        unsigned paramsRejected = 0;
+        unsigned eventsRecorded = 0;
+    };
+    std::array<Hook, 6> hooks_{{
+        {"Function ProjectX.GFxDataStore_X.SetStringValue", "GFxDataStore_X", mct::NativeMenuEventKind::SetStringValue},
+        {"Function TAGame.GFxData_MenuStack_TA.ButtonTriggered", "GFxData_MenuStack_TA", mct::NativeMenuEventKind::ButtonTriggered},
+        {"Function TAGame.GFxData_MenuTree_TA.OnChildNodeClicked", "GFxData_MenuTree_TA", mct::NativeMenuEventKind::OnChildNodeClicked},
+        {"Function ProjectX.GFxDataStore_X.GetValue", "GFxDataStore_X", mct::NativeMenuEventKind::GetValue},
+        {"Function TAGame.GFxData_MenuStack_TA.PushMenu", "GFxData_MenuStack_TA", mct::NativeMenuEventKind::PushMenu},
+        {"Function TAGame.GFxData_MenuStack_TA.PopMenu", "GFxData_MenuStack_TA", mct::NativeMenuEventKind::PopMenu}
+    }};
+
+    int knownToken(const char* name) {
+        const int token = gameWrapper->GetFNameIndexByString(name);
+        return token > 0 && gameWrapper->GetFNameByIndex(token) == name ? token : 0;
+    }
+
+    mct::NativeMenuEventScope eventScope() const {
+        const bool valid = accepted_ && GetCurrentThreadId() == loadThread_ && permitted() &&
+            !gameWrapper->IsInOnlineGame() && !gameWrapper->IsInGame();
+        return {valid, nonce_, std::to_string(GetCurrentThreadId())};
+    }
+
+    static mct::RemapScope remapScope(const mct::NativeMenuEventScope& scope) {
+        return {scope.scopeValid, scope.scopeValid, scope.scopeValid, !scope.scopeValid,
+                scope.session, scope.threadToken};
+    }
+
+    // Cleanup may finish after a trace/lease expires, but only on this exact
+    // original call's current POST buffer. Never dereference the retained
+    // parameter identity or attempt deferred restoration on unload.
+    mct::NativeParameterWrite restoreCurrentParameter(std::uintptr_t caller, void* params) {
+        if (!pendingRestore_ || GetCurrentThreadId() != loadThread_ || caller != pendingCaller_ ||
+            reinterpret_cast<std::uintptr_t>(params) != pendingParameter_) return {};
+        const auto result = mct::replaceNativeParameter(reinterpret_cast<std::uintptr_t>(params),
+                                                        replacementParameter_, originalParameter_);
+        nativeWriteAttempted_ = nativeWriteAttempted_ || result.attempted;
+        currentParameterRestored_ = result.applied;
+        pendingRestore_ = false;
+        return result;
+    }
+
+    void remap(mct::NativeMenuEventPhase phase, const mct::NativeMenuEventScope& scope,
+               const std::string& menu, const unsigned char* bytes, void* params,
+               std::uintptr_t caller, double now, const mct::NativeParameterWrite& restored) {
+        if (!remapEnabled_) return;
+        mct::RemapName name;
+        std::memcpy(&name.index, bytes, 4);
+        std::memcpy(&name.number, bytes + 4, 4);
+        const auto currentMenu = menu == "RootMenuMovie" ? mct::RemapMenu::Root :
+            menu == "GarageMainMenuMovie" ? mct::RemapMenu::Garage :
+            menu == "OptionsMenuMovie" ? mct::RemapMenu::Options : mct::RemapMenu::Other;
+        const auto proposal = remapTrial_.observe(remapScope(scope),
+            phase == mct::NativeMenuEventPhase::Pre ? mct::RemapPhase::Pre : mct::RemapPhase::Post,
+            currentMenu, name, reinterpret_cast<std::uintptr_t>(params), now);
+        if (proposal.offerRestore) remapTrial_.acknowledgeRestore(restored.applied);
+        if (!proposal.offerReplace) return;
+        // Independently enforce one shot at the write boundary, even if a
+        // future calibrator regression offers another replacement.
+        if (remapWriteSpent_ || pendingRestore_ || !eventScope().scopeValid) {
+            remapTrial_.acknowledgeWrite(false);
+            return;
+        }
+        remapWriteSpent_ = true;
+        std::uint64_t original = 0, replacement = 0;
+        std::memcpy(&original, bytes, 8);
+        std::memcpy(&replacement, proposal.bytes, 8);
+        const auto result = mct::replaceNativeParameter(reinterpret_cast<std::uintptr_t>(params),
+                                                        original, replacement);
+        nativeWriteAttempted_ = nativeWriteAttempted_ || result.attempted;
+        remapTrial_.acknowledgeWrite(result.applied);
+        if (result.applied) {
+            originalParameter_ = original;
+            replacementParameter_ = replacement;
+            pendingParameter_ = reinterpret_cast<std::uintptr_t>(params);
+            pendingCaller_ = caller;
+            pendingRestore_ = true;
+        }
+    }
+
+    void observe(std::size_t index, mct::NativeMenuEventPhase phase, ActorWrapper caller, void* params) {
+        // A nested or concurrent callback is inconclusive; never block a game
+        // event behind another diagnostic callback or recurse into SDK reads.
+        std::unique_lock<std::mutex> lock(eventMutex_, std::try_to_lock);
+        if (!lock.owns_lock()) return;
+        try {
+            const auto& event = hooks_.at(index);
+            const bool button = event.kind == mct::NativeMenuEventKind::ButtonTriggered;
+            const bool stackEvent = button || event.kind == mct::NativeMenuEventKind::PushMenu ||
+                event.kind == mct::NativeMenuEventKind::PopMenu;
+            // Preserve the POST observation before restoring the current slot.
+            // This path remains available even after the diagnostic stops.
+            std::array<unsigned char, 8> beforeRestore{};
+            mct::NativeParameterWrite restored;
+            bool capturedRestore = false;
+            if (button && phase == mct::NativeMenuEventPhase::Post && pendingRestore_) {
+                capturedRestore = readCurrentProcess(reinterpret_cast<std::uintptr_t>(params),
+                                                     beforeRestore.data(), beforeRestore.size());
+                restored = restoreCurrentParameter(caller.memory_address, params);
+                if (restored.applied && !capturedRestore) {
+                    std::memcpy(beforeRestore.data(), &replacementParameter_, 8);
+                    capturedRestore = true;
+                }
+            }
+            if (!eventTrace_.active()) return;
+            const auto scope = eventScope();
+            if (!scope.scopeValid) {
+                remapEnabled_ = false;
+                eventTrace_.clear(); buttonMenus_.clear(); return;
+            }
+            auto& hook = hooks_.at(index);
+            if (hook.calls < 1000000) ++hook.calls;
+            // ActorWrapper is the exported opaque callback carrier only. These
+            // GFx callers are not Actors: never call any Actor-specific method.
+            const auto identity = mct::NativeMenuIdentityTrial::inspect(
+                caller.memory_address, hook.classToken, classToken_, readCurrentProcess);
+            if (!mct::boolValue(identity, "candidate_invariants_matched")) {
+                if (hook.classRejected < 1000000) ++hook.classRejected;
+                return;
+            }
+            auto stack = gameWrapper->GetMenuStack();
+            if (stackEvent && (!stack || caller.memory_address != stack.memory_address)) return;
+            std::array<unsigned char, 0x40> bytes{};
+            const bool textEvent = hook.kind == mct::NativeMenuEventKind::SetStringValue ||
+                hook.kind == mct::NativeMenuEventKind::GetValue;
+            const std::size_t size = hook.kind == mct::NativeMenuEventKind::GetValue ? 0x40 :
+                (textEvent ? 0x28 : 8);
+            if (!readCurrentProcess(reinterpret_cast<std::uintptr_t>(params), bytes.data(), size)) {
+                if (hook.paramsRejected < 1000000) ++hook.paramsRejected;
+                return;
+            }
+            if (capturedRestore) std::copy(beforeRestore.begin(), beforeRestore.end(), bytes.begin());
+            const mct::NativeMenuEventTrace::Read reader = readCurrentProcess;
+            const double now = mct::unixTime();
+            if (eventTrace_.observe(scope, hook.kind, phase, bytes.data(), size, now, &reader)) {
+                ++hook.eventsRecorded;
+                if (!textEvent && buttonMenus_.size() < 128) {
+                    if (stack) {
+                        const auto menu = stack.GetTopMenu();
+                        if (identifier(menu)) {
+                            mct::Json context = {{"time", now}, {"event", hook.function},
+                                {"phase", phase == mct::NativeMenuEventPhase::Pre ? "pre" : "post"}, {"top_menu", menu}};
+                            int nameIndex = 0, nameNumber = 0;
+                            std::memcpy(&nameIndex, bytes.data(), 4);
+                            std::memcpy(&nameNumber, bytes.data() + 4, 4);
+                            for (std::size_t i = 0; i < menuNames_.size(); ++i)
+                                if (nameNumber == 0 && menuNameTokens_[i] > 0 && nameIndex == menuNameTokens_[i])
+                                    context["known_menu_parameter"] = menuNames_[i];
+                            buttonMenus_.push_back(std::move(context));
+                        }
+                    }
+                }
+            }
+            if (button && stack) remap(phase, scope, stack.GetTopMenu(), bytes.data(), params,
+                                       caller.memory_address, now, restored);
+        } catch (...) { remapEnabled_ = false; eventTrace_.clear(); buttonMenus_.clear(); }
+    }
+
+    bool startEvents() {
+        classToken_ = knownToken("Class");
+        for (std::size_t i = 0; i < menuNames_.size(); ++i) menuNameTokens_[i] = knownToken(menuNames_[i]);
+        for (auto& hook : hooks_) hook.classToken = knownToken(hook.callerClass);
+        if (!classToken_) return false;
+        for (const auto& hook : hooks_) if (!hook.classToken) return false;
+        loadThread_ = GetCurrentThreadId();
+        if (!eventTrace_.start(eventScope(), mct::unixTime())) return false;
+        for (std::size_t i = 0; i < hooks_.size(); ++i) {
+            auto& hook = hooks_[i];
+            if (hook.kind != mct::NativeMenuEventKind::GetValue) {
+                hook.preRegistered = true;
+                gameWrapper->HookEventWithCaller<ActorWrapper>(hook.function,
+                    [this, i](ActorWrapper caller, void* params, std::string) {
+                        observe(i, mct::NativeMenuEventPhase::Pre, caller, params);
+                    });
+            }
+            hook.postRegistered = true;
+            gameWrapper->HookEventWithCallerPost<ActorWrapper>(hook.function,
+                [this, i](ActorWrapper caller, void* params, std::string) {
+                    observe(i, mct::NativeMenuEventPhase::Post, caller, params);
+                });
+        }
+        // The SDK gives no registration receipt. A requested hook is not proof
+        // it was installed or has observed an event; duplicates may be ignored.
+        return true;
+    }
+
+    void removeEventHooks() {
+        eventTrace_.clear();
+        for (auto& hook : hooks_) {
+            if (hook.preRegistered) {
+                try { gameWrapper->UnhookEvent(hook.function); } catch (...) {}
+                hook.preRegistered = false;
+            }
+            if (hook.postRegistered) {
+                try { gameWrapper->UnhookEventPost(hook.function); } catch (...) {}
+                hook.postRegistered = false;
+            }
+        }
+    }
+
+    mct::Json eventStats() const {
+        auto stats = mct::Json::array();
+        for (const auto& hook : hooks_) stats.push_back({{"event", hook.function}, {"calls", hook.calls},
+            {"class_rejected", hook.classRejected}, {"params_rejected", hook.paramsRejected},
+            {"events_recorded", hook.eventsRecorded}});
+        const auto remap = remapTrial_.status();
+        return {{"hooks", std::move(stats)}, {"button_menu_observations", buttonMenus_},
+            {"remap_trial", {{"state", remap.state}, {"reason", remap.reason}, {"calibrated_pairs", remap.pairs},
+                {"parameter_rewrite_applied", remap.parameterRewriteApplied},
+                {"restore_acknowledged", remap.restoreAcknowledged},
+                {"current_parameter_restored", currentParameterRestored_},
+                {"parameter_restore_unresolved", remap.parameterRewriteApplied && !currentParameterRestored_},
+                {"restore_pending", pendingRestore_}, {"native_write_attempted", nativeWriteAttempted_},
+                {"action_consumption_verified", false}, {"menu_rewrite_verified", false}}}};
+    }
 
     bool permitted() const {
         if (directory_.empty() || !ordinaryPath(directory_ / L"session.json") || !offlineCommandLine()) return false;
@@ -119,7 +369,7 @@ class MCTNativeHostProbe final : public BakkesMod::Plugin::BakkesModPlugin {
         details["pid"] = GetCurrentProcessId();
         details["created"] = processCreated();
         details["observed_at"] = mct::unixTime();
-        details["native_mutations"] = false;
+        details["native_mutations"] = nativeWriteAttempted_;
         details["menu_rewrite_verified"] = false;
         mct::LocalBridge::atomicWrite(directory_ / (std::string(phase) + ".json"), details.dump(2), false);
     }
@@ -166,18 +416,68 @@ public:
                     gameWrapper->GetFNameByIndex(classToken) == "Class" && permitted()) {
                     details["object_header_trial"] = mct::NativeMenuIdentityTrial::inspect(
                         stack.memory_address, menuToken, classToken, readCurrentProcess);
+                    if (mct::boolValue(session, "menu_graph_trial") &&
+                        mct::boolValue(details["object_header_trial"], "candidate_invariants_matched")) {
+                        mct::NativeMenuGraphTrial::Tokens tokens{menuToken,
+                            knownToken("GFxShell_X"), knownToken("GFxShell_TA"),
+                            knownToken("GFxMoviePlayer_X"), knownToken("GFxDataStore_X"), classToken};
+                        if (permitted()) details["menu_graph_trial"] = mct::NativeMenuGraphTrial::inspect(
+                            stack.memory_address, tokens, readCurrentProcess);
+                    }
                 } else details["object_header_trial"] = {{"reason", "sdk_name_tokens_unavailable"}};
+            }
+            if (mct::boolValue(session, "menu_event_trace") && menu == "RootMenuMovie" &&
+                details.contains("object_header_trial") &&
+                mct::boolValue(details["object_header_trial"], "candidate_invariants_matched")) {
+                details["menu_event_trace"] = {{"hooks_requested", startEvents()},
+                    {"parameter_layout_verified", false}, {"action_consumption_verified", false},
+                    {"same_load_thread_required", true}, {"maximum_seconds", 60}};
+                if (mct::boolValue(session, "menu_remap_trial") &&
+                    mct::boolValue(details["menu_event_trace"], "hooks_requested")) {
+                    remapEnabled_ = remapTrial_.start(remapScope(eventScope()), mct::unixTime());
+                    details["menu_remap_trial"] = {{"calibration_started", remapEnabled_},
+                        {"action_consumption_verified", false}, {"one_parameter_rewrite_maximum", true}};
+                }
             }
             if (permitted()) receipt("loaded", std::move(details));
         } catch (...) {
+            try { removeEventHooks(); } catch (...) {}
             // No recovery commands, game writes or exception text containing paths.
             try { if (permitted()) receipt("refused", {{"reason", "Host observation failed"}}); } catch (...) {}
         }
     }
 
     void onUnload() override {
-        try { if (accepted_ && permitted()) receipt("unloaded"); } catch (...) {}
+        mct::Json observations = mct::Json::object();
+        try {
+            std::lock_guard<std::mutex> lock(eventMutex_);
+            if (eventTrace_.hasTrace()) {
+                mct::LocalBridge bridge(directory_);
+                eventTrace_.stopToBridge(eventScope(), mct::unixTime(), bridge, nativeWriteAttempted_);
+            }
+            observations = eventStats();
+            if (accepted_ && permitted()) {
+                auto stack = gameWrapper->GetMenuStack();
+                if (stack) {
+                    const auto menu = stack.GetTopMenu();
+                    if (identifier(menu)) observations["top_menu_on_unload"] = menu;
+                    const auto menus = stack.GetMenuStack();
+                    if (menus.size() <= 32) {
+                        auto names = mct::Json::array();
+                        bool valid = true;
+                        for (const auto& name : menus) {
+                            if (!identifier(name)) { valid = false; break; }
+                            names.push_back(name);
+                        }
+                        if (valid) observations["menu_stack_on_unload"] = std::move(names);
+                    }
+                }
+            }
+        } catch (...) { eventTrace_.clear(); }
+        // Cleanup also runs after lease expiry. It never changes game params.
+        try { removeEventHooks(); } catch (...) {}
+        try { if (accepted_ && permitted()) receipt("unloaded", {{"event_observations", observations}}); } catch (...) {}
     }
 };
 
-BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.2.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(MCTNativeHostProbe, "My Career native host diagnostic", "0.5.0", PLUGINTYPE_FREEPLAY)

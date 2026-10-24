@@ -380,3 +380,183 @@ def test_command_context_accepts_owned_local_listener_without_network_access(
     assert context == {"owned_listener": True, "plugin_name": world.plan["plugin_name"]}
     assert len(identities) == 1
     assert inspected_pids == [4321]
+
+
+def test_menu_event_trace_cli_implies_object_header_without_enabling_menu_graph(
+    tmp_path, monkeypatch, capsys
+):
+    world = _world(tmp_path, create_trial=False)
+    _mock_host(monkeypatch, world)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "prepare",
+            "--game-dir",
+            str(world.game),
+            "--baseline",
+            str(world.baseline),
+            "--menu-event-trace",
+        ],
+    )
+
+    trial.main()
+
+    output = json.loads(capsys.readouterr().out)
+    directory = Path(output["directory"])
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    assert plan["menu_event_trace"] is True
+    assert plan["object_header_trial"] is True
+    assert plan["menu_graph_trial"] is False
+    assert plan["menu_remap_trial"] is False
+    assert output["game_launched"] is False
+    assert not world.destination.exists()
+    assert not (directory / "launch-attempt.json").exists()
+
+
+def test_menu_event_trace_optins_propagate_to_launched_session(tmp_path, monkeypatch):
+    world = _world(tmp_path, create_trial=False)
+    _mock_host(monkeypatch, world)
+    directory, plan = trial.prepare(world.game, world.baseline, menu_event_trace=True)
+    assert plan["menu_event_trace"] is True
+    assert plan["object_header_trial"] is True
+    assert plan["menu_graph_trial"] is False
+    assert plan["menu_remap_trial"] is False
+
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: SimpleNamespace(pid=4321),
+    )
+    monkeypatch.setattr(
+        trial.psutil,
+        "Process",
+        lambda _pid: SimpleNamespace(create_time=lambda: 50.0),
+    )
+    monkeypatch.setattr(trial.time, "time", lambda: 150.0)
+
+    trial.launch(directory)
+
+    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    assert session["menu_event_trace"] is True
+    assert session["object_header_trial"] is True
+    assert session["menu_graph_trial"] is False
+    assert session["menu_remap_trial"] is False
+
+
+def test_menu_remap_cli_implies_header_and_event_trace_and_reaches_session(
+    tmp_path, monkeypatch, capsys
+):
+    world = _world(tmp_path, create_trial=False)
+    _mock_host(monkeypatch, world)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "prepare",
+            "--game-dir",
+            str(world.game),
+            "--baseline",
+            str(world.baseline),
+            "--menu-remap-trial",
+        ],
+    )
+
+    trial.main()
+
+    output = json.loads(capsys.readouterr().out)
+    directory = Path(output["directory"])
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    assert plan["menu_remap_trial"] is True
+    assert plan["menu_event_trace"] is True
+    assert plan["object_header_trial"] is True
+    assert plan["menu_graph_trial"] is False
+    assert output["game_launched"] is False
+
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: SimpleNamespace(pid=4321),
+    )
+    monkeypatch.setattr(
+        trial.psutil,
+        "Process",
+        lambda _pid: SimpleNamespace(create_time=lambda: 50.0),
+    )
+    monkeypatch.setattr(trial.time, "time", lambda: 150.0)
+
+    trial.launch(directory)
+
+    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    assert session["menu_remap_trial"] is True
+    assert session["menu_event_trace"] is True
+    assert session["object_header_trial"] is True
+    assert session["menu_graph_trial"] is False
+
+
+def test_menu_remap_optins_are_disabled_by_default_in_plan_and_session(tmp_path, monkeypatch):
+    world = _world(tmp_path, create_trial=False)
+    _mock_host(monkeypatch, world)
+    directory, plan = trial.prepare(world.game, world.baseline)
+
+    assert plan["menu_remap_trial"] is False
+    assert plan["menu_event_trace"] is False
+    assert plan["object_header_trial"] is False
+    assert plan["menu_graph_trial"] is False
+
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: SimpleNamespace(pid=4321),
+    )
+    monkeypatch.setattr(
+        trial.psutil,
+        "Process",
+        lambda _pid: SimpleNamespace(create_time=lambda: 50.0),
+    )
+    monkeypatch.setattr(trial.time, "time", lambda: 150.0)
+    trial.launch(directory)
+
+    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    assert session["menu_remap_trial"] is False
+    assert session["menu_event_trace"] is False
+    assert session["object_header_trial"] is False
+    assert session["menu_graph_trial"] is False
+
+
+def test_command_context_is_repeatable_and_read_only_for_live_session(tmp_path, monkeypatch):
+    world = _world(tmp_path)
+    _write_command_session(world)
+    _mock_command_context(
+        monkeypatch,
+        listeners=[_listener("127.0.0.1", 9001)],
+    )
+    before = {path.name: path.read_bytes() for path in world.directory.iterdir() if path.is_file()}
+
+    first = trial.command_context(world.directory, 9001)
+    second = trial.command_context(world.directory, 9001)
+
+    after = {path.name: path.read_bytes() for path in world.directory.iterdir() if path.is_file()}
+    assert first == second == {
+        "owned_listener": True,
+        "plugin_name": world.plan["plugin_name"],
+    }
+    assert after == before
+
+
+def test_finish_allows_safe_cleanup_after_session_expiry_when_game_is_closed(
+    tmp_path, monkeypatch
+):
+    world = _world(tmp_path)
+    _mock_host(monkeypatch, world)
+    _write_command_session(world, issued_at=50.0, expires_at=149.0)
+    world.destination.write_bytes(world.source.read_bytes())
+
+    result = trial.finish(world.directory)
+
+    assert not world.destination.exists()
+    assert result["trial_dll_removed"] is True
+    assert result["configuration_unchanged"] is True
+    assert (world.directory / "finished.json").is_file()

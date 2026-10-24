@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "kind": "sanitized_native_button_observation",
+  "host": "SLAVAPC",
+  "game_executable_sha256": "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7",
+  "bakkesmod_core": 229,
+  "game_build": "261013.63066.530866",
+  "probe_version": "0.4.0",
+  "probe_dll_sha256": "ddfd5e308455721c999f55c9b0ba66fa3b20aff8eb6020fe72d837c57219c8ad",
+  "loaded_receipt_sha256": "7df21fac365dd939f186b6f63cb9f94d00883beeef2538782e9693e29b110646",
+  "unloaded_receipt_sha256": "96204645809202e5e731080161c9995e4a3647849c25a417d5d1cfb45f97fafd",
+  "event_trace_sha256": "84f911cd4535d06d3bc7128d4098b0a9307c27c450b96066e38f72a960cc3e89",
+  "home_menu": "RootMenuMovie",
+  "data_store_tables": {"count": 153, "capacity": 196, "layout_verified": false},
+  "button_event": "Function TAGame.GFxData_MenuStack_TA.ButtonTriggered",
+  "steps": [
+    {"user_action": "Garage", "pre_and_post_menu": "RootMenuMovie", "name_index": 94486, "name_number": 0},
+    {"user_action": "Back", "pre_and_post_menu": "GarageMainMenuMovie", "name_index": 135714, "name_number": 0},
+    {"user_action": "Settings", "pre_and_post_menu": "RootMenuMovie", "name_index": 135715, "name_number": 0},
+    {"user_action": "Back", "pre_and_post_menu": "OptionsMenuMovie", "name_index": 135724, "name_number": 0}
+  ],
+  "button_pre_and_post_records": 8,
+  "candidate_caller_class_rejections": 0,
+  "parameter_read_rejections": 0,
+  "set_string_value_calls": 0,
+  "menu_tree_child_clicked_calls": 0,
+  "explicit_unload_receipt": true,
+  "temporary_dll_removed": true,
+  "bakkesmod_configuration_unchanged": true,
+  "native_mutations": false,
+  "action_consumption_verified": false,
+  "menu_rewrite_verified": false,
+  "limitations": [
+    "Captured name indexes belong to this process only; never reuse them as a mapping in a later session.",
+    "Screen changes occurred after the paired callbacks; ButtonTriggered may be notification rather than the routing decision.",
+    "No original click was suppressed or redirected by this read-only trial.",
+    "Absent callbacks do not prove that the functions are unused or that hook ownership is exclusive.",
+    "Installation-file comparison for this fourth trial is recorded separately; player save bytes may change during normal cloud sync."
+  ]
+}
