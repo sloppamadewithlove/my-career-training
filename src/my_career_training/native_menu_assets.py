@@ -46,7 +46,7 @@ SOURCE_SHA256 = "72e7700ea05b937b473451e05db873b8eb8dd9e4b41c329d6e9a0d2e7e56132
 SOURCE_BYTES = 15390
 LICENSE_SHA256 = "23831a13a99f726e62388efade7f0b8a778f1b84e40dec8a4bf4a1e481ccbdfe"
 LICENSE_BYTES = 1080
-AUTHORED_CLASSES = ["menus::MctRootMenu", "MctMainMenuScreen"]
+AUTHORED_CLASSES = ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
 
 PAYLOAD_NAMES = frozenset({
     "native_package_reader.py",
@@ -185,7 +185,7 @@ def prepare_native_menu(
         raise NativeMenuAssetsError("session directory already exists")
     receipt, payloads = _validated_runtime(runtime)
     reader, rewrite, composer = _import_helpers(runtime)
-    _require_composer(composer, receipt, payloads["MctRootMenu.abc"])
+    _require_composer(composer, receipt, payloads["MctRootMenu.abc"], payloads["manifest.json"])
     executable = _installed_file(game, EXECUTABLE_RELATIVE, _MAX_EXE, "installed executable was not found")
     package = _installed_file(game, PACKAGE_RELATIVE, _MAX_PACKAGE, "installed package was not found")
     if _hash_file(executable, _MAX_EXE) != EXECUTABLE_SHA256:
@@ -382,7 +382,12 @@ def _require_manifest(data: bytes, receipt: dict) -> None:
     if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
         raise NativeMenuAssetsError("staged manifest grants runtime capability")
     if manifest.get("game_classes_linked") is not False or manifest.get("classes") != AUTHORED_CLASSES:
-        raise NativeMenuAssetsError("staged manifest classes are not the two authored classes")
+        raise NativeMenuAssetsError("staged manifest classes are not the authored classes")
+    if manifest.get("root_movie_source") != "native_ui/MctRootMenuMovie.as":
+        raise NativeMenuAssetsError("staged manifest source pin does not match")
+    root_hash = manifest.get("root_movie_source_sha256")
+    if type(root_hash) is not str or len(root_hash) != 64 or any(char not in "0123456789abcdef" for char in root_hash):
+        raise NativeMenuAssetsError("staged manifest source pin does not match")
     pins = receipt["pins"]
     if manifest.get("abc_sha256") != pins["abc_sha256"] or manifest.get("abc_bytes") != pins["abc_bytes"]:
         raise NativeMenuAssetsError("staged ABC does not match the manifest")
@@ -426,25 +431,34 @@ def _import_one(path: Path, prefix: str):
     return module
 
 
-def _require_composer(composer, receipt: dict, abc: bytes) -> None:
+def _require_composer(composer, receipt: dict, abc: bytes, manifest_bytes: bytes) -> None:
     abc_hash = hashlib.sha256(abc).hexdigest()
     try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
         movie = composer.MOVIE_SHA256
         mod_abc = composer.MOD_ABC_SHA256
         source = composer.SOURCE_SHA256
         screen = composer.SCREEN_SOURCE_SHA256
+        root_source = composer.ROOT_MOVIE_SOURCE_SHA256
         new_class = composer.NEW_CLASS
         screen_class = composer.SCREEN_CLASS
+        root_class = composer.ROOT_MOVIE_CLASS
+        original_root = composer.ORIGINAL_ROOT_NAME
+        renamed_root = composer.RENAMED_ORIGINAL_ROOT
         character = composer.DOCUMENT_CHARACTER
         target = composer.DOCUMENT_TARGET_NAME
-    except AttributeError:
+    except (AttributeError, UnicodeDecodeError, json.JSONDecodeError):
         raise NativeMenuAssetsError("staged composer pin does not match") from None
     pins = receipt["pins"]
     if movie != MOVIE_SHA256 or mod_abc != abc_hash or mod_abc != pins["abc_sha256"]:
         raise NativeMenuAssetsError("staged composer pin does not match")
     if source != pins["source_sha256"] or screen != pins["screen_source_sha256"]:
         raise NativeMenuAssetsError("staged composer pin does not match")
-    if new_class != "MctRootMenu" or screen_class != "MctMainMenuScreen":
+    if root_source != manifest.get("root_movie_source_sha256"):
+        raise NativeMenuAssetsError("staged composer pin does not match")
+    if new_class != "MctRootMenu" or screen_class != "MctMainMenuScreen" or root_class != "MctRootMenuMovie":
+        raise NativeMenuAssetsError("staged composer pin does not match")
+    if original_root != "RootMenuMovie" or renamed_root != "MctOriginalRootMenuMovie":
         raise NativeMenuAssetsError("staged composer pin does not match")
     if character != 0 or target != "MctMainMenuScreen":
         raise NativeMenuAssetsError("staged composer document binding does not match")

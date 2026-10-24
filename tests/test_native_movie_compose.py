@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import struct
 import sys
 from dataclasses import replace
@@ -24,12 +25,20 @@ SPEC.loader.exec_module(compose)
 SESSION = "550e8400-e29b-41d4-a716-446655440000"
 VIEW_URL = "file:///C:/sessions/native-view.json"
 UNICODE_URL = "file:///C:/My%20Career/%E2%82%ACview/native-view.json"
-STRING_COUNT = 128
-MULTINAME_COUNT = 128
-OLD_MULTINAME = 200
-CLASS_INDEX = 7
-CODE_OFFSET = 48
-CODE_LENGTH = 73
+OLD_MULTINAME = 5940
+SUPER_BYTES = bytes((0xB4, 0x2E))
+SCRIPT_CODE = b"SCRIPT700" + b"\x60" + SUPER_BYTES + b"\x30\x60" + SUPER_BYTES + b"\x58\x07"
+ORIGINAL_NAMES = ["menus", "RootMenu", "RootMenuMovie", "MainMenuScreen", "Garage"]
+MOD_NAMES = [
+    "MctRootMenu",
+    "__MCT_VIEW_URL__",
+    "__MCT_SESSION__",
+    "__MCT_",
+    "N" * 130,
+    "MctMainMenuScreen",
+    "MctRootMenuMovie",
+]
+WRAPPER_INDEX = 7
 
 
 def _u30(value: int) -> bytes:
@@ -44,68 +53,40 @@ def _u30(value: int) -> bytes:
             return bytes(out)
 
 
-def _code(old: int = OLD_MULTINAME, class_index: int = CLASS_INDEX) -> bytes:
-    body = bytearray(b"\x30" * 46)
-    body.append(0x60)
-    body += _u30(old)
-    body.append(0x30)
-    body.append(0x60)
-    body += _u30(old)
-    body.append(0x58)
-    body += _u30(class_index)
-    if len(body) > 72:
-        raise AssertionError(len(body))
-    body += b"\x1d" * (72 - len(body))
-    body.append(0x47)
-    assert len(body) == CODE_LENGTH
-    return bytes(body)
-
-
-def _abc(
-    code: bytes | None = None,
-    *,
-    old: int = OLD_MULTINAME,
-    namespace_kind: int = 0x16,
-    multiname_count: int = MULTINAME_COUNT,
-) -> bytes:
-    code = _code(old) if code is None else code
-    raw = bytearray(CODE_OFFSET + len(code) + 5)
-    raw[0:4] = struct.pack("<HH", 16, 46)
-    raw[4:6] = _u30(STRING_COUNT)
-    raw[8:14] = b"\x05menus"
-    raw[14:20] = b"KEEP!!"
-    raw[20] = namespace_kind
-    raw[21] = 1
-    raw[22:24] = b"NS"
-    raw[24:26] = _u30(multiname_count)
-    raw[26:40] = b"MULTINAME_PAD!"
-    raw[40:45] = b"AFTER"
-    encoded = _u30(old)
-    raw[45 : 45 + len(encoded)] = encoded
-    raw[47] = 0x5A
-    raw[CODE_OFFSET : CODE_OFFSET + len(code)] = code
-    raw[CODE_OFFSET + len(code)] = 0
-    raw[CODE_OFFSET + len(code) + 1 :] = b"TAIL"
-    return bytes(raw)
-
-
-def _mod(strings: list[str] | None = None) -> bytes:
-    if strings is None:
-        strings = [
-            "MctRootMenu",
-            "__MCT_VIEW_URL__",
-            "__MCT_SESSION__",
-            "__MCT_",
-            "N" * 130,
-            "MctMainMenuScreen",
-        ]
+def _pool(names: list[str]) -> bytearray:
     out = bytearray(struct.pack("<HH", 16, 46))
     out += bytes((0, 0, 0))
-    out += _u30(len(strings) + 1)
-    for item in strings:
+    out += _u30(len(names) + 1)
+    for item in names:
         raw = item.encode("utf-8")
         out += _u30(len(raw))
         out += raw
+    return out
+
+
+def _original_abc(
+    names: list[str] | None = None,
+    *,
+    code: bytes = SCRIPT_CODE,
+    super_bytes: bytes = SUPER_BYTES,
+    tail: bytes = b"",
+) -> tuple[bytes, int, int]:
+    out = _pool(ORIGINAL_NAMES if names is None else names)
+    super_offset = len(out)
+    out += super_bytes
+    out += b"GAP"
+    code_offset = len(out)
+    out += code
+    out += b"TAIL"
+    out += tail
+    return bytes(out), super_offset, code_offset
+
+
+def _mod(strings: list[str] | None = None) -> bytes:
+    names = MOD_NAMES if strings is None else strings
+    out = _pool(names)
+    if "MctRootMenuMovie" in names:
+        out += b"QNAME" + _u30(names.index("MctRootMenuMovie") + 1)
     out += b"TAIL__MCT_VIEW_URL____MCT_SESSION__"
     return bytes(out)
 
@@ -147,7 +128,13 @@ def _movie(
 
 
 def _profile(
-    movie: bytes, abc: bytes, mod: bytes, code: bytes, **overrides: object
+    movie: bytes,
+    abc: bytes,
+    mod: bytes,
+    code: bytes,
+    super_offset: int,
+    code_offset: int,
+    **overrides: object,
 ) -> compose.ComposeProfile:
     values = {
         "movie_sha256": hashlib.sha256(movie).hexdigest(),
@@ -155,42 +142,38 @@ def _profile(
         "mod_abc_sha256": hashlib.sha256(mod).hexdigest(),
         "source_sha256": "ab" * 32,
         "screen_source_sha256": "cd" * 32,
-        "string_count": STRING_COUNT,
-        "string_count_offset": 4,
-        "string_pool_end": 20,
-        "menus_string_offset": 8,
-        "namespace_kind_offset": 20,
-        "namespace_name_index": 1,
-        "namespace_index": 4,
-        "multiname_count": MULTINAME_COUNT,
-        "multiname_count_offset": 24,
-        "multiname_pool_end": 40,
-        "super_offset": 45,
+        "root_movie_source_sha256": "ef" * 32,
+        "super_offset": super_offset,
+        "super_bytes": SUPER_BYTES,
         "old_multiname_index": OLD_MULTINAME,
-        "class_index": CLASS_INDEX,
-        "code_offset": CODE_OFFSET,
-        "code_length": CODE_LENGTH,
+        "class_index": 702,
+        "code_offset": code_offset,
+        "code_length": len(code),
         "code_sha256": hashlib.sha256(code).hexdigest(),
-        "getlex_pcs": (46, 50),
-        "pushscope_pc": 49,
-        "newclass_pc": 53,
-        "method_index": 1,
-        "script_index": 1,
+        "method_index": 11548,
+        "script_index": 700,
         "doabc_index": 1,
         "symbol_character": 83,
         "symbol_name": "RootMenuMovie",
-        "preserved_spans": ((14, b"KEEP!!"), (26, b"MULTINAME_PAD!")),
     }
     values.update(overrides)
     return compose.ComposeProfile(**values)
 
 
-def _ready(abc: bytes | None = None, mod: bytes | None = None, **overrides: object):
-    abc = _abc() if abc is None else abc
-    mod = _mod() if mod is None else mod
-    code = abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH]
+def _ready(
+    names: list[str] | None = None,
+    mod_strings: list[str] | None = None,
+    *,
+    code: bytes = SCRIPT_CODE,
+    super_bytes: bytes = SUPER_BYTES,
+    tail: bytes = b"",
+    **overrides: object,
+):
+    abc, super_offset, code_offset = _original_abc(names, code=code, super_bytes=super_bytes, tail=tail)
+    mod = _mod(mod_strings)
     movie = _movie(abc)
-    return movie, mod, _profile(movie, abc, mod, code, **overrides), abc
+    profile = _profile(movie, abc, mod, code, super_offset, code_offset, **overrides)
+    return movie, mod, profile, abc
 
 
 def _compose(movie: bytes, mod: bytes, profile: compose.ComposeProfile, *, view_url: str = VIEW_URL):
@@ -221,10 +204,23 @@ def _doabc_payloads(movie: bytes) -> list[bytes]:
     return [payload for code, _raw, payload in _tags(movie) if code == 82]
 
 
+def _symbol_names(payload: bytes) -> list[tuple[int, str]]:
+    count = struct.unpack_from("<H", payload, 0)[0]
+    pos = 2
+    found = []
+    for _ in range(count):
+        character = struct.unpack_from("<H", payload, pos)[0]
+        pos += 2
+        end = payload.index(b"\0", pos)
+        found.append((character, payload[pos:end].decode("ascii")))
+        pos = end + 1
+    return found
+
+
 def _strings(abc: bytes) -> list[str]:
     offset = 7
-    count = abc[offset]
-    offset += 1
+    count, width = _read_u30(abc, offset)
+    offset += width
     found = []
     for _ in range(1, count):
         length, width = _read_u30(abc, offset)
@@ -249,111 +245,162 @@ def test_production_profile_pins_the_measured_layout():
     profile = compose.PRODUCTION_PROFILE
     assert profile.movie_sha256 == "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
     assert profile.abc_sha256 == "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-    assert profile.mod_abc_sha256 == "fbcedd362034ac360d8b5a7de7c9041f5fbe1604fab99b0ead6a9dc6249e5eaf"
+    assert profile.mod_abc_sha256 == "d2f569fe0201eeb31b9571b77d353279076f588e4bb40f3cb16d42946d0504b8"
     assert profile.source_sha256 == "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
     assert profile.screen_source_sha256 == "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a"
-    assert profile.string_count == 13849
-    assert profile.string_count_offset == 2048
-    assert profile.string_pool_end == 274271
-    assert profile.menus_string_offset == 113446
-    assert profile.namespace_kind_offset == 276629
-    assert profile.namespace_name_index == 5806
-    assert profile.namespace_index == 814
-    assert profile.multiname_count == 12205
-    assert profile.multiname_count_offset == 282536
-    assert profile.multiname_pool_end == 335281
+    assert profile.root_movie_source_sha256 == "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432"
     assert profile.super_offset == 446019
-    assert profile.old_multiname_index == 5940
+    assert profile.super_bytes == _u30(OLD_MULTINAME) == SUPER_BYTES
+    assert profile.old_multiname_index == OLD_MULTINAME
     assert profile.class_index == 702
     assert profile.code_offset == 1113629
     assert profile.code_length == 73
     assert profile.code_sha256 == "b09ed973afb268ab53aa4c7b9f78e65574da52bcdfc2b7abc590086a8039f174"
-    assert profile.getlex_pcs == (46, 50)
-    assert profile.pushscope_pc == 49
-    assert profile.newclass_pc == 53
     assert profile.method_index == 11548
     assert profile.script_index == 700
     assert profile.doabc_index == 177
     assert profile.symbol_character == 83
     assert profile.symbol_name == "RootMenuMovie"
-    assert profile.preserved_spans == ((309137, bytes.fromhex("07ae06982e")),)
+    assert compose.AUTHORED_CLASSES == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
     assert compose.MAX_MOVIE_BYTES == 16 * 1024 * 1024
     assert compose.MAX_MOD_ABC_BYTES == 64 * 1024
 
 
-def test_compose_appends_pools_and_patches_three_references():
+def test_root_rename_preserves_superclass_and_script_bytes():
     movie, mod, profile, abc = _ready()
     original_tags = _tags(movie)
     result = _compose(movie, mod, profile)
     output = result["data"]
     metadata = result["metadata"]
-    assert movie == _movie(abc)
-    assert output[:4] == b"GFX\x14"
-    assert output[8:13] == movie[8:13]
-    assert struct.unpack_from("<I", output, 4)[0] == len(output)
     output_tags = _tags(output)
     assert [raw for code, raw, _payload in output_tags if code not in (82, 76)] == [
         raw for code, raw, _payload in original_tags if code not in (82, 76)
     ]
     original_symbol = next(payload for code, _raw, payload in original_tags if code == 76)
     output_symbol = next(payload for code, _raw, payload in output_tags if code == 76)
-    old_document = struct.pack("<H", 0) + b"MainMenuScreen\0"
-    new_document = struct.pack("<H", 0) + b"MctMainMenuScreen\0"
-    assert original_symbol.count(old_document) == 1
-    assert output_symbol == original_symbol.replace(old_document, new_document, 1)
-    assert output_symbol.count(struct.pack("<H", 83) + b"RootMenuMovie\0") == 1
-    assert output_symbol.count(struct.pack("<H", 1) + b"Other\0") == 1
-    assert output_symbol.count(struct.pack("<H", 9) + b"Garage\0") == 1
+    original_entries = _symbol_names(original_symbol)
+    output_entries = _symbol_names(output_symbol)
+    assert original_entries[0] == (0, "MainMenuScreen")
+    assert output_entries[0] == (0, "MctMainMenuScreen")
+    assert output_entries[1:] == original_entries[1:]
+    assert output_entries[1:] == [(83, "RootMenuMovie"), (1, "Other"), (9, "Garage")]
     payloads = _doabc_payloads(output)
     assert len(payloads) == 2
-    assert payloads[0][4] == 0
-    spliced = payloads[0][5:]
-    shift = 16
-    assert spliced[4:6] == _u30(STRING_COUNT + 1)
-    assert spliced[20:32] == b"\x0bMctRootMenu"
-    assert spliced[36:38] == _u30(MULTINAME_COUNT + 1)
-    assert spliced[52:56] == bytes((0x07, 0x04)) + _u30(STRING_COUNT)
-    assert spliced[14:20] == b"KEEP!!"
-    assert spliced[38:52] == b"MULTINAME_PAD!"
-    assert spliced.endswith(b"TAIL")
-    code = abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH]
-    expected = bytearray(code)
-    expected[47:49] = _u30(MULTINAME_COUNT)
-    expected[51:53] = _u30(MULTINAME_COUNT)
-    assert spliced[CODE_OFFSET + shift : CODE_OFFSET + shift + CODE_LENGTH] == bytes(expected)
-    assert spliced[45 + shift : 47 + shift] == _u30(MULTINAME_COUNT)
-    assert expected[53] == 0x58 and expected[54] == CLASS_INDEX
+    renamed = payloads[0][5:]
+    encoded_old = b"\x0dRootMenuMovie"
+    encoded_new = b"\x18MctOriginalRootMenuMovie"
+    assert abc.count(encoded_old) == 1
+    start = abc.find(encoded_old)
+    assert renamed == abc[:start] + encoded_new + abc[start + len(encoded_old) :]
+    delta = len(encoded_new) - len(encoded_old)
+    assert delta == 11
+    assert renamed[profile.super_offset + delta : profile.super_offset + delta + len(SUPER_BYTES)] == SUPER_BYTES
+    code = abc[profile.code_offset : profile.code_offset + len(SCRIPT_CODE)]
+    assert code == SCRIPT_CODE
+    assert code.count(SUPER_BYTES) == 2
+    assert renamed[profile.code_offset + delta : profile.code_offset + delta + len(code)] == code
     added = payloads[1]
     assert added.startswith(struct.pack("<I", 1) + b"MCTNativeMenu\0")
     bound = added[18:]
-    assert _strings(bound)[0] == "MctRootMenu"
-    assert _strings(bound)[1] == VIEW_URL
-    assert _strings(bound)[2] == SESSION
-    assert _strings(bound)[3] == "__MCT_"
-    assert _strings(bound)[4] == "N" * 130
-    assert _strings(bound)[5] == "MctMainMenuScreen"
+    assert _strings(bound) == [
+        "MctRootMenu",
+        VIEW_URL,
+        SESSION,
+        "__MCT_",
+        "N" * 130,
+        "MctMainMenuScreen",
+        "RootMenuMovie",
+    ]
+    assert b"QNAME" + _u30(WRAPPER_INDEX) in bound
+    assert b"MctRootMenuMovie" not in bound
     assert bound.endswith(b"TAIL__MCT_VIEW_URL____MCT_SESSION__")
-    assert bound.count(b"__MCT_VIEW_URL__") == 1
     assert metadata["constructed"] is True
     assert metadata["production_ready"] is False
     assert metadata["runtime_verified"] is False
     assert metadata["gfx_initialization_order_verified"] is False
-    assert metadata["bytes_inserted"] == 16
-    assert metadata["patched_super_offset"] == 45 + shift
-    assert metadata["patched_getlex_operand_offsets"] == [CODE_OFFSET + 47 + shift, CODE_OFFSET + 51 + shift]
-    assert metadata["new_string_index"] == STRING_COUNT
-    assert metadata["new_multiname_index"] == MULTINAME_COUNT
-    assert metadata["doabc_count"] == 2
-    assert metadata["output_tag_count"] == 6
-    assert metadata["session_utf8_length"] == 36
-    assert metadata["authored_class_count"] == 2
-    assert metadata["authored_classes"] == ["menus::MctRootMenu", "MctMainMenuScreen"]
-    assert metadata["document_character"] == 0
-    assert metadata["document_symbol_from"] == "MainMenuScreen"
-    assert metadata["document_symbol_to"] == "MctMainMenuScreen"
+    assert metadata["file_view_verified"] is False
+    assert metadata["devutil_log_verified"] is False
     assert metadata["online_suppression_verified"] is False
     assert metadata["class_loader_verified"] is False
-    assert metadata["screen_source_sha256"] == "cd" * 32
+    assert metadata["original_string_delta"] == 11
+    assert metadata["authored_string_delta"] == -3
+    assert metadata["authored_class_count"] == 3
+    assert metadata["authored_classes"] == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
+    assert metadata["runtime_root_class"] == "RootMenuMovie"
+    assert metadata["original_root_alias"] == "MctOriginalRootMenuMovie"
+    assert metadata["timeline_character"] == 83
+    assert metadata["timeline_name"] == "RootMenuMovie"
+    assert metadata["document_character"] == 0
+    assert metadata["document_symbol_to"] == "MctMainMenuScreen"
+    assert metadata["doabc_count"] == 2
+    assert metadata["script_index"] == 700
+    assert metadata["superclass_offset"] == profile.super_offset
+    assert metadata["script_code_sha256"] == profile.code_sha256
+
+
+def test_non_pool_copy_of_the_original_name_is_not_renamed():
+    tail = b"\x0dRootMenuMovie"
+    movie, mod, profile, abc = _ready(tail=tail)
+    renamed = _doabc_payloads(_compose(movie, mod, profile)["data"])[0][5:]
+    encoded_old = b"\x0dRootMenuMovie"
+    assert abc.count(encoded_old) == 2
+    start = abc.find(encoded_old)
+    assert renamed == abc[:start] + b"\x18MctOriginalRootMenuMovie" + abc[start + len(encoded_old) :]
+    assert renamed.endswith(tail)
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["menus", "RootMenu", "MainMenuScreen"],
+        ["menus", "RootMenuMovie", "RootMenuMovie"],
+        ["menus", "RootMenuMovie", "MctOriginalRootMenuMovie"],
+    ],
+)
+def test_original_root_alias_must_be_exact(names: list[str]):
+    movie, mod, profile, _abc_bytes = _ready(names)
+    with pytest.raises(compose.ComposeRejected, match="class alias"):
+        _compose(movie, mod, profile)
+
+
+def test_authored_root_name_collision_is_rejected():
+    movie, _ignored, base, abc = _ready()
+    mod = _mod(MOD_NAMES + ["RootMenuMovie"])
+    profile = _profile(movie, abc, mod, SCRIPT_CODE, base.super_offset, base.code_offset)
+    with pytest.raises(compose.ComposeRejected, match="class alias"):
+        _compose(movie, mod, profile)
+
+
+def test_duplicate_or_missing_wrapper_name_is_rejected():
+    movie, _ignored, base, abc = _ready()
+    for names in (
+        [name for name in MOD_NAMES if name != "MctRootMenuMovie"],
+        MOD_NAMES + ["MctRootMenuMovie"],
+        [name for name in MOD_NAMES if name != "MctRootMenu"],
+    ):
+        mod = _mod(names)
+        profile = _profile(movie, abc, mod, SCRIPT_CODE, base.super_offset, base.code_offset)
+        with pytest.raises(compose.ComposeRejected, match="compiled class"):
+            _compose(movie, mod, profile)
+
+
+def test_changed_script_bytes_are_rejected():
+    abc, super_offset, code_offset = _original_abc()
+    mutated = bytearray(abc)
+    mutated[code_offset] ^= 0x01
+    mutated = bytes(mutated)
+    mod = _mod()
+    movie = _movie(mutated)
+    profile = _profile(movie, mutated, mod, SCRIPT_CODE, super_offset, code_offset)
+    with pytest.raises(compose.ComposeRejected, match="preserved bytes"):
+        _compose(movie, mod, profile)
+
+
+def test_superclass_bytes_before_the_string_are_rejected():
+    movie, mod, profile, _abc_bytes = _ready()
+    profile = replace(profile, super_offset=0)
+    with pytest.raises(compose.ComposeRejected, match="preserved bytes"):
+        _compose(movie, mod, profile)
 
 
 def test_unicode_and_space_encoded_view_url():
@@ -372,7 +419,8 @@ def test_long_view_url_widens_its_length_prefix():
     bound = _doabc_payloads(result["data"])[1][18:]
     strings = _strings(bound)
     assert strings[1] == url
-    assert strings[2:] == [SESSION, "__MCT_", "N" * 130, "MctMainMenuScreen"]
+    assert strings[2:] == [SESSION, "__MCT_", "N" * 130, "MctMainMenuScreen", "RootMenuMovie"]
+    assert b"QNAME" + _u30(WRAPPER_INDEX) in bound
     assert bound.endswith(b"TAIL__MCT_VIEW_URL____MCT_SESSION__")
 
 
@@ -391,106 +439,56 @@ def test_wrong_mod_hash_is_rejected_before_sentinel_binding():
     assert mod.startswith(struct.pack("<HH", 16, 46))
 
 
-def test_count_mismatch_is_rejected():
-    movie, mod, profile, _abc_bytes = _ready()
-    profile = replace(profile, string_count=profile.string_count + 1)
-    with pytest.raises(compose.ComposeRejected, match="pool count"):
-        _compose(movie, mod, profile)
-
-
-def test_overlapping_splice_is_rejected():
-    movie, mod, profile, _abc_bytes = _ready()
-    profile = replace(profile, string_pool_end=5)
-    with pytest.raises(compose.ComposeRejected, match="overlapping splice"):
-        _compose(movie, mod, profile)
-
-
-def test_operand_width_change_is_rejected():
-    code = _code(old=5)
-    abc = _abc(code, old=5, multiname_count=200)
-    movie = _movie(abc)
-    mod = _mod()
-    profile = _profile(
-        movie,
-        abc,
-        mod,
-        code,
-        multiname_count=200,
-        old_multiname_index=5,
-        getlex_pcs=(46, 49),
-        pushscope_pc=48,
-        newclass_pc=51,
-    )
-    with pytest.raises(compose.ComposeRejected, match="operand width"):
-        _compose(movie, mod, profile)
-
-
-def test_nearby_opcode_mismatch_is_rejected():
-    abc = bytearray(_abc())
-    abc[CODE_OFFSET + 46] = 0x47
-    movie, mod, profile, _abc_bytes = _ready(bytes(abc))
-    with pytest.raises(compose.ComposeRejected, match="opcode"):
-        _compose(movie, mod, profile)
-
-
-def test_branch_opcode_is_rejected():
-    abc = bytearray(_abc())
-    abc[CODE_OFFSET] = 0x10
-    movie, mod, profile, _abc_bytes = _ready(bytes(abc))
-    with pytest.raises(compose.ComposeRejected, match="opcode"):
-        _compose(movie, mod, profile)
-
-
 def test_extra_doabc_is_rejected():
-    abc = _abc()
+    abc, super_offset, code_offset = _original_abc()
     movie = _movie(abc, extra_doabc=True)
     mod = _mod()
-    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    profile = _profile(movie, abc, mod, SCRIPT_CODE, super_offset, code_offset)
     with pytest.raises(compose.ComposeRejected, match="DoABC count"):
         _compose(movie, mod, profile)
 
 
 def test_bad_symbol_class_is_rejected():
-    abc = _abc()
+    abc, super_offset, code_offset = _original_abc()
     movie = _movie(abc, symbol="OtherMovie")
     mod = _mod()
-    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    profile = _profile(movie, abc, mod, SCRIPT_CODE, super_offset, code_offset)
     with pytest.raises(compose.ComposeRejected, match="symbol class"):
         _compose(movie, mod, profile)
 
 
 def test_symbol_class_must_follow_the_original_doabc():
-    abc = _abc()
+    abc, super_offset, code_offset = _original_abc()
     movie = _movie(abc, between=True)
     mod = _mod()
-    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    profile = _profile(movie, abc, mod, SCRIPT_CODE, super_offset, code_offset)
     with pytest.raises(compose.ComposeRejected, match="tag order"):
         _compose(movie, mod, profile)
 
 
 def test_truncated_movie_is_rejected():
-    movie, _mod_bytes, profile, _abc_bytes = _ready()
+    movie, mod, profile, _abc_bytes = _ready()
     cut = bytearray(movie[:-5])
     struct.pack_into("<I", cut, 4, len(cut))
     cut_movie = bytes(cut)
     profile = replace(profile, movie_sha256=hashlib.sha256(cut_movie).hexdigest())
     with pytest.raises(compose.ComposeRejected, match="truncated movie"):
-        _compose(cut_movie, _mod_bytes, profile)
-
-
-def test_namespace_must_be_the_menus_package_namespace():
-    abc = _abc(namespace_kind=0x08)
-    movie, mod, profile, _abc_bytes = _ready(abc)
-    with pytest.raises(compose.ComposeRejected, match="namespace"):
-        _compose(movie, mod, profile)
+        _compose(cut_movie, mod, profile)
 
 
 def test_duplicate_sentinel_is_rejected():
-    movie, _ignored_mod, _ignored_profile, abc = _ready()
+    movie, _ignored, base, abc = _ready()
     mod = _mod(
-        ["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_VIEW_URL__", "__MCT_SESSION__", "MctMainMenuScreen"]
+        [
+            "MctRootMenu",
+            "__MCT_VIEW_URL__",
+            "__MCT_VIEW_URL__",
+            "__MCT_SESSION__",
+            "MctMainMenuScreen",
+            "MctRootMenuMovie",
+        ]
     )
-    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    profile = _profile(movie, abc, mod, SCRIPT_CODE, base.super_offset, base.code_offset)
     with pytest.raises(compose.ComposeRejected, match="sentinel"):
         _compose(movie, mod, profile)
 
@@ -556,11 +554,10 @@ def test_header_without_rect_is_a_controlled_refusal():
 
 
 def _ready_symbols(symbols: list[tuple[int, str]]):
-    abc = _abc()
+    abc, super_offset, code_offset = _original_abc()
     mod = _mod()
     movie = _movie(abc, symbols=symbols)
-    code = abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH]
-    return movie, mod, _profile(movie, abc, mod, code)
+    return movie, mod, _profile(movie, abc, mod, SCRIPT_CODE, super_offset, code_offset)
 
 
 def test_missing_document_character_is_rejected():
@@ -611,17 +608,141 @@ def test_extra_symbol_bytes_are_rejected():
     body = b"".join(rebuilt)
     candidate = movie[:13] + body
     candidate = candidate[:4] + struct.pack("<I", len(candidate)) + candidate[8:]
-    profile = _profile(candidate, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    _abc_bytes, super_offset, code_offset = _original_abc()
+    profile = _profile(candidate, abc, mod, SCRIPT_CODE, super_offset, code_offset)
     with pytest.raises(compose.ComposeRejected, match="symbol class"):
         _compose(candidate, mod, profile)
 
 
-def test_compiled_class_requires_both_authored_names():
-    movie, _ignored_mod, _ignored_profile, abc = _ready()
-    mod = _mod(["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_SESSION__", "__MCT_", "N" * 130])
-    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
-    with pytest.raises(compose.ComposeRejected, match="compiled class"):
-        _compose(movie, mod, profile)
+def _take(data: bytes, offset: int) -> tuple[int, int]:
+    value, width = _read_u30(data, offset)
+    return value, offset + width
+
+
+def _skip_trait(data: bytes, offset: int) -> int:
+    _name, offset = _take(data, offset)
+    kind = data[offset]
+    offset += 1
+    low = kind & 0x0F
+    if low in (0, 6):
+        _slot, offset = _take(data, offset)
+        _type_name, offset = _take(data, offset)
+        value_index, offset = _take(data, offset)
+        if value_index:
+            offset += 1
+    elif low in (1, 2, 3, 4, 5):
+        _disp, offset = _take(data, offset)
+        _method, offset = _take(data, offset)
+    else:
+        raise AssertionError(kind)
+    if kind & 0x40:
+        count, offset = _take(data, offset)
+        for _ in range(count):
+            _meta, offset = _take(data, offset)
+    return offset
+
+
+def _instance_flags(abc: bytes) -> dict[str, int]:
+    """Return instance_info flags keyed by the class multiname string."""
+
+    offset = 4
+    for kind in ("int", "uint", "double"):
+        count, offset = _take(abc, offset)
+        if kind == "double":
+            offset += max(0, count - 1) * 8
+        else:
+            for _ in range(max(0, count - 1)):
+                while abc[offset] & 0x80:
+                    offset += 1
+                offset += 1
+    string_count, offset = _take(abc, offset)
+    strings = [""]
+    for _ in range(1, string_count):
+        length, offset = _take(abc, offset)
+        strings.append(abc[offset : offset + length].decode("utf-8"))
+        offset += length
+    namespace_count, offset = _take(abc, offset)
+    for _ in range(1, namespace_count):
+        offset += 1
+        _name, offset = _take(abc, offset)
+    set_count, offset = _take(abc, offset)
+    for _ in range(1, set_count):
+        inner, offset = _take(abc, offset)
+        for _ in range(inner):
+            _item, offset = _take(abc, offset)
+    multiname_count, offset = _take(abc, offset)
+    multinames = [""]
+    for _ in range(1, multiname_count):
+        kind = abc[offset]
+        offset += 1
+        if kind in (0x07, 0x0D):
+            _namespace, offset = _take(abc, offset)
+            name, offset = _take(abc, offset)
+            multinames.append(strings[name])
+        elif kind in (0x0F, 0x10, 0x1B, 0x1C):
+            _value, offset = _take(abc, offset)
+            multinames.append("")
+        elif kind in (0x11, 0x12):
+            multinames.append("")
+        elif kind in (0x09, 0x0E):
+            name, offset = _take(abc, offset)
+            _namespace_set, offset = _take(abc, offset)
+            multinames.append(strings[name])
+        elif kind == 0x1D:
+            _name, offset = _take(abc, offset)
+            count, offset = _take(abc, offset)
+            for _ in range(count):
+                _param, offset = _take(abc, offset)
+            multinames.append("")
+        else:
+            raise AssertionError(kind)
+    method_count, offset = _take(abc, offset)
+    for _ in range(method_count):
+        params, offset = _take(abc, offset)
+        _return_type, offset = _take(abc, offset)
+        for _ in range(params):
+            _param, offset = _take(abc, offset)
+        _name, offset = _take(abc, offset)
+        flags = abc[offset]
+        offset += 1
+        if flags & 0x08:
+            options, offset = _take(abc, offset)
+            for _ in range(options):
+                _value, offset = _take(abc, offset)
+                offset += 1
+        if flags & 0x80:
+            for _ in range(params):
+                _name, offset = _take(abc, offset)
+    metadata_count, offset = _take(abc, offset)
+    for _ in range(metadata_count):
+        _name, offset = _take(abc, offset)
+        items, offset = _take(abc, offset)
+        for _ in range(items):
+            _key, offset = _take(abc, offset)
+            _value, offset = _take(abc, offset)
+    class_count, offset = _take(abc, offset)
+    found = {}
+    for _ in range(class_count):
+        name_index, offset = _take(abc, offset)
+        _super, offset = _take(abc, offset)
+        flags = abc[offset]
+        offset += 1
+        if flags & 0x08:
+            _protected, offset = _take(abc, offset)
+        interfaces, offset = _take(abc, offset)
+        for _ in range(interfaces):
+            _interface, offset = _take(abc, offset)
+        _initializer, offset = _take(abc, offset)
+        offset = _skip_trait_list(abc, offset)
+        found[multinames[name_index]] = flags
+    return found
+
+
+def _skip_trait_list(data: bytes, offset: int) -> int:
+    count, offset = _take(data, offset)
+    for _ in range(count):
+        offset = _skip_trait(data, offset)
+    return offset
 
 
 def test_compiled_abc_matches_the_public_pin():
@@ -629,7 +750,34 @@ def test_compiled_abc_matches_the_public_pin():
     abc = (root / "native_ui" / "compiled" / "MctRootMenu.abc").read_bytes()
     menu = (root / "native_ui" / "menus" / "MctRootMenu.as").read_bytes()
     screen = (root / "native_ui" / "MctMainMenuScreen.as").read_bytes()
-    assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256
-    assert len(abc) == 8680
-    assert hashlib.sha256(menu).hexdigest() == compose.SOURCE_SHA256
-    assert hashlib.sha256(screen).hexdigest() == compose.SCREEN_SOURCE_SHA256
+    wrapper = (root / "native_ui" / "MctRootMenuMovie.as").read_bytes()
+    manifest = json.loads((root / "native_ui" / "compiled" / "manifest.json").read_text(encoding="utf-8"))
+    assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256 == manifest["abc_sha256"]
+    assert len(abc) == manifest["abc_bytes"] == 8834
+    assert manifest["method_bodies"] == 41
+    assert manifest["classes"] == compose.AUTHORED_CLASSES
+    assert manifest["game_classes_linked"] is False
+    assert manifest["runtime_verified"] is False
+    assert manifest["production_ready"] is False
+    assert hashlib.sha256(menu).hexdigest() == compose.SOURCE_SHA256 == manifest["source_sha256"]
+    assert hashlib.sha256(screen).hexdigest() == compose.SCREEN_SOURCE_SHA256 == manifest["screen_source_sha256"]
+    assert hashlib.sha256(wrapper).hexdigest() == compose.ROOT_MOVIE_SOURCE_SHA256
+    assert manifest["root_movie_source_sha256"] == compose.ROOT_MOVIE_SOURCE_SHA256
+    _pool_end, entries = compose._string_entries(abc)
+    texts = [text for _start, _end, text in entries]
+    assert texts.count("MctRootMenuMovie") == 1
+    assert texts.count("RootMenuMovie") == 0
+    assert texts.count("MctRootMenu") == 1
+    assert texts.count("MctMainMenuScreen") == 1
+    assert texts.count("__MCT_VIEW_URL__") == 1
+    assert texts.count("__MCT_SESSION__") == 1
+    renamed, info = compose._rename_unique_string(abc, "MctRootMenuMovie", "RootMenuMovie")
+    assert info["delta"] == -3
+    assert renamed[: info["start"]] == abc[: info["start"]]
+    assert renamed[info["start"] + 14 :] == abc[info["end"] :]
+    assert renamed[info["start"] : info["start"] + 14] == b"\x0dRootMenuMovie"
+    flags = _instance_flags(abc)
+    sealed = 0x01
+    assert flags["MctRootMenuMovie"] & sealed == 0
+    assert flags["MctRootMenu"] & sealed == sealed
+    assert flags["MctMainMenuScreen"] & sealed == sealed

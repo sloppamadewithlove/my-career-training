@@ -53,12 +53,13 @@ BAKKESMOD_CORE = 229
 
 SOURCE_RELATIVE = "native_ui/menus/MctRootMenu.as"
 SCREEN_RELATIVE = "native_ui/MctMainMenuScreen.as"
+ROOT_MOVIE_RELATIVE = "native_ui/MctRootMenuMovie.as"
 ABC_RELATIVE = "native_ui/compiled/MctRootMenu.abc"
 MANIFEST_RELATIVE = "native_ui/compiled/manifest.json"
 READER_RELATIVE = "scripts/native_package_reader.py"
 REWRITE_RELATIVE = "scripts/native_package_rewrite.py"
 COMPOSE_RELATIVE = "scripts/native_movie_compose.py"
-AUTHORED_CLASSES = ["menus::MctRootMenu", "MctMainMenuScreen"]
+AUTHORED_CLASSES = ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
 
 PAYLOAD_NAMES = (
     "native_package_reader.py",
@@ -295,12 +296,15 @@ def _repo_payload(repo: Path) -> dict[str, bytes]:
     abc = _repo_file(repo, ABC_RELATIVE, _MAX_ABC)
     source = _repo_file(repo, SOURCE_RELATIVE, _MAX_SOURCE)
     screen = _repo_file(repo, SCREEN_RELATIVE, _MAX_SOURCE)
+    root_movie = _repo_file(repo, ROOT_MOVIE_RELATIVE, _MAX_SOURCE)
     if len(abc) != manifest["abc_bytes"] or _sha(abc) != manifest["abc_sha256"]:
         raise StageNativeRuntimeError("compiled ABC does not match the manifest")
     if _sha(source) != manifest["source_sha256"]:
         raise StageNativeRuntimeError("menu source does not match the manifest")
     if _sha(screen) != manifest["screen_source_sha256"]:
         raise StageNativeRuntimeError("screen source does not match the manifest")
+    if _sha(root_movie) != manifest["root_movie_source_sha256"]:
+        raise StageNativeRuntimeError("root movie source does not match the manifest")
     reader = _repo_file(repo, READER_RELATIVE, _MAX_HELPER)
     rewrite = _repo_file(repo, REWRITE_RELATIVE, _MAX_HELPER)
     compose = _repo_file(repo, COMPOSE_RELATIVE, _MAX_HELPER)
@@ -322,17 +326,25 @@ def _manifest(data: bytes) -> dict:
         raise StageNativeRuntimeError("menu manifest could not be read") from None
     if type(manifest) is not dict:
         raise StageNativeRuntimeError("menu manifest could not be read")
-    if manifest.get("source") != SOURCE_RELATIVE or manifest.get("screen_source") != SCREEN_RELATIVE:
+    if (
+        manifest.get("source") != SOURCE_RELATIVE
+        or manifest.get("screen_source") != SCREEN_RELATIVE
+        or manifest.get("root_movie_source") != ROOT_MOVIE_RELATIVE
+    ):
         raise StageNativeRuntimeError("menu manifest paths are not the authored sources")
     if manifest.get("classes") != AUTHORED_CLASSES:
-        raise StageNativeRuntimeError("menu manifest classes are not the two authored classes")
+        raise StageNativeRuntimeError("menu manifest classes are not the authored classes")
     if manifest.get("game_classes_linked") is not False:
         raise StageNativeRuntimeError("menu manifest links game classes")
     if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
         raise StageNativeRuntimeError("menu manifest grants runtime capability")
     if type(manifest.get("abc_bytes")) is not int or type(manifest.get("abc_sha256")) is not str:
         raise StageNativeRuntimeError("menu manifest ABC pin is malformed")
-    if type(manifest.get("source_sha256")) is not str or type(manifest.get("screen_source_sha256")) is not str:
+    if (
+        type(manifest.get("source_sha256")) is not str
+        or type(manifest.get("screen_source_sha256")) is not str
+        or type(manifest.get("root_movie_source_sha256")) is not str
+    ):
         raise StageNativeRuntimeError("menu manifest source pin is malformed")
     return manifest
 
@@ -358,6 +370,10 @@ def _require_composer(path: Path, manifest: dict) -> None:
         screen = module.SCREEN_SOURCE_SHA256
         new_class = module.NEW_CLASS
         screen_class = module.SCREEN_CLASS
+        root_movie_class = module.ROOT_MOVIE_CLASS
+        root_movie_source = module.ROOT_MOVIE_SOURCE_SHA256
+        original_root = module.ORIGINAL_ROOT_NAME
+        renamed_root = module.RENAMED_ORIGINAL_ROOT
         character = module.DOCUMENT_CHARACTER
         target = module.DOCUMENT_TARGET_NAME
     except AttributeError:
@@ -366,10 +382,16 @@ def _require_composer(path: Path, manifest: dict) -> None:
         raise StageNativeRuntimeError("composer movie pin does not match")
     if abc != manifest["abc_sha256"]:
         raise StageNativeRuntimeError("composer ABC pin does not match the manifest")
-    if source != manifest["source_sha256"] or screen != manifest["screen_source_sha256"]:
+    if (
+        source != manifest["source_sha256"]
+        or screen != manifest["screen_source_sha256"]
+        or root_movie_source != manifest["root_movie_source_sha256"]
+    ):
         raise StageNativeRuntimeError("composer source pin does not match the manifest")
-    if new_class != "MctRootMenu" or screen_class != "MctMainMenuScreen":
+    if new_class != "MctRootMenu" or screen_class != "MctMainMenuScreen" or root_movie_class != "MctRootMenuMovie":
         raise StageNativeRuntimeError("composer authored classes do not match")
+    if original_root != "RootMenuMovie" or renamed_root != "MctOriginalRootMenuMovie":
+        raise StageNativeRuntimeError("composer root alias does not match")
     if character != 0 or target != "MctMainMenuScreen":
         raise StageNativeRuntimeError("composer document binding does not match")
     if not callable(getattr(module, "compose_movie", None)):

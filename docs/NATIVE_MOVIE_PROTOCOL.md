@@ -75,9 +75,8 @@ declarations was supplied through `external-library-path`, which excludes that
 library from the output. The compiler reference's GFX media tags were omitted
 from that private SWC because Flex's SWF reader cannot parse those tags.
 
-The inspected result contains exactly two authored classes,
-`menus::MctRootMenu` and `MctMainMenuScreen`.
-Its current hashes and method count are in `native_ui/compiled/manifest.json`.
+The compiled classes, hashes, and method count are in
+`native_ui/compiled/manifest.json`.
 The original mod ABC is stored under
 `native_ui/compiled/`. It contains placeholders for the local view URL and
 session. It contains no linked game classes or game artwork. Rebuild the ABC

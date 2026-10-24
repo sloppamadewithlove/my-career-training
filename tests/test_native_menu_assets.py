@@ -78,12 +78,15 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     abc = b"abc-fixture"
     source = b"menu-source"
     screen = b"screen-source"
+    wrapper = b"wrapper-source"
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+        "classes": list(stage.AUTHORED_CLASSES),
         "game_classes_linked": False,
         "production_ready": False,
+        "root_movie_source": "native_ui/MctRootMenuMovie.as",
+        "root_movie_source_sha256": _sha(wrapper),
         "runtime_verified": False,
         "screen_source": "native_ui/MctMainMenuScreen.as",
         "screen_source_sha256": _sha(screen),
@@ -95,6 +98,7 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     (root / "scripts").mkdir()
     (root / "native_ui" / "menus" / "MctRootMenu.as").write_bytes(source)
     (root / "native_ui" / "MctMainMenuScreen.as").write_bytes(screen)
+    (root / "native_ui" / "MctRootMenuMovie.as").write_bytes(wrapper)
     (root / "native_ui" / "compiled" / "MctRootMenu.abc").write_bytes(abc)
     manifest_path = root / "native_ui" / "compiled" / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -115,8 +119,12 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
         f"MOD_ABC_SHA256 = {(abc_hash or manifest['abc_sha256'])!r}\n"
         f"SOURCE_SHA256 = {manifest['source_sha256']!r}\n"
         f"SCREEN_SOURCE_SHA256 = {manifest['screen_source_sha256']!r}\n"
+        f"ROOT_MOVIE_SOURCE_SHA256 = {manifest['root_movie_source_sha256']!r}\n"
         "NEW_CLASS = 'MctRootMenu'\n"
         "SCREEN_CLASS = 'MctMainMenuScreen'\n"
+        "ROOT_MOVIE_CLASS = 'MctRootMenuMovie'\n"
+        "ORIGINAL_ROOT_NAME = 'RootMenuMovie'\n"
+        "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
         "def compose_movie(*args, **kwargs):\n"
@@ -203,7 +211,14 @@ def _rewrite_source(movie_hash: str) -> str:
     )
 
 
-def _compose_source(movie_pin: str, abc_hash: str, source_hash: str, screen_hash: str, mutate: Path | None) -> str:
+def _compose_source(
+    movie_pin: str,
+    abc_hash: str,
+    source_hash: str,
+    screen_hash: str,
+    root_hash: str,
+    mutate: Path | None,
+) -> str:
     mutation = ""
     if mutate is not None:
         mutation = (
@@ -216,8 +231,12 @@ def _compose_source(movie_pin: str, abc_hash: str, source_hash: str, screen_hash
         f"MOD_ABC_SHA256 = {abc_hash!r}\n"
         f"SOURCE_SHA256 = {source_hash!r}\n"
         f"SCREEN_SOURCE_SHA256 = {screen_hash!r}\n"
+        f"ROOT_MOVIE_SOURCE_SHA256 = {root_hash!r}\n"
         "NEW_CLASS = 'MctRootMenu'\n"
         "SCREEN_CLASS = 'MctMainMenuScreen'\n"
+        "ROOT_MOVIE_CLASS = 'MctRootMenuMovie'\n"
+        "ORIGINAL_ROOT_NAME = 'RootMenuMovie'\n"
+        "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
         "def compose_movie(original_gfx, mod_abc, *, session, view_url):\n"
@@ -231,14 +250,17 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
     abc = b"authored-abc"
     source = b"root-source"
     screen = b"screen-source"
+    wrapper = b"wrapper-source"
     key = bytes(range(32))
     license_text = _license_bytes()
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+        "classes": list(assets.AUTHORED_CLASSES),
         "game_classes_linked": False,
         "production_ready": False,
+        "root_movie_source": "native_ui/MctRootMenuMovie.as",
+        "root_movie_source_sha256": _sha(wrapper),
         "runtime_verified": False,
         "screen_source": "native_ui/MctMainMenuScreen.as",
         "screen_source_sha256": _sha(screen),
@@ -251,7 +273,7 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
         "decoder_config.bin": key,
         "manifest.json": (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"),
         "native_movie_compose.py": _compose_source(
-            assets.MOVIE_SHA256, _sha(abc), _sha(source), _sha(screen), mutate
+            assets.MOVIE_SHA256, _sha(abc), _sha(source), _sha(screen), _sha(wrapper), mutate
         ).encode("utf-8"),
         "native_package_reader.py": _reader_source(movie).encode("utf-8"),
         "native_package_rewrite.py": _rewrite_source(assets.MOVIE_SHA256).encode("utf-8"),
@@ -267,7 +289,7 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
             "abc_bytes": len(abc),
             "abc_sha256": _sha(abc),
             "bakkesmod_core": assets.BAKKESMOD_CORE,
-            "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+            "classes": list(assets.AUTHORED_CLASSES),
             "executable_relative": assets.EXECUTABLE_RELATIVE,
             "executable_sha256": assets.EXECUTABLE_SHA256,
             "export_name": assets.EXPORT_NAME,
@@ -339,6 +361,8 @@ def test_documented_pins_match():
     assert stage.SOURCE_URL.endswith("/Unreal/UnrealPackage/UnPackageReader.cpp")
     assert stage.LICENSE_URL.endswith("/LICENSE.txt")
     assert stage.UEVIEWER_COMMIT in stage.SOURCE_URL
+    assert assets.AUTHORED_CLASSES == stage.AUTHORED_CLASSES
+    assert assets.AUTHORED_CLASSES == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
     assert assets.default_runtime_directory().name == "native-menu"
     assert assets.default_runtime_directory().parent.name == "runtime"
 
