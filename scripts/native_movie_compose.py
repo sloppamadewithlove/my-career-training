@@ -19,13 +19,18 @@ MAX_URL_CHARS = 4096
 MAX_TAGS = 4096
 MAX_POOL = 100_000
 NEW_CLASS = "MctRootMenu"
+SCREEN_CLASS = "MctMainMenuScreen"
 VIEW_SENTINEL = "__MCT_VIEW_URL__"
 SESSION_SENTINEL = "__MCT_SESSION__"
 ADDED_DOABC_NAME = "MCTNativeMenu"
+DOCUMENT_CHARACTER = 0
+DOCUMENT_SOURCE_NAME = "MainMenuScreen"
+DOCUMENT_TARGET_NAME = "MctMainMenuScreen"
 MOVIE_SHA256 = "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
 ORIGINAL_ABC_SHA256 = "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-MOD_ABC_SHA256 = "9d423d2e39743473bec792c0ca38f3b28946238183b03bbfb0a4681767721768"
-SOURCE_SHA256 = "1ba9168d4a32e9c0c3ea4c7d7bbe29fda9aae35d3a985d9f3a6c382d91a49600"
+MOD_ABC_SHA256 = "abc2d56ae90bcf764e75d9108ae8a0a6219a53fc299f3b28805fcfed5dcffc3e"
+SOURCE_SHA256 = "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
+SCREEN_SOURCE_SHA256 = "ed2528a5dc08fc2c522a8c9816282b50670ea9dafe402876da403caecad1ff6e"
 _SESSION_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _NO_OPERAND = {0x1D, 0x30, 0x47, 0xD0}
 _U8_OPERAND = {0x65}
@@ -51,6 +56,7 @@ class ComposeProfile:
     abc_sha256: str
     mod_abc_sha256: str
     source_sha256: str
+    screen_source_sha256: str
     string_count: int
     string_count_offset: int
     string_pool_end: int
@@ -83,6 +89,7 @@ PRODUCTION_PROFILE = ComposeProfile(
     abc_sha256=ORIGINAL_ABC_SHA256,
     mod_abc_sha256=MOD_ABC_SHA256,
     source_sha256=SOURCE_SHA256,
+    screen_source_sha256=SCREEN_SOURCE_SHA256,
     string_count=13849,
     string_count_offset=2048,
     string_pool_end=274271,
@@ -112,7 +119,7 @@ PRODUCTION_PROFILE = ComposeProfile(
 
 
 def compose_movie(original_gfx: bytes, mod_abc: bytes, *, session: str, view_url: str) -> dict:
-    """Return the pinned development movie with MctRootMenu attached and bound."""
+    """Return the pinned development movie with both authored classes attached."""
 
     _require_inputs(original_gfx, mod_abc)
     if _sha256(original_gfx) != MOVIE_SHA256:
@@ -157,7 +164,8 @@ def _compose(
         raise ComposeRejected("abc hash mismatch")
     spliced, splice = _splice_abc(original_abc, profile)
     bound = _bind_mod_abc(mod_abc, session=session, view_url=view_url)
-    output = _assemble(original_gfx, header_end, tags, profile.doabc_index, spliced, bound)
+    document_symbol = _rebind_document_symbol(tags[profile.doabc_index + 1].payload)
+    output = _assemble(original_gfx, header_end, tags, profile.doabc_index, spliced, bound, document_symbol)
     _require_output(original_gfx, output, header_end, tags, profile, spliced, bound)
     metadata = _metadata(
         original_gfx,
@@ -286,17 +294,20 @@ def _require_tag_shape(tags: list[_Tag], profile: ComposeProfile) -> None:
     index = doabc_indexes[0]
     if index != profile.doabc_index or index + 1 >= len(tags) or tags[index + 1].code != 76:
         raise ComposeRejected("tag order")
-    symbols = _symbol_names(tags[index + 1].payload)
-    if symbols.get(profile.symbol_character) != profile.symbol_name:
+    entries = _symbol_entries(tags[index + 1].payload)
+    names = dict(entries)
+    if names.get(profile.symbol_character) != profile.symbol_name:
         raise ComposeRejected("symbol class")
+    _require_document_binding(entries)
 
 
-def _symbol_names(payload: bytes) -> dict[int, str]:
+def _symbol_entries(payload: bytes) -> list[tuple[int, str]]:
     if len(payload) < 2:
         raise ComposeRejected("truncated movie")
     count = struct.unpack_from("<H", payload, 0)[0]
     pos = 2
-    names: dict[int, str] = {}
+    entries: list[tuple[int, str]] = []
+    seen: set[int] = set()
     for _ in range(count):
         if pos + 3 > len(payload):
             raise ComposeRejected("truncated movie")
@@ -310,12 +321,46 @@ def _symbol_names(payload: bytes) -> dict[int, str]:
         except UnicodeDecodeError:
             raise ComposeRejected("symbol class") from None
         pos = end + 1
-        if character in names:
+        if character in seen:
+            if character == DOCUMENT_CHARACTER:
+                raise ComposeRejected("document class")
             raise ComposeRejected("symbol class")
-        names[character] = name
+        seen.add(character)
+        entries.append((character, name))
     if pos != len(payload):
         raise ComposeRejected("symbol class")
-    return names
+    return entries
+
+
+def _require_document_binding(entries: list[tuple[int, str]]) -> None:
+    names = [name for _character, name in entries]
+    document = [name for character, name in entries if character == DOCUMENT_CHARACTER]
+    if len(document) != 1:
+        raise ComposeRejected("document class")
+    if document[0] == DOCUMENT_TARGET_NAME or DOCUMENT_TARGET_NAME in names:
+        raise ComposeRejected("document class")
+    if document[0] != DOCUMENT_SOURCE_NAME or names.count(DOCUMENT_SOURCE_NAME) != 1:
+        raise ComposeRejected("document class")
+    if any(character != DOCUMENT_CHARACTER and name == DOCUMENT_SOURCE_NAME for character, name in entries):
+        raise ComposeRejected("document class")
+
+
+def _rebind_document_symbol(payload: bytes) -> bytes:
+    entries = _symbol_entries(payload)
+    _require_document_binding(entries)
+    old = struct.pack("<H", DOCUMENT_CHARACTER) + DOCUMENT_SOURCE_NAME.encode("ascii") + b"\0"
+    new = struct.pack("<H", DOCUMENT_CHARACTER) + DOCUMENT_TARGET_NAME.encode("ascii") + b"\0"
+    if payload.count(old) != 1:
+        raise ComposeRejected("document class")
+    expected = payload.replace(old, new, 1)
+    rebuilt = bytearray(struct.pack("<H", len(entries)))
+    for character, name in entries:
+        if character == DOCUMENT_CHARACTER:
+            name = DOCUMENT_TARGET_NAME
+        rebuilt += struct.pack("<H", character) + name.encode("utf-8") + b"\0"
+    if bytes(rebuilt) != expected or expected.count(new) != 1 or expected.count(old) != 0:
+        raise ComposeRejected("document class")
+    return expected
 
 
 def _abc_from_doabc(payload: bytes) -> bytes:
@@ -624,11 +669,13 @@ def _bind_mod_abc(mod_abc: bytes, *, session: str, view_url: str) -> bytes:
         VIEW_SENTINEL: view_url.encode("ascii"),
         SESSION_SENTINEL: session.encode("ascii"),
     }
-    found = {text: [] for text in (VIEW_SENTINEL, SESSION_SENTINEL, NEW_CLASS)}
+    found = {text: [] for text in (VIEW_SENTINEL, SESSION_SENTINEL, NEW_CLASS, SCREEN_CLASS)}
     for start, end, text in entries:
         if text in found:
             found[text].append((start, end))
-    if len(found[NEW_CLASS]) != 1 or any(len(found[text]) != 1 for text in replacements):
+    if len(found[NEW_CLASS]) != 1 or len(found[SCREEN_CLASS]) != 1:
+        raise ComposeRejected("compiled class")
+    if any(len(found[text]) != 1 for text in replacements):
         raise ComposeRejected("sentinel")
     out = bytearray()
     cursor = 0
@@ -688,11 +735,13 @@ def _assemble(
     doabc_index: int,
     spliced_abc: bytes,
     bound_abc: bytes,
+    document_symbol: bytes,
 ) -> bytes:
     patched = _encode_tag(82, struct.pack("<I", 1) + b"\0" + spliced_abc)
     added = _encode_tag(82, struct.pack("<I", 1) + ADDED_DOABC_NAME.encode("ascii") + b"\0" + bound_abc)
     ordered = [tag.raw for tag in tags]
     ordered[doabc_index] = patched
+    ordered[doabc_index + 1] = _encode_tag(76, document_symbol)
     ordered.insert(doabc_index + 1, added)
     body = b"".join(ordered)
     output = bytearray(original[:4] + b"\0\0\0\0" + original[8:header_end] + body)
@@ -724,10 +773,16 @@ def _require_output(
     _header_end, tags = _parse_movie(output)
     if len(tags) != len(original_tags) + 1:
         raise ComposeRejected("output")
-    original_raw = [tag.raw for tag in original_tags if tag.code != 82]
-    output_raw = [tag.raw for tag in tags if tag.code != 82]
+    original_raw = [tag.raw for tag in original_tags if tag.code not in (82, 76)]
+    output_raw = [tag.raw for tag in tags if tag.code not in (82, 76)]
     if original_raw != output_raw:
         raise ComposeRejected("output")
+    original_symbols = [tag for tag in original_tags if tag.code == 76]
+    output_symbols = [tag for tag in tags if tag.code == 76]
+    if len(original_symbols) != 1 or len(output_symbols) != 1:
+        raise ComposeRejected("output")
+    if output_symbols[0].payload != _rebind_document_symbol(original_symbols[0].payload):
+        raise ComposeRejected("document class")
     if [tag.code for tag in tags].count(82) != 2:
         raise ComposeRejected("output")
     if tags[profile.doabc_index + 1].code != 82 or tags[profile.doabc_index + 2].code != 76:
@@ -738,11 +793,11 @@ def _require_output(
     prefix = struct.pack("<I", 1) + ADDED_DOABC_NAME.encode("ascii") + b"\0"
     if not added.startswith(prefix) or added[len(prefix) :] != bound:
         raise ComposeRejected("output")
-    if (
-        _symbol_names(tags[profile.doabc_index + 2].payload).get(profile.symbol_character)
-        != profile.symbol_name
-    ):
+    rebound = _symbol_entries(tags[profile.doabc_index + 2].payload)
+    if dict(rebound).get(profile.symbol_character) != profile.symbol_name:
         raise ComposeRejected("symbol class")
+    if dict(rebound).get(DOCUMENT_CHARACTER) != DOCUMENT_TARGET_NAME:
+        raise ComposeRejected("document class")
 
 
 def _metadata(
@@ -779,9 +834,17 @@ def _metadata(
         "bound_mod_abc_sha256": _sha256(bound),
         "output_sha256": _sha256(output),
         "source_sha256": profile.source_sha256,
+        "screen_source_sha256": profile.screen_source_sha256,
+        "authored_class_count": 2,
+        "authored_classes": [f"menus::{NEW_CLASS}", SCREEN_CLASS],
         "class_name": f"menus::{NEW_CLASS}",
         "timeline_character": profile.symbol_character,
         "timeline_name": profile.symbol_name,
+        "document_character": DOCUMENT_CHARACTER,
+        "document_symbol_from": DOCUMENT_SOURCE_NAME,
+        "document_symbol_to": DOCUMENT_TARGET_NAME,
+        "online_suppression_verified": False,
+        "class_loader_verified": False,
         "script_index": profile.script_index,
         "method_index": profile.method_index,
         "class_index": profile.class_index,

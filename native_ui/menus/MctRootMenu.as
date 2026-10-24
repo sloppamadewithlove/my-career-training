@@ -1,6 +1,7 @@
 package menus
 {
     import flash.events.Event;
+    import flash.display.InteractiveObject;
     import flash.events.IOErrorEvent;
     import flash.events.SecurityErrorEvent;
     import flash.events.TimerEvent;
@@ -82,7 +83,9 @@ package menus
         override protected function handleRemovedFromStage(event:Event) : void
         {
             attached = false;
-            if (timer != null) timer.stop();
+            // A normal Garage transition removes the root from the display
+            // while retaining it in the menu stack for Back navigation.
+            if (timer != null && !UIMenu.isMenuInStack(menuName)) timer.stop();
             closeLoader();
             super.handleRemovedFromStage(event);
         }
@@ -97,11 +100,13 @@ package menus
         {
             super.onRemovedFromStack();
             MenuSequence.PopMenuSequence("RootMenu");
+            if (timer != null) timer.stop();
+            closeLoader();
         }
 
         override protected function handleBackEvent(event:Event = null) : Boolean
         {
-            if (isSubMenu) return false;
+            if (!isFrontMenu()) return false;
             if (!current()) return true;
             for each (var item:Object in view.controls)
             {
@@ -132,6 +137,13 @@ package menus
                 details.x = Math.max(380, m_controlContainer.width + 40);
                 details.y = m_controlContainer.y;
             }
+        }
+
+        override protected function getDirectionalFocus(direction:String) : InteractiveObject
+        {
+            // BranchingMenu otherwise sends RIGHT to the shell matchmaking
+            // panel. Keep directional navigation inside the career controls.
+            return null;
         }
 
         override protected function generateControls() : void
@@ -177,7 +189,7 @@ package menus
 
         private function turnPage(direction:int) : void
         {
-            if (!current() || busy) return;
+            if (!isFrontMenu() || !current() || busy) return;
             page = Math.max(0, page + direction);
             resetFocus = true;
             refreshMenu();
@@ -193,6 +205,14 @@ package menus
             return validView(view);
         }
 
+        private function isFrontMenu() : Boolean
+        {
+            if (!attached || isSubMenu || UIMenu.getActiveMenu() !== this) return false;
+            var shell:ITAGameShell = TAGameShellInstance.get();
+            return shell != null && !shell.getIsModalOpen() && !shell.modalManager.hasOpenScreens() &&
+                shell.screenManager.getTopScreen() === parent;
+        }
+
         private function validView(candidate:Object) : Boolean
         {
             if (candidate == null || candidate.active !== true || candidate.protocol !== 1 ||
@@ -204,7 +224,7 @@ package menus
 
         private function choose(item:Object) : void
         {
-            if (isSubMenu || !current() || busy || item.enabled !== true) return;
+            if (!isFrontMenu() || !current() || busy || item.enabled !== true) return;
             var present:Boolean = false;
             for each (var candidate:Object in view.controls)
                 if (candidate === item) present = true;
@@ -231,7 +251,7 @@ package menus
 
         private function poll(event:TimerEvent = null) : void
         {
-            if (!attached || isSubMenu) return;
+            if (!attached && !UIMenu.isMenuInStack(menuName)) return;
             if (view != null && !current()) loseConnection();
             if (loader != null)
             {
@@ -253,7 +273,6 @@ package menus
             if (loader == null || event.currentTarget !== loader) return;
             var raw:String = String(loader.data);
             closeLoader();
-            if (isSubMenu) return;
             if (raw.length > 65536) { loseConnection(); return; }
             try
             {
@@ -269,6 +288,14 @@ package menus
                 {
                     DevUtil.Log("MCT_NATIVE_UI_V1", JSON.stringify({protocol:1, session:SESSION, event:"ready"}));
                     lastHello = getTimer();
+                }
+                if (!isFrontMenu())
+                {
+                    // Continue the liveness handshake in stock Garage/Options
+                    // without rebuilding controls or reclaiming their focus.
+                    view = incoming;
+                    generation = "";
+                    return;
                 }
                 var next:String = incoming.generation;
                 if (next != generation)
@@ -322,7 +349,7 @@ package menus
             generation = "";
             busy = false;
             lastHello = -1000;
-            refreshMenu();
+            if (isFrontMenu()) refreshMenu();
         }
     }
 }

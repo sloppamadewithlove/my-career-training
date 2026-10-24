@@ -7,10 +7,20 @@ and handles Back through the currently published `nav.back` choice. Longer
 choice lists have local pagination. Stock Garage and Options are explicit
 typed routes; online/store controls are absent from this authored class.
 
+`MctMainMenuScreen` derives from the original document class and preserves its
+menu-stack, screen-filter, resize and car-camera handling. It omits the parent's
+challenge, friends and matchmaking listener registration, hides the challenge
+and debug widgets, and deactivates the shell's party/friends taskbar. The root
+also overrides the inherited rightward focus path into matchmaking. These
+changes belong only to the privately composed offline movie. Shell changes
+remain within that game process; the normal online handoff closes it first.
+
 This is a development candidate. It has not been loaded in Rocket League.
-The normal plugin does not yet publish this protocol or install its command
-hook. The native-file loading experiment is separate. Global shell hotkeys and
-routes inside other stock screens are not disabled by this class alone.
+The plugin now wires `NativeMovieHost`, but its CMake option defaults to OFF.
+An opt-in build also requires the exact session, game hash/build, BakkesMod
+version and current owned offline frontend scope. The old UI remains available
+until the authored movie's validated readiness message arrives. File-view
+delivery and universal suppression of other screens remain unverified.
 
 ## Wire format
 
@@ -32,10 +42,15 @@ The model rechecks the current backend state and ownership on selection.
 The authored movie reads a session-specific local `file:///` URL using
 `URLLoader`. It refuses a mismatched session or data older than five seconds.
 It sends custom choices through the existing `DevUtil.Log` wrapper with the
-fixed category `MCT_NATIVE_UI_V1`. A future host hook must validate the caller,
+fixed category `MCT_NATIVE_UI_V1`. The development host validates the caller,
 bounded string parameters, current game build, session and live ownership
 before passing the message to this protocol. Unrelated log calls remain
-unrelated. Neither a file nor a log message establishes ownership.
+unrelated. Neither a file nor a log message establishes ownership. A separate
+three-field readiness message carries protocol, session and `event:"ready"`.
+The root continues polling while retained in the menu stack behind a native
+Garage transition, but only rebuilds controls or handles choices when it is
+the active menu on the current screen and no modal covers it. Leaving the stack
+stops the timer.
 
 Both local-file loading in Rocket League's GFx runtime and this specific log
 callback remain unverified. A compiling class and passing model tests do not
@@ -50,7 +65,8 @@ declarations was supplied through `external-library-path`, which excludes that
 library from the output. The compiler reference's GFX media tags were omitted
 from that private SWC because Flex's SWF reader cannot parse those tags.
 
-The inspected result contains exactly one class, `menus::MctRootMenu`.
+The inspected result contains exactly two authored classes,
+`menus::MctRootMenu` and `MctMainMenuScreen`.
 Its current hashes and method count are in `native_ui/compiled/manifest.json`.
 The original mod ABC is stored under
 `native_ui/compiled/`. It contains placeholders for the local view URL and

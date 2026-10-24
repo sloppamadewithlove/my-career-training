@@ -91,7 +91,14 @@ def _abc(
 
 def _mod(strings: list[str] | None = None) -> bytes:
     if strings is None:
-        strings = ["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_SESSION__", "__MCT_", "N" * 130]
+        strings = [
+            "MctRootMenu",
+            "__MCT_VIEW_URL__",
+            "__MCT_SESSION__",
+            "__MCT_",
+            "N" * 130,
+            "MctMainMenuScreen",
+        ]
     out = bytearray(struct.pack("<HH", 16, 46))
     out += bytes((0, 0, 0))
     out += _u30(len(strings) + 1)
@@ -110,11 +117,18 @@ def _tag(code: int, payload: bytes) -> bytes:
 
 
 def _movie(
-    abc: bytes, *, symbol: str = "RootMenuMovie", between: bool = False, extra_doabc: bool = False
+    abc: bytes,
+    *,
+    symbol: str = "RootMenuMovie",
+    between: bool = False,
+    extra_doabc: bool = False,
+    symbols: list[tuple[int, str]] | None = None,
 ) -> bytes:
-    symbol_payload = struct.pack("<H", 2)
-    symbol_payload += struct.pack("<H", 83) + symbol.encode("ascii") + b"\0"
-    symbol_payload += struct.pack("<H", 1) + b"Other\0"
+    if symbols is None:
+        symbols = [(0, "MainMenuScreen"), (83, symbol), (1, "Other"), (9, "Garage")]
+    symbol_payload = struct.pack("<H", len(symbols))
+    for character, name in symbols:
+        symbol_payload += struct.pack("<H", character) + name.encode("ascii") + b"\0"
     tags = [
         _tag(21, b"RAW-NON-ABC-01"),
         _tag(82, struct.pack("<I", 1) + b"\0" + abc),
@@ -140,6 +154,7 @@ def _profile(
         "abc_sha256": hashlib.sha256(abc).hexdigest(),
         "mod_abc_sha256": hashlib.sha256(mod).hexdigest(),
         "source_sha256": "ab" * 32,
+        "screen_source_sha256": "cd" * 32,
         "string_count": STRING_COUNT,
         "string_count_offset": 4,
         "string_pool_end": 20,
@@ -234,8 +249,9 @@ def test_production_profile_pins_the_measured_layout():
     profile = compose.PRODUCTION_PROFILE
     assert profile.movie_sha256 == "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
     assert profile.abc_sha256 == "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-    assert profile.mod_abc_sha256 == "9d423d2e39743473bec792c0ca38f3b28946238183b03bbfb0a4681767721768"
-    assert profile.source_sha256 == "1ba9168d4a32e9c0c3ea4c7d7bbe29fda9aae35d3a985d9f3a6c382d91a49600"
+    assert profile.mod_abc_sha256 == "abc2d56ae90bcf764e75d9108ae8a0a6219a53fc299f3b28805fcfed5dcffc3e"
+    assert profile.source_sha256 == "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
+    assert profile.screen_source_sha256 == "ed2528a5dc08fc2c522a8c9816282b50670ea9dafe402876da403caecad1ff6e"
     assert profile.string_count == 13849
     assert profile.string_count_offset == 2048
     assert profile.string_pool_end == 274271
@@ -276,9 +292,18 @@ def test_compose_appends_pools_and_patches_three_references():
     assert output[8:13] == movie[8:13]
     assert struct.unpack_from("<I", output, 4)[0] == len(output)
     output_tags = _tags(output)
-    assert [raw for code, raw, _payload in output_tags if code != 82] == [
-        raw for code, raw, _payload in original_tags if code != 82
+    assert [raw for code, raw, _payload in output_tags if code not in (82, 76)] == [
+        raw for code, raw, _payload in original_tags if code not in (82, 76)
     ]
+    original_symbol = next(payload for code, _raw, payload in original_tags if code == 76)
+    output_symbol = next(payload for code, _raw, payload in output_tags if code == 76)
+    old_document = struct.pack("<H", 0) + b"MainMenuScreen\0"
+    new_document = struct.pack("<H", 0) + b"MctMainMenuScreen\0"
+    assert original_symbol.count(old_document) == 1
+    assert output_symbol == original_symbol.replace(old_document, new_document, 1)
+    assert output_symbol.count(struct.pack("<H", 83) + b"RootMenuMovie\0") == 1
+    assert output_symbol.count(struct.pack("<H", 1) + b"Other\0") == 1
+    assert output_symbol.count(struct.pack("<H", 9) + b"Garage\0") == 1
     payloads = _doabc_payloads(output)
     assert len(payloads) == 2
     assert payloads[0][4] == 0
@@ -306,6 +331,7 @@ def test_compose_appends_pools_and_patches_three_references():
     assert _strings(bound)[2] == SESSION
     assert _strings(bound)[3] == "__MCT_"
     assert _strings(bound)[4] == "N" * 130
+    assert _strings(bound)[5] == "MctMainMenuScreen"
     assert bound.endswith(b"TAIL__MCT_VIEW_URL____MCT_SESSION__")
     assert bound.count(b"__MCT_VIEW_URL__") == 1
     assert metadata["constructed"] is True
@@ -320,6 +346,14 @@ def test_compose_appends_pools_and_patches_three_references():
     assert metadata["doabc_count"] == 2
     assert metadata["output_tag_count"] == 6
     assert metadata["session_utf8_length"] == 36
+    assert metadata["authored_class_count"] == 2
+    assert metadata["authored_classes"] == ["menus::MctRootMenu", "MctMainMenuScreen"]
+    assert metadata["document_character"] == 0
+    assert metadata["document_symbol_from"] == "MainMenuScreen"
+    assert metadata["document_symbol_to"] == "MctMainMenuScreen"
+    assert metadata["online_suppression_verified"] is False
+    assert metadata["class_loader_verified"] is False
+    assert metadata["screen_source_sha256"] == "cd" * 32
 
 
 def test_unicode_and_space_encoded_view_url():
@@ -338,7 +372,7 @@ def test_long_view_url_widens_its_length_prefix():
     bound = _doabc_payloads(result["data"])[1][18:]
     strings = _strings(bound)
     assert strings[1] == url
-    assert strings[2:] == [SESSION, "__MCT_", "N" * 130]
+    assert strings[2:] == [SESSION, "__MCT_", "N" * 130, "MctMainMenuScreen"]
     assert bound.endswith(b"TAIL__MCT_VIEW_URL____MCT_SESSION__")
 
 
@@ -453,7 +487,9 @@ def test_namespace_must_be_the_menus_package_namespace():
 
 def test_duplicate_sentinel_is_rejected():
     movie, _ignored_mod, _ignored_profile, abc = _ready()
-    mod = _mod(["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_VIEW_URL__", "__MCT_SESSION__"])
+    mod = _mod(
+        ["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_VIEW_URL__", "__MCT_SESSION__", "MctMainMenuScreen"]
+    )
     profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
     with pytest.raises(compose.ComposeRejected, match="sentinel"):
         _compose(movie, mod, profile)
@@ -512,8 +548,88 @@ def test_size_limits_and_non_bytes_are_rejected():
 
 
 def test_header_without_rect_is_a_controlled_refusal():
-    _movie, mod, profile, _abc_bytes = _ready()
+    _movie_bytes, mod, profile, _abc_bytes = _ready()
     movie = b"GFX\x14" + struct.pack("<I", 8)
     profile = replace(profile, movie_sha256=hashlib.sha256(movie).hexdigest())
     with pytest.raises(compose.ComposeRejected, match="truncated movie"):
         _compose(movie, mod, profile)
+
+
+def _ready_symbols(symbols: list[tuple[int, str]]):
+    abc = _abc()
+    mod = _mod()
+    movie = _movie(abc, symbols=symbols)
+    code = abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH]
+    return movie, mod, _profile(movie, abc, mod, code)
+
+
+def test_missing_document_character_is_rejected():
+    movie, mod, profile = _ready_symbols([(83, "RootMenuMovie"), (1, "Other"), (9, "Garage")])
+    with pytest.raises(compose.ComposeRejected, match="document class"):
+        _compose(movie, mod, profile)
+
+
+def test_duplicate_document_character_is_rejected():
+    movie, mod, profile = _ready_symbols(
+        [(0, "MainMenuScreen"), (0, "MainMenuScreen"), (83, "RootMenuMovie")]
+    )
+    with pytest.raises(compose.ComposeRejected, match="document class"):
+        _compose(movie, mod, profile)
+
+
+def test_wrong_document_name_is_rejected():
+    movie, mod, profile = _ready_symbols(
+        [(0, "MainMenu"), (83, "RootMenuMovie"), (1, "Other"), (9, "Garage")]
+    )
+    with pytest.raises(compose.ComposeRejected, match="document class"):
+        _compose(movie, mod, profile)
+
+
+def test_nonzero_document_binding_is_rejected():
+    movie, mod, profile = _ready_symbols(
+        [(0, "Hud"), (4, "MainMenuScreen"), (83, "RootMenuMovie"), (1, "Other")]
+    )
+    with pytest.raises(compose.ComposeRejected, match="document class"):
+        _compose(movie, mod, profile)
+
+
+def test_document_class_already_bound_is_rejected():
+    movie, mod, profile = _ready_symbols(
+        [(0, "MainMenuScreen"), (2, "MctMainMenuScreen"), (83, "RootMenuMovie"), (1, "Other")]
+    )
+    with pytest.raises(compose.ComposeRejected, match="document class"):
+        _compose(movie, mod, profile)
+
+
+def test_extra_symbol_bytes_are_rejected():
+    movie, mod, _ignored, abc = _ready()
+    rebuilt = []
+    for code, _raw, payload in _tags(movie):
+        if code == 76:
+            payload += b"\x00"
+        rebuilt.append(_tag(code, payload))
+    body = b"".join(rebuilt)
+    candidate = movie[:13] + body
+    candidate = candidate[:4] + struct.pack("<I", len(candidate)) + candidate[8:]
+    profile = _profile(candidate, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    with pytest.raises(compose.ComposeRejected, match="symbol class"):
+        _compose(candidate, mod, profile)
+
+
+def test_compiled_class_requires_both_authored_names():
+    movie, _ignored_mod, _ignored_profile, abc = _ready()
+    mod = _mod(["MctRootMenu", "__MCT_VIEW_URL__", "__MCT_SESSION__", "__MCT_", "N" * 130])
+    profile = _profile(movie, abc, mod, abc[CODE_OFFSET : CODE_OFFSET + CODE_LENGTH])
+    with pytest.raises(compose.ComposeRejected, match="compiled class"):
+        _compose(movie, mod, profile)
+
+
+def test_compiled_abc_matches_the_public_pin():
+    root = Path(__file__).resolve().parents[1]
+    abc = (root / "native_ui" / "compiled" / "MctRootMenu.abc").read_bytes()
+    menu = (root / "native_ui" / "menus" / "MctRootMenu.as").read_bytes()
+    screen = (root / "native_ui" / "MctMainMenuScreen.as").read_bytes()
+    assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256
+    assert len(abc) == 7836
+    assert hashlib.sha256(menu).hexdigest() == compose.SOURCE_SHA256
+    assert hashlib.sha256(screen).hexdigest() == compose.SCREEN_SOURCE_SHA256

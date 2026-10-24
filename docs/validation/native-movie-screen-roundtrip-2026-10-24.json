@@ -1,0 +1,28 @@
+{
+  "kind": "private_authored_native_movie_roundtrip",
+  "installed_source_unchanged": true,
+  "installed_package_sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
+  "original_movie_sha256": "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0",
+  "authored_abc_sha256": "abc2d56ae90bcf764e75d9108ae8a0a6219a53fc299f3b28805fcfed5dcffc3e",
+  "private_movie_sha256": "9917520ce1f1fff65b8033ec820a2f0650da34c496e4ad05eb0a7bcccb64d45c",
+  "private_package_sha256": "7bf8f318edb090a230b41f6ac5f37897b7422fd11d73c2a499d08c2cf3823c2a",
+  "private_movie_bytes": 1144469,
+  "private_package_bytes": 3423324,
+  "original_classes_retained": 714,
+  "original_method_bodies_retained": 11501,
+  "original_script_initializers_changed": [
+    11548
+  ],
+  "other_non_abc_tags_identical": true,
+  "document_class_rebound": {
+    "character": 0,
+    "from": "MainMenuScreen",
+    "to": "MctMainMenuScreen"
+  },
+  "other_symbol_bindings_retained": 94,
+  "new_class_count": 2,
+  "private_package_roundtrip_equal": true,
+  "runtime_verified": false,
+  "production_ready": false,
+  "game_launched": false
+}
