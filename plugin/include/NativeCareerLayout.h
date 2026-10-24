@@ -921,7 +921,9 @@ private:
         play.action = "play_match";
         if (career.empty()) play.reason = "Create a career before playing a match.";
         else if (fixture.empty()) play.reason = "No next match is on the schedule.";
-        else if (!validId(text(career, "id")) || !validId(text(fixture, "id"))) play.reason = "That match is not ready.";
+        // Domain fixture IDs include season/phase separators, for example
+        // career-a:s1:league:1:0. They are opaque JSON identifiers, not paths.
+        else if (!validId(text(career, "id")) || !safeId(text(fixture, "id"))) play.reason = "That match is not ready.";
         else if (text(fixture, "home") != "human" && text(fixture, "away") != "human")
             play.reason = "That match does not include your club.";
         else if (text(fixture, "status") != "scheduled") play.reason = "That match is already finished.";
@@ -955,7 +957,7 @@ private:
         const auto fixtureId = text(unfinished, "fixture_id");
         const auto sessionId = text(unfinished, "session_id");
         const bool canRestart = !busy(state) && !flag(sessionOf(state), "worker_running", true) && validId(careerId) &&
-            validId(fixtureId) && validId(sessionId);
+            safeId(fixtureId) && validId(sessionId);
         dispatch(view, "career.recover.confirm", "Confirm restart", canRestart,
             "Return from the current activity first. If no unfinished match remains, go Back.",
             "abandon_fixture", {{"expected_career_id", careerId}, {"expected_fixture_id", fixtureId},

@@ -62,8 +62,8 @@ static Json readyState() {
                 {"relay", {{"name", "Relay"}, {"role", "passer"}}},
                 {"comet", {{"name", "Comet"}, {"role", "attacker"}}}}},
             {"seasons", {{{"clubs", {{{"id", "human"}, {"name", "Orbit"}}, {{"id", "aurora"}, {"name", "Nova"}}}},
-                {"fixtures", {{{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
-        {"next_fixture", {{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}},
+                {"fixtures", {{{"id", "career-a:s1:league:1:0"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
+        {"next_fixture", {{"id", "career-a:s1:league:1:0"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}},
         {"standings", {{{"name", "Orbit"}, {"points", 9}}}},
         {"lessons", {{{"id", "speed-flip"}, {"title", "Speed flip"}, {"description", "A timed kickoff lesson."},
                 {"steps", {"Drive", "Jump"}}},
@@ -145,7 +145,7 @@ int main() {
         forged.kind = CareerLayoutEffectKind::Dispatch;
         forged.action = "play_match";
         forged.enabled = true;
-        forged.payload = {{"expected_career_id", "career-a"}, {"expected_fixture_id", "fixture-a"}};
+        forged.payload = {{"expected_career_id", "career-a"}, {"expected_fixture_id", "career-a:s1:league:1:0"}};
         auto refused = choose(offline, forged, scope, state, true);
         require(!refused.accepted && refused.action.empty() && refused.refusal == CareerLayoutRefusal::NoPlan, "Unopened click dispatched");
 
@@ -244,7 +244,7 @@ int main() {
         require(career.body.find("Orbit vs Nova") != std::string::npos, "Next match text missing");
         auto play = findChoice(career, "career.play");
         require(play.enabled && play.action == "play_match", "Play Next Match was not executable");
-        require(play.payload == Json({{"expected_career_id", "career-a"}, {"expected_fixture_id", "fixture-a"}}), "Match payload");
+        require(play.payload == Json({{"expected_career_id", "career-a"}, {"expected_fixture_id", "career-a:s1:league:1:0"}}), "Match payload");
         auto notConsumed = choose(layout, play, scope, state, false);
         require(!notConsumed.accepted && notConsumed.action.empty() && notConsumed.payload.empty(), "Match fired before consumption");
         require(notConsumed.refusal == CareerLayoutRefusal::NotConsumed && notConsumed.originalConsumptionRequired, "Consumption precondition missing");
@@ -269,6 +269,12 @@ int main() {
         auto busyCareer = layout.view(scope, busy);
         require(hasChoice(busyCareer, "career.play") && !findChoice(busyCareer, "career.play").enabled, "Busy match still enabled");
         require(findChoice(busyCareer, "career.play").action.empty(), "Busy match still has an action");
+        for (const auto& invalidId : {std::string("../fixture"), std::string("fixture/one"), std::string(129, 'a')}) {
+            auto invalid = state;
+            invalid["next_fixture"]["id"] = invalidId;
+            require(!findChoice(layout.view(scope, invalid), "career.play").enabled,
+                "Malformed fixture ID enabled play");
+        }
         auto finished = state;
         finished["next_fixture"]["status"] = "completed";
         require(!findChoice(layout.view(scope, finished), "career.play").enabled, "Finished match still enabled");
@@ -863,7 +869,7 @@ int main() {
         require(!hasChoice(otherLayout.view(scope, otherSite), "community.trial.286"), "Trial button appeared for another plugin");
 
         auto recoveryState = readyState();
-        recoveryState["career"]["pending_session"] = {{"fixture_id", "fixture-a"}, {"session_id", "attempt-a"}};
+        recoveryState["career"]["pending_session"] = {{"fixture_id", "career-a:s1:league:1:0"}, {"session_id", "attempt-a"}};
         NativeCareerLayout recovery;
         require(recovery.open(scope, recoveryState), "Recovery menu did not open");
         choose(recovery, findChoice(recovery.view(scope, recoveryState), NativeCareerLayout::kCareer), scope, recoveryState, false);
@@ -894,7 +900,7 @@ int main() {
             "Recovery stayed blocked by a failed worker's previous request");
         auto recovered = choose(recovery, confirmation, scope, recoveryState, true);
         require(recovered.accepted && recovered.action == "abandon_fixture" && !recovered.leaveMenu &&
-            recovered.page == CareerLayoutPage::Career && recovered.payload.at("expected_fixture_id") == "fixture-a",
+            recovered.page == CareerLayoutPage::Career && recovered.payload.at("expected_fixture_id") == "career-a:s1:league:1:0",
             "Confirmed recovery did not return to Career with the bound fixture");
         require(!hasChoice(recovery.view(scope, readyState()), "career.recover"),
             "Recovery remained visible after the unfinished match cleared");
