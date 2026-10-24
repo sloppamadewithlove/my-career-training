@@ -104,16 +104,18 @@ to keep the player active, and no idle-protection guarantee is claimed.
 `ItemsWrapper::GetAllProducts()` and product labels/slots enumerate the installed
 game's current catalog at runtime, 200 entries per game-thread tick. Browse car
 bodies, decals, wheels, boosts, paint finishes, trails, goal effects, anthems and
-profile cosmetics. The apply control submits original BakkesMod v3 item codes
+profile cosmetics. The apply control submits independently encoded BakkesMod v4 item codes
 to the existing `cl_itemmod_enabled` / `cl_itemmod_code` interface only after
 runtime capability probes and catalog membership validation.
 
 Supported override slots are cosmetic slots 1,2,3,4,5,7,12,13,14,15,18 and product
-IDs up to 8191, the verified 13-bit format limit. Body switching and profile
-inventory unlocks are not supported by that format; newer IDs remain browseable.
+IDs up to 65535, the upstream v4 16-bit format limit. The encoder retains explicit
+v3 support for legacy codes. Body switching and profile inventory unlocks are not
+supported by the item-code interface. Current-game appearance still needs live validation.
 No entitlement or inventory is modified. Requested appearance and actual scene
-appearance are separate checks. Original cvars are restored on unload, service
-disconnect, loss of ownership and any online transition. Designs are saved in
+appearance are separate checks. Restoration of the original cvars is attempted
+and checked on unload, service disconnect, loss of ownership and any online
+transition; failed restoration stays pending while the plugin is loaded. Designs are saved in
 the per-user plugin preferences for later local use.
 
 ## API evidence

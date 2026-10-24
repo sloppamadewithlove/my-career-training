@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-// Checks v3 item-code bit layout and input validation. Nothing here equips a
-// product, changes shared cosmetic cvars, or observes an in-game appearance.
+// Checks v3 and v4 item-code bit layout and input validation. Nothing here equips
+// a product, changes shared cosmetic cvars, or observes an in-game appearance.
 
 namespace {
 
@@ -88,10 +88,12 @@ struct ReadCode {
 };
 
 void expectLayout(const std::string& code, const std::vector<ExpectedItem>& items,
-                  const unsigned char* channels) {
+                  const unsigned char* channels, unsigned version) {
+    const int productBits = version == 4 ? 16 : 13;
+    require(version == 3 || version == 4, "Fixture asked for an unknown code version.");
     const auto bytes = decodeBase64(code);
     std::size_t specBits = 6 + 10 + 8 + 1 + 4;
-    for (const auto& item : items) specBits += 5 + 13 + 1 + (item.paint != 0 ? 6 : 0);
+    for (const auto& item : items) specBits += 5 + static_cast<std::size_t>(productBits) + 1 + (item.paint != 0 ? 6 : 0);
     specBits += 1 + (channels != nullptr ? 48 : 0) + 6;
     require((specBits + 7) / 8 == bytes.size(), "Spec byte length does not match the code.");
     require(code.size() == ((bytes.size() + 2) / 3) * 4, "Base64 width is wrong.");
@@ -105,14 +107,14 @@ void expectLayout(const std::string& code, const std::vector<ExpectedItem>& item
     require(bytes.size() >= 3 && bytes[2] == checksum, "Checksum byte is not 255 XOR payload.");
 
     ReadCode cursor{bytes};
-    require(cursor.take(6) == 3, "Version is not 3.");
+    require(cursor.take(6) == version, "Version bits do not match.");
     require(cursor.take(10) == bytes.size(), "Header length does not match the decoded size.");
     require(cursor.take(8) == checksum, "Header checksum does not match the payload XOR.");
     require(cursor.take(1) == 1, "Same-team bit is clear.");
     require(cursor.take(4) == items.size(), "Item count does not match.");
     for (const auto& item : items) {
         require(cursor.take(5) == item.slot, "Slot bits do not match.");
-        require(cursor.take(13) == item.product, "Product bits do not match.");
+        require(cursor.take(productBits) == item.product, "Product bits do not match.");
         const unsigned painted = cursor.take(1);
         require(painted == (item.paint != 0 ? 1u : 0u), "Paint flag does not match.");
         if (painted != 0) require(cursor.take(6) == item.paint, "Paint bits do not match.");
@@ -128,14 +130,15 @@ void expectLayout(const std::string& code, const std::vector<ExpectedItem>& item
     while (cursor.bit < bytes.size() * 8) require(cursor.take(1) == 0, "Padding bits are set.");
 }
 
-std::string codeOf(const char* json) {
-    return mct::encodeCosmeticDesign(mct::validateCosmeticDesign(mct::Json::parse(json)));
+std::string codeOf(const char* json, mct::CosmeticCodeVersion version) {
+    return mct::encodeCosmeticDesign(mct::validateCosmeticDesign(mct::Json::parse(json), version), version);
 }
 
-void requireRejects(const std::string& json, const char* fragment) {
+void requireRejects(const std::string& json, const char* fragment,
+                    mct::CosmeticCodeVersion version = mct::CosmeticCodeVersion::CurrentV4) {
     bool rejected = false;
     try {
-        static_cast<void>(mct::validateCosmeticDesign(mct::Json::parse(json)));
+        static_cast<void>(mct::validateCosmeticDesign(mct::Json::parse(json), version));
     } catch (const std::runtime_error& error) {
         rejected = true;
         require(std::string(error.what()).find(fragment) != std::string::npos, error.what());
@@ -155,88 +158,138 @@ mct::Json floatNumber(double value) {
 
 int main() {
     try {
+        constexpr auto legacy = mct::CosmeticCodeVersion::LegacyV3;
+        constexpr auto current = mct::CosmeticCodeVersion::CurrentV4;
+        require(mct::kMaxCosmeticProductId == 65535, "Current product cap is not the 16-bit limit.");
+        require(mct::maxCosmeticProductId() == mct::kMaxCosmeticProductId, "Default product cap is not v4.");
+        require(mct::maxCosmeticProductId(current) == 65535, "v4 product cap drifted.");
+        require(mct::maxCosmeticProductId(legacy) == 8191, "v3 product cap drifted.");
+
         // 55 bits -> 7 bytes. Payload 23 04 00 00, checksum 255 XOR 0x23 XOR 0x04 = 0xD8.
         // Version 3 and length 7 occupy byte 0 as C3; length's next bits make byte 1 = 01.
         constexpr unsigned char oneItem[] = {0xC3, 0x01, 0xD8, 0x23, 0x04, 0x00, 0x00};
         require(encodeBase64(oneItem, sizeof(oneItem)) == "wwHYIwQAAA==", "Hand base64 of the one-item bytes drifted.");
         require(decodeBase64("wwHYIwQAAA==") == std::vector<unsigned char>(oneItem, oneItem + sizeof(oneItem)),
             "Hand base64 did not decode to the one-item bytes.");
-        expectLayout("wwHYIwQAAA==", {{1, 1, 0}}, nullptr);
+        expectLayout("wwHYIwQAAA==", {{1, 1, 0}}, nullptr, 3);
 
         const char* oneItemJson = R"({"items":[{"slot":1,"product_id":1,"paint":0}]})";
-        const auto oneDesign = mct::validateCosmeticDesign(mct::Json::parse(oneItemJson));
+        const auto oneDesign = mct::validateCosmeticDesign(mct::Json::parse(oneItemJson), legacy);
         require(oneDesign.items.size() == 1 && oneDesign.items[0].slot == 1 &&
             oneDesign.items[0].productId == 1 && oneDesign.items[0].paint == 0, "Typed one-item design is wrong.");
         require(!oneDesign.primary.has_value() && !oneDesign.secondary.has_value(), "Absent colors were stored.");
-        require(mct::encodeCosmeticDesign(oneDesign) == "wwHYIwQAAA==", "One-item code does not match the golden bytes.");
-        require(codeOf(oneItemJson) == codeOf(R"({"items":[{"product_id":1,"slot":1}]})"),
+        require(mct::encodeCosmeticDesign(oneDesign, legacy) == "wwHYIwQAAA==", "Legacy one-item code does not match the golden bytes.");
+        require(codeOf(oneItemJson, legacy) == codeOf(R"({"items":[{"product_id":1,"slot":1}]})", legacy),
             "Omitted paint did not default to unpainted.");
-        require(codeOf(R"({"items":[{"slot":1.0,"product_id":1.0,"paint":0.0}]})") == "wwHYIwQAAA==",
+        require(codeOf(R"({"items":[{"slot":1.0,"product_id":1.0,"paint":0.0}]})", legacy) == "wwHYIwQAAA==",
             "Whole-number floats were rejected or changed the code.");
 
         // No items and no colors. 36 bits -> 5 bytes. Payload 01 00, checksum 255 XOR 0x01 = 0xFE.
         constexpr unsigned char emptyDesign[] = {0x43, 0x01, 0xFE, 0x01, 0x00};
         require(encodeBase64(emptyDesign, sizeof(emptyDesign)) == "QwH+AQA=", "Empty-design base64 drifted.");
-        expectLayout("QwH+AQA=", {}, nullptr);
-        require(codeOf(R"({})") == "QwH+AQA=", "Empty object changed the empty code.");
-        require(codeOf(R"({"items":[]})") == "QwH+AQA=", "Empty item list changed the empty code.");
-        require(codeOf(R"({"override_colors":false})") == "QwH+AQA=", "Disabled color override changed the empty code.");
-        require(codeOf(R"({"items":[],"override_colors":false,"primary":[9,"no",false],"secondary":{"bad":true},"body":23,"inventory":[1],"physics":{"mass":1}})") == "QwH+AQA=",
+        expectLayout("QwH+AQA=", {}, nullptr, 3);
+        require(codeOf(R"({})", legacy) == "QwH+AQA=", "Empty object changed the empty code.");
+        require(codeOf(R"({"items":[]})", legacy) == "QwH+AQA=", "Empty item list changed the empty code.");
+        require(codeOf(R"({"override_colors":false})", legacy) == "QwH+AQA=", "Disabled color override changed the empty code.");
+        require(codeOf(R"({"items":[],"override_colors":false,"primary":[9,"no",false],"secondary":{"bad":true},"body":23,"inventory":[1],"physics":{"mass":1}})", legacy) == "QwH+AQA=",
             "Ignored color or entitlement fields changed the code.");
 
         // Paint 1 adds the paint flag and six paint bits. 61 bits -> 8 bytes.
         // Payload 23 04 80 01 00. 255 XOR 0x23 XOR 0x04 XOR 0x80 XOR 0x01 = 0x59.
         constexpr unsigned char painted[] = {0x03, 0x02, 0x59, 0x23, 0x04, 0x80, 0x01, 0x00};
         require(encodeBase64(painted, sizeof(painted)) == "AwJZIwSAAQA=", "Painted base64 drifted.");
-        expectLayout("AwJZIwSAAQA=", {{1, 1, 1}}, nullptr);
-        require(codeOf(R"({"items":[{"slot":1,"product_id":1,"paint":1}]})") == "AwJZIwSAAQA=",
+        expectLayout("AwJZIwSAAQA=", {{1, 1, 1}}, nullptr, 3);
+        require(codeOf(R"({"items":[{"slot":1,"product_id":1,"paint":1}]})", legacy) == "AwJZIwSAAQA=",
             "Painted one-item code does not match the golden bytes.");
 
         // No items. Colors 0,0,0 then 255,255,255. 84 bits -> 11 bytes.
         constexpr unsigned char colors[] = {0xC3, 0x02, 0x21, 0x21, 0x00, 0x00, 0xC0, 0xFF, 0xFF, 0x3F, 0x00};
         constexpr unsigned char colorChannels[] = {0, 0, 0, 255, 255, 255};
         require(encodeBase64(colors, sizeof(colors)) == "wwIhIQAAwP//PwA=", "Color base64 drifted.");
-        expectLayout("wwIhIQAAwP//PwA=", {}, colorChannels);
+        expectLayout("wwIhIQAAwP//PwA=", {}, colorChannels, 3);
         const auto colorDesign = mct::validateCosmeticDesign(mct::Json::parse(
-            R"({"items":[],"override_colors":true,"primary":[0,0,0],"secondary":[1,1,1]})"));
+            R"({"items":[],"override_colors":true,"primary":[0,0,0],"secondary":[1,1,1]})"), legacy);
         require(colorDesign.primary.has_value() && colorDesign.secondary.has_value(), "Normalized colors were dropped.");
         require((*colorDesign.primary)[0] == 0 && (*colorDesign.secondary)[0] == 255, "0 and 1 did not become channel bytes.");
-        require(mct::encodeCosmeticDesign(colorDesign) == "wwIhIQAAwP//PwA=", "Color code does not match the golden bytes.");
+        require(mct::encodeCosmeticDesign(colorDesign, legacy) == "wwIhIQAAwP//PwA=", "Color code does not match the golden bytes.");
 
         constexpr unsigned char roundedChannels[] = {0, 128, 255, 0, 1, 128};
         const auto rounded = mct::validateCosmeticDesign(mct::Json::parse(
-            R"({"override_colors":true,"primary":[0,0.5,1],"secondary":[0.001,0.004,0.5]})"));
+            R"({"override_colors":true,"primary":[0,0.5,1],"secondary":[0.001,0.004,0.5]})"), legacy);
         require(rounded.primary == std::array<unsigned char, 3>{0, 128, 255}, "Primary rounding is wrong.");
         require(rounded.secondary == std::array<unsigned char, 3>{0, 1, 128}, "Secondary rounding is wrong.");
-        const auto roundedCode = mct::encodeCosmeticDesign(rounded);
-        expectLayout(roundedCode, {}, roundedChannels);
+        const auto roundedCode = mct::encodeCosmeticDesign(rounded, legacy);
+        expectLayout(roundedCode, {}, roundedChannels, 3);
 
-        const auto ordered = codeOf(R"({"items":[{"slot":12,"product_id":3,"paint":0},{"slot":4,"product_id":9,"paint":6}]})");
-        const auto reversed = codeOf(R"({"items":[{"slot":4,"product_id":9,"paint":6},{"slot":12,"product_id":3,"paint":0}]})");
+        const auto ordered = codeOf(R"({"items":[{"slot":12,"product_id":3,"paint":0},{"slot":4,"product_id":9,"paint":6}]})", legacy);
+        const auto reversed = codeOf(R"({"items":[{"slot":4,"product_id":9,"paint":6},{"slot":12,"product_id":3,"paint":0}]})", legacy);
         require(ordered != reversed, "Item order was sorted away.");
-        expectLayout(ordered, {{12, 3, 0}, {4, 9, 6}}, nullptr);
-        expectLayout(reversed, {{4, 9, 6}, {12, 3, 0}}, nullptr);
+        expectLayout(ordered, {{12, 3, 0}, {4, 9, 6}}, nullptr, 3);
+        expectLayout(reversed, {{4, 9, 6}, {12, 3, 0}}, nullptr, 3);
 
         const auto boundaries = codeOf(
-            R"({"items":[{"slot":1,"product_id":1,"paint":0},{"slot":2,"product_id":2,"paint":0},{"slot":3,"product_id":8191,"paint":0},{"slot":4,"product_id":4,"paint":18},{"slot":5,"product_id":5,"paint":1},{"slot":7,"product_id":7,"paint":0},{"slot":12,"product_id":12,"paint":0},{"slot":13,"product_id":13,"paint":0},{"slot":14,"product_id":14,"paint":0},{"slot":15,"product_id":15,"paint":0},{"slot":18,"product_id":18,"paint":0}]})");
+            R"({"items":[{"slot":1,"product_id":1,"paint":0},{"slot":2,"product_id":2,"paint":0},{"slot":3,"product_id":8191,"paint":0},{"slot":4,"product_id":4,"paint":18},{"slot":5,"product_id":5,"paint":1},{"slot":7,"product_id":7,"paint":0},{"slot":12,"product_id":12,"paint":0},{"slot":13,"product_id":13,"paint":0},{"slot":14,"product_id":14,"paint":0},{"slot":15,"product_id":15,"paint":0},{"slot":18,"product_id":18,"paint":0}]})", legacy);
         expectLayout(boundaries, {
             {1, 1, 0}, {2, 2, 0}, {3, 8191, 0}, {4, 4, 18}, {5, 5, 1}, {7, 7, 0},
             {12, 12, 0}, {13, 13, 0}, {14, 14, 0}, {15, 15, 0}, {18, 18, 0}
-        }, nullptr);
+        }, nullptr, 3);
 
         const auto unpaintedTrio = codeOf(
-            R"({"items":[{"slot":1,"product_id":1,"paint":0},{"slot":2,"product_id":2,"paint":0},{"slot":3,"product_id":3,"paint":0}]})");
+            R"({"items":[{"slot":1,"product_id":1,"paint":0},{"slot":2,"product_id":2,"paint":0},{"slot":3,"product_id":3,"paint":0}]})", legacy);
         require(unpaintedTrio.find('=') == std::string::npos, "Twelve-byte code was padded.");
-        expectLayout(unpaintedTrio, {{1, 1, 0}, {2, 2, 0}, {3, 3, 0}}, nullptr);
+        expectLayout(unpaintedTrio, {{1, 1, 0}, {2, 2, 0}, {3, 3, 0}}, nullptr, 3);
 
         const auto paintedWithColors = codeOf(
-            R"({"override_colors":true,"primary":[1,1,1],"secondary":[1,1,1],"items":[{"slot":4,"product_id":8,"paint":2}]})");
+            R"({"override_colors":true,"primary":[1,1,1],"secondary":[1,1,1],"items":[{"slot":4,"product_id":8,"paint":2}]})", legacy);
         constexpr unsigned char white[] = {255, 255, 255, 255, 255, 255};
-        expectLayout(paintedWithColors, {{4, 8, 2}}, white);
+        expectLayout(paintedWithColors, {{4, 8, 2}}, white, 3);
 
         mct::CosmeticDesign direct;
         direct.items.push_back(mct::CosmeticDesignItem{1, 1, 0});
-        require(mct::encodeCosmeticDesign(direct) == "wwHYIwQAAA==", "Struct encode drifted from the golden code.");
+        require(mct::encodeCosmeticDesign(direct, legacy) == "wwHYIwQAAA==", "Struct encode drifted from the legacy golden code.");
+
+        // v4 one item, slot 1 product 1 paint 0. 58 bits -> 8 bytes.
+        // Payload 23 04 00 00 00, checksum 255 XOR 0x23 XOR 0x04 = 0xD8.
+        // Version 4 leaves byte 0 as 04; length 8 sets byte 1 to 02.
+        constexpr unsigned char oneItemV4[] = {0x04, 0x02, 0xD8, 0x23, 0x04, 0x00, 0x00, 0x00};
+        require(encodeBase64(oneItemV4, sizeof(oneItemV4)) == "BALYIwQAAAA=", "Hand base64 of the v4 one-item bytes drifted.");
+        require(decodeBase64("BALYIwQAAAA=") == std::vector<unsigned char>(oneItemV4, oneItemV4 + sizeof(oneItemV4)),
+            "Hand base64 did not decode to the v4 one-item bytes.");
+        expectLayout("BALYIwQAAAA=", {{1, 1, 0}}, nullptr, 4);
+        require(mct::encodeCosmeticDesign(direct) == "BALYIwQAAAA=", "Default encode is not the v4 one-item code.");
+        require(mct::encodeCosmeticDesign(direct, current) == "BALYIwQAAAA=", "Explicit v4 encode drifted.");
+        require(codeOf(oneItemJson, current) == "BALYIwQAAAA=", "Default validation did not encode v4.");
+        require(mct::encodeCosmeticDesign(direct) != "wwHYIwQAAA==", "Default encode still emitted the v3 code.");
+
+        // Product 8192 sets product bit 13. Payload 23 00 80 00 00, checksum 0x5C.
+        constexpr unsigned char product8192[] = {0x04, 0x02, 0x5C, 0x23, 0x00, 0x80, 0x00, 0x00};
+        require(encodeBase64(product8192, sizeof(product8192)) == "BAJcIwCAAAA=", "Hand base64 of product 8192 drifted.");
+        expectLayout("BAJcIwCAAAA=", {{1, 8192, 0}}, nullptr, 4);
+        const auto wide = mct::validateCosmeticDesign(mct::Json::parse(
+            R"({"items":[{"slot":1,"product_id":8192,"paint":0}]})"));
+        require(wide.items.size() == 1 && wide.items[0].productId == 8192, "Product 8192 was not kept as a typed id.");
+        require(mct::encodeCosmeticDesign(wide) == "BAJcIwCAAAA=", "Product 8192 code does not match the golden bytes.");
+        require(codeOf(R"({"items":[{"slot":1,"product_id":65535,"paint":0}]})", current) == "BALcI/z/AwA=",
+            "Product 65535 code does not match the golden bytes.");
+        constexpr unsigned char productMax[] = {0x04, 0x02, 0xDC, 0x23, 0xFC, 0xFF, 0x03, 0x00};
+        require(encodeBase64(productMax, sizeof(productMax)) == "BALcI/z/AwA=", "Hand base64 of product 65535 drifted.");
+        expectLayout("BALcI/z/AwA=", {{1, 65535, 0}}, nullptr, 4);
+
+        // Paint still follows the 16-bit product field. Payload 23 04 00 0C 00, checksum 0xD4.
+        constexpr unsigned char paintedV4[] = {0x04, 0x02, 0xD4, 0x23, 0x04, 0x00, 0x0C, 0x00};
+        require(encodeBase64(paintedV4, sizeof(paintedV4)) == "BALUIwQADAA=", "Hand base64 of the v4 painted item drifted.");
+        expectLayout("BALUIwQADAA=", {{1, 1, 1}}, nullptr, 4);
+        require(codeOf(R"({"items":[{"slot":1,"product_id":1,"paint":1}]})", current) == "BALUIwQADAA=",
+            "v4 painted code does not match the golden bytes.");
+
+        constexpr unsigned char colorsV4[] = {0xC4, 0x02, 0x21, 0x21, 0x00, 0x00, 0xC0, 0xFF, 0xFF, 0x3F, 0x00};
+        require(encodeBase64(colorsV4, sizeof(colorsV4)) == "xAIhIQAAwP//PwA=", "Hand base64 of the v4 color code drifted.");
+        expectLayout("xAIhIQAAwP//PwA=", {}, colorChannels, 4);
+        const auto roundedV4 = mct::validateCosmeticDesign(mct::Json::parse(
+            R"({"override_colors":true,"primary":[0,0.5,1],"secondary":[0.001,0.004,0.5]})"));
+        require(roundedV4.primary == std::array<unsigned char, 3>{0, 128, 255}, "v4 primary rounding changed.");
+        require(roundedV4.secondary == std::array<unsigned char, 3>{0, 1, 128}, "v4 secondary rounding changed.");
+        expectLayout(mct::encodeCosmeticDesign(roundedV4), {}, roundedChannels, 4);
 
         requireRejects(R"(null)", "object");
         requireRejects(R"(true)", "object");
@@ -267,11 +320,16 @@ int main() {
         requireRejects(R"({"items":[{"slot":1,"product_id":8191.9,"paint":0}]})", "whole number");
         requireRejects(R"({"items":[{"slot":1,"product_id":"1","paint":0}]})", "whole number");
         requireRejects(R"({"items":[{"slot":1,"product_id":[1],"paint":0}]})", "whole number");
-        requireRejects(R"({"items":[{"slot":1,"product_id":0,"paint":0}]})", "1 to 8191");
-        requireRejects(R"({"items":[{"slot":1,"product_id":8192,"paint":0}]})", "1 to 8191");
-        requireRejects(R"({"items":[{"slot":1,"product_id":-5,"paint":0}]})", "1 to 8191");
-        requireRejects(R"({"items":[{"slot":1,"product_id":18446744073709551615,"paint":0}]})", "1 to 8191");
-        requireRejects(R"({"items":[{"slot":1,"product_id":1e308,"paint":0}]})", "1 to 8191");
+        requireRejects(R"({"items":[{"slot":1,"product_id":0,"paint":0}]})", "1 to 8191", legacy);
+        requireRejects(R"({"items":[{"slot":1,"product_id":8192,"paint":0}]})", "1 to 8191", legacy);
+        requireRejects(R"({"items":[{"slot":1,"product_id":-5,"paint":0}]})", "1 to 8191", legacy);
+        requireRejects(R"({"items":[{"slot":1,"product_id":18446744073709551615,"paint":0}]})", "1 to 8191", legacy);
+        requireRejects(R"({"items":[{"slot":1,"product_id":1e308,"paint":0}]})", "1 to 8191", legacy);
+        requireRejects(R"({"items":[{"slot":1,"product_id":0,"paint":0}]})", "1 to 65535");
+        requireRejects(R"({"items":[{"slot":1,"product_id":65536,"paint":0}]})", "1 to 65535");
+        requireRejects(R"({"items":[{"slot":1,"product_id":65535.5,"paint":0}]})", "whole number");
+        requireRejects(R"({"items":[{"slot":1,"product_id":false,"paint":0}]})", "whole number");
+        requireRejects(R"({"items":[{"slot":1,"product_id":1e308,"paint":0}]})", "1 to 65535");
         requireRejects(R"({"items":[{"slot":1,"product_id":1,"paint":true}]})", "whole number");
         requireRejects(R"({"items":[{"slot":1,"product_id":1,"paint":0.5}]})", "whole number");
         requireRejects(R"({"items":[{"slot":1,"product_id":1,"paint":null}]})", "whole number");
@@ -298,12 +356,19 @@ int main() {
             mct::Json huge = floatNumber(1e20);
             mct::Json payload = {{"items", mct::Json::array({mct::Json{{"slot", 1}, {"product_id", huge}, {"paint", 0}}})}};
             bool rejected = false;
-            try { static_cast<void>(mct::validateCosmeticDesign(payload)); }
+            try { static_cast<void>(mct::validateCosmeticDesign(payload, legacy)); }
             catch (const std::runtime_error& error) {
                 rejected = true;
                 require(std::string(error.what()).find("8191") != std::string::npos, error.what());
             }
-            require(rejected, "Huge product float was accepted.");
+            require(rejected, "Huge product float was accepted for v3.");
+            rejected = false;
+            try { static_cast<void>(mct::validateCosmeticDesign(payload)); }
+            catch (const std::runtime_error& error) {
+                rejected = true;
+                require(std::string(error.what()).find("65535") != std::string::npos, error.what());
+            }
+            require(rejected, "Huge product float was accepted for v4.");
         }
         for (double special : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
             mct::Json payload = {{"items", mct::Json::array({mct::Json{
@@ -336,6 +401,23 @@ int main() {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "Encode accepted a body slot.");
         invalid = direct;
+        invalid.items[0].productId = 8192;
+        rejected = false;
+        try { static_cast<void>(mct::encodeCosmeticDesign(invalid, legacy)); }
+        catch (const std::runtime_error& error) {
+            rejected = true;
+            require(std::string(error.what()).find("8191") != std::string::npos, error.what());
+        }
+        require(rejected, "Legacy encode accepted product 8192.");
+        invalid.items[0].productId = 65536;
+        rejected = false;
+        try { static_cast<void>(mct::encodeCosmeticDesign(invalid)); }
+        catch (const std::runtime_error& error) {
+            rejected = true;
+            require(std::string(error.what()).find("65535") != std::string::npos, error.what());
+        }
+        require(rejected, "Current encode accepted product 65536.");
+        invalid = direct;
         invalid.items.push_back(mct::CosmeticDesignItem{1, 2, 0});
         rejected = false;
         try { static_cast<void>(mct::encodeCosmeticDesign(invalid)); }
@@ -347,6 +429,24 @@ int main() {
         try { static_cast<void>(mct::encodeCosmeticDesign(invalid)); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "Encode accepted only one color.");
+        for (int unknown : {0, 2, 5, 99}) {
+            const auto version = static_cast<mct::CosmeticCodeVersion>(unknown);
+            rejected = false;
+            try { static_cast<void>(mct::validateCosmeticDesign(mct::Json::parse(oneItemJson), version)); }
+            catch (const std::runtime_error& error) {
+                rejected = true;
+                require(std::string(error.what()).find("version") != std::string::npos, error.what());
+            }
+            require(rejected, "Unknown version was validated.");
+            rejected = false;
+            try { static_cast<void>(mct::encodeCosmeticDesign(direct, version)); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "Unknown version was encoded.");
+            rejected = false;
+            try { static_cast<void>(mct::maxCosmeticProductId(version)); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "Unknown version returned a product cap.");
+        }
 
         std::cout << "Cosmetic design code formatting and validation checks passed.\n"
                   << "These checks cover the item-code bytes and rejected input only. "

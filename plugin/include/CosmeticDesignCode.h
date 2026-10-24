@@ -13,9 +13,27 @@
 
 namespace mct {
 
+// Wire version written in the 6-bit header. Current codes use 16-bit product
+// ids. Legacy v3 keeps the 13-bit product field and must be requested explicitly.
+enum class CosmeticCodeVersion {
+    LegacyV3 = 3,
+    CurrentV4 = 4
+};
+
+// Default catalog cap for the current code. v3 remains 8191.
+inline constexpr int kMaxCosmeticProductId = 65535;
+
+inline int maxCosmeticProductId(CosmeticCodeVersion version = CosmeticCodeVersion::CurrentV4) {
+    switch (version) {
+    case CosmeticCodeVersion::LegacyV3: return 8191;
+    case CosmeticCodeVersion::CurrentV4: return kMaxCosmeticProductId;
+    default: throw std::runtime_error("That item-code version is not supported.");
+    }
+}
+
 // One equipped cosmetic in a validated local design. `productId` is the JSON
-// field `product_id`. Values are whole numbers already limited to the v3
-// item-code ranges; this struct does not mean the product is installed.
+// field `product_id`. Values are whole numbers already limited to the selected
+// version's product range; this struct does not mean the product is installed.
 struct CosmeticDesignItem {
     int slot = 0;
     int productId = 0;
@@ -33,13 +51,16 @@ struct CosmeticDesign {
 };
 
 // The payload is the garage apply object (`items`, `override_colors`, and
-// optional `primary` / `secondary`), not a bridge envelope. Throws
-// std::runtime_error. Does not write cvars, files, or call the game.
-CosmeticDesign validateCosmeticDesign(const Json& payload);
+// optional `primary` / `secondary`), not a bridge envelope. The default code
+// is v4. Throws std::runtime_error. Does not write cvars, files, or call the game.
+CosmeticDesign validateCosmeticDesign(const Json& payload,
+    CosmeticCodeVersion version = CosmeticCodeVersion::CurrentV4);
 
-// Encode a design from validateCosmeticDesign. Valid in-range input matches
-// the historical v3 item code byte for byte. Throws std::runtime_error.
-std::string encodeCosmeticDesign(const CosmeticDesign& design);
+// Encode a design from validateCosmeticDesign. LegacyV3 matches the historical
+// 13-bit item code byte for byte. CurrentV4 writes version 4 and 16-bit products.
+// Throws std::runtime_error.
+std::string encodeCosmeticDesign(const CosmeticDesign& design,
+    CosmeticCodeVersion version = CosmeticCodeVersion::CurrentV4);
 
 namespace cosmetic_design_detail {
 
@@ -114,6 +135,14 @@ inline void rejectBadItemNumber(WholeKind kind, const char* notWhole, const char
     if (kind != WholeKind::InRange) throw std::runtime_error(outOfRange);
 }
 
+inline int productBitWidth(CosmeticCodeVersion version) {
+    switch (version) {
+    case CosmeticCodeVersion::LegacyV3: return 13;
+    case CosmeticCodeVersion::CurrentV4: return 16;
+    default: throw std::runtime_error("That item-code version is not supported.");
+    }
+}
+
 inline std::string base64Encode(const unsigned char* data, std::size_t length) {
     static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string encoded;
@@ -132,8 +161,11 @@ inline std::string base64Encode(const unsigned char* data, std::size_t length) {
 
 } // namespace cosmetic_design_detail
 
-inline CosmeticDesign validateCosmeticDesign(const Json& payload) {
+inline CosmeticDesign validateCosmeticDesign(const Json& payload, CosmeticCodeVersion version) {
     using namespace cosmetic_design_detail;
+    const int maxProduct = maxCosmeticProductId(version);
+    const std::string wholeProduct = "Use a whole number from 1 to " + std::to_string(maxProduct) + " for the product.";
+    const std::string rangedProduct = "Choose a product from 1 to " + std::to_string(maxProduct) + ".";
     if (!payload.is_object()) throw std::runtime_error("The cosmetic design must be an object.");
     CosmeticDesign design;
     const auto items = payload.find("items");
@@ -151,10 +183,8 @@ inline CosmeticDesign validateCosmeticDesign(const Json& payload) {
                 throw std::runtime_error("Use a whole number for the cosmetic slot.");
             if (slot.kind != WholeKind::InRange || !supportedCosmeticSlot(slot.value))
                 throw std::runtime_error("That slot cannot be equipped by the local override.");
-            const auto product = readWholeNumber(item.at("product_id"), 1, 8191);
-            rejectBadItemNumber(product.kind,
-                "Use a whole number from 1 to 8191 for the product.",
-                "Choose a product from 1 to 8191.");
+            const auto product = readWholeNumber(item.at("product_id"), 1, maxProduct);
+            rejectBadItemNumber(product.kind, wholeProduct.c_str(), rangedProduct.c_str());
             int paintValue = 0;
             if (item.contains("paint")) {
                 const auto paint = readWholeNumber(item.at("paint"), 0, 18);
@@ -180,15 +210,17 @@ inline CosmeticDesign validateCosmeticDesign(const Json& payload) {
     return design;
 }
 
-inline std::string encodeCosmeticDesign(const CosmeticDesign& design) {
+inline std::string encodeCosmeticDesign(const CosmeticDesign& design, CosmeticCodeVersion version) {
     using namespace cosmetic_design_detail;
+    const int maxProduct = maxCosmeticProductId(version);
+    const int productBits = productBitWidth(version);
     if (design.items.size() > 15) throw std::runtime_error("Choose at most 15 cosmetic slots.");
     if (design.primary.has_value() != design.secondary.has_value())
         throw std::runtime_error("Choose both primary and accent colors.");
 
     // version 6, length 10, checksum 8, same-team 1, count 4,
-    // 15 * (slot 5 + product 13 + paint flag 1 + paint 6),
-    // color flag 1 + 6 * 8, esports team 6. 459 bits fit in 58 bytes.
+    // 15 * (slot 5 + product 16 + paint flag 1 + paint 6),
+    // color flag 1 + 6 * 8, esports team 6. 504 bits fit in 63 bytes.
     std::array<unsigned char, 64> bytes{};
     std::size_t bit = 0;
     auto put = [&](unsigned int value, int count) {
@@ -199,20 +231,23 @@ inline std::string encodeCosmeticDesign(const CosmeticDesign& design) {
                 bytes.at(bit / 8) |= static_cast<unsigned char>(1u << (bit % 8));
     };
 
-    put(3, 6);
+    put(static_cast<unsigned int>(version), 6);
     put(0, 18);
     put(1, 1);
     put(static_cast<unsigned int>(design.items.size()), 4);
     std::array<bool, 19> seen{};
     for (const auto& item : design.items) {
-        if (item.productId < 1 || item.productId > 8191 || item.paint < 0 || item.paint > 18 ||
-            !supportedCosmeticSlot(item.slot))
-            throw std::runtime_error("That product is outside the local item override's supported range.");
+        if (!supportedCosmeticSlot(item.slot))
+            throw std::runtime_error("That slot cannot be equipped by the local override.");
+        if (item.paint < 0 || item.paint > 18)
+            throw std::runtime_error("Choose a paint from 0 to 18.");
+        if (item.productId < 1 || item.productId > maxProduct)
+            throw std::runtime_error("Choose a product from 1 to " + std::to_string(maxProduct) + ".");
         if (seen[static_cast<std::size_t>(item.slot)])
             throw std::runtime_error("Each cosmetic slot can only appear once.");
         seen[static_cast<std::size_t>(item.slot)] = true;
         put(static_cast<unsigned int>(item.slot), 5);
-        put(static_cast<unsigned int>(item.productId), 13);
+        put(static_cast<unsigned int>(item.productId), productBits);
         put(item.paint != 0 ? 1u : 0u, 1);
         if (item.paint != 0) put(static_cast<unsigned int>(item.paint), 6);
     }

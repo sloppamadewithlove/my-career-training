@@ -1,4 +1,5 @@
 #include "MyCareerTraining.h"
+#include "CosmeticDesignCode.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -566,7 +567,7 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     std::vector<const MctProduct*> filtered;
     for (const auto& product : *runtime.products)
         if (product.slot == garageSlot_ && includesIgnoreCase(product.name, garageSearch) &&
-            (!supported || !equipableOnly || product.id <= 8191)) filtered.push_back(&product);
+            (!supported || !equipableOnly || product.id <= mct::kMaxCosmeticProductId)) filtered.push_back(&product);
     constexpr int itemsPerPage = 18;
     const int lastPage = filtered.empty() ? 0 : static_cast<int>((filtered.size() - 1) / itemsPerPage);
     page = std::clamp(page, 0, lastPage);
@@ -585,7 +586,7 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
             if (ImGui::Selectable(label.c_str(), inspectedSlot == product.slot && inspectedId == product.id,
                 0, ImVec2(0, 48))) {
                 inspectedSlot = product.slot; inspectedId = product.id;
-                if (supported && product.id <= 8191)
+                if (supported && product.id <= mct::kMaxCosmeticProductId)
                     cosmeticItems_[product.slot] = {product.id, product.paintable ? paint_ : 0};
             }
             ImGui::NextColumn();
@@ -600,8 +601,8 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     });
     if (inspected != filtered.end()) {
         const auto& product = **inspected;
-        detail(product.name + (supported && product.id <= 8191 ? "  /  selected for local design" : "  /  catalog only"));
-        if (product.id > 8191) detail("This item exceeds the verified local item-code range.");
+        detail(product.name + (supported && product.id <= mct::kMaxCosmeticProductId ? "  /  selected for local design" : "  /  catalog only"));
+        if (product.id > mct::kMaxCosmeticProductId) detail("This item exceeds the supported local item-code range.");
     }
     if (ImGui::CollapsingHeader("PAINT AND COLORS")) {
         if (ImGui::Combo("Paint", &paint_, paints, 19)) {
