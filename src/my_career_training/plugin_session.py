@@ -412,7 +412,14 @@ class PluginSession:
                 f"BakkesMod's folder from the unfinished session is not available. The backup was kept in {self.journal}.")
         unresolved = []
         errors = []
-        for record in receipt["resources"]:
+        # Remove our autoload addition before restoring the DLL. Do not keep
+        # mutating shared setup if another game starts during cleanup.
+        resources = sorted(receipt["resources"], key=lambda item: item["kind"] != "config")
+        for index, record in enumerate(resources):
+            if self.game_running():
+                receipt["resources"] = unresolved + resources[index:]
+                self._write_receipt(receipt)
+                return {"status": "deferred", "remediation": receipt.get("remediation", [])}
             try:
                 self._restore_resource(root, record)
             except PluginSessionError as exc:
@@ -497,6 +504,8 @@ class PluginSession:
                 "BakkesMod files changed while My Career was restoring them. Those files were left untouched.")
         if path.is_symlink():
             raise PluginSessionError("BakkesMod plugin path is a link. My Career left it unchanged.")
+        if self.game_running():
+            raise PluginSessionError(_OUTSTANDING_GAME)
         if replacement is None:
             if path.is_file():
                 if path.read_bytes() != expected:

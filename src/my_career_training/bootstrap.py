@@ -265,8 +265,9 @@ def run_service(directory):
     started = time.monotonic()
     plugin_seen = False
     connection_warning_shown = False
+    handoff_error_shown = False
     def tick():
-        nonlocal plugin_seen, connection_warning_shown
+        nonlocal plugin_seen, connection_warning_shown, handoff_error_shown
         try:
             backend.plugin_status = bridge.plugin_status()
             if backend.plugin_status.get("pid") != backend.owned_game.pid:
@@ -274,6 +275,13 @@ def run_service(directory):
             plugin_seen = plugin_seen or bool(backend.plugin_status)
             bridge.poll()
             if time.monotonic() - started > 5 and not is_alive(backend.owned_game):
+                # The backend's separate timer still needs to restore setup and
+                # request the normal launcher after the career process exits.
+                if backend.lifecycle.frozen:
+                    return
+                if backend.lifecycle.state == "Error/Recovery" and not handoff_error_shown:
+                    handoff_error_shown = True
+                    QMessageBox.critical(None, "My Career handoff", backend.lifecycle.last_error)
                 app.quit()
             elif time.monotonic() - started > 90 and not plugin_seen and not connection_warning_shown:
                 connection_warning_shown = True
@@ -296,7 +304,11 @@ def run_service(directory):
                 bridge.close()
             finally:
                 try:
-                    restore_plugin_session(directory)
+                    restoration = restore_plugin_session(directory)
+                    if restoration.get("status") not in {"idle", "restored"}:
+                        restore_error = PluginSessionError(
+                            "Rocket League is still open, so My Career's temporary setup could not be restored. "
+                            "Close Rocket League, then open My Career to complete recovery before playing online.")
                 except PluginSessionError as exc:
                     restore_error = exc
     if restore_error is not None:

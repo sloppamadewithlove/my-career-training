@@ -228,6 +228,61 @@ def test_online_transition_clears_stop_reason_and_allows_later_dispatch(backend)
     assert instance.document["settings"]["reduced_motion"] is True
 
 
+@pytest.mark.parametrize("conflicting_dll", [False, True])
+def test_online_handoff_restores_actual_staged_files_before_launcher(
+    backend, tmp_path, monkeypatch, conflicting_dll
+):
+    instance, _, launches = backend
+    root = tmp_path / "temporary-bakkes"
+    (root / "plugins").mkdir(parents=True)
+    (root / "cfg").mkdir()
+    dll = root / "plugins" / "MyCareerTraining.dll"
+    cfg = root / "cfg" / "plugins.cfg"
+    original_dll = b"previous-user-plugin\x00\xff"
+    original_cfg = b"plugin load alpha\r\n"
+    dll.write_bytes(original_dll)
+    cfg.write_bytes(original_cfg)
+    source = tmp_path / "MyCareerTraining.dll"
+    source.write_bytes(b"temporary-career-build")
+    setup = bridge.PluginSession(instance.store.directory, root=root, game_running=lambda: False)
+    setup.begin(source)
+    assert dll.read_bytes() == source.read_bytes()
+    assert b"plugin load MyCareerTraining" in cfg.read_bytes()
+    if conflicting_dll:
+        dll.write_bytes(b"new-user-file")
+
+    def launch(launcher):
+        assert dll.read_bytes() == original_dll
+        assert cfg.read_bytes() == original_cfg
+        assert not setup.outstanding()
+        launches.append(launcher)
+        return "online requested"
+
+    monkeypatch.setattr(bridge, "launch_online", launch)
+    instance.dispatch("online_request", {})
+    instance.dispatch("online_confirm", {"yes": True})
+    instance.lifecycle.worker_stopped()
+    if conflicting_dll:
+        assert launches == []
+        assert instance.lifecycle.state == "Error/Recovery"
+        assert dll.read_bytes() == b"new-user-file"
+        assert setup.outstanding()
+    else:
+        assert launches == ["steam"]
+        assert instance.lifecycle.state == "Online Launch Requested"
+
+
+def test_online_handoff_refuses_deferred_plugin_restoration(backend, monkeypatch):
+    instance, _, launches = backend
+    monkeypatch.setattr(bridge.PluginSession, "finish", lambda self: {"status": "deferred"})
+    instance.dispatch("online_request", {})
+    instance.dispatch("online_confirm", {"yes": True})
+    instance.lifecycle.worker_stopped()
+    assert launches == []
+    assert instance.lifecycle.state == "Error/Recovery"
+    assert "still active" in instance.lifecycle.message
+
+
 def test_completed_worker_state_ignores_late_telemetry(backend):
     instance, _, _ = backend
     instance.session_id = str(uuid.uuid4())

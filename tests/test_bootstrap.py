@@ -265,6 +265,7 @@ def _service_fakes(monkeypatch, layout, popen, game_running):
             self.owned_game = None
             self.dispatch = lambda *_args, **_kwargs: None
             self.state = {}
+            self.lifecycle = SimpleNamespace(frozen=False, state="Idle", last_error="")
 
         def _refresh_workshop(self):
             return None
@@ -401,7 +402,8 @@ def test_service_leaves_a_receipt_when_the_game_is_still_running(tmp_path, monke
     import PySide6.QtWidgets as qt_widgets
     monkeypatch.setattr(qt_widgets, "QApplication", App)
 
-    assert bootstrap.run_service(layout.data) == 0
+    assert bootstrap.run_service(layout.data) == 1
+    assert "could not be restored" in qt_widgets.QMessageBox.criticals[-1][1]
     assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
     assert layout.dll.read_bytes() == layout.source.read_bytes()
     assert layout.journal.is_file()
@@ -410,6 +412,50 @@ def test_service_leaves_a_receipt_when_the_game_is_still_running(tmp_path, monke
     assert bootstrap.recover_plugin_session(layout.data)["status"] == "restored"
     assert layout.cfg.read_bytes() == b"plugin load alpha\n"
     assert layout.dll.read_bytes() == b"old-dll"
+
+
+def test_service_waits_for_online_handoff_before_quitting(tmp_path, monkeypatch):
+    layout = _bakkes(tmp_path)
+    app_type, _box = _service_fakes(monkeypatch, layout, lambda *_args, **_kwargs: _Started(), lambda: [])
+    from my_career_training import bridge, platforms
+    import PySide6.QtCore as qt_core
+    lifecycle = SimpleNamespace(frozen=True, state="Waiting for Game Exit", last_error="")
+    original_init = bridge.Backend.__init__
+
+    def init(self, directory):
+        original_init(self, directory)
+        self.lifecycle = lifecycle
+
+    monkeypatch.setattr(bridge.Backend, "__init__", init)
+    monkeypatch.setattr(platforms, "is_alive", lambda _identity: False)
+    now = [100.0]
+    monkeypatch.setattr(bootstrap.time, "monotonic", lambda: now[0])
+    callbacks = []
+
+    class Timer:
+        def __init__(self):
+            self.timeout = SimpleNamespace(connect=callbacks.append)
+
+        def start(self, _interval):
+            pass
+
+    monkeypatch.setattr(qt_core, "QTimer", Timer)
+    quits = []
+    monkeypatch.setattr(app_type, "quit", lambda self: quits.append(True))
+
+    def run(self):
+        now[0] = 106.0
+        callbacks[0]()
+        assert quits == []
+        lifecycle.frozen = False
+        lifecycle.state = "Online Launch Requested"
+        callbacks[0]()
+        assert quits == [True]
+        return 0
+
+    monkeypatch.setattr(app_type, "exec", run)
+    assert bootstrap.run_service(layout.data) == 0
+    assert not layout.journal.exists()
 
 
 def test_service_refuses_an_outstanding_session_while_a_game_is_open(tmp_path, monkeypatch):

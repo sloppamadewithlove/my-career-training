@@ -21,6 +21,7 @@ from .content import community_catalog, garage_catalog, import_map, validate_loa
 from . import community_plugins
 from .lifecycle import Lifecycle
 from .platforms import ProcessIdentity, detect_installations, game_processes, graceful_close, is_alive, launch_online
+from .plugin_session import PluginSession, PluginSessionError
 from .storage import Store, default_state
 from .training import (assistance_preferences, catalog, configure_lesson, import_recording,
                        personal_best, validate_recording)
@@ -86,7 +87,7 @@ class Backend(QObject):
                 self.notice = "Both launchers were found. Choose Steam or Epic below; Steam is selected initially."
         self.lifecycle = Lifecycle(self._save_current, self._stop_for_online,
             lambda: graceful_close(self.owned_game), lambda: is_alive(self.owned_game) or bool(game_processes()),
-            lambda: launch_online(self.document["settings"]["launcher"]))
+            lambda: launch_online(self.document["settings"]["launcher"]), restore=self._restore_before_online)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.timer.start(200)
@@ -98,6 +99,11 @@ class Backend(QObject):
             if played:
                 latest = max(played, key=lambda f: f["result"]["completed_at"])
                 self.latest_result = dict(latest["result"], home=latest["home"], away=latest["away"])
+
+    def _restore_before_online(self):
+        result = PluginSession(self.store.directory, game_running=lambda: bool(game_processes())).finish()
+        if result.get("status") not in {"idle", "restored"}:
+            raise PluginSessionError("The temporary My Career setup is still active. Close Rocket League before retrying.")
 
     @Property("QVariantMap", notify=stateChanged)
     def state(self):

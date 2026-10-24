@@ -7,9 +7,11 @@ CONFIRMATION = "Are you sure you want to close this and play online?"
 
 
 class Lifecycle:
-    def __init__(self, save, stop_worker, close_game, game_alive, launch, clock=time.monotonic):
+    def __init__(self, save, stop_worker, close_game, game_alive, launch, clock=time.monotonic,
+                 *, restore=None):
         self.save, self.stop_worker, self.close_game = save, stop_worker, close_game
         self.game_alive, self.launch, self.clock = game_alive, launch, clock
+        self.restore = restore if restore is not None else lambda: None
         self.state = "Idle"
         self.message = ""
         self.deadline = 0
@@ -56,6 +58,11 @@ class Lifecycle:
         if self.state == "Waiting for Game Exit":
             try:
                 if not self.game_alive():
+                    self.state = "Restoring Game Setup"
+                    self.message = "Restoring the normal game setup…"
+                    self.restore()
+                    if self.game_alive():
+                        raise RuntimeError("Rocket League opened during cleanup. Close that game before retrying.")
                     self.state = "Starting Online"
                     self.message = self.launch()
                     self.state = "Online Launch Requested"

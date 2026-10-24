@@ -82,6 +82,34 @@ def test_empty_existing_config_is_restored_rather_than_deleted(layout):
     assert not layout.dll.exists()
 
 
+def test_restore_removes_autoload_first_and_defers_if_another_game_starts(layout, monkeypatch):
+    original = b"plugin load alpha\n"
+    layout.cfg.write_bytes(original)
+    alive = [False]
+    current = PluginSession(layout.data, root=layout.root, game_running=lambda: alive[0])
+    current.begin(layout.source)
+    restored = []
+    real_restore = current._restore_resource
+
+    def restore(root, record):
+        restored.append(record["kind"])
+        real_restore(root, record)
+        if record["kind"] == "config":
+            alive[0] = True
+
+    monkeypatch.setattr(current, "_restore_resource", restore)
+    assert current.finish()["status"] == "deferred"
+    assert restored == ["config"]
+    assert layout.cfg.read_bytes() == original
+    assert layout.dll.read_bytes() == layout.source.read_bytes()
+    receipt = json.loads((layout.journal / "active.json").read_text())
+    assert [item["kind"] for item in receipt["resources"]] == ["dll"]
+    alive[0] = False
+    assert current.recover()["status"] == "restored"
+    assert not layout.dll.exists()
+    assert layout.cfg.read_bytes() == original
+
+
 def test_crash_receipt_is_recovered_before_a_new_session_can_treat_it_as_legacy(layout):
     original = b"plugin load alpha\n"
     layout.cfg.write_bytes(original)

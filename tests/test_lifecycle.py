@@ -176,6 +176,55 @@ def test_game_exit_timeout_does_not_start_conflicting_online_session():
     assert log.count("close_game") == 1
 
 
+def test_online_launch_restores_setup_only_after_exit_and_before_launch():
+    log = []
+    alive = [True]
+    session = _make_lifecycle(log, game_alive=lambda: alive[0])
+    session.restore = lambda: log.append("restore")
+    session.request_online()
+    session.confirm_online(True)
+    session.worker_stopped()
+    assert "restore" not in log and "launch" not in log
+    alive[0] = False
+    session.tick()
+    assert log[-2:] == ["restore", "launch"]
+    session.tick()
+    assert log.count("restore") == 1 and log.count("launch") == 1
+
+
+def test_restoration_failure_prevents_online_launch():
+    log = []
+    session = _make_lifecycle(log)
+
+    def restore():
+        raise RuntimeError("Existing plugin changed; recovery required")
+
+    session.restore = restore
+    session.request_online()
+    session.confirm_online(True)
+    session.worker_stopped()
+    assert "launch" not in log
+    assert session.state == "Error/Recovery"
+    assert "recovery required" in session.message
+
+
+def test_another_game_starting_during_restore_prevents_second_launch():
+    log = []
+    alive = [False]
+    session = _make_lifecycle(log, game_alive=lambda: alive[0])
+
+    def restore():
+        alive[0] = True
+
+    session.restore = restore
+    session.request_online()
+    session.confirm_online(True)
+    session.worker_stopped()
+    assert "launch" not in log
+    assert session.state == "Error/Recovery"
+    assert "opened during cleanup" in session.message
+
+
 def test_launcher_failure_happens_only_after_owned_game_exit_and_is_reported():
     log = []
     alive = [True]

@@ -17,7 +17,9 @@ verification of all movie behavior.
 
 `menus::RootMenu` initializes its normal label constants through `LOCTEXT` and
 `NSLOCTEXT`, followed by uppercasing. Those script helpers call
-`ExternalInterface.call`. These normal root captions are authored/localized by
+`ExternalInterface.call` with the method name `Localize` and three payload
+arguments. The ABC omits parameter names, so the inspection does not assign
+semantic names to those arguments. These normal root captions are authored/localized by
 the movie; they are not established as label cells in `MenuTreeNodesData`.
 
 `RootMenu.generateControls` creates the Play control through
@@ -26,6 +28,17 @@ the movie; they are not established as label cells in `MenuTreeNodesData`.
 control's callback and argument array. `handleControlCallback` retrieves them
 and invokes the callback. This establishes a real native control construction
 pattern, but not a plugin-callable API for adding or replacing those controls.
+
+The normal captions are class-static values. The observed timer refresh calls
+`generateControls` again, consuming the cached strings; it does not rerun the
+class initializer. A localization observation attached after this initialization
+would therefore miss the original caption requests. That timing must inform any
+later focused trial.
+
+Selected root callback associations are `openPlayMenu`, `tryOpenShopMainMenu`,
+`tryOpenRocketPassScreen`, `openGarageSelectionMenu`, `openProfileMenu` and
+`openOptionsMenu`. Club and esports controls use separate callbacks, and Quit
+opens a shell modal. These are movie-side identifiers, not public plugin methods.
 
 The event button has a separate data source:
 `ESportEventsEventsRow.ButtonTitle` and `ButtonDescription` read the
@@ -39,6 +52,11 @@ The movie's `MenuStack.ButtonTriggered(String)` wrapper calls
 `UIShellHooks.SHELL_CallUnrealFunction` using `GFxData_MenuStack_TA`, `MenuStack`
 and `ButtonTriggered`. The menu-tree action wrapper similarly uses
 `GFxData_MenuTree_TA`, `MenuTree` and `OnChildNodeClicked`.
+
+The observed shell-call argument order is data class, table, row `0`, function
+name, and the button/child name. `UIShellHooks` initialization separately calls
+`ExternalInterface.call("InitShellHooks")`. Neither call supplies a verified
+plugin-side invocation route.
 
 `MenuTreeNodesDataRow` exposes `NodeID` and `TableName` through `DataAPI.getValue`,
 plus its row index. The inspected row wrapper has no title/label getter. Do not
