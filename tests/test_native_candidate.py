@@ -317,6 +317,18 @@ def test_spec_keeps_a_distinct_output():
     assert 'runtime" / "plugins" / "MyCareerTraining.dll"' not in text
 
 
+def test_candidate_double_click_selects_native_but_smoke_and_worker_never_do():
+    import runpy
+    entry = runpy.run_path(str(REPO / "packaging" / "native_gui_entry.py"))
+    arguments = entry["native_arguments"]
+    assert arguments([]) == ["--native-menu-trial"]
+    assert arguments(["--native-menu-trial"]) == ["--native-menu-trial"]
+    for mode in ("--worker", "--manage", "--self-test", "--smoke-test", "--help", "-h"):
+        original = [mode]
+        assert arguments(original) == original
+        assert original == [mode]
+
+
 def _build(tmp_path: Path, monkeypatch) -> SimpleNamespace:
     root = _seed(tmp_path)
     commands = []

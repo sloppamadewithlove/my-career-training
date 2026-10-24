@@ -46,7 +46,7 @@ for name in ("rlbot", "rlbot-flatbuffers", "PySide6-Essentials", "shiboken6", "p
              "torch", "numpy"):
     data += copy_metadata(name)
 a = Analysis(
-    [str(root / "packaging" / "gui_entry.py")],
+    [str(root / "packaging" / "native_gui_entry.py")],
     pathex=[str(root / "src")], binaries=[], datas=data,
     hiddenimports=["PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickControls2",
                    "PySide6.QtSvg", "pygame", "rlbot", "rlbot.flat", "torch", "numpy"],

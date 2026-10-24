@@ -25,11 +25,11 @@ freeze. Add `--freeze` to run PyInstaller into:
 `build/native-candidate/dist/MyCareerTrainingNativeCandidate`
 
 That folder contains `MyCareerTraining.exe` and `MyCareerTrainingWorker.exe`.
-The GUI command is the existing entry point. `--native-menu-trial` is the only
-switch that starts the owned native offline session. It cannot be combined
-with `--worker`, `--self-test`, `--smoke-test`, or `--manage`.
+The candidate has its own small GUI entry point. A normal double-click selects
+`--native-menu-trial` automatically. Explicit `--worker`, `--manage`, `--self-test`,
+`--smoke-test`, and help modes retain their separate behavior and do not acquire
+the native launch flag. The normal release entry point is unchanged.
 
-Without that flag, the same executable still uses the normal offline service.
 This bundle's only plugin DLL was compiled with the movie trial on. Packaged
 `plugin_binary()` selects that DLL. Do not treat this executable as a
 substitute for `dist/MyCareerTraining`.
