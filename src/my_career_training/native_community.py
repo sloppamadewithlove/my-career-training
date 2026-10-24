@@ -216,7 +216,7 @@ class NativeCommunityController:
         """
         if self._loaded or self._pending is not None or self._session.outstanding():
             raise NativeCommunityError("A community trial is already staged.")
-        observed = self._observe()
+        observed = self._observe(True)
         profile = self._profile
         command = derived_plugin_commands(profile.site_id, observed.scope.nonce)
         self._expected = observed
@@ -305,7 +305,7 @@ class NativeCommunityController:
                 or parsed["archive_sha256"] != pending.archive_sha256):
             return self._decision(False, "foreign")
         try:
-            current = self._observe()
+            current = self._observe(False)
         except NativeCommunityError:
             return self._decision(False, "unknown")
         if (current.scope.pid != pending.pid or current.scope.nonce != pending.nonce
@@ -355,7 +355,14 @@ class NativeCommunityController:
                 raise CommunitySessionError("Process state could not be checked. Files were left in place.")
         return False
 
-    def _observe(self) -> _Observation:
+    def _observe(self, require_frontend: bool = True) -> _Observation:
+        """Read the live lease. Staging requires the frontend and the movie.
+
+        Receipt acceptance passes ``require_frontend=False``. The owned
+        identity and fresh heartbeat still have to match, including a local
+        match whose frontend flag is actually false. A missing or non-boolean
+        flag is not treated as ready.
+        """
         try:
             scope = self._lease()
             runtime = self._runtime()
@@ -368,7 +375,9 @@ class NativeCommunityController:
         if not isinstance(scope, OwnedTrialScope):
             raise NativeCommunityError("The owned offline lease is not active.")
         if (scope.development_trial is not True or scope.fresh is not True or scope.offline is not True
-                or scope.steam is not True or scope.frontend is not True):
+                or scope.steam is not True or type(scope.frontend) is not bool):
+            raise NativeCommunityError("The owned offline lease is not active.")
+        if require_frontend and scope.frontend is not True:
             raise NativeCommunityError("The owned offline lease is not active.")
         pinned = pinned_profile()
         if not isinstance(runtime, RuntimeIdentity):
@@ -376,8 +385,11 @@ class NativeCommunityController:
         if (runtime.game_exe_sha256 != pinned.game_exe_sha256 or runtime.core_identity != pinned.core_identity
                 or runtime.build_identity != pinned.build_identity):
             raise NativeCommunityError("Runtime identity does not match the pinned trial.")
-        self._require_heartbeat(heartbeat, scope)
-        if ready is not True:
+        self._require_heartbeat(heartbeat, scope, require_frontend=require_frontend)
+        if require_frontend:
+            if ready is not True:
+                raise NativeCommunityError("The native movie is not ready.")
+        elif ready is not True and ready is not False:
             raise NativeCommunityError("The native movie is not ready.")
         if (self._profile.game_exe_sha256 != runtime.game_exe_sha256
                 or self._profile.core_identity != runtime.core_identity
@@ -385,16 +397,22 @@ class NativeCommunityController:
             raise NativeCommunityError("Runtime identity does not match the pinned trial.")
         return _Observation(scope, runtime)
 
-    def _require_heartbeat(self, heartbeat: object, scope: OwnedTrialScope) -> None:
+    def _require_heartbeat(self, heartbeat: object, scope: OwnedTrialScope, *, require_frontend: bool) -> None:
         if type(heartbeat) is not dict:
             raise NativeCommunityError("The plugin heartbeat does not match the owned session.")
         published = heartbeat.get("published_at")
         pid = heartbeat.get("pid")
         protocol = heartbeat.get("protocol")
+        in_game = heartbeat.get("in_game")
         if (type(protocol) is not int or protocol != 1 or heartbeat.get("bridge_session") != scope.nonce
                 or type(pid) is not int or pid != scope.pid
-                or heartbeat.get("online") is not False or heartbeat.get("in_game") is not False
+                or heartbeat.get("online") is not False or type(in_game) is not bool
                 or type(published) is bool or type(published) not in (int, float)):
+            raise NativeCommunityError("The plugin heartbeat does not match the owned session.")
+        if require_frontend or scope.frontend is True:
+            if in_game is not False:
+                raise NativeCommunityError("The plugin heartbeat does not match the owned session.")
+        elif in_game is not True:
             raise NativeCommunityError("The plugin heartbeat does not match the owned session.")
 
     def _verify_scope(self, scope: OwnedTrialScope) -> bool:
@@ -402,7 +420,7 @@ class NativeCommunityController:
         if expected is None:
             return False
         try:
-            current = self._observe()
+            current = self._observe(True)
         except NativeCommunityError:
             return False
         return current.scope == scope and current == expected

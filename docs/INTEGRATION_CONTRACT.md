@@ -56,6 +56,12 @@ It maps only that verified core to the controller's `Bakkes229` identity. A pend
 load blocks new activities but permits quitting. Scope loss, an attributed host
 refusal, or ten seconds without confirmation withdraws the request permanently
 for that session and sets `requires_restart`; it never silently resends later.
+After dispatch, an exact loaded acknowledgement may be accepted in the same
+owned offline match even if the frontend movie is no longer ready. Staging still
+requires the frontend at every boundary. A transition hides the outgoing request
+permanently while keeping the activity lock until acknowledgement or timeout.
+Loss of actual owned/offline scope also revokes an already-loaded trial's enabled
+status and requires closing that session.
 Interrupted community journals are recovered before offline startup, final plugin
 restoration, and normal online handoff. Game/helper presence or a changed file keeps
 the journal and prevents handoff; no live community plugin unload is issued.

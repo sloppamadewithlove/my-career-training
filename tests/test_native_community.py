@@ -104,6 +104,8 @@ class Probes:
         self.helper = False
         self.game_error = False
         self.online = False
+        self.in_game = False
+        self.frontend = True
         self.movie_fail_at = None
         self.movie_value = True
         self.lease_mode = "scope"
@@ -113,7 +115,9 @@ class Probes:
         self.counts["lease"] += 1
         if self.lease_mode == "dict":
             return {"fresh": True, "offline": True, "steam": True, "frontend": True}
-        return self.scope
+        if self.frontend is True:
+            return self.scope
+        return replace(self.scope, frontend=False)
 
     def runtime_cb(self):
         self.counts["runtime"] += 1
@@ -128,7 +132,7 @@ class Probes:
             "published_at": 1_700_000_000,
             "pid": scope.pid,
             "online": self.online,
-            "in_game": False,
+            "in_game": self.in_game,
             "version": "0.3.0",
         }
 
@@ -318,6 +322,27 @@ def test_stale_pid_nonce_and_start_identity_cannot_enable(world, field, value):
     assert result["accepted"] is False and result["reason"] == "stale" and result["enabled"] is False
     assert world.controller.state()["status"] == "staged"
     assert world.destination.read_bytes() == world.dll
+
+
+def test_local_match_ack_is_accepted_and_prepare_is_not(world):
+    world.stage()
+    request = world.controller.request()
+    world.probes.frontend = False
+    world.probes.in_game = True
+    world.probes.movie_value = False
+    result = world.controller.accept_status(confirmation(request))
+    assert result["accepted"] is True and result["reason"] == "loaded" and result["enabled"] is True
+    assert result["game_verified"] is False and result["can_activate"] is False
+    assert world.controller.request() is None
+
+    denied = World(world.app.parent / "local-match")
+    denied.probes.frontend = False
+    denied.probes.in_game = True
+    denied.probes.movie_value = False
+    with pytest.raises(NativeCommunityError):
+        denied.stage()
+    assert not denied.journal.exists() and not denied.destination.exists()
+    assert denied.snapshot() == denied.before
 
 
 def test_live_pid_drift_cannot_enable(world):
