@@ -26,10 +26,13 @@ def isolate_live_registry(monkeypatch):
 
 
 def write_libraries(path: Path, libraries: list[Path]) -> None:
+    def vdf_quote(value: str) -> str:
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
     lines = ['"libraryfolders"', "{"]
     for index, library in enumerate(libraries):
         lines.extend([
-            f'"{index}"', "{", f'"path" "{library}"',
+            f'"{index}"', "{", f'"path" {vdf_quote(str(library))}',
             '"contentid" "sentinel-content-id"', '"AccountName" "secret-user"', "}",
         ])
     lines.append("}")
@@ -163,7 +166,7 @@ def test_old_libraryfolders_uses_only_absolute_library_paths(tmp_path):
             '"LibraryFolders"', "{",
             '"TimeNextStatsReport" "111"',
             '"ContentStatsID" "sentinel-content-id"',
-            f'"1" "{library}"',
+            '"1" "' + str(library).replace("\\", "\\\\") + '"',
             "}", "",
         ]),
         encoding="utf-8",
@@ -174,6 +177,15 @@ def test_old_libraryfolders_uses_only_absolute_library_paths(tmp_path):
     assert document["steam"]["app_252950"]["build_id"] == "25914621"
     assert document["game"]["executable"]["status"] == "hashed"
     assert_private(document, (str(tmp_path), "library-two", "rocketleague"))
+
+
+def test_vdf_decodes_escaped_windows_library_path_on_every_platform():
+    serialized = r'"libraryfolders" { "0" { "path" "C:\\Program Files (x86)\\Steam" } }'
+
+    paths = baseline._library_paths(baseline._parse_vdf(serialized))
+
+    assert paths == [r"C:\Program Files (x86)\Steam"]
+    assert baseline._is_absolute_library_path(paths[0])
 
 
 def test_disagreeing_build_ids_are_not_guessed(tmp_path):
