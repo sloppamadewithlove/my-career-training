@@ -1,0 +1,57 @@
+{
+  "source_commit": "2fed6cd9e02aadc1ed45b2e2c6535d1a191ef99a",
+  "archive": "MyCareerTraining-NativeCandidate-2fed6cd.zip",
+  "archive_sha256": "cef146fa3efa01b02aad44ee972067862815932f550b95595a9e5078c02849e6",
+  "packaging_revision": "f435babdc2ac03ebc72bdf9f55cb2e3421cf2dd5",
+  "archive_bytes": 266913174,
+  "file_count": 4471,
+  "passed": true,
+  "game_verified": false,
+  "production_ready": false,
+  "python_integration_tests_passed": 174,
+  "plugin_tests_per_configuration": 25,
+  "packaging_tests_passed": 24,
+  "plugin_configurations": [
+    "native_trial_off",
+    "native_trial_on"
+  ],
+  "launcher_and_file_view_tests_passed": 12,
+  "frozen_candidate_smoke": {
+    "artifacts": {
+      "MyCareerTraining.exe": "9295322697391d09466b4c53c0ffa54bb7144c96ea996bc8fe09d9ca9d9f672b",
+      "MyCareerTrainingWorker.exe": "65718a182d3fc854ed25395fe5d8e1035cfd4cbc693a40711dc18dae71513d20",
+      "_internal/candidate-manifest.json": "00970841dc3cfab4568fc86c0f9fa35e10c9a5af6bbebc9fb6597d2987ee9b82",
+      "_internal/my_career_training/runtime/native/MctNativeFileView64.dll": "e04c7c1e57b34e32c0fff9b0b49ef40b848ae4ee14801b94626d1da449187556",
+      "_internal/my_career_training/runtime/native/MctNativeLauncher.exe": "84492e3ea986de56c09648da3a173d9372a0fb4383b10229c6e0616e050002a2",
+      "_internal/my_career_training/runtime/plugins/MyCareerTraining.dll": "9a73c7eb5821087220aa2e4f6eb87de1c475673a02b342318f34b373b8b4976d"
+    },
+    "checks": [
+      "candidate manifest",
+      "candidate runtime allowlists",
+      "PE AMD64",
+      "frozen UI",
+      "worker pipes",
+      "RLBot checksum",
+      "plugin PE exports/imports"
+    ],
+    "distribution": "developer_candidate",
+    "game_verified": false,
+    "gameplay_verified": false,
+    "helper_executed": false,
+    "kind": "native_menu_candidate_smoke",
+    "live_rocket_league": false,
+    "native_host_probe": false,
+    "native_movie_trial": true,
+    "passed": true,
+    "production_ready": false,
+    "runtime_verified": false
+  },
+  "computer": "SLAVAPC",
+  "operating_system": "Windows 11 Home 64-bit, 10.0.26200",
+  "game_or_injector_running_at_completion": false,
+  "notes": [
+    "Frozen app compiled from source_commit; packaging_revision adds pinned-core validation, notice preflight, and ambient ICU exclusion.",
+    "Collected dependency notices were added after the initial freeze; the final bundle passed the full smoke check.",
+    "Only native game-host verification remains outside these automated checks; feature limitations are in NATIVE_ACCEPTANCE_SESSION.md and the candidate readme."
+  ]
+}
