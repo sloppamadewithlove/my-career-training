@@ -29,6 +29,8 @@ def qt_app():
 def backend(tmp_path, monkeypatch, qt_app):
     game_running = {"value": False}
     launches = []
+    monkeypatch.setattr(bridge, "native_launcher_pending", lambda: False)
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: False)
     monkeypatch.setattr(bridge, "detect_installations", lambda: [])
     monkeypatch.setattr(
         bridge, "game_processes", lambda: ["mock-rocket-league"] if game_running["value"] else []

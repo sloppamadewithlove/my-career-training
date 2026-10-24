@@ -646,7 +646,8 @@ class Backend(QObject):
         self.process.errorOccurred.connect(self._process_error)
         self.process.finished.connect(self._process_finished)
         if getattr(sys, "frozen", False):
-            program, arguments = str(Path(sys.executable).with_name("MyCareerTrainingWorker.exe")), []
+            program = str(Path(sys.executable).parent / "_internal" / "MyCareerTrainingWorker.exe")
+            arguments = ["--worker"]
         else:
             program, arguments = sys.executable, ["-m", "my_career_training", "--worker"]
         self.process.start(program, arguments)

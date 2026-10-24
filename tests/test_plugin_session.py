@@ -11,7 +11,9 @@ from my_career_training.plugin_session import PluginSession, PluginSessionError
 
 
 @pytest.fixture
-def layout(tmp_path):
+def layout(tmp_path, monkeypatch):
+    # Synthetic plugin files must not depend on a real developer test session.
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: False)
     root = tmp_path / "bakkes"
     (root / "plugins").mkdir(parents=True)
     (root / "cfg").mkdir()
@@ -274,6 +276,25 @@ def test_concurrent_game_refuses_setup_and_defers_an_outstanding_receipt(layout)
     assert session(layout, running=False).recover()["status"] == "restored"
     assert not layout.dll.exists()
     assert not layout.cfg.exists()
+
+
+def test_pending_native_helper_blocks_setup_and_defers_recovery(layout, monkeypatch):
+    pending = [True]
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: pending[0])
+    current = session(layout, running=False)
+    with pytest.raises(PluginSessionError, match="offline menu helper"):
+        current.begin(layout.source)
+    assert not layout.cfg.exists() and not layout.dll.exists()
+    pending[0] = False
+    current.begin(layout.source)
+    before = (layout.cfg.read_bytes(), layout.dll.read_bytes())
+    pending[0] = True
+    with pytest.raises(PluginSessionError, match="will not start another session"):
+        current.recover()
+    assert current.finish()["status"] == "deferred"
+    assert (layout.cfg.read_bytes(), layout.dll.read_bytes()) == before
+    pending[0] = False
+    assert current.finish()["status"] == "restored"
 
 
 def test_corrupt_receipt_blocks_a_new_session_without_writing_bakkes_files(layout):

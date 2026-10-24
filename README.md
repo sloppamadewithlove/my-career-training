@@ -1,103 +1,57 @@
 # My Career Training
 
-A solo career and training mod for **Rocket League on Windows / Steam**.
-The goal is a desktop shortcut that starts offline Rocket League with Career,
-Training, Garage, Workshop and Settings in the game's own menu style.
-Squad, Schedule and League Table belong inside Career.
+An offline career and training mod for the player's installed **Rocket League
+on Windows / Steam**. The intended experience is one shortcut, the game's own
+menu style, a human captain with four bot squad members, and optional practice.
 
-**A compiled native-menu test build is available from the
-[project website](https://my-career-training.vercel.app/).** Extract the complete
-portable ZIP and run `MyCareerTraining.exe`; no developer tools are required.
-It targets the pinned Steam build on SLAVAPC and requires installed Rocket League
-and BakkesMod. Automated checks passed; native menus, gameplay and restoration
-still require in-game verification. The stable installer remains on hold.
+**The 24 October Windows ZIP failed player testing: Rocket League crashed while
+loading its replacement menu. Do not treat that download as a working release.**
+The repair and its evidence are tracked in [project status](docs/PROJECT_STATUS.md).
+Source tests and a compiled installer do not establish playable game support.
 
-The [24 October candidate release](https://github.com/sloppamadewithlove/my-career-training/releases/tag/native-candidate-2026-10-24)
-contains the exact compiled package, checksums, validation evidence, source and
-current limits. The owner authorized this separate prerelease for testing.
+[Website](https://my-career-training.vercel.app/) ·
+[Releases](https://github.com/sloppamadewithlove/my-career-training/releases) ·
+[Build guide](docs/BUILDING.md) · [Documentation map](docs/README.md)
 
-[Project website](https://my-career-training.vercel.app/) ·
-[Current development status](docs/RELEASE_NOTES.md) ·
-[Native menu investigation](docs/NATIVE_MENU_RESEARCH.md)
+## How the app fits together
 
-The [native-menu implementation plan](docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md)
-maps candidate Rocket League menu classes, compares proven techniques in
-other games, and defines the tests needed to replace native controls while
-preserving the normal Steam installation. This is a researched design, not a
-claim that the native-menu edition already works.
+| Part | Job |
+| --- | --- |
+| My Career Training | Starts the offline session, manages careers, and saves progress |
+| Native menu and in-game plugin | Connect the game's buttons to career and practice actions |
+| BakkesMod | Hosts that plugin and supported cosmetic/community features |
+| RLBot and the private worker | Run bots, read match results, and reset practice situations |
 
-## What is implemented, and what remains unverified
+Players open **My Career Training**. They never need to open its Worker. The
+installer includes the app's support files; missing BakkesMod uses guided official
+setup. Python, Visual Studio, Cursor and AI subscriptions are developer tools,
+not player requirements. BakkesMod's runtime is not redistributed here.
 
-The source includes career seasons and lineups, local bot providers, training
-lessons, recorded ghost playback, a PlayStation-style action display, a workshop
-library, and local cosmetic controls. These are implementation details, not a
-claim that every feature works in the player's game.
+My Career uses the supported offline launch mode. It does not grant online
+inventory, modify installed game packages, or bypass online anti-cheat.
+Normal Steam launch must remain separate and original. Steam is the current
+test target; Epic has not passed its own acceptance test.
 
-Earlier repairs fix Windows bridge file-sharing conflicts, replace
-repeated menu-open requests with transition-based navigation, simplify the
-interface, and add guided setup for the official BakkesMod installer. Windows
-source, plugin and frozen-application checks passed for
-[PR #2](https://github.com/sloppamadewithlove/my-career-training/pull/2).
-Installer creation and upload were deliberately skipped in that run. The 0.3.0
-workflow also builds and checks installation, same-version reinstall and
-uninstallation while keeping stable installer artifacts on hold. The separate
-native candidate is published for testing. These automated
-checks do not verify gameplay, older-version upgrades or native menu replacement.
+## Start here as a contributor
 
-A supported [native dialog trial](docs/NATIVE_DIALOG_TRIAL.md) now routes Career
-and Training buttons through Rocket League dialogs. It is opt-in development
-code: it does not replace the full menu, disable stock buttons, or prove
-controller and Back/Escape behavior. The installer hold remains in place.
+1. Read [current status](docs/PROJECT_STATUS.md), then [AGENTS.md](AGENTS.md).
+2. Use the [build guide](docs/BUILDING.md) and
+   [shared integration contract](docs/INTEGRATION_CONTRACT.md).
+3. Check the [product specification](docs/BUILD_SPEC.md) and
+   [native game acceptance guide](docs/NATIVE_ACCEPTANCE_SESSION.md).
+4. Keep private logs, saves, game files, account IDs and credentials out of
+   commits and release attachments. See [privacy rules](docs/REPOSITORY_PRIVACY.md).
 
-The 0.3.0 source journals temporary BakkesMod plugin setup and restores the
-previous files after the game closes. Interrupted sessions keep a recovery
-record; conflicting user changes are preserved. The old custom-map substitution
-route is disabled because it writes an installed Rocket League map. Workshop
-browsing and favorites remain available.
+| Folder | Contents |
+| --- | --- |
+| `src/my_career_training/` | Career, practice, bot, save and startup code |
+| `native_ui/` | Authored native-menu classes and compiled bytecode |
+| `plugin/` | C++ BakkesMod integration and native tests |
+| `native_launcher/`, `native_file_view/` | Owned offline launch and private menu-file view |
+| `scripts/`, `packaging/` | Build, installer and validation tools |
+| `tests/` | Automated Python regressions using temporary data |
+| `docs/`, `website/` | Current guidance, historical evidence and download page |
 
-A read-only [menu diagnostic](docs/NATIVE_MENU_PROBE.md) supports investigation
-on the player's installed Steam build. It does not edit game memory, replace
-menus, or certify compatibility. Native button ownership, click routing,
-controller navigation and restoration still need real Windows game evidence.
-
-The development [community plugin library](docs/COMMUNITY_PLUGINS.md) can check
-creator releases and download packages into a private cache. Downloads are not
-enabled in the game: isolated third-party loading remains unverified. The
-[Windows baseline helper](docs/WINDOWS_VALIDATION.md) collects a sanitized game
-identity report without launching or changing Steam, Rocket League or BakkesMod.
-
-## Setup direction
-
-BakkesMod is the third-party framework targeted by the current in-game plugin.
-Its official [RL2.78/BM229 compatibility release](https://github.com/bakkesmodorg/BakkesModInjectorCpp/releases/tag/2.0.78)
-was published on 20 October 2026. Loading this project's plugin on the player's
-exact current build still needs verification.
-The repaired source offers a guided download of its verified official installer,
-followed by the normal Windows installation steps when it is missing. We do not
-bundle BakkesMod or install unrelated community plugins. See
-[the official BakkesMod site](https://bakkesmod.com/).
-
-The native-menu design must preserve the original Steam installation and saves,
-use the player's installed game assets, and run only in an owned offline
-session. This repository does not redistribute Rocket League assets or grant
-online inventory items. Native integration must refuse an unverified game update
-before making any changes.
-
-## Development and evidence
-
-- [Player guide and known issues](docs/IN_GAME_PLAYER_GUIDE.md)
-- [Acceptance record](docs/IN_GAME_ACCEPTANCE.md)
-- [Native menu investigation and release gate](docs/NATIVE_MENU_RESEARCH.md)
-- [Native implementation plan](docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md) and [cross-game precedents](docs/research/NATIVE_MENU_PRECEDENTS.md)
-- [Runtime adapter follow-up](docs/research/NATIVE_RUNTIME_ADAPTERS.md)
-- [Read-only menu diagnostic](docs/NATIVE_MENU_PROBE.md)
-- [Windows Codex handoff and read-only game-file comparison](docs/WINDOWS_CODEX_HANDOFF.md)
-- [Design-engineer handoff for Opus 5.5](docs/OPUS_DESIGN_BRIEF.md) — a brief; no completed Opus review is claimed.
-- [Bot providers](docs/BOT_PROVIDERS.md) and [workshop library](docs/WORKSHOP_LIBRARY.md)
-- [Plugin capabilities and build](plugin/README.md)
-
-GitHub is canonical. The [Cursor Origin mirror](https://origin.cursor.com/sloppamadewithlove/my-career-training.git)
-is configured. Project code is MIT-licensed; third-party attribution is in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Historical previews and their
-known failures remain documented in the release history; they are not the
-requested native-menu edition.
+`runtime/`, `build/`, `dist/` and `release/` are generated and ignored by Git.
+GitHub is the source of truth; Cursor Origin is a mirror. Older research notes
+remain linked through the documentation map and are not acceptance claims.

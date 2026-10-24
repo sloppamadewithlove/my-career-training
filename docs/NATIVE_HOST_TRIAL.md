@@ -8,7 +8,7 @@ it does not certify navigation changes or compatibility of an Unreal object
 layout. The development target is excluded from installation and disabled in
 CMake by default. The public installer hold remains in place.
 
-The 24 October 2026 SLAVAPC trial loaded and unloaded successfully. It observed
+The 24 October 2026 Windows host trial loaded and unloaded successfully. It observed
 BakkesMod **229**, game build **261013.63066.530866**, and the startup movie
 **StartMenuMovie**. The game was offline and outside a match. The temporary DLL
 was removed after the game closed; every inspected BakkesMod configuration file

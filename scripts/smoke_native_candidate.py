@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import sys
 import tempfile
 import uuid
@@ -27,7 +28,7 @@ from smoke_package import run_smoke  # noqa: E402
 DEFAULT_RECEIPT = Path(__file__).resolve().parents[1] / "build" / "native-menu-candidate-smoke-receipt.json"
 ARTIFACTS = (
     "MyCareerTraining.exe",
-    "MyCareerTrainingWorker.exe",
+    "_internal/MyCareerTrainingWorker.exe",
     "_internal/my_career_training/runtime/plugins/MyCareerTraining.dll",
     "_internal/my_career_training/runtime/native/MctNativeLauncher.exe",
     "_internal/my_career_training/runtime/native/MctNativeFileView64.dll",
@@ -72,17 +73,46 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         validate_bundle(bundle)
+        before = bundle_inventory(bundle)
         with tempfile.TemporaryDirectory(prefix="MCT native candidate ") as temp:
             root = Path(temp)
             destination = root / "MCT native candidate é 球"
             shutil.copytree(bundle, destination)
+            if bundle_inventory(destination) != before:
+                raise candidate.CandidateBuildError("copied bundle differs from the candidate")
             run_smoke(destination, root / "Player data é 球")
+            if bundle_inventory(destination) != before:
+                raise candidate.CandidateBuildError("smoke check modified the copied bundle")
+        if bundle_inventory(bundle) != before:
+            raise candidate.CandidateBuildError("candidate changed during its smoke check")
         _write_json(receipt, _evidence(bundle))
     except (candidate.CandidateBuildError, AssertionError, RuntimeError, OSError) as exc:
         print(f"native candidate smoke failed: {exc}", file=sys.stderr)
         return 1
     print("Native candidate smoke passed; helper was not executed and gameplay was not verified")
     return 0
+
+
+def bundle_inventory(bundle: Path) -> dict[str, str]:
+    """Hash every installed file, refusing links and special files."""
+    bundle = Path(bundle)
+    pending = [bundle]
+    inventory = {}
+    while pending:
+        entry = pending.pop()
+        info = entry.lstat()
+        if entry.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise candidate.CandidateBuildError("candidate contains a linked file or directory")
+        if stat.S_ISDIR(info.st_mode):
+            pending.extend(entry.iterdir())
+        elif stat.S_ISREG(info.st_mode):
+            with entry.open("rb") as stream:
+                inventory[entry.relative_to(bundle).as_posix()] = hashlib.file_digest(stream, "sha256").hexdigest()
+        else:
+            raise candidate.CandidateBuildError("candidate contains a special file")
+    if not inventory:
+        raise candidate.CandidateBuildError("candidate bundle is empty")
+    return dict(sorted(inventory.items()))
 
 
 def _evidence(bundle: Path) -> dict:
@@ -94,6 +124,7 @@ def _evidence(bundle: Path) -> dict:
         artifacts[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     return {
         "artifacts": artifacts,
+        "bundle_files": bundle_inventory(bundle),
         "checks": list(CHECKS),
         "distribution": "developer_candidate",
         "game_verified": False,

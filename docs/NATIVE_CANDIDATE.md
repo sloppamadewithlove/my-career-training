@@ -1,8 +1,9 @@
 # Native menu candidate
 
-This is a separate developer bundle. It is not the Windows release, not an
-installer, and not evidence that Rocket League showed the menu or started a
-match. `gameplay_verified`, `game_verified`, `production_ready`,
+This is a separate developer bundle. See [current status](PROJECT_STATUS.md):
+the published 24 October ZIP failed live startup. A separate test-installer
+recipe now wraps the candidate; it is not the stable release or evidence that
+Rocket League showed the menu or started a match. `gameplay_verified`, `game_verified`, `production_ready`,
 `runtime_verified`, and `native_host_probe` stay false. The normal release
 plugin is still built with `MCT_ENABLE_NATIVE_MOVIE_TRIAL=OFF` and
 `MCT_BUILD_HOST_PROBE=OFF` by `scripts/build_plugin.py`.
@@ -24,7 +25,8 @@ freeze. Add `--freeze` to run PyInstaller into:
 
 `build/native-candidate/dist/MyCareerTrainingNativeCandidate`
 
-That folder contains `MyCareerTraining.exe` and `MyCareerTrainingWorker.exe`.
+That folder exposes only `MyCareerTraining.exe`. The private helper is inside
+`_internal/MyCareerTrainingWorker.exe` and is started with explicit `--worker`.
 The candidate has its own small GUI entry point. A normal double-click selects
 `--native-menu-trial` automatically. Explicit `--worker`, `--manage`, `--self-test`,
 `--smoke-test`, and help modes retain their separate behavior and do not acquire

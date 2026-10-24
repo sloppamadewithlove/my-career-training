@@ -142,7 +142,7 @@ def default_bundle(root: Path | None = None) -> Path:
     return candidate_dir(root) / "dist" / BUNDLE_NAME
 
 
-def freeze_command(root: Path | None = None) -> list[str]:
+def freeze_command(root: Path | None = None, *, clean: bool = False) -> list[str]:
     root = _root(root)
     command = [
         sys.executable, "-m", "PyInstaller", "--noconfirm",
@@ -150,6 +150,8 @@ def freeze_command(root: Path | None = None) -> list[str]:
         "--workpath", str(candidate_dir(root) / "pyinstaller"),
         str(root / "packaging" / "my-career-training-native.spec"),
     ]
+    if clean:
+        command.insert(4, "--clean")
     _assert_isolated([command], root)
     return command
 
@@ -180,6 +182,7 @@ def build_candidate(
     freeze: bool = False,
     runner=None,
     source_commit: str | None = None,
+    clean_freeze: bool = False,
 ) -> dict:
     """Compile, stage, and verify. PyInstaller runs only when ``freeze`` is true."""
     root = _root(root)
@@ -202,7 +205,7 @@ def build_candidate(
     _write_json(candidate_dir(root) / MANIFEST_NAME, manifest)
     verified = verify_candidate(root)
     if freeze:
-        _run([freeze_command(root)], runner, root)
+        _run([freeze_command(root, clean=clean_freeze)], runner, root)
     return verified
 
 
@@ -372,11 +375,18 @@ def _assert_isolated(commands: list[list[str]], root: Path) -> None:
         str(root / "dist"),
     }
     for command in commands:
+        pairs = list(zip(command, command[1:]))
+        clean_freeze = (command[:3] == [sys.executable, "-m", "PyInstaller"]
+                        and ("--workpath", str(candidate_dir(root) / "pyinstaller")) in pairs
+                        and ("--distpath", str(candidate_dir(root) / "dist")) in pairs
+                        and command[-1] == str(root / "packaging" / "my-career-training-native.spec"))
         if command[:2] == ["cmake", "-S"] and "-B" in command:
             build_dir = command[command.index("-B") + 1]
             if not build_dir.startswith(str(candidate_dir(root))):
                 raise CandidateBuildError("candidate CMake build directory is not isolated")
         for part in command:
+            if part == "--clean" and clean_freeze:
+                continue
             if part in reserved or any(token in part for token in _FORBIDDEN_ARGUMENTS):
                 raise CandidateBuildError("candidate command is not isolated from the normal release")
             if "MCT_BUILD_HOST_PROBE=ON" in part or "MCT_ENABLE_NATIVE_MOVIE_TRIAL=OFF" in part:

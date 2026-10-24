@@ -27,6 +27,34 @@ void require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+// Failure text only. Host status codes are short identifiers; anything else is redacted.
+std::string statusToken(const Json& status, const char* key) {
+    if (!status.is_object() || !status.contains(key)) return "missing";
+    if (!status[key].is_string()) return "not_string";
+    const std::string value = status[key].get<std::string>();
+    if (value.empty() || value.size() > 64) return "redacted";
+    for (unsigned char character : value) {
+        const bool identifier = (character >= 'a' && character <= 'z') ||
+                                (character >= 'A' && character <= 'Z') ||
+                                (character >= '0' && character <= '9') || character == '_';
+        if (!identifier) return "redacted";
+    }
+    return value;
+}
+
+std::string hostPinText(const NativeCommunityHost& host) {
+    const Json status = host.status();
+    std::string text = "status=";
+    text += statusToken(status, "status");
+    text += " reason=";
+    text += statusToken(status, "reason");
+    text += " commands=";
+    text += std::to_string(host.commands());
+    text += " holding=";
+    text += host.holding() ? "true" : "false";
+    return text;
+}
+
 std::string digestOf(const std::vector<unsigned char>& bytes) {
     workshop_load_detail::Sha256 hash;
     hash.update(bytes.data(), bytes.size());
@@ -70,6 +98,28 @@ void writeBytes(const std::filesystem::path& path, const std::vector<unsigned ch
     require(static_cast<bool>(file), "fixture write failed");
     file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     require(static_cast<bool>(file), "fixture write failed");
+}
+
+// Hosted Windows TEMP can be an 8.3 alias. Production compares the opened file with
+// GetFinalPathNameByHandleW(FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) after stripping \\?\.
+// The directory must exist before that query, and later paths are built from the result.
+std::filesystem::path finalDosDirectory(const std::filesystem::path& path) {
+    std::filesystem::create_directories(path);
+    const HANDLE opened =
+        CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    require(opened != INVALID_HANDLE_VALUE, "fixture path resolution failed");
+    constexpr DWORD kCapacity = 4096;
+    wchar_t resolved[kCapacity] = {};
+    const DWORD length = GetFinalPathNameByHandleW(opened, resolved, kCapacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CloseHandle(opened);
+    const bool drivePrefix =
+        length >= 7 && length < kCapacity && resolved[0] == L'\\' && resolved[1] == L'\\' && resolved[2] == L'?' &&
+        resolved[3] == L'\\' &&
+        ((resolved[4] >= L'A' && resolved[4] <= L'Z') || (resolved[4] >= L'a' && resolved[4] <= L'z')) &&
+        resolved[5] == L':' && resolved[6] == L'\\';
+    require(drivePrefix, "fixture path resolution failed");
+    return std::filesystem::path(std::wstring(resolved + 4, resolved + length));
 }
 
 struct World {
@@ -220,9 +270,10 @@ int main(int argc, char** argv) {
 #else
     try {
         require(!NativeCommunityHost::kGameVerified && !NativeCommunityHost::kProductionAllowed, "trial flags");
-        const auto fixture = std::filesystem::temp_directory_path() / "mct-community-host";
+        const auto fixtureRoot = std::filesystem::temp_directory_path() / "mct-community-host";
         std::error_code removeError;
-        std::filesystem::remove_all(fixture, removeError);
+        std::filesystem::remove_all(fixtureRoot, removeError);
+        const auto fixture = finalDosDirectory(fixtureRoot);
         const auto plugins = fixture / "plugins";
         const auto bytes = syntheticPe(256);
         const auto member = digestOf(bytes);
@@ -302,8 +353,12 @@ int main(int argc, char** argv) {
             productionWorld.useRequest(productionWorld.requestFor(nonce()));
             auto host = productionWorld.host();
             host.tick(productionWorld.state, [&] { return productionWorld.observe(); });
-            require(host.commands() == 0 && host.holding() && host.status().at("reason") == "member_size",
-                    "a JSON record changed the pinned DLL size");
+            const Json productionStatus = host.status();
+            const bool productionMemberSize = productionStatus.is_object() && productionStatus.contains("reason") &&
+                                              productionStatus["reason"].is_string() &&
+                                              productionStatus["reason"].get<std::string>() == "member_size";
+            require(host.commands() == 0 && host.holding() && productionMemberSize,
+                    "a JSON record changed the pinned DLL size (" + hostPinText(host) + ")");
             denyWriteAndDelete(productionDll.wstring());
         }
         writeBytes(dll, bytes);
@@ -314,7 +369,8 @@ int main(int argc, char** argv) {
             trial.useRequest(trial.requestFor(nonce()));
             auto host = trial.host();
             host.tick(trial.state, [&] { return trial.observe(); });
-            require(host.commands() == 1 && trial.commands.size() == 1, "load was not issued once");
+            require(host.commands() == 1 && trial.commands.size() == 1,
+                    "load was not issued once (" + hostPinText(host) + ")");
             require(trial.commands[0] == "plugin load " + stem, "load command was not the derived stem");
             require(trial.commands[0].find('\\') == std::string::npos && trial.commands[0].find(".dll") == std::string::npos,
                     "load command carried a path");

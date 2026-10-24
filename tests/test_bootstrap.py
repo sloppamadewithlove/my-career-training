@@ -1,6 +1,7 @@
 """Offline launch owns a temporary BakkesMod plugin session and checks process identity."""
 from __future__ import annotations
 
+import json
 import math
 from types import SimpleNamespace
 
@@ -9,6 +10,13 @@ import pytest
 from my_career_training import bootstrap
 from my_career_training.platforms import ProcessIdentity
 from my_career_training.plugin_session import PluginSession
+
+
+@pytest.fixture(autouse=True)
+def isolated_launcher_state(monkeypatch):
+    # Tests supply their game/owner state; the host PC is outside the fixture.
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: False)
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: False)
 
 
 class _ProcInfo:
@@ -507,7 +515,7 @@ def test_native_service_waits_for_helper_after_child_exit(tmp_path, monkeypatch)
     from my_career_training import native_offline, platforms
     import PySide6.QtCore as qt_core
     layout = _bakkes(tmp_path)
-    app_type, _ = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
+    app_type, box = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
     helper_finished = [False]
 
     class Native:
@@ -553,8 +561,14 @@ def test_native_service_waits_for_helper_after_child_exit(tmp_path, monkeypatch)
         assert quits == [True]
         return 0
     monkeypatch.setattr(app_type, "exec", run)
-    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 0
+    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 1
     assert not layout.journal.exists()
+    assert box.criticals[-1][0] == "My Career could not start"
+    assert "temporary plugin setup has been restored" in box.criticals[-1][1]
+    status = json.loads((layout.data / "startup-status.json").read_text())
+    assert status == {"status": "game_closed_before_menu", "native_menu": True,
+                      "plugin_connected": False, "menu_connected": False,
+                      "temporary_plugin_restored": True}
 
 
 def test_service_restores_plugin_files_on_a_normal_exit(tmp_path, monkeypatch):

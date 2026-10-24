@@ -9,6 +9,11 @@ from my_career_training import bootstrap, platforms
 from my_career_training.map_guard import MapGuard, digest
 
 
+@pytest.fixture(autouse=True)
+def isolated_launcher_state(monkeypatch):
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: False)
+
+
 @pytest.mark.parametrize("launcher", ["epic", "unknown", "", None])
 def test_offline_entry_refuses_unverified_or_default_launcher(launcher, tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap.sys, "platform", "win32")
@@ -23,6 +28,14 @@ def test_offline_entry_refuses_to_overlap_an_existing_game(monkeypatch):
     monkeypatch.setattr(bootstrap, "game_processes", lambda: [object()])
 
     with pytest.raises(RuntimeError, match="Close the existing Rocket League"):
+        bootstrap.preflight_offline({"launcher": "steam", "install_path": "unverified"})
+
+
+def test_offline_entry_waits_for_a_native_helper_even_without_a_game(monkeypatch):
+    monkeypatch.setattr(bootstrap.sys, "platform", "win32")
+    monkeypatch.setattr(bootstrap, "game_processes", lambda: [])
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: True)
+    with pytest.raises(RuntimeError, match="offline menu helper is still finishing"):
         bootstrap.preflight_offline({"launcher": "steam", "install_path": "unverified"})
 
 

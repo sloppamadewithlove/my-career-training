@@ -7,7 +7,16 @@ __pycache__/
 build/
 dist/
 artifacts/
+release/
+work/
+.pytest-basetemp*/
 .env*
+*.pem
+*.key
+*.pfx
+*.p12
+credentials*.json
+auth.json
 *.sqlite*
 *.log
 .DS_Store

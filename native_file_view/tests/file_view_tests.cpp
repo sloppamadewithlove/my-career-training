@@ -475,13 +475,16 @@ int CheckCommonReads(const std::map<std::string, std::string>& fields, const Mct
     const auto readSize = std::to_string(firstHex.size() / 2);
     if (int rc = Expect(fields, "handle_size", readSize, outcome)) return rc;
     if (int rc = Expect(fields, "standard_size", readSize, outcome)) return rc;
-    // Path-based queries are not redirected; metadata on the opened private
-    // handle must still agree with the bytes that handle actually reads.
-    if (int rc = Expect(fields, "path_size", std::to_string(std::strlen(kOriginal)), outcome)) return rc;
+    // A caller may allocate its asynchronous read from path metadata before
+    // opening the file. The path and handle must describe the same bytes.
+    if (int rc = Expect(fields, "path_size", readSize, outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_err", "0", outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_size", readSize, outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_hex", HexText(kUnrelated), outcome)) return rc;
     if (int rc = Expect(fields, "sibling_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "sibling_hex", HexText(kSibling), outcome)) return rc;
+    if (int rc = Expect(fields, "sibling_path_size", std::to_string(std::strlen(kSibling)), outcome)) return rc;
     if (int rc = Expect(fields, "mixed_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "mixed_hex", mixedHex, outcome)) return rc;
     if (int rc = Expect(fields, "relative_err", "0", outcome)) return rc;
@@ -642,6 +645,8 @@ int TestPrivateMissing() {
     if (int rc = Expect(fields, "module", "1", outcome)) return rc;
     if (int rc = Expect(fields, "scope", "1", outcome)) return rc;
     if (int rc = Expect(fields, "first_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_size", "-1", outcome)) return rc;
     if (int rc = Expect(fields, "first_hex", "", outcome)) return rc;
     if (!outcome.ambient_excluded) return Fail(L"ambient event was inherited", &outcome);
     return HashesMatchManifest(tree);
