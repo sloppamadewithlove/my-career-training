@@ -249,9 +249,9 @@ def test_production_profile_pins_the_measured_layout():
     profile = compose.PRODUCTION_PROFILE
     assert profile.movie_sha256 == "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
     assert profile.abc_sha256 == "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-    assert profile.mod_abc_sha256 == "abc2d56ae90bcf764e75d9108ae8a0a6219a53fc299f3b28805fcfed5dcffc3e"
+    assert profile.mod_abc_sha256 == "fbcedd362034ac360d8b5a7de7c9041f5fbe1604fab99b0ead6a9dc6249e5eaf"
     assert profile.source_sha256 == "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
-    assert profile.screen_source_sha256 == "ed2528a5dc08fc2c522a8c9816282b50670ea9dafe402876da403caecad1ff6e"
+    assert profile.screen_source_sha256 == "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a"
     assert profile.string_count == 13849
     assert profile.string_count_offset == 2048
     assert profile.string_pool_end == 274271
@@ -630,6 +630,6 @@ def test_compiled_abc_matches_the_public_pin():
     menu = (root / "native_ui" / "menus" / "MctRootMenu.as").read_bytes()
     screen = (root / "native_ui" / "MctMainMenuScreen.as").read_bytes()
     assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256
-    assert len(abc) == 7836
+    assert len(abc) == 8680
     assert hashlib.sha256(menu).hexdigest() == compose.SOURCE_SHA256
     assert hashlib.sha256(screen).hexdigest() == compose.SCREEN_SOURCE_SHA256

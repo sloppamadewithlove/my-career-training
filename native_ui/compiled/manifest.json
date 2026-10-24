@@ -2,14 +2,14 @@
   "source": "native_ui/menus/MctRootMenu.as",
   "source_sha256": "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194",
   "screen_source": "native_ui/MctMainMenuScreen.as",
-  "screen_source_sha256": "ed2528a5dc08fc2c522a8c9816282b50670ea9dafe402876da403caecad1ff6e",
-  "abc_sha256": "abc2d56ae90bcf764e75d9108ae8a0a6219a53fc299f3b28805fcfed5dcffc3e",
-  "abc_bytes": 7836,
+  "screen_source_sha256": "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a",
+  "abc_sha256": "fbcedd362034ac360d8b5a7de7c9041f5fbe1604fab99b0ead6a9dc6249e5eaf",
+  "abc_bytes": 8680,
   "classes": [
     "menus::MctRootMenu",
     "MctMainMenuScreen"
   ],
-  "method_bodies": 35,
+  "method_bodies": 38,
   "compiler": "Apache Flex 4.16.1",
   "swf_version": 20,
   "abc_version": "46.16",

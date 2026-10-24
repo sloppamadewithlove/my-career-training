@@ -2,14 +2,15 @@
   "kind": "staged_native_menu_preparation",
   "runs": [
     {
-      "private_package_sha256": "7b20a5882d567a6a515d1d234eb946fcf705a6944f35340e06e179e8604e00ff",
-      "private_package_bytes": 3423314
+      "private_package_sha256": "e172764bd0bf0b40797fbaf68f5e9af9ca42f6bb4c3f4944017390b80a46f14d",
+      "private_package_bytes": 3423834
     },
     {
-      "private_package_sha256": "fc9b5a2945ae0b6d0b26e9634abf0301cc24c38ec143ace71f349024b46cf732",
-      "private_package_bytes": 3423311
+      "private_package_sha256": "3ceb72e4dc9a55d53853d39e5af9444a14b9a9f2ec07c8fb94a7b6c3bbc9d339",
+      "private_package_bytes": 3423836
     }
   ],
+  "authored_abc_sha256": "fbcedd362034ac360d8b5a7de7c9041f5fbe1604fab99b0ead6a9dc6249e5eaf",
   "installed_source_sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
   "installed_source_unchanged": true,
   "game_launched": false,

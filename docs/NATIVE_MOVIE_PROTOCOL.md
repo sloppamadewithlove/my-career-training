@@ -15,6 +15,16 @@ also overrides the inherited rightward focus path into matchmaking. These
 changes belong only to the privately composed offline movie. Shell changes
 remain within that game process; the normal online handoff closes it first.
 
+The stock Garage keeps its preset switcher, customization and preset management.
+While it is on this screen, the private document hides and disables its premium
+inventory, trade-in, blueprint and reward controls, removes their focus routes,
+and cancels their click events in the capture phase. It also removes the stock
+buttons' inherited rightward matchmaking focus route. These guards run again
+after stack changes and on each frame because stock data callbacks may update
+button state. The later full car-customization screen's lifetime and navigation
+still need the focused game check; compiling these guards does not verify that
+transition.
+
 This is a development candidate. It has not been loaded in Rocket League.
 The plugin now wires `NativeMovieHost`, but its CMake option defaults to OFF.
 An opt-in build also requires the exact session, game hash/build, BakkesMod

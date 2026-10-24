@@ -4,7 +4,10 @@ package
     import flash.display.DisplayObjectContainer;
     import flash.display.InteractiveObject;
     import flash.events.Event;
+    import menus.GarageMainMenu;
+    import projectx.core.UIMenu;
     import scaleform.clik.core.UIComponent;
+    import scaleform.clik.events.ButtonEvent;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
 
@@ -16,12 +19,14 @@ package
         {
             super.handleAddedToStage(event);
             addEventListener(Event.ENTER_FRAME, keepOfflineChrome, false, 0, true);
+            addEventListener(ButtonEvent.CLICK, guardGarageAction, true, int.MAX_VALUE, true);
             keepOfflineChrome();
         }
 
         override protected function handleRemovedFromStage(event:Event) : void
         {
             removeEventListener(Event.ENTER_FRAME, keepOfflineChrome);
+            removeEventListener(ButtonEvent.CLICK, guardGarageAction, true);
             super.handleRemovedFromStage(event);
         }
 
@@ -57,11 +62,57 @@ package
                 DisplayObjectContainer(control).mouseChildren = false;
                 DisplayObjectContainer(control).tabChildren = false;
             }
-            if (control is UIComponent) UIComponent(control).enabled = false;
+            if (control is UIComponent)
+            {
+                UIComponent(control).enabled = false;
+                UIComponent(control).focusable = false;
+                UIComponent(control).focusFunction = null;
+            }
+        }
+
+        private function blockedGarageControls(garage:GarageMainMenu) : Array
+        {
+            return [garage.premiumInventoryButton, garage.tradeInButton,
+                garage.blueprintsButton, garage.rewardsButton];
+        }
+
+        private function guardGarageAction(event:ButtonEvent) : void
+        {
+            var garage:GarageMainMenu = UIMenu.getActiveMenu() as GarageMainMenu;
+            if (garage == null) return;
+            // Capture before the stock button handler, including a controller
+            // click if a game-data callback made a control visible this frame.
+            for each (var blocked:DisplayObject in blockedGarageControls(garage))
+            {
+                var target:DisplayObject = event.target as DisplayObject;
+                while (target != null && target != garage)
+                {
+                    if (target == blocked)
+                    {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        return;
+                    }
+                    target = target.parent;
+                }
+            }
+        }
+
+        private function keepGarageLocal() : void
+        {
+            var garage:GarageMainMenu = UIMenu.getActiveMenu() as GarageMainMenu;
+            if (garage == null) return;
+            for each (var blocked:DisplayObject in blockedGarageControls(garage)) disable(blocked);
+            // Keep car customization and preset controls, without their shared
+            // BranchingMenu shortcut into an expanded matchmaking panel.
+            for each (var control:UIComponent in [garage.presetSwitcher, garage.customizeCarButton,
+                garage.createPresetButton, garage.renamePresetButton, garage.deletePresetButton])
+                if (control != null) control.focusFunction = null;
         }
 
         private function keepOfflineChrome(event:Event = null) : void
         {
+            keepGarageLocal();
             disable(challengesSummaryView);
             disable(topSpinachDebugButton1);
             disable(topSpinachDebugButton2);
