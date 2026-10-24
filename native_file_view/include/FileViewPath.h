@@ -3,6 +3,7 @@
 #include "FileViewScope.h"
 
 #include <cstring>
+#include <cwchar>
 
 // Drive-letter canonical form shared by the launcher and the CreateFileW hook.
 // Matching is ordinal and case-insensitive. There is no wildcard, prefix, or suffix rule.
@@ -157,4 +158,160 @@ inline bool MctReadOnlyCreateFileRequest(DWORD access, DWORD disposition, DWORD 
     const DWORD allowedAccess = GENERIC_READ | FILE_READ_DATA | FILE_READ_ATTRIBUTES | FILE_READ_EA |
                                 READ_CONTROL | SYNCHRONIZE;
     return (access & ~allowedAccess) == 0;
+}
+
+inline bool MctStoredPathTerminated(const wchar_t* text) {
+    if (text == nullptr) {
+        return false;
+    }
+    for (std::size_t i = 0; i < kMctFileViewPathChars; ++i) {
+        if (text[i] == 0) {
+            return i > 0;
+        }
+    }
+    return false;
+}
+
+inline const wchar_t* MctApprovedPackageSuffix(std::uint32_t id) {
+    switch (id) {
+    case kMctFileViewIdMain:
+        return kMctApprovedMainSuffix;
+    case kMctFileViewIdMidgame:
+        return kMctApprovedMidgameSuffix;
+    case kMctFileViewIdEndgame:
+        return kMctApprovedEndgameSuffix;
+    default:
+        return nullptr;
+    }
+}
+
+inline bool MctEndsWithOrdinal(const wchar_t* path, const wchar_t* suffix) {
+    if (!MctStoredPathTerminated(path) || suffix == nullptr || suffix[0] == 0) {
+        return false;
+    }
+    const int pathLength = lstrlenW(path);
+    const int suffixLength = lstrlenW(suffix);
+    if (suffixLength <= 0 || pathLength <= suffixLength) {
+        return false;
+    }
+    return CompareStringOrdinal(path + (pathLength - suffixLength), suffixLength, suffix, suffixLength, TRUE) == CSTR_EQUAL;
+}
+
+inline bool MctStoredPathsOverlap(const wchar_t* left, const wchar_t* right) {
+    if (!MctStoredPathTerminated(left) || !MctStoredPathTerminated(right)) {
+        return true;
+    }
+    if (MctPathsEqual(left, right)) {
+        return true;
+    }
+    const int leftLength = lstrlenW(left);
+    const int rightLength = lstrlenW(right);
+    if (rightLength > leftLength && right[leftLength] == L'\\' &&
+        CompareStringOrdinal(right, leftLength, left, leftLength, TRUE) == CSTR_EQUAL) {
+        return true;
+    }
+    if (leftLength > rightLength && left[rightLength] == L'\\' &&
+        CompareStringOrdinal(left, rightLength, right, rightLength, TRUE) == CSTR_EQUAL) {
+        return true;
+    }
+    return false;
+}
+
+inline bool MctMappingSlotZero(const MctFileViewMappingV2& slot) {
+    const auto* bytes = reinterpret_cast<const unsigned char*>(&slot);
+    for (std::size_t i = 0; i < sizeof(slot); ++i) {
+        if (bytes[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Count is 1..3. Used slots are strictly ascending known IDs, main is required,
+// and every unused slot is entirely zero. Originals must be the approved package suffix.
+inline bool MctFileViewScopeV2Accept(const MctFileViewScopeV2& scope) {
+    if (scope.magic != kMctFileViewMagicV2 || scope.version != kMctFileViewVersionV2 ||
+        scope.size != sizeof(MctFileViewScopeV2) || scope.reserved != 0 || scope.count < 1 ||
+        scope.count > kMctFileViewMappingSlots) {
+        return false;
+    }
+    bool sawMain = false;
+    std::uint32_t previous = 0;
+    const wchar_t* paths[kMctFileViewMappingSlots * 2]{};
+    int pathCount = 0;
+    for (std::uint32_t index = 0; index < kMctFileViewMappingSlots; ++index) {
+        const MctFileViewMappingV2& slot = scope.mappings[index];
+        if (index >= scope.count) {
+            if (!MctMappingSlotZero(slot)) {
+                return false;
+            }
+            continue;
+        }
+        if (slot.reserved != 0 || slot.id <= previous) {
+            return false;
+        }
+        const wchar_t* suffix = MctApprovedPackageSuffix(slot.id);
+        if (suffix == nullptr || !MctStoredPathTerminated(slot.original_path) ||
+            !MctStoredPathTerminated(slot.private_path) || !MctIsStoredCanonical(slot.original_path) ||
+            !MctIsStoredCanonical(slot.private_path) || !MctEndsWithOrdinal(slot.original_path, suffix)) {
+            return false;
+        }
+        previous = slot.id;
+        if (slot.id == kMctFileViewIdMain) {
+            sawMain = true;
+        }
+        paths[pathCount++] = slot.original_path;
+        paths[pathCount++] = slot.private_path;
+    }
+    if (!sawMain) {
+        return false;
+    }
+    for (int left = 0; left < pathCount; ++left) {
+        for (int right = left + 1; right < pathCount; ++right) {
+            if (MctStoredPathsOverlap(paths[left], paths[right])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+struct MctFileViewMapInput {
+    std::uint32_t id = 0;
+    const wchar_t* original = nullptr;
+    const wchar_t* private_path = nullptr;
+};
+
+inline bool MctBuildFileViewScopeV2(const MctFileViewMapInput* inputs, std::uint32_t count, MctFileViewScopeV2* scope) {
+    if (scope == nullptr || inputs == nullptr || count < 1 || count > kMctFileViewMappingSlots) {
+        return false;
+    }
+    std::memset(scope, 0, sizeof(*scope));
+    scope->magic = kMctFileViewMagicV2;
+    scope->version = kMctFileViewVersionV2;
+    scope->size = static_cast<std::uint32_t>(sizeof(*scope));
+    scope->count = count;
+    for (std::uint32_t index = 0; index < count; ++index) {
+        const wchar_t* original = inputs[index].original;
+        const wchar_t* privatePath = inputs[index].private_path;
+        if (original == nullptr || privatePath == nullptr) {
+            std::memset(scope, 0, sizeof(*scope));
+            return false;
+        }
+        const std::size_t originalLength = std::wcslen(original);
+        const std::size_t privateLength = std::wcslen(privatePath);
+        if (originalLength == 0 || privateLength == 0 || originalLength + 1 > kMctFileViewPathChars ||
+            privateLength + 1 > kMctFileViewPathChars) {
+            std::memset(scope, 0, sizeof(*scope));
+            return false;
+        }
+        scope->mappings[index].id = inputs[index].id;
+        std::wmemcpy(scope->mappings[index].original_path, original, originalLength + 1);
+        std::wmemcpy(scope->mappings[index].private_path, privatePath, privateLength + 1);
+    }
+    if (!MctFileViewScopeV2Accept(*scope)) {
+        std::memset(scope, 0, sizeof(*scope));
+        return false;
+    }
+    return true;
 }

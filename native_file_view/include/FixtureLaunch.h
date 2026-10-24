@@ -25,6 +25,10 @@ struct MctLaunchSpec {
     bool inherit_ambient_test = false; // deliberate fixture fault; never resumes
     MctPayloadFault fault = MctPayloadFault::None;
     MctFileViewScopeV1 scope{};
+    bool payload_v2 = false;
+    MctFileViewScopeV2 scope_v2{};
+    std::wstring probe2;
+    std::wstring probe3;
     std::wstring target;
     std::wstring unrelated;
     std::wstring sibling;

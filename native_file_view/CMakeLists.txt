@@ -88,7 +88,7 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
-  foreach(scenario IN ITEMS plain redirect missing-payload invalid-payload private-missing alias dll-path timeout path-bounds payload-revalidate ambient-handles)
+  foreach(scenario IN ITEMS plain redirect missing-payload invalid-payload private-missing alias dll-path timeout path-bounds payload-revalidate ambient-handles fixed-maps)
     add_test(NAME "native_file_view_${scenario}" COMMAND mct_native_file_view_tests "${scenario}")
   endforeach()
 endif()

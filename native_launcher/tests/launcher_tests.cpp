@@ -313,8 +313,12 @@ MctLaunchHooks RecordingHooks(int* created, int* resumed, int* terminated, bool 
         *createTime = 1710000000.25;
         return true;
     };
-    hooks.copyPayload = [payloadOk](HANDLE, const MctFileViewScopeV1& scope, std::wstring* error) {
-        if (!payloadOk || scope.magic != kMctFileViewMagic || scope.size != sizeof(scope)) {
+    hooks.copyPayload = [payloadOk](HANDLE, const MctResolvedLaunch& resolved, std::wstring* error) {
+        const bool headerOk = resolved.scopeIsV2
+                                  ? resolved.scopeV2.magic == kMctFileViewMagicV2 &&
+                                        resolved.scopeV2.size == sizeof(resolved.scopeV2)
+                                  : resolved.scope.magic == kMctFileViewMagic && resolved.scope.size == sizeof(resolved.scope);
+        if (!payloadOk || !headerOk) {
             *error = L"the file-view payload was not copied";
             return false;
         }
@@ -461,6 +465,13 @@ int main(int argc, char** argv) {
                std::string(kMctSourcePackageSha256) == "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
            "source pins match the fixed hashes");
     Expect(kMctSourceExeBytes == 39727616 && kMctSourcePackageBytes == 3418271, "source pins match the fixed sizes");
+    Expect(std::string(kMctSourceMidgameSha256) == "25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50" &&
+               kMctSourceMidgameBytes == 814718,
+           "midgame source pin is the measured package");
+    Expect(std::string(kMctSourceEndgameSha256) == "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc" &&
+               kMctSourceEndgameBytes == 4348661,
+           "endgame source pin is the measured package");
+    Expect(kMctLaunchReceiptMaxBytes == 8192, "launch receipt bound covers three unicode mappings");
 
     FILETIME filetime{};
     const unsigned long long ticks = 116444736000000000ULL + 15000000ULL;
@@ -616,7 +627,9 @@ int main(int argc, char** argv) {
                launchJson["production_ready"] == false && launchJson["game_verified"] == false &&
                launchJson["file_view_observed"] == false && launchJson["session"].get<std::string>() == MctWideToUtf8(kSession) &&
                launchJson["source_executable_sha256"].get<std::string>() == kMctSourceExeSha256 &&
-               launchJson["source_package_sha256"].get<std::string>() == kMctSourcePackageSha256,
+               launchJson["source_package_sha256"].get<std::string>() == kMctSourcePackageSha256 &&
+               !launchJson.contains("private_midgame_package") && !launchJson.contains("private_endgame_package") &&
+               !launchJson.contains("source_midgame_package_sha256") && !launchJson.contains("source_endgame_package_sha256"),
            "launch receipt is unverified metadata");
     const auto exitJson = nlohmann::json::parse(MctExitReceiptJson(resolved, owned, 0));
     Expect(exitJson["kind"].get<std::string>() == "exit" && exitJson["exit_code"] == 0 && exitJson["production_ready"] == false &&
@@ -832,6 +845,133 @@ int main(int argc, char** argv) {
     }
     Expect(noticeText.find("MIT License") != std::string::npos && noticeText.find("Detours") != std::string::npos,
            "Detours MIT notice is staged beside the helper");
+
+    auto extraPlan = [](bool midgame, bool endgame, bool halfPair) {
+        std::string plan = ValidPlan();
+        plan.pop_back();
+        if (midgame || halfPair) {
+            plan += ",\"private_midgame_package\":\"C:\\\\MctLaunchFixture\\\\private\\\\mid.upk\"";
+            if (!halfPair) {
+                plan += ",\"private_midgame_package_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"";
+            }
+        }
+        if (endgame) {
+            plan += ",\"private_endgame_package\":\"C:\\\\MctLaunchFixture\\\\private\\\\end.upk\","
+                    "\"private_endgame_package_sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"";
+        }
+        plan.push_back('}');
+        return plan;
+    };
+    Expect(MctParseLaunchPlan(extraPlan(true, true, false), &plan, &error) && plan.midgame.present && plan.endgame.present,
+           "optional midgame and endgame pairs parse");
+    Expect(!MctParseLaunchPlan(extraPlan(false, false, true), &plan, &error), "a midgame path without its hash is rejected");
+    ExpectError(error, L"malformed plan", "a half pair is a malformed plan");
+    {
+        std::string callerSource = extraPlan(true, false, false);
+        callerSource.insert(1, "\"source_midgame_package_sha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",");
+        Expect(!MctParseLaunchPlan(callerSource, &plan, &error), "caller source pin is rejected");
+        ExpectError(error, L"unknown field", "caller source pin is an unknown field");
+        std::string originalPath = extraPlan(true, false, false);
+        originalPath.insert(1, "\"original_source_path\":\"C:\\\\game\\\\TAGame\\\\CookedPCConsole\\\\GFX_MidGameMenu_SF.upk\",");
+        Expect(!MctParseLaunchPlan(originalPath, &plan, &error), "caller original source path is rejected");
+    }
+    {
+        std::string repeated = extraPlan(true, false, false);
+        repeated.insert(1, "\"private_midgame_package\":\"C:\\\\MctLaunchFixture\\\\private\\\\mid.upk\",");
+        Expect(!MctParseLaunchPlan(repeated, &plan, &error), "duplicate extra key is rejected");
+    }
+    {
+        std::string unicode = ValidPlan();
+        const std::size_t menu = unicode.find("menu.upk");
+        unicode.replace(menu, std::strlen("menu.upk"), "\\u83dc\\u5355.upk");
+        Expect(MctParseLaunchPlan(unicode, &plan, &error) && plan.privatePackage.find(L"\u83dc\u5355.upk") != std::wstring::npos,
+               "a unicode private path parses");
+        std::string badUtf8 = ValidPlan();
+        badUtf8[badUtf8.find("menu")] = static_cast<char>(0xff);
+        Expect(!MctParseLaunchPlan(badUtf8, &plan, &error), "malformed utf-8 is rejected");
+    }
+    Expect(!MctFileViewScopeV2Accept(MctFileViewScopeV2{}), "an empty V2 payload is rejected");
+    {
+        MctLaunchPlan both = {};
+        both.session = kSession;
+        both.gameRoot = L"C:\\MctLaunchFixture\\game";
+        both.privatePackage = L"C:\\MctLaunchFixture\\private\\menu.upk";
+        both.privatePackageSha256 = kPrivateSha;
+        both.midgame.present = true;
+        both.midgame.path = L"C:\\MctLaunchFixture\\private\\mid.upk";
+        both.midgame.sha256 = std::wstring(64, L'b');
+        both.endgame.present = true;
+        both.endgame.path = L"C:\\MctLaunchFixture\\private\\end.upk";
+        both.endgame.sha256 = std::wstring(64, L'c');
+        ScriptedFiles files;
+        const std::wstring root = Canon(both.gameRoot);
+        files.files[Canon(root + L"\\Binaries\\Win64\\RocketLeague.exe")] = FileOf(kMctSourceExeBytes, kMctSourceExeSha256, 1);
+        files.files[Canon(root + L"\\TAGame\\CookedPCConsole\\GFX_MainMenu_SF.upk")] =
+            FileOf(kMctSourcePackageBytes, kMctSourcePackageSha256, 2);
+        files.files[Canon(both.privatePackage)] = FileOf(32, std::string(64, 'a').c_str(), 3);
+        files.files[Canon(root + L"\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk")] =
+            FileOf(kMctSourceMidgameBytes, kMctSourceMidgameSha256, 5);
+        files.files[Canon(both.midgame.path)] = FileOf(40, std::string(64, 'b').c_str(), 6);
+        files.files[Canon(root + L"\\TAGame\\CookedPCConsole\\GFX_EndGameMenu_SF.upk")] =
+            FileOf(kMctSourceEndgameBytes, kMctSourceEndgameSha256, 7);
+        files.files[Canon(both.endgame.path)] = FileOf(48, std::string(64, 'c').c_str(), 8);
+        const std::wstring extraDll = Canon(L"C:\\MctLaunchHelper\\MctNativeFileView64.dll");
+        files.files[extraDll] = FileOf(1024, std::string(64, 'd').c_str(), 9);
+        MctResolvedLaunch extraResolved;
+        Expect(MctValidateLaunchFiles(both, ParentBlock(), files, &extraResolved, &error), "three fixed packages validate");
+        Expect(extraResolved.scopeIsV2 && extraResolved.scopeV2.count == 3 &&
+                   extraResolved.scopeV2.mappings[0].id == kMctFileViewIdMain &&
+                   extraResolved.scopeV2.mappings[1].id == kMctFileViewIdMidgame &&
+                   extraResolved.scopeV2.mappings[2].id == kMctFileViewIdEndgame &&
+                   MctMappingSlotZero(MctFileViewMappingV2{}) ,
+               "V2 payload uses the three fixed ids");
+        Expect(MctValidateHelperDll(extraDll, std::string(64, 'd'), extraResolved.gameRoot, files, &extraResolved, &error) &&
+                   MctCreatePreconditionsHold(extraResolved, &error),
+               "three-package launch still satisfies the create gate");
+        MctFileViewScopeV2 dirty = extraResolved.scopeV2;
+        dirty.count = 2;
+        Expect(!MctFileViewScopeV2Accept(dirty), "a nonzero unused slot is rejected");
+        dirty = extraResolved.scopeV2;
+        dirty.mappings[1].id = 9;
+        Expect(!MctFileViewScopeV2Accept(dirty), "an unknown package id is rejected");
+        dirty = extraResolved.scopeV2;
+        dirty.mappings[1].id = kMctFileViewIdMain;
+        Expect(!MctFileViewScopeV2Accept(dirty), "a duplicate package id is rejected");
+        MctOwnedLaunch extraOwned;
+        extraOwned.pid = 4242;
+        extraOwned.createTime = 1710000000.25;
+        const auto extraReceipt = nlohmann::json::parse(MctLaunchReceiptJson(extraResolved, extraOwned));
+        Expect(extraReceipt["private_midgame_package_sha256"] == std::string(64, 'b') &&
+                   extraReceipt["private_endgame_package_sha256"] == std::string(64, 'c') &&
+                   extraReceipt["source_midgame_package_sha256"] == kMctSourceMidgameSha256 &&
+                   extraReceipt["source_endgame_package_sha256"] == kMctSourceEndgameSha256 &&
+                   extraReceipt["source_package_sha256"] == kMctSourcePackageSha256 &&
+                   !extraReceipt.contains("source_midgame_package") && !extraReceipt.contains("original_source_path") &&
+                   extraReceipt["production_ready"] == false && extraReceipt["game_verified"] == false &&
+                   extraReceipt["file_view_observed"] == false,
+               "extra receipt echoes private files and pinned source hashes");
+        MctResolvedLaunch tampered = extraResolved;
+        tampered.scopeV2.mappings[2].reserved = 1;
+        Expect(!MctCreatePreconditionsHold(tampered, &error), "a non-zero reserved slot is rejected");
+        tampered = extraResolved;
+        tampered.scopeV2.mappings[1].original_path[0] = L'Z';
+        Expect(!MctCreatePreconditionsHold(tampered, &error), "a rewritten source path is rejected");
+        tampered = extraResolved;
+        tampered.midgame.sourceSha256 = std::string(64, 'e');
+        Expect(!MctCreatePreconditionsHold(tampered, &error), "a mutated midgame source pin is rejected");
+        files.files[Canon(root + L"\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk")].sha256 = std::string(64, 'e');
+        Expect(!MctValidateLaunchFiles(both, ParentBlock(), files, &extraResolved, &error), "wrong midgame source hash is rejected");
+        ExpectError(error, L"pinned menu package", "wrong midgame source hash names its error");
+        files.files[Canon(root + L"\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk")] =
+            FileOf(kMctSourceMidgameBytes, kMctSourceMidgameSha256, 5);
+        files.files[Canon(both.midgame.path)].id.indexLow = 2;
+        Expect(!MctValidateLaunchFiles(both, ParentBlock(), files, &extraResolved, &error), "aliased extra package is rejected");
+        ExpectError(error, L"alias the same file", "aliased extra package names its error");
+        both.midgame.path = both.privatePackage;
+        files.files[Canon(both.midgame.path)] = FileOf(40, std::string(64, 'b').c_str(), 6);
+        Expect(!MctValidateLaunchFiles(both, ParentBlock(), files, &extraResolved, &error), "overlapping private paths are rejected");
+        ExpectError(error, L"overlap", "overlapping private paths name the overlap error");
+    }
 
     if (g_failed != 0) {
         std::fprintf(stderr, "%d checks failed\n", g_failed);

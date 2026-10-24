@@ -294,6 +294,11 @@ def test_pinned_contract_and_detours_notice():
     assert native_launch.SOURCE_EXE_SIZE == 39727616
     assert native_launch.SOURCE_PACKAGE_SHA256 == "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65"
     assert native_launch.SOURCE_PACKAGE_SIZE == 3418271
+    assert native_launch.SOURCE_MIDGAME_SHA256 == "25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50"
+    assert native_launch.SOURCE_MIDGAME_SIZE == 814718
+    assert native_launch.SOURCE_ENDGAME_SHA256 == "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc"
+    assert native_launch.SOURCE_ENDGAME_SIZE == 4348661
+    assert native_launch.RECEIPT_MAX_BYTES == 8192
     assert native_launch.OFFLINE_ARGUMENTS == (
         "-noeac", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie",
     )
@@ -315,8 +320,11 @@ def test_launch_signature_has_no_executable_pid_or_arguments():
     params = inspect.signature(launch_native_offline).parameters
     assert list(params) == [
         "game_root", "private_package", "private_package_sha256", "session", "runtime_directory",
+        "additional_packages",
     ]
     assert params["runtime_directory"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert params["additional_packages"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert params["additional_packages"].default is None
 
 
 def test_build_receipt_rejects_bool_size_and_uppercase_hash():
@@ -978,3 +986,183 @@ def test_stdin_deadline_returns_while_a_helper_does_not_read():
         unblock.set()
         caller.join(1.0)
         assert closed.wait(1.0)
+
+
+def _extra_files(root, tmp, *, mid_size, end_size):
+    cooked = root / "TAGame" / "CookedPCConsole"
+    (cooked / "GFX_MidGameMenu_SF.upk").write_bytes(b"M" * mid_size)
+    (cooked / "GFX_EndGameMenu_SF.upk").write_bytes(b"E" * end_size)
+    mid = tmp / "private" / "mid.upk"
+    end = tmp / "menus" / "end.upk"
+    mid.write_bytes(b"MID-PRIVATE")
+    end.parent.mkdir()
+    end.write_bytes(b"END-PRIVATE-BYTES")
+    return mid, end
+
+
+def test_absent_additional_packages_keep_the_legacy_plan(monkeypatch, tmp_path):
+    world = World(monkeypatch, tmp_path)
+    world.launch([world.ready(), world.exit_line()])
+    legacy = json.loads(bytes(world.helper.stdin.buf))
+    world.helper = None
+    world.owned = []
+    world.stdout = LineStream([world.ready(), world.exit_line()])
+    launch_native_offline(world.root, world.private, world.digest, SESSION, additional_packages={})
+    assert json.loads(bytes(world.helper.stdin.buf)) == legacy
+    assert set(legacy) == native_launch.PLAN_FIELDS
+
+
+def test_additional_packages_echo_pins_and_reject_mutations(monkeypatch, tmp_path):
+    monkeypatch.setattr(native_launch, "SOURCE_MIDGAME_SIZE", 8)
+    monkeypatch.setattr(native_launch, "SOURCE_ENDGAME_SIZE", 9)
+    world = World(monkeypatch, tmp_path)
+    mid, end = _extra_files(world.root, tmp_path, mid_size=8, end_size=9)
+    packages = {
+        "midgame": {"private_package": mid, "private_package_sha256": hashlib.sha256(mid.read_bytes()).hexdigest()},
+        "endgame": {"private_package": end, "private_package_sha256": hashlib.sha256(end.read_bytes()).hexdigest()},
+    }
+    receipt = json.loads(world.ready())
+    receipt["private_midgame_package"] = str(mid.resolve())
+    receipt["private_midgame_package_sha256"] = packages["midgame"]["private_package_sha256"]
+    receipt["source_midgame_package_sha256"] = native_launch.SOURCE_MIDGAME_SHA256
+    receipt["private_endgame_package"] = str(end.resolve())
+    receipt["private_endgame_package_sha256"] = packages["endgame"]["private_package_sha256"]
+    receipt["source_endgame_package_sha256"] = native_launch.SOURCE_ENDGAME_SHA256
+    world.stdout = LineStream([json.dumps(receipt).encode("ascii") + b"\n", world.exit_line()])
+    owned = launch_native_offline(
+        world.root, world.private, world.digest, SESSION, additional_packages=packages,
+    )
+    plan = json.loads(bytes(world.helper.stdin.buf))
+    assert set(plan) == native_launch.PLAN_FIELDS | {
+        "private_midgame_package", "private_midgame_package_sha256",
+        "private_endgame_package", "private_endgame_package_sha256",
+    }
+    assert "source_midgame_package" not in plan
+    assert "source_midgame_package_sha256" not in plan
+    assert plan["private_endgame_package_sha256"] == packages["endgame"]["private_package_sha256"]
+    assert owned.receipt["source_endgame_package_sha256"] == native_launch.SOURCE_ENDGAME_SHA256
+    assert owned.game_verified is False
+
+    world.helper = None
+    world.owned = []
+    mutated = dict(receipt)
+    mutated["source_midgame_package_sha256"] = "ab" * 32
+    world.stdout = LineStream([json.dumps(mutated).encode("ascii") + b"\n"])
+    with pytest.raises(NativeLaunchUncertain) as uncertain:
+        launch_native_offline(world.root, world.private, world.digest, SESSION, additional_packages=packages)
+    assert uncertain.value.reason == "hash_mismatch"
+
+    world.helper = None
+    world.owned = []
+    dropped = dict(receipt)
+    del dropped["private_endgame_package_sha256"]
+    world.stdout = LineStream([json.dumps(dropped).encode("ascii") + b"\n"])
+    with pytest.raises(NativeLaunchUncertain) as missing:
+        launch_native_offline(world.root, world.private, world.digest, SESSION, additional_packages=packages)
+    assert missing.value.reason == "malformed"
+
+    world.helper = None
+    world.owned = []
+    sourced = dict(receipt)
+    sourced["source_endgame_package"] = str(end.resolve())
+    world.stdout = LineStream([json.dumps(sourced).encode("ascii") + b"\n"])
+    with pytest.raises(NativeLaunchUncertain) as extra_field:
+        launch_native_offline(world.root, world.private, world.digest, SESSION, additional_packages=packages)
+    assert extra_field.value.reason == "extra_field"
+
+
+def test_additional_package_requests_reject_bad_shape_and_aliases(monkeypatch, tmp_path):
+    monkeypatch.setattr(native_launch, "SOURCE_MIDGAME_SIZE", 8)
+    monkeypatch.setattr(native_launch, "SOURCE_ENDGAME_SIZE", 9)
+    world = World(monkeypatch, tmp_path)
+    mid, end = _extra_files(world.root, tmp_path, mid_size=8, end_size=9)
+    mid_sha = hashlib.sha256(mid.read_bytes()).hexdigest()
+    end_sha = hashlib.sha256(end.read_bytes()).hexdigest()
+
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"movie": {"private_package": mid, "private_package_sha256": mid_sha}},
+    ))
+    assert error.code == "plan"
+    assert world.helper is None
+
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"midgame": {"private_package": str(mid)}},
+    ))
+    assert error.code == "plan"
+
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"midgame": {
+            "private_package": str(mid),
+            "private_package_sha256": mid_sha,
+            "source_package_sha256": native_launch.SOURCE_MIDGAME_SHA256,
+        }},
+    ))
+    assert error.code == "plan"
+
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"midgame": {"private_package": str(mid), "private_package_sha256": "ab" * 32}},
+    ))
+    assert error.code == "private_hash_mismatch"
+
+    alias = tmp_path / "private" / "alias.upk"
+    os.link(world.private, alias)
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"endgame": {
+            "private_package": alias,
+            "private_package_sha256": hashlib.sha256(alias.read_bytes()).hexdigest(),
+        }},
+    ))
+    assert error.code == "private_overlaps_source"
+
+    inside = world.root / "TAGame" / "CookedPCConsole" / "private-end.upk"
+    inside.write_bytes(b"INSIDE")
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"endgame": {
+            "private_package": inside,
+            "private_package_sha256": hashlib.sha256(inside.read_bytes()).hexdigest(),
+        }},
+    ))
+    assert error.code == "private_inside_game"
+
+    folder = tmp_path / "private" / "菜单"
+    folder.mkdir()
+    unicode_private = folder / "end.upk"
+    unicode_private.write_bytes(end.read_bytes())
+    packages = {"endgame": {
+        "private_package": unicode_private,
+        "private_package_sha256": end_sha,
+    }}
+    receipt = json.loads(world.ready())
+    receipt["private_endgame_package"] = str(unicode_private.resolve())
+    receipt["private_endgame_package_sha256"] = end_sha
+    receipt["source_endgame_package_sha256"] = native_launch.SOURCE_ENDGAME_SHA256
+    world.stdout = LineStream([json.dumps(receipt).encode("utf-8") + b"\n", world.exit_line()])
+    launch_native_offline(world.root, world.private, world.digest, SESSION, additional_packages=packages)
+    plan = json.loads(bytes(world.helper.stdin.buf))
+    assert plan["private_endgame_package"].endswith("菜单\\end.upk") or plan["private_endgame_package"].endswith("菜单/end.upk")
+    assert "source_endgame_package_sha256" not in plan
+
+
+def test_optional_private_hardlink_to_its_source_fails_before_helper_start(monkeypatch, tmp_path):
+    monkeypatch.setattr(native_launch, "SOURCE_MIDGAME_SIZE", 8)
+    world = World(monkeypatch, tmp_path)
+    _extra_files(world.root, tmp_path, mid_size=8, end_size=9)
+    source = world.root / "TAGame" / "CookedPCConsole" / "GFX_MidGameMenu_SF.upk"
+    alias = tmp_path / "private" / "mid-source-link.upk"
+    os.link(source, alias)
+    error = _error(lambda: launch_native_offline(
+        world.root, world.private, world.digest, SESSION,
+        additional_packages={"midgame": {
+            "private_package": alias,
+            "private_package_sha256": hashlib.sha256(alias.read_bytes()).hexdigest(),
+        }},
+    ))
+    assert error.code == "private_overlaps_source"
+    assert str(error) == "Private package must be a different file from the installed game files."
+    assert world.helper is None

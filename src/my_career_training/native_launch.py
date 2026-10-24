@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 PROTOCOL = 1
 RECEIPT_TIMEOUT_SECONDS = 15.0
 PLAN_MAX_BYTES = 8192
-RECEIPT_MAX_BYTES = 4096
+RECEIPT_MAX_BYTES = 8192
 LINE_LIMIT = RECEIPT_MAX_BYTES + 1
 PATH_MAX_CHARS = 480
 STDERR_CAP = 16 * 1024
@@ -46,6 +46,12 @@ SOURCE_EXE_SIZE = 39727616
 SOURCE_PACKAGE_RELATIVE = "TAGame/CookedPCConsole/GFX_MainMenu_SF.upk"
 SOURCE_PACKAGE_SHA256 = "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65"
 SOURCE_PACKAGE_SIZE = 3418271
+SOURCE_MIDGAME_RELATIVE = "TAGame/CookedPCConsole/GFX_MidGameMenu_SF.upk"
+SOURCE_MIDGAME_SHA256 = "25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50"
+SOURCE_MIDGAME_SIZE = 814718
+SOURCE_ENDGAME_RELATIVE = "TAGame/CookedPCConsole/GFX_EndGameMenu_SF.upk"
+SOURCE_ENDGAME_SHA256 = "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc"
+SOURCE_ENDGAME_SIZE = 4348661
 
 OFFLINE_ARGUMENTS = (
     "-noeac",
@@ -108,6 +114,8 @@ BUILD_RECEIPT_FIELDS = frozenset({
 PLAN_FIELDS = frozenset({
     "protocol", "session", "game_root", "private_package", "private_package_sha256",
 })
+_EXTRA_IDS = ("midgame", "endgame")
+_EXTRA_ENTRY_FIELDS = frozenset({"private_package", "private_package_sha256"})
 LAUNCH_RECEIPT_FIELDS = frozenset({
     "protocol", "kind", "pid", "create_time", "executable", "session",
     "private_package", "private_package_sha256",
@@ -364,6 +372,86 @@ def validate_native_runtime(directory: str | Path | None = None) -> dict:
     return receipt
 
 
+@dataclass(frozen=True)
+class _ExtraPackage:
+    name: str
+    private: Path
+    digest: str
+    path_key: str
+    hash_key: str
+    source_key: str
+    source_sha256: str
+
+
+def _extra_wire(name: str) -> tuple[str, int, str, str, str, str]:
+    if name == "midgame":
+        return (
+            SOURCE_MIDGAME_RELATIVE, SOURCE_MIDGAME_SIZE, SOURCE_MIDGAME_SHA256,
+            "private_midgame_package", "private_midgame_package_sha256", "source_midgame_package_sha256",
+        )
+    if name == "endgame":
+        return (
+            SOURCE_ENDGAME_RELATIVE, SOURCE_ENDGAME_SIZE, SOURCE_ENDGAME_SHA256,
+            "private_endgame_package", "private_endgame_package_sha256", "source_endgame_package_sha256",
+        )
+    raise NativeLaunchError("Additional packages use an unknown id.", code="plan")
+
+
+def _normalize_additional_packages(value: object, root: Path, occupied: list[Path]) -> tuple[_ExtraPackage, ...]:
+    """Accept none, an empty map, or the fixed midgame/endgame private pairs."""
+    if value is None or value == {}:
+        return ()
+    if type(value) is not dict or not set(value) <= set(_EXTRA_IDS):
+        raise NativeLaunchError("Additional packages use an unknown id.", code="plan")
+    if len(value) > 2:
+        raise NativeLaunchError("Additional packages exceed the fixed limit.", code="plan")
+    found: list[_ExtraPackage] = []
+    seen = list(occupied)
+    for name in _EXTRA_IDS:
+        if name not in value:
+            continue
+        entry = value[name]
+        if type(entry) is not dict or set(entry) != _EXTRA_ENTRY_FIELDS:
+            raise NativeLaunchError("Additional package fields are not the fixed pair.", code="plan")
+        relative, size, source_sha, path_key, hash_key, source_key = _extra_wire(name)
+        digest = _sha_text(entry["private_package_sha256"], "Private package hash")
+        private = _real_file(_as_path(entry["private_package"], "Private package"), "Private package", PRIVATE_PACKAGE_MAX)
+        if len(str(private)) > PATH_MAX_CHARS:
+            raise NativeLaunchError("Path is too long.", code="bad_path", private_package=str(private))
+        if _hash_file(private, PRIVATE_PACKAGE_MAX) != digest:
+            raise NativeLaunchError(
+                "Private package hash does not match the launch request.",
+                code="private_hash_mismatch",
+                private_package=str(private),
+            )
+        source = _source_file(root, relative, size, "Menu package", "source_package")
+        if _is_inside(private, root) or _same_file(private, root):
+            raise NativeLaunchError(
+                "Private package must be outside the installed game.",
+                code="private_inside_game",
+                private_package=str(private),
+            )
+        if _same_volume_file(private, source):
+            raise NativeLaunchError(
+                "Private package must be a different file from the installed game files.",
+                code="private_overlaps_source",
+                private_package=str(private),
+            )
+        for other in seen:
+            if _same_volume_file(private, other) or _same_volume_file(source, other):
+                raise NativeLaunchError(
+                    "Private package must be a different file from the installed game files.",
+                    code="private_overlaps_source",
+                    private_package=str(private),
+                )
+        seen.extend((private, source))
+        found.append(_ExtraPackage(
+            name=name, private=private, digest=digest, path_key=path_key, hash_key=hash_key,
+            source_key=source_key, source_sha256=source_sha,
+        ))
+    return tuple(found)
+
+
 def launch_native_offline(
     game_root: str | Path,
     private_package: str | Path,
@@ -371,6 +459,7 @@ def launch_native_offline(
     session: str,
     *,
     runtime_directory: str | Path | None = None,
+    additional_packages: dict | None = None,
 ) -> OwnedNativeLaunch:
     """Start the pinned helper with one JSON plan and accept only its child."""
     if sys.platform != "win32":
@@ -383,6 +472,11 @@ def launch_native_offline(
     root = _real_directory(_as_path(game_root, "Game root"), "Game root")
     private = _real_file(_as_path(private_package, "Private package"), "Private package", PRIVATE_PACKAGE_MAX)
     _reject_package_layout(root, private)
+    extras = _normalize_additional_packages(
+        additional_packages,
+        root,
+        [private, root / SOURCE_EXE_RELATIVE, root.joinpath(*SOURCE_PACKAGE_RELATIVE.split("/"))],
+    )
     if len(str(root)) > PATH_MAX_CHARS or len(str(private)) > PATH_MAX_CHARS:
         raise NativeLaunchError("Path is too long.", code="bad_path", session=canonical, private_package=str(private))
     if _hash_file(private, PRIVATE_PACKAGE_MAX) != digest:
@@ -401,7 +495,13 @@ def launch_native_offline(
         "private_package": str(private),
         "private_package_sha256": digest,
     }
-    if set(plan) != PLAN_FIELDS:
+    for extra in extras:
+        plan[extra.path_key] = str(extra.private)
+        plan[extra.hash_key] = extra.digest
+    expected_plan = set(PLAN_FIELDS)
+    for extra in extras:
+        expected_plan.update((extra.path_key, extra.hash_key))
+    if set(plan) != expected_plan:
         raise NativeLaunchError("Launch plan fields are not the fixed set.", code="plan")
     payload = json.dumps(plan, ensure_ascii=True, separators=(",", ":")).encode("ascii") + b"\n"
     if len(payload) > PLAN_MAX_BYTES:
@@ -434,6 +534,7 @@ def launch_native_offline(
         "private": private,
         "exe": root / SOURCE_EXE_RELATIVE,
         "digest": digest,
+        "extras": extras,
     }
     deadline = time.monotonic() + RECEIPT_TIMEOUT_SECONDS
     try:
@@ -844,6 +945,23 @@ def _real_file(path: Path, label: str, limit: int) -> Path:
     if os.path.normcase(str(resolved)) != os.path.normcase(str(Path(os.path.abspath(path)))):
         raise NativeLaunchError(f"{label} is a path alias.", code="bad_path")
     return resolved
+
+
+def _same_volume_file(left: Path, right: Path) -> bool:
+    """True for the same canonical path or for hard links of one file."""
+    if _same_file(left, right):
+        return True
+    try:
+        left_info = left.lstat()
+        right_info = right.lstat()
+    except OSError:
+        return False
+    if not stat.S_ISREG(left_info.st_mode) or not stat.S_ISREG(right_info.st_mode):
+        return False
+    inode = left_info.st_ino
+    if type(inode) is not int or inode == 0 or inode != right_info.st_ino:
+        return False
+    return left_info.st_dev == right_info.st_dev
 
 
 def _same_file(left: Path, right: Path) -> bool:
@@ -1300,10 +1418,14 @@ def _confirm_child(receipt: dict, **context) -> OwnedNativeLaunch:
     process = context["process"]
     exe = context["exe"]
     digest = context["digest"]
+    extras = context.get("extras", ())
     if receipt.get("kind") != "launch":
         raise _Signal("unexpected_event")
-    if set(receipt) != LAUNCH_RECEIPT_FIELDS:
-        raise _Signal("extra_field" if not set(receipt) <= LAUNCH_RECEIPT_FIELDS else "malformed")
+    expected_fields = set(LAUNCH_RECEIPT_FIELDS)
+    for extra in extras:
+        expected_fields.update((extra.path_key, extra.hash_key, extra.source_key))
+    if set(receipt) != expected_fields:
+        raise _Signal("extra_field" if not set(receipt) <= expected_fields else "malformed")
     _echo_session(receipt.get("session"), session)
     try:
         current_hash = _hash_file(private, PRIVATE_PACKAGE_MAX)
@@ -1316,6 +1438,16 @@ def _confirm_child(receipt: dict, **context) -> OwnedNativeLaunch:
     _echo_hash(receipt.get("source_package_sha256"), SOURCE_PACKAGE_SHA256)
     _false_flags(receipt)
     _echo_private_path(receipt.get("private_package"), private)
+    for extra in extras:
+        try:
+            current_extra = _hash_file(extra.private, PRIVATE_PACKAGE_MAX)
+        except NativeLaunchError:
+            raise _Signal("hash_mismatch") from None
+        if current_extra != extra.digest:
+            raise _Signal("hash_mismatch")
+        _echo_hash(receipt.get(extra.hash_key), extra.digest)
+        _echo_hash(receipt.get(extra.source_key), extra.source_sha256)
+        _echo_private_path(receipt.get(extra.path_key), extra.private)
     pid = _pid_value(receipt.get("pid"))
     created = _time_value(receipt.get("create_time"))
     helper_pid = getattr(process, "pid", None)
