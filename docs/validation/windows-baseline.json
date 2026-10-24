@@ -1,0 +1,308 @@
+{
+  "bakkesmod": {
+    "directory_source": "windows_registry",
+    "directory_status": "read",
+    "dll_file": {
+      "file_status": "partial",
+      "file_version": null,
+      "file_version_source": "windows_api",
+      "file_version_status": "unknown",
+      "meaning": "File version resource of bakkesmod.dll. File metadata only; this does not show that the DLL is loaded."
+    },
+    "injector": {
+      "file_status": "absent",
+      "file_version": null,
+      "file_version_source": "not_checked",
+      "file_version_status": "not_checked",
+      "meaning": "File version resource of BakkesMod.exe. Injector file metadata only; not a loaded DLL version and not a loaded plugin version."
+    },
+    "loaded_dll_version": "unknown",
+    "loaded_plugin_version": "unknown",
+    "version_file": {
+      "file": "version.txt",
+      "meaning": "Bounded text from a known BakkesMod version file. This is not a loaded DLL version and not a loaded plugin version.",
+      "status": "read",
+      "version": "229"
+    }
+  },
+  "containment": {
+    "output_path_recorded": false,
+    "protected_roots_checked": 3
+  },
+  "created_utc": "2026-10-24T05:09:18.934451+00:00",
+  "errors": [],
+  "format": "mct-windows-baseline-v1",
+  "game": {
+    "executable": {
+      "associated_steam_build_id": "25914621",
+      "file_version": "1.0.10897.0",
+      "file_version_source": "windows_api",
+      "file_version_status": "read",
+      "relative": "Binaries/Win64/RocketLeague.exe",
+      "sha256": "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7",
+      "size": 39727616,
+      "status": "hashed"
+    },
+    "root_status": "manifest",
+    "steam_build_association": "matched"
+  },
+  "limits": {
+    "entire_install_hashed": false,
+    "files_hashed": [
+      "Binaries/Win64/RocketLeague.exe"
+    ],
+    "note": "Identification evidence only. The executable hash and file version are separate reads. Other install files were not hashed. This report does not prove native menus, gameplay, Easy Anti-Cheat, or Steam preservation.",
+    "proves_eac": false,
+    "proves_gameplay": false,
+    "proves_native_menus": false,
+    "proves_steam_preservation": false
+  },
+  "packages": {
+    "directories": [
+      {
+        "relative": "TAGame/CookedPCConsole",
+        "status": "capped"
+      },
+      {
+        "relative": "Engine/CookedPCConsole",
+        "status": "absent"
+      }
+    ],
+    "found": [
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_BugReportMenu_SF.upk",
+        "size": 403500
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ChallengeMenu_SF.upk",
+        "size": 539567
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ChallengesPrimeMenu_SF.upk",
+        "size": 3311418
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ClubsMenu_SF.upk",
+        "size": 2270479
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_CustomTrainingSelectShotMenu_SF.upk",
+        "size": 384325
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_EndGameMenu_SF.upk",
+        "size": 4348661
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_EventMenu_SF.upk",
+        "size": 451455
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_GarageMenu_SF.upk",
+        "size": 1713937
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_InviteToPartyMenu_SF.upk",
+        "size": 809285
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_LeaderboardsMenu_SF.upk",
+        "size": 1206655
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_MainMenu_SF.upk",
+        "size": 3418271
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_MapPreferencesMenu_SF.upk",
+        "size": 826396
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_MatchHistoryMenu_SF.upk",
+        "size": 1194416
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_MidGameMenu_SF.upk",
+        "size": 814718
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_MusicCueMenu_SF.upk",
+        "size": 447844
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_OnlineFreePlayMenu_SF.upk",
+        "size": 395926
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayerInteractionMenu_SF.upk",
+        "size": 769230
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayerReportMenu_SF.upk",
+        "size": 1151363
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayerTradeReviewMenu_SF.upk",
+        "size": 1299067
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayerTradingMenu_SF.upk",
+        "size": 1386837
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayerVanityMenu_SF.upk",
+        "size": 412431
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayMenu_SF.upk",
+        "size": 3812116
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PlayMenuV4_SF.upk",
+        "size": 1020826
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PremiumContainerMenu_SF.upk",
+        "size": 651874
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PrivateMatchMenu_SF.upk",
+        "size": 813858
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_PurchaseBundlesMenu_SF.upk",
+        "size": 1179434
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ReactivePreviewMenu_SF.upk",
+        "size": 1276316
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ReplaysMenu_SF.upk",
+        "size": 794668
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_RocketPassMenu_SF.upk",
+        "size": 2028976
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_RocketPassV2Menu_SF.upk",
+        "size": 1559210
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_SeasonMenu_SF.upk",
+        "size": 506735
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ServerBrowserMenu_SF.upk",
+        "size": 793773
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_SettingsMenu_SF.upk",
+        "size": 689160
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_ShopPrimeMenu_SF.upk",
+        "size": 5383883
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_StartMenu_SF.upk",
+        "size": 3609509
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_StatsMenu_SF.upk",
+        "size": 393870
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_TextReportMenu_SF.upk",
+        "size": 1135254
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/gfx_tournamentdetailsmenu_SF.upk",
+        "size": 1083745
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_TournamentsMenu_SF.upk",
+        "size": 4359043
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_TradeInMenu_SF.upk",
+        "size": 853565
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_TrainingBrowserMenu_SF.upk",
+        "size": 417006
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_TrainingEditorMenu_SF.upk",
+        "size": 793453
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_TrainingMenu_SF.upk",
+        "size": 1146549
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_WinnerMenu_SF.upk",
+        "size": 1202493
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFX_WorkshopMenu_SF.upk",
+        "size": 379280
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFx_XPProgressMenu_SF.upk",
+        "size": 1417413
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFxShell_SF.upk",
+        "size": 8038898
+      },
+      {
+        "relative": "TAGame/CookedPCConsole/GFxSounds_MainMenu_SF.upk",
+        "size": 31939
+      }
+    ],
+    "not_confirmed": [],
+    "not_observed": [],
+    "observation": "filenames_and_sizes_only",
+    "search": "top_level_of_known_cooked_directories",
+    "size_source": "single_stat",
+    "skipped": [],
+    "status": "partial"
+  },
+  "platform": "win32",
+  "rocket_league_process": {
+    "running": false,
+    "source": "tasklist"
+  },
+  "steam": {
+    "app_252950": {
+      "build_id": "25914621",
+      "build_id_status": "read",
+      "installdir_status": "read",
+      "manifest_status": "read",
+      "manifests_read": 1
+    },
+    "explicit_root": false,
+    "libraries_checked": 1,
+    "libraryfolders": {
+      "absent": 0,
+      "inaccessible": 0,
+      "malformed": 0,
+      "not_regular": 0,
+      "read": 1,
+      "read_error": 0,
+      "symlink": 0,
+      "too_large": 0
+    },
+    "registry_source": "windows_registry",
+    "registry_status": "read"
+  },
+  "unknowns": [
+    "bakkes_dll_file",
+    "loaded_bakkes_dll_version",
+    "loaded_bakkes_plugin_version",
+    "package_listing_capped",
+    "package_listing_incomplete"
+  ]
+}
