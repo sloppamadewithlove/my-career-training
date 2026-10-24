@@ -126,6 +126,8 @@ class Backend(QObject):
             "selected_lesson": selected, "settings": self.document["settings"],
             "lesson_preferences": self.document["lesson_preferences"], "setup_required": self.setup_required,
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
+                bool(self.native_community and any(self.native_community.state().get(key)
+                     for key in ("busy", "requires_restart"))) or
                 self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
                 "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
@@ -248,9 +250,15 @@ class Backend(QObject):
         message = {"id": str(uuid.uuid4()), "type": kind, **fields}
         self.process.write((json.dumps(message, allow_nan=False) + "\n").encode())
 
-    def _require_editable(self):
+    def _require_editable(self, *, allow_community_pending=False):
         if self.lifecycle.frozen or self.stop_reason or self.session_state == "Starting Career":
             raise ValueError("Wait for the current game transition to finish.")
+        if not allow_community_pending and self.native_community:
+            trial = self.native_community.state()
+            if trial.get("requires_restart"):
+                raise ValueError("The plugin could not be confirmed. Close this My Career session before starting another activity.")
+            if trial.get("busy"):
+                raise ValueError("Wait for the community plugin confirmation before starting another activity.")
 
     @Slot(str, "QVariantMap")
     def dispatch(self, action, payload):
@@ -296,7 +304,7 @@ class Backend(QObject):
                 if self.community_state["busy"]:
                     self.community_state["message"] = "Cancelling the plugin request…"
             else:
-                self._require_editable()
+                self._require_editable(allow_community_pending=action in {"quit_game", "stop_session", "return_hub"})
                 self._action(action, payload)
         except Exception as exc:
             self.error = str(exc)

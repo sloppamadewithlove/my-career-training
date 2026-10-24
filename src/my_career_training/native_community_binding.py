@@ -49,6 +49,7 @@ class NativeCommunityBinding:
         self._ready = False
         self._reason = "Waiting for the native Community menu."
         self._host_reason = ""
+        self._requested_at = None
         self.controller = NativeCommunityController(
             session.directory, Path(bakkes_root), session.directory / "community-plugins",
             lease=lambda: self._observation()[0],
@@ -83,8 +84,8 @@ class NativeCommunityBinding:
                 or type(movie) is not dict or movie.get("trial_enabled") is not True
                 or movie.get("movie_ready") is not True
                 or movie.get("executable_sha256") != GAME_EXE_SHA256
-                or movie.get("core_identity") != CORE_IDENTITY
-                or movie.get("build_identity") != BUILD_IDENTITY):
+                or movie.get("bakkes_core") != "229"
+                or movie.get("game_build") != BUILD_IDENTITY):
             raise NativeCommunityError("Open the native Community menu in the matching offline session.")
         scope = OwnedTrialScope(self.session.session, identity.pid, owned_start_identity(identity.created),
                                 True, True, True, True, True)
@@ -96,9 +97,17 @@ class NativeCommunityBinding:
         except (NativeCommunityError, OSError, ValueError) as exc:
             self._ready = False
             self._reason = str(exc)
+            if self.controller.request() is not None:
+                self._host_reason = "The offline connection changed before the plugin was confirmed. Close this session before retrying."
             return
         self._ready = True
         self._reason = ""
+        if (self.controller.request() is not None and self._requested_at is not None
+                and time.monotonic() - self._requested_at > 10):
+            self._host_reason = "The plugin was not confirmed in time. Close this session before retrying."
+            return
+        if self._host_reason:
+            return
         ack = heartbeat.get("native_community_status")
         if type(ack) is dict and ack.get("status") == "loaded":
             self.controller.accept_status(ack)
@@ -112,14 +121,20 @@ class NativeCommunityBinding:
         state = self.controller.state()
         state.update(available=True, can_prepare=(self._ready and not state["outstanding"]
                      and state["status"] == "idle"))
+        state["busy"] = self.pending()
+        state["requires_restart"] = bool(self._host_reason)
         if self._host_reason:
             state["message"] = self._host_reason
+            state["enabled"] = False
         elif not self._ready:
             state["message"] = self._reason
         return state
 
     def request(self):
-        return self.controller.request() if self._ready else None
+        return self.controller.request() if self._ready and not self._host_reason else None
+
+    def pending(self):
+        return self.request() is not None
 
     def prepare(self, selected):
         if type(selected) is not dict or selected.get("id") != SITE_ID:
@@ -127,5 +142,6 @@ class NativeCommunityBinding:
         # Re-evaluate the full lease here, regardless of an earlier UI snapshot.
         self._observation()
         result = self.controller.prepare()
+        self._requested_at = time.monotonic()
         self._host_reason = ""
         return result

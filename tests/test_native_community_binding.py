@@ -27,8 +27,8 @@ def world(tmp_path, monkeypatch):
               "online": False, "in_game": False, "in_replay": False, "frontend": True,
               "bakkesmod_version": 229, "game_build": BUILD_IDENTITY,
               "native_movie_trial": {"trial_enabled": True, "movie_ready": True,
-                  "executable_sha256": GAME_EXE_SHA256, "core_identity": CORE_IDENTITY,
-                  "build_identity": BUILD_IDENTITY}}
+                  "executable_sha256": GAME_EXE_SHA256, "bakkes_core": "229",
+                  "game_build": BUILD_IDENTITY}}
     bridge = SimpleNamespace(session=nonce, plugin_status=lambda: copy.deepcopy(status))
     monkeypatch.setattr(binding.time, "time", lambda: 100.0)
     monkeypatch.setattr(bootstrap, "verify_owned_offline", lambda _: True)
@@ -70,7 +70,7 @@ def test_heartbeat_refusal_removes_action_without_staging(world, key, value):
 
 @pytest.mark.parametrize("key,value", [
     ("movie_ready", False), ("trial_enabled", False), ("executable_sha256", "a" * 64),
-    ("core_identity", "229"), ("build_identity", "other"),
+    ("bakkes_core", "Bakkes229"), ("game_build", "other"),
 ])
 def test_native_movie_must_attest_matching_build(world, key, value):
     world.status["native_movie_trial"][key] = value
@@ -145,3 +145,32 @@ def test_bootstrap_refuses_plugin_restore_on_community_conflict(tmp_path, monkey
     for operation in (bootstrap.recover_plugin_session, bootstrap.restore_plugin_session):
         with pytest.raises(bootstrap.PluginSessionError, match="foreign trial file"):
             operation(tmp_path)
+
+
+def test_pending_request_is_withdrawn_permanently_after_scope_loss(world, monkeypatch):
+    pending = {"nonce": world.session.session, "pid": 888, "stem": "generated",
+               "start_identity": "1234567890.125"}
+    monkeypatch.setattr(world.controller.controller, "request", lambda: pending)
+    world.controller.refresh()
+    assert world.controller.pending()
+    world.status["in_game"] = True
+    world.controller.refresh()
+    assert world.controller.request() is None
+    world.status["in_game"] = False
+    world.controller.refresh()
+    assert world.controller.request() is None
+    assert "changed" in world.controller.state()["message"]
+
+
+def test_pending_request_expires_without_retry_and_late_ack_is_not_accepted(world, monkeypatch):
+    monkeypatch.setattr(world.controller.controller, "request", lambda: {"pending": True})
+    monkeypatch.setattr(world.controller.controller, "accept_status", lambda _: pytest.fail("late ack"))
+    world.controller._requested_at = 100.0
+    monkeypatch.setattr(binding.time, "monotonic", lambda: 111.0)
+    world.status["native_community_status"] = {"status": "loaded"}
+    world.controller.refresh()
+    assert world.controller.request() is None
+    assert not world.controller.state()["busy"]
+    assert world.controller.state()["requires_restart"]
+    assert not world.controller.state()["enabled"]
+    assert "in time" in world.controller.state()["message"]

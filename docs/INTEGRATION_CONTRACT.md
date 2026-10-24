@@ -50,6 +50,12 @@ and rejects the action. The separate `native_community_trial` view remains
 unverified; official download `can_activate:false` is unchanged.
 `native_community_request` carries the controller's bounded request to the native
 host. Only a fresh, exactly matching PluginManager acknowledgement can enable it.
+The binding accepts movie heartbeat `movie_ready`, `executable_sha256`,
+`bakkes_core:"229"`, and `game_build`, plus the top-level frontend/replay flags.
+It maps only that verified core to the controller's `Bakkes229` identity. A pending
+load blocks new activities but permits quitting. Scope loss, an attributed host
+refusal, or ten seconds without confirmation withdraws the request permanently
+for that session and sets `requires_restart`; it never silently resends later.
 Interrupted community journals are recovered before offline startup, final plugin
 restoration, and normal online handoff. Game/helper presence or a changed file keeps
 the journal and prevents handoff; no live community plugin unload is issued.

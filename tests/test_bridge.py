@@ -745,6 +745,20 @@ def test_native_career_name_paste_changes_only_draft_then_creates_career(backend
     assert json.loads(backup.read_text(encoding="utf-8"))["career"]["team_name"] == "Slava FC"
 
 
+def test_pending_community_load_blocks_other_activity_but_keeps_exit_available(backend, monkeypatch):
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    instance.native_community = SimpleNamespace(state=lambda: {"busy": True}, request=lambda: {})
+    assert instance.state["session"]["busy"]
+    instance.dispatch("new_career", {"team_name": "Wait", "format": 3})
+    assert "community plugin confirmation" in instance.error
+    assert instance.document["career"] is None
+    stops = []
+    monkeypatch.setattr(instance, "_begin_stop", stops.append)
+    instance.dispatch("quit_game", {})
+    assert not instance.error and stops == ["exit"]
+
+
 @pytest.mark.parametrize("value", ["", "x" * 41, "club\nname", "club\x7fname"])
 def test_native_career_name_rejects_bad_clipboard(backend, monkeypatch, value):
     from PySide6.QtGui import QGuiApplication
