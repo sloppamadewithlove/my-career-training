@@ -91,11 +91,23 @@ def install_plugin(directory=None):
 
 def recover_plugin_session(directory=None):
     """Restore an interrupted plugin session once no Rocket League process is running."""
+    from .native_community_binding import recover_native_community
+    from .storage import data_dir
+    try:
+        recover_native_community(directory if directory is not None else data_dir())
+    except Exception as exc:
+        raise PluginSessionError(f"Community trial recovery is incomplete: {exc}") from exc
     return _plugin_session(directory).recover()
 
 
 def restore_plugin_session(directory=None):
     """Restore owned plugin files, or keep the receipt while a game process is open."""
+    from .native_community_binding import recover_native_community
+    from .storage import data_dir
+    try:
+        recover_native_community(directory if directory is not None else data_dir())
+    except Exception as exc:
+        raise PluginSessionError(f"Community trial recovery is incomplete: {exc}") from exc
     return _plugin_session(directory).finish()
 
 
@@ -283,6 +295,14 @@ def run_service(directory, *, native_movie_trial=False):
     notices = plugin_session_notices(directory)
     if notices:
         QMessageBox.warning(None, "BakkesMod plugin setup", "\n".join(notices))
+    if native_session is not None:
+        from .native_community_binding import NativeCommunityBinding
+        backend.native_community = None
+        try:
+            backend.native_community = NativeCommunityBinding(native_session, bridge, bakkes_directory())
+        except Exception as exc:
+            # The already owned game remains usable; no community load is offered.
+            backend.error = f"Community trial is unavailable: {exc}"
     started = time.monotonic()
     plugin_seen = False
     connection_warning_shown = False
@@ -295,6 +315,8 @@ def run_service(directory, *, native_movie_trial=False):
                 backend.plugin_status = {}
             plugin_seen = plugin_seen or bool(backend.plugin_status)
             if native_session is not None:
+                if backend.native_community is not None:
+                    backend.native_community.refresh()
                 warning = native_session.warning()
                 if warning:
                     backend.error = warning

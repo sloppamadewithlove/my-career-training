@@ -45,6 +45,8 @@ class Backend(QObject):
         self.in_game = False
         self.telemetry = {}
         self.plugin_status = {}
+        self.native_community = None
+        self.career_draft = {"team_name": "My Career Club"}
         self.workshop_state = {}
         self.community_state = {"catalog": community_plugins.curated_catalog(), "downloaded": [],
             "selected": None, "busy": False, "message": "Choose a plugin to check its current release.",
@@ -103,6 +105,8 @@ class Backend(QObject):
                 self.latest_result = dict(latest["result"], home=latest["home"], away=latest["away"])
 
     def _restore_before_online(self):
+        from .native_community_binding import recover_native_community
+        recover_native_community(self.store.directory)
         result = PluginSession(self.store.directory, game_running=lambda: bool(game_processes())).finish()
         if result.get("status") not in {"idle", "restored"}:
             raise PluginSessionError("The temporary My Career setup is still active. Close Rocket League and wait for its offline helper to finish before retrying.")
@@ -136,6 +140,9 @@ class Backend(QObject):
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
             "community_plugins": self.community_state,
+            "career_draft": dict(self.career_draft),
+            "native_community_trial": self.native_community.state() if self.native_community else {},
+            "native_community_request": self.native_community.request() if self.native_community else None,
             "owned_game": self.owned_game.as_dict() if self.owned_game else None,
             "offline": self.in_game, "human_team": (0 if not self.request or
                 not self.request.get("fixture") or self.request["fixture"].get("home") == "human" else 1)}
@@ -324,6 +331,12 @@ class Backend(QObject):
             self._community_job("lookup", text)
         elif action == "community_download":
             self._community_job("download")
+        elif action == "community_trial_prepare":
+            if p or self.native_community is None:
+                raise ValueError("This action requires the native offline developer trial.")
+            if self.community_state["busy"] or self._worker_active() or self.lifecycle.frozen:
+                raise ValueError("Wait for the current download or game transition to finish.")
+            self.native_community.prepare(self.community_state["selected"])
         elif action == "community_library":
             self._community_job("library")
         elif action == "workshop_favorite":
@@ -367,6 +380,28 @@ class Backend(QObject):
             state["career"] = domain.new_career(p["team_name"], int(p.get("format", 3)), recruits=p.get("recruits"))
             self._commit(state)
             self.page = "hub"
+        elif action in ("career_name_clipboard", "rename_recruit_clipboard"):
+            from PySide6.QtGui import QGuiApplication
+            expected = set() if action == "career_name_clipboard" else {"id"}
+            if set(p) != expected:
+                raise ValueError("Use the native menu's Paste name button.")
+            clipboard = QGuiApplication.clipboard()
+            name = clipboard.text().strip() if clipboard is not None else ""
+            if not 1 <= len(name) <= 40 or not all(character.isprintable() for character in name):
+                raise ValueError("Copy a name containing 1 to 40 visible characters, then choose Paste name.")
+            if action == "career_name_clipboard":
+                self.career_draft = {"team_name": name}
+                self.notice = "Club name ready for the new career."
+            else:
+                self._career_change(domain.rename_recruit, p["id"], name)
+                self.notice = "Recruit name saved."
+        elif action == "backup_save":
+            if p:
+                raise ValueError("Use the Backup career button without a destination.")
+            self._save_current()
+            destination = self.store.directory / f"career-backup-{time.time_ns()}.json"
+            self.store.export_file(destination)
+            self.notice = "Career backup saved in your My Career data folder."
         elif action == "lineup":
             self._career_change(domain.set_lineup, list(p["ids"]))
         elif action == "replace_recruit":

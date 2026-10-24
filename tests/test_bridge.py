@@ -692,6 +692,88 @@ def test_community_failure_returns_to_retryable_state(backend, monkeypatch):
     assert instance.community_state["selected"] is None
 
 
+def test_native_community_action_requires_attached_capability_and_empty_payload(backend):
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    instance.dispatch("community_trial_prepare", {})
+    assert "native offline developer trial" in instance.error
+    calls = []
+    instance.native_community = SimpleNamespace(prepare=calls.append,
+        state=lambda: {"available": True}, request=lambda: None)
+    instance.community_state["selected"] = {"id": "286", "can_activate": False}
+    instance.dispatch("community_trial_prepare", {"stem": "arbitrary"})
+    assert calls == [] and instance.error
+    instance.dispatch("community_trial_prepare", {})
+    assert calls == [{"id": "286", "can_activate": False}]
+    assert not instance.error
+    assert instance.state["native_community_trial"] == {"available": True}
+    assert instance.community_state["can_activate"] is False
+
+
+def test_online_handoff_waits_for_community_recovery(backend, monkeypatch):
+    from my_career_training import native_community_binding
+    instance, _, launches = backend
+    def fail(_):
+        raise RuntimeError("Community file recovery conflict")
+    monkeypatch.setattr(native_community_binding, "recover_native_community", fail)
+    instance.dispatch("online_request", {})
+    instance.dispatch("online_confirm", {"yes": True})
+    instance.lifecycle.worker_stopped()
+    for _ in range(8):
+        instance._tick()
+    assert launches == []
+    assert instance.lifecycle.state == "Error/Recovery"
+    assert "Community file recovery conflict" in instance.lifecycle.last_error
+
+
+def test_native_career_name_paste_changes_only_draft_then_creates_career(backend, monkeypatch):
+    from PySide6.QtGui import QGuiApplication
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    monkeypatch.setattr(QGuiApplication, "clipboard", lambda: SimpleNamespace(text=lambda: "  Slava FC  "))
+    instance.dispatch("career_name_clipboard", {})
+    assert not instance.error
+    assert instance.document["career"] is None
+    assert instance.state["career_draft"] == {"team_name": "Slava FC"}
+    instance.dispatch("new_career", dict(instance.career_draft, format=2))
+    assert not instance.error
+    assert instance.document["career"]["team_name"] == "Slava FC"
+    assert instance.document["career"]["format"] == 2
+    old_id = instance.document["career"]["id"]
+    instance.dispatch("new_career", {"team_name": "Second Club", "format": 3})
+    backup = instance.store.directory / f"career-{old_id}.json"
+    assert json.loads(backup.read_text(encoding="utf-8"))["career"]["team_name"] == "Slava FC"
+
+
+@pytest.mark.parametrize("value", ["", "x" * 41, "club\nname", "club\x7fname"])
+def test_native_career_name_rejects_bad_clipboard(backend, monkeypatch, value):
+    from PySide6.QtGui import QGuiApplication
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    monkeypatch.setattr(QGuiApplication, "clipboard", lambda: SimpleNamespace(text=lambda: value))
+    instance.dispatch("career_name_clipboard", {})
+    assert instance.error and instance.career_draft["team_name"] == "My Career Club"
+
+
+def test_native_recruit_paste_and_manual_backup_use_existing_domain_validation(backend, monkeypatch):
+    from PySide6.QtGui import QGuiApplication
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    instance.dispatch("new_career", {"team_name": "Home", "format": 3})
+    monkeypatch.setattr(QGuiApplication, "clipboard", lambda: SimpleNamespace(text=lambda: "Keeper"))
+    instance.dispatch("rename_recruit_clipboard", {"id": "anchor"})
+    assert not instance.error and instance.document["career"]["recruits"]["anchor"]["name"] == "Keeper"
+    instance.dispatch("rename_recruit_clipboard", {"id": "unknown"})
+    assert "Unknown recruit" in instance.error
+    instance.dispatch("backup_save", {"path": "arbitrary"})
+    assert instance.error and not list(instance.store.directory.glob("career-backup-*.json"))
+    instance.dispatch("backup_save", {})
+    assert not instance.error
+    backups = list(instance.store.directory.glob("career-backup-*.json"))
+    assert len(backups) == 1
+    assert json.loads(backups[0].read_text(encoding="utf-8"))["career"] == instance.document["career"]
+
+
 def test_community_late_cancel_keeps_committed_download_visible(backend, monkeypatch):
     instance, _, _ = backend
     from my_career_training import community_plugins as plugins

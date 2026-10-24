@@ -18,6 +18,8 @@ ALLOWED_ACTIONS = frozenset({
     "return_hub", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
     "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
+    "community_trial_prepare",
+    "career_name_clipboard", "rename_recruit_clipboard", "backup_save",
 })
 
 
