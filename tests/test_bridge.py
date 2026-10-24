@@ -477,3 +477,160 @@ def test_optional_match_review_persists_once_across_restart_and_rejects_late_sco
     finally:
         restarted.timer.stop()
         restarted.close()
+
+
+def _finish_community(instance, seconds=2):
+    import threading
+    import time
+    deadline = time.monotonic() + seconds
+    while instance.community_state["busy"] and time.monotonic() < deadline:
+        instance._poll_community()
+        threading.Event().wait(0.002)
+    assert not instance.community_state["busy"], "Community job did not settle"
+
+
+def test_community_download_uses_checked_release_without_touching_game(backend, monkeypatch):
+    instance, game_running, launches = backend
+    from my_career_training import community_plugins as plugins
+    record = {"id": "223", "title": "Example plugin", "version": 21, "site_verified": True,
+              "download_url": "https://example.invalid/fixture.zip", "can_activate": False}
+    calls = []
+    monkeypatch.setattr(plugins, "lookup_plugin", lambda plugin_id: record if plugin_id == "223" else None)
+    monkeypatch.setattr(plugins, "cached_plugins", lambda _directory: [])
+
+    def download(checked, directory, *, cancelled):
+        calls.append((checked, directory, cancelled()))
+        return {"id": "223", "status": "downloaded_not_enabled", "can_activate": False}
+
+    monkeypatch.setattr(plugins, "download_plugin", download)
+    instance.dispatch("community_lookup", {"id": "223"})
+    _finish_community(instance)
+    assert instance.community_state["selected"] == record
+    instance.dispatch("community_download", {"download_url": "https://attacker.invalid/evil.zip"})
+    _finish_community(instance)
+    assert calls == [(record, instance.store.directory / "community-plugins", False)]
+    assert instance.community_state["can_activate"] is False
+    assert "Not enabled" in instance.community_state["message"]
+    assert instance.owned_game is None and instance.process is None and not game_running["value"]
+    assert launches == []
+    assert instance.error == ""
+
+
+def test_community_lookup_does_not_block_ui_and_cancellation_discards_result(backend, monkeypatch):
+    import threading
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+    entered, release = threading.Event(), threading.Event()
+
+    def lookup(_plugin_id):
+        entered.set()
+        assert release.wait(2)
+        return {"id": "223", "title": "Late result"}
+
+    monkeypatch.setattr(plugins, "lookup_plugin", lookup)
+    monkeypatch.setattr(plugins, "cached_plugins", lambda _directory: [])
+    try:
+        instance.dispatch("community_lookup", {"id": "223"})
+        assert entered.wait(1)
+        assert instance.community_state["busy"]
+        instance.dispatch("navigate", {"page": "training"})
+        assert instance.page == "training"
+        instance.dispatch("community_lookup", {"id": "99"})
+        assert "Wait" in instance.error
+        instance.dispatch("community_cancel", {})
+    finally:
+        release.set()
+    _finish_community(instance)
+    assert instance.community_state["selected"] is None
+    assert "cancelled" in instance.community_state["message"]
+
+
+def test_community_unchecked_download_and_activation_are_rejected(backend, monkeypatch):
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+    monkeypatch.setattr(plugins, "download_plugin", lambda *a, **k: pytest.fail("Unchecked download"))
+    instance.dispatch("community_download", {"id": "223"})
+    assert "Check a plugin" in instance.error
+    assert not instance.community_state["busy"]
+    instance.dispatch("community_activate", {"id": "223"})
+    assert instance.error
+    from my_career_training.ingame import ALLOWED_ACTIONS
+    assert "community_activate" not in ALLOWED_ACTIONS
+
+
+@pytest.mark.parametrize("action", ["community_lookup", "community_library"])
+def test_community_cancel_during_library_read_discards_uncommitted_result(backend, monkeypatch, action):
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+    monkeypatch.setattr(plugins, "lookup_plugin", lambda _id: {"id": "223"})
+
+    def cached(_directory):
+        instance._community_cancel.set()
+        return [{"id": "223", "status": "downloaded_not_enabled"}]
+
+    monkeypatch.setattr(plugins, "cached_plugins", cached)
+    instance.dispatch(action, {"id": "223"})
+    _finish_community(instance)
+    assert instance.community_state["selected"] is None
+    assert instance.community_state["downloaded"] == []
+    assert "cancelled" in instance.community_state["message"]
+
+
+def test_community_failure_returns_to_retryable_state(backend, monkeypatch):
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+
+    def lookup(_plugin_id):
+        raise plugins.CommunityPluginError("Plugin metadata unavailable.")
+
+    monkeypatch.setattr(plugins, "lookup_plugin", lookup)
+    instance.dispatch("community_lookup", {"id": "223"})
+    _finish_community(instance)
+    assert instance.error == "Plugin metadata unavailable."
+    assert instance.community_state["selected"] is None
+
+
+def test_community_late_cancel_keeps_committed_download_visible(backend, monkeypatch):
+    instance, _, _ = backend
+    from my_career_training import community_plugins as plugins
+    receipt = {"id": "223", "status": "downloaded_not_enabled", "can_activate": False}
+    instance.community_state["selected"] = {"id": "223"}
+
+    def committed_download(*_args, **_kwargs):
+        instance._community_cancel.set()  # Cancel races after service commits.
+        return receipt
+
+    monkeypatch.setattr(plugins, "download_plugin", committed_download)
+    monkeypatch.setattr(plugins, "cached_plugins", lambda _directory: [receipt])
+    instance.dispatch("community_download", {})
+    _finish_community(instance)
+    assert instance.community_state["downloaded"] == [receipt]
+    assert "Downloaded" in instance.community_state["message"]
+
+
+def test_community_cancel_is_available_during_game_transition(backend):
+    instance, _, _ = backend
+    instance.community_state["busy"] = True
+    instance.session_state = "Starting Career"
+    instance.dispatch("community_cancel", {})
+    assert instance._community_cancel.is_set()
+    assert instance.error == ""
+
+
+def test_community_page_renders_idle_and_downloaded_states_without_qml_errors(backend, qt_app):
+    instance, _, _ = backend
+    engine, window = _load_main_window(instance, qt_app)
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(message.toString() for message in messages))
+    try:
+        instance.dispatch("navigate", {"page": "community"})
+        qt_app.processEvents()
+        instance.community_state.update(selected={"id": "223", "title": "Fixture plugin"},
+            downloaded=[{"id": "223", "status": "downloaded_not_enabled"}])
+        instance.stateChanged.emit()
+        qt_app.processEvents()
+        assert not warnings
+    finally:
+        window.close()
+        engine.deleteLater()
+        qt_app.processEvents()

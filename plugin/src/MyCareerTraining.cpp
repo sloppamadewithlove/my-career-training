@@ -310,6 +310,7 @@ void MyCareerTraining::startNativeProbe() {
         return;
     }
     lastProbeMenu_.clear();
+    lastProbeStack_.clear();
     probeHooksInstalled_ = true;
     try {
         std::weak_ptr<int> life = alive_;
@@ -366,9 +367,12 @@ void MyCareerTraining::observeNativeProbe(const std::string& event) {
     try {
         auto stack = gameWrapper->GetMenuStack();
         const auto menu = stack ? stack.GetTopMenu() : "";
-        const auto observed = event.empty() && menu != lastProbeMenu_ ? "menu_stack_transition" : event;
-        nativeProbe_.observe(probeScope(), observed, menu, gameWrapper->IsInGame(), mct::unixTime());
+        const auto menus = stack ? stack.GetMenuStack() : std::vector<std::string>{};
+        const auto observed = event.empty() && (menu != lastProbeMenu_ || menus != lastProbeStack_)
+            ? "menu_stack_transition" : event;
+        nativeProbe_.observe(probeScope(), observed, menu, gameWrapper->IsInGame(), mct::unixTime(), menus);
         lastProbeMenu_ = menu;
+        lastProbeStack_ = menus;
     } catch (const std::exception& error) {
         nativeProbe_.clear();
         probeExecutableSha256_.clear();

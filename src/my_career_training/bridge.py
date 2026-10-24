@@ -4,7 +4,9 @@ from __future__ import annotations
 import copy
 import json
 import platform
+import queue
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import QFileDialog
 from . import __version__, career as domain
 from .adapter import CORE_VERSION, SDK_VERSION
 from .content import community_catalog, garage_catalog, import_map, validate_loadout
+from . import community_plugins
 from .lifecycle import Lifecycle
 from .platforms import ProcessIdentity, detect_installations, game_processes, graceful_close, is_alive, launch_online
 from .storage import Store, default_state
@@ -41,6 +44,11 @@ class Backend(QObject):
         self.telemetry = {}
         self.plugin_status = {}
         self.workshop_state = {}
+        self.community_state = {"catalog": community_plugins.curated_catalog(), "downloaded": [],
+            "selected": None, "busy": False, "message": "Choose a plugin to check its current release.",
+            "can_activate": False}
+        self._community_results = queue.SimpleQueue()
+        self._community_cancel = threading.Event()
         self.store = Store(directory, validate_document)
         self.error = ""
         try:
@@ -119,6 +127,7 @@ class Backend(QObject):
             "recordings": self.document["recordings"], "providers": self._providers(),
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
+            "community_plugins": self.community_state,
             "owned_game": self.owned_game.as_dict() if self.owned_game else None,
             "offline": self.in_game, "human_team": (0 if not self.request or
                 not self.request.get("fixture") or self.request["fixture"].get("home") == "human" else 1)}
@@ -137,6 +146,75 @@ class Backend(QObject):
 
     def _save_current(self):
         self.store.save(self.document)
+
+    def _community_job(self, operation, plugin_id=None):
+        if self.community_state["busy"]:
+            raise ValueError("Wait for the current plugin download or cancel it first.")
+        record = copy.deepcopy(self.community_state["selected"])
+        if operation == "download" and not record:
+            raise ValueError("Check a plugin's current release before downloading it.")
+        directory = self.store.directory / "community-plugins"
+        cancelled = threading.Event()
+        self._community_cancel = cancelled
+        results = self._community_results
+        self.community_state.update(busy=True, message={
+            "lookup": "Checking the creator's current release…",
+            "download": "Downloading into My Career's private library…",
+            "library": "Checking downloaded files…"}[operation])
+        if operation == "lookup":
+            self.community_state["selected"] = None
+
+        # The background job never touches Qt, the save, BakkesMod or the game.
+        # One terminal result is consumed on the main thread's existing timer.
+        def run():
+            try:
+                result = None
+                if operation == "lookup":
+                    result = community_plugins.lookup_plugin(plugin_id)
+                elif operation == "download":
+                    result = community_plugins.download_plugin(record, directory, cancelled=cancelled.is_set)
+                # Once the service returns a receipt, the download was committed.
+                # A late Cancel must not hide the package that now exists.
+                if cancelled.is_set() and operation != "download":
+                    results.put(("cancelled", operation, None, []))
+                    return
+                library = community_plugins.cached_plugins(directory)
+                if cancelled.is_set() and operation != "download":
+                    results.put(("cancelled", operation, None, []))
+                    return
+                results.put(("ok", operation, result, library))
+            except community_plugins.DownloadCancelled:
+                results.put(("cancelled", operation, None, []))
+            except community_plugins.CommunityPluginError as error:
+                results.put(("error", operation, str(error), []))
+            except Exception:
+                results.put(("error", operation, "Could not check the community plugin. Try again.", []))
+
+        threading.Thread(target=run, name="community-plugin-download", daemon=True).start()
+
+    def _poll_community(self):
+        try:
+            status, operation, result, library = self._community_results.get_nowait()
+        except queue.Empty:
+            return
+        self.community_state["busy"] = False
+        if status == "ok":
+            # Archive manifests belong on disk, not in the game bridge payload.
+            display_fields = {"id", "title", "creator", "version", "artifact_sha256", "status", "can_activate"}
+            self.community_state["downloaded"] = [
+                {key: value for key, value in item.items() if key in display_fields} for item in library]
+            if operation == "lookup":
+                self.community_state["selected"] = result
+            self.community_state["message"] = (
+                "Downloaded. Not enabled in the game; offline plugin loading still needs verification."
+                if operation == "download" else "Current release found. Downloading does not enable it."
+                if operation == "lookup" else "Downloaded library checked.")
+        elif status == "cancelled":
+            self.community_state["message"] = "Plugin request cancelled. Nothing was enabled in the game."
+        else:
+            self.community_state["message"] = result
+            self.error = result
+        self.stateChanged.emit()
 
     def _commit(self, document):
         self.store.save(document)
@@ -198,6 +276,10 @@ class Backend(QObject):
                 if payload["url"] not in allowed or not payload["url"].startswith("https://"):
                     raise ValueError("Only catalog source links can be opened here.")
                 QDesktopServices.openUrl(QUrl(payload["url"]))
+            elif action == "community_cancel":
+                self._community_cancel.set()
+                if self.community_state["busy"]:
+                    self.community_state["message"] = "Cancelling the plugin request…"
             else:
                 self._require_editable()
                 self._action(action, payload)
@@ -219,6 +301,12 @@ class Backend(QObject):
             self._begin_stop("exit")
         elif action == "refresh_workshop":
             self._refresh_workshop()
+        elif action == "community_lookup":
+            self._community_job("lookup", p.get("id"))
+        elif action == "community_download":
+            self._community_job("download")
+        elif action == "community_library":
+            self._community_job("library")
         elif action == "workshop_favorite":
             from .workshop import toggle_favorite
             self._refresh_workshop()
@@ -673,6 +761,7 @@ class Backend(QObject):
         self.close_deadline = time.monotonic() + 30
 
     def _tick(self):
+        self._poll_community()
         before = (self.lifecycle.state, self.lifecycle.message)
         self.lifecycle.tick()
         if self.stop_reason == "online" and self.lifecycle.state in ("Online Launch Requested", "Error/Recovery"):
@@ -736,6 +825,7 @@ class Backend(QObject):
             return False
 
     def close(self):
+        self._community_cancel.set()
         self._save_current()
         if self._worker_active():
             self._send("shutdown")

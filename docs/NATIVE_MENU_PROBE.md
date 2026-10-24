@@ -39,7 +39,8 @@ also useful evidence. No report is uploaded automatically.
   BakkesMod hooks. Each game tick checks ownership, bridge freshness, offline
   state, session nonce, and build ID. A failed check immediately erases the
   in-memory trace and prevents export. Hooks do not bypass this gate.
-- Allowed records are the current top-menu name, an `in_game` boolean, UTC
+- Schema 2 records the current top-menu name, the full SDK menu-stack vector
+  (at most 32 short identifiers), an `in_game` boolean, UTC
   timestamp, and the occurrence of an allowlisted named event. The initial
   event list is `menu_stack_transition`,
   `Function TAGame.GFxData_MenuStack_TA.ButtonTriggered`,
@@ -49,6 +50,9 @@ also useful evidence. No report is uploaded automatically.
   integration uses named BakkesMod hooks without interpreting `void*`
   parameters. A named hook's presence in source does not prove the current
   game fires it.
+  A stack change is recorded even when its top entry stays the same. Stack
+  order is preserved exactly as the SDK returned it; the collector does not
+  infer parent/child ownership of rendered buttons from these names.
 - Collection stops after 120 seconds or 1,000 events and automatically saves
   only if the owned offline scope is still valid. The operator may stop sooner
   or cancel. A failed guard immediately erases the in-memory trace and removes

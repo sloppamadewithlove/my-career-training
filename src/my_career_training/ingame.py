@@ -17,6 +17,7 @@ ALLOWED_ACTIONS = frozenset({
     "diagnostics", "loadout", "restore_explanations", "lesson_variant", "play_recording",
     "return_hub", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
+    "community_lookup", "community_download", "community_library", "community_cancel",
 })
 
 
@@ -76,7 +77,6 @@ class FileBridge:
         self.ack = {}
         self._last_plugin_status = {}
         self.seen = set()
-        self.started = clock()
 
     def poll(self):
         for path in sorted(self.commands.glob("*.json"))[:32]:
@@ -114,11 +114,14 @@ class FileBridge:
         try:
             if path.is_symlink():
                 return {}
-            raw, modified = _read_shared(path, 2 * 1024 * 1024)
+            raw, _modified = _read_shared(path, 2 * 1024 * 1024)
             if len(raw) > 2 * 1024 * 1024:
                 return {}
             value = json.loads(raw)
-            if (not isinstance(value, dict) or modified < self.started
+            # Session nonce and publisher freshness establish identity/age.
+            # Filesystem timestamp precision need not match the wall clock;
+            # comparing mtime with construction time can reject a fresh handshake.
+            if (not isinstance(value, dict)
                     or value.get("bridge_session") != self.session
                     or not isinstance(value.get("published_at"), (int, float))
                     or not -1 <= self.clock() - value["published_at"] <= 5):

@@ -40,7 +40,11 @@ int main() {
         require(probe.observe(scope, "menu_stack_transition", "MainMenu", false, 100.3),
                 "Menu transition was not recorded");
         require(probe.observe(scope, "Function TAGame.GFxData_MenuStack_TA.ButtonTriggered",
-                              "PlayMenu", false, 100.4), "Named hook event was not recorded");
+                              "PlayMenu", false, 100.4, {"MainMenu", "PlayMenu"}), "Named hook event was not recorded");
+        require(!probe.observe(scope, "menu_stack_transition", "PlayMenu", false, 100.5,
+                               {"MainMenu", "private\nvalue"}), "Invalid nested name entered trace");
+        require(!probe.observe(scope, "menu_stack_transition", "PlayMenu", false, 100.6,
+                               std::vector<std::string>(33, "MainMenu")), "Unbounded stack entered trace");
         require(probe.eventCount() == 2, "Invalid observations were retained");
         require(probe.stopToBridge(scope, 101.0, bridge), "Explicit stop did not publish trace");
         require(!probe.active() && probe.eventCount() == 0, "Stop retained private trace in memory");
@@ -51,6 +55,9 @@ int main() {
         require(trace["scope"]["owned_offline_session"] == true, "Trace omitted offline scope");
         require(trace["scope"]["executable_sha256"].is_null(), "Unverified executable hash was fabricated");
         require(trace["events"].size() == 2, "Trace event count changed on export");
+        require(trace["schema_version"] == 2 && trace["events"][1]["menu_stack"] ==
+                mct::Json::array({"MainMenu", "PlayMenu"}), "Nested menu route was lost");
+        require(trace.dump().find("private") == std::string::npos, "Rejected stack text leaked");
         require(trace.dump().find("account=private") == std::string::npos,
                 "Rejected account text leaked into trace");
 

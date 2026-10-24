@@ -469,7 +469,32 @@ void MyCareerTraining::renderGhostControls(const Json& state, bool compact) {
 
 void MyCareerTraining::renderWorkshop(const Json& state) {
     title("WORKSHOP");
-    detail("Browse community challenges. Play maps installed on this PC.");
+    detail("Browse community challenges and check local map availability.");
+    if (ImGui::CollapsingHeader("COMMUNITY PLUGIN DOWNLOADS")) {
+        const auto plugins = objectValue(state, "community_plugins");
+        const bool busy = boolValue(plugins, "busy");
+        static char pluginId[11] = "223";
+        ImGui::SetNextItemWidth(180);
+        ImGui::InputText("BakkesPlugins ID", pluginId, sizeof(pluginId), ImGuiInputTextFlags_CharsDecimal);
+        const std::string pluginIdentity(pluginId);
+        const bool validPluginId = !pluginIdentity.empty() && pluginIdentity.front() != '0' &&
+            std::all_of(pluginIdentity.begin(), pluginIdentity.end(), [](char value) { return value >= '0' && value <= '9'; });
+        if (button("CHECK CURRENT RELEASE", !busy && validPluginId)) command("community_lookup", {{"id", pluginIdentity}});
+        ImGui::SameLine();
+        if (button("CHECK DOWNLOADED FILES", !busy)) command("community_library");
+        const auto selectedPlugin = objectValue(plugins, "selected");
+        if (!selectedPlugin.empty()) {
+            paragraph(stringValue(selectedPlugin, "title"));
+            detail(boolValue(selectedPlugin, "site_verified") ? "Listed as verified by BakkesPlugins." : "Not marked verified by BakkesPlugins.");
+            if (primary("DOWNLOAD TO MY CAREER LIBRARY", !busy)) command("community_download");
+        }
+        if (busy && button("CANCEL PLUGIN REQUEST")) command("community_cancel");
+        paragraph(stringValue(plugins, "message"));
+        for (const auto& item : arrayValue(plugins, "downloaded"))
+            ImGui::Text("Plugin %s — downloaded, not enabled", stringValue(item, "id").c_str());
+        paragraph("These downloads stay in My Career's library. Enabling community plugins needs verified offline loading first.");
+        ImGui::Separator();
+    }
     const char* tabs[] = {"BROWSE", "FAVORITES", "LOCAL FILES", "INSTALLED"};
     for (int index = 0; index < 4; ++index) {
         if (index) ImGui::SameLine();

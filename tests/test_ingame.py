@@ -68,6 +68,20 @@ def test_plugin_status_requires_current_nonce_and_fresh_timestamp(tmp_path):
     assert pipe.plugin_status() == {}
 
 
+def test_plugin_status_freshness_does_not_depend_on_filesystem_timestamp(tmp_path, monkeypatch):
+    from my_career_training import ingame
+    pipe = FileBridge(tmp_path, lambda *_: None, lambda: {}, clock=lambda: 100.123456)
+    record = {"published_at": 100.123456, "bridge_session": pipe.session}
+    # A filesystem timestamp rounded below the service creation time is not
+    # evidence that a current-nonce publisher handshake belongs to an old run.
+    monkeypatch.setattr(ingame, "_read_shared", lambda *_: (json.dumps(record).encode(), 100.12))
+    assert pipe.plugin_status() == record
+    record["bridge_session"] = "previous"
+    assert pipe.plugin_status() == {}
+    record.update(bridge_session=pipe.session, published_at=94)
+    assert pipe.plugin_status() == {}
+
+
 def game_map(tmp_path):
     root = tmp_path / "Rocket League"
     exe = root / "Binaries/Win64/RocketLeague.exe"
