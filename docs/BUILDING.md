@@ -95,9 +95,12 @@ required third-party sources/notices and a sanitized receipt. Review every file
 before upload. Never publish game packages, private logs, crash dumps or secrets.
 
 The older `packaging/my-career-training.spec`, `installer.iss` and
-`package_release.py` pipeline builds the older interface. The existing Windows
-workflow exercises that path with stable artifact upload held. It must not be
-used to replace the native candidate.
+`package_release.py` pipeline builds the older interface and must not replace
+the native candidate. The registered `.github/workflows/windows.yml` workflow
+is the entrypoint wrapper for the reusable
+`.github/workflows/native-candidate.yml` workflow. Only tested Actions
+artifacts and evidence are retained. The stable/finished release hold remains,
+and no GitHub Release publishing is authorized.
 
 ## Dependency licensing
 

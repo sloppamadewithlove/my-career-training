@@ -4,6 +4,7 @@ on:
   push:
     branches: [fix/windows-startup-and-download]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
