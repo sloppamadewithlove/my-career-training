@@ -17,7 +17,7 @@ ALLOWED_ACTIONS = frozenset({
     "diagnostics", "loadout", "restore_explanations", "lesson_variant", "play_recording",
     "return_hub", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
-    "community_lookup", "community_download", "community_library", "community_cancel",
+    "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
 })
 
 

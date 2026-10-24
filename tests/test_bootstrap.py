@@ -242,6 +242,107 @@ def test_injector_failure_rolls_the_plugin_session_back(tmp_path, monkeypatch):
     assert not layout.journal.exists()
 
 
+def test_native_prepare_finishes_before_plugin_staging_and_returns_child_identity(tmp_path, monkeypatch):
+    layout = _bakkes(tmp_path)
+    original = layout.cfg.read_bytes()
+    _patch_launch(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct game launch"))
+    events = []
+    child = ProcessIdentity(101, 123.0, str(layout.executable))
+
+    class Native:
+        def prepare(self, executable, plugin):
+            assert executable == layout.executable and plugin == layout.source
+            assert layout.cfg.read_bytes() == original and not layout.journal.exists()
+            events.append("prepared")
+
+        def launch(self, executable):
+            assert executable == layout.executable
+            assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
+            assert layout.journal.exists()
+            events.append("launched")
+            return child
+
+    assert bootstrap.launch_offline({"launcher": "steam", "install_path": str(layout.executable)},
+                                    layout.data, native_session=Native()) is child
+    assert events == ["prepared", "launched"]
+    assert bootstrap.restore_plugin_session(layout.data)["status"] == "restored"
+    assert layout.cfg.read_bytes() == original
+
+
+def test_native_preparation_failure_leaves_bakkes_untouched(tmp_path, monkeypatch):
+    layout = _bakkes(tmp_path)
+    before = layout.cfg.read_bytes(), layout.dll.read_bytes()
+    _patch_launch(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("game launch"))
+
+    def fail(*_args):
+        raise RuntimeError("unsupported native build")
+
+    native = SimpleNamespace(prepare=fail, launch=lambda *_: pytest.fail("native launch"))
+    with pytest.raises(RuntimeError, match="unsupported native build"):
+        bootstrap.launch_offline({"launcher": "steam", "install_path": str(layout.executable)},
+                                 layout.data, native_session=native)
+    assert (layout.cfg.read_bytes(), layout.dll.read_bytes()) == before
+    assert not layout.journal.exists()
+
+
+@pytest.mark.parametrize("uncertain_child_alive", [False, True])
+def test_native_launch_failure_restores_only_when_no_game_remains(tmp_path, monkeypatch, uncertain_child_alive):
+    layout = _bakkes(tmp_path)
+    original = layout.cfg.read_bytes()
+    running = {"value": False}
+    _patch_launch(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct game launch"),
+                  game_running=lambda: [object()] if running["value"] else [])
+
+    def fail(*_args):
+        running["value"] = uncertain_child_alive
+        raise RuntimeError("native receipt unavailable")
+
+    native = SimpleNamespace(prepare=lambda *_: None, launch=fail)
+    with pytest.raises(RuntimeError, match="native receipt unavailable"):
+        bootstrap.launch_offline({"launcher": "steam", "install_path": str(layout.executable)},
+                                 layout.data, native_session=native)
+    if uncertain_child_alive:
+        assert layout.journal.exists()
+        assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
+    else:
+        assert not layout.journal.exists()
+        assert layout.cfg.read_bytes() == original
+
+
+def test_native_preparation_does_not_bypass_existing_game_check(tmp_path, monkeypatch):
+    layout = _bakkes(tmp_path)
+    running = {"value": False}
+    _patch_launch(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct game launch"),
+                  game_running=lambda: [object()] if running["value"] else [])
+
+    def prepare(*_args):
+        running["value"] = True
+
+    native = SimpleNamespace(prepare=prepare, launch=lambda *_: pytest.fail("native launch"))
+    with pytest.raises(RuntimeError, match="Rocket League"):
+        bootstrap.launch_offline({"launcher": "steam", "install_path": str(layout.executable)},
+                                 layout.data, native_session=native)
+
+
+def test_uncertain_helper_does_not_restore_before_child_appears(tmp_path, monkeypatch):
+    layout = _bakkes(tmp_path)
+    _patch_launch(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"))
+
+    class Uncertain(RuntimeError):
+        defer_restore = True
+
+    def fail(*_args):
+        raise Uncertain("helper still validating the launch")
+
+    native = SimpleNamespace(prepare=lambda *_: None, launch=fail)
+    monkeypatch.setattr(bootstrap, "restore_plugin_session", lambda *_: pytest.fail("early restore"))
+    with pytest.raises(Uncertain):
+        bootstrap.launch_offline({"launcher": "steam", "install_path": str(layout.executable)},
+                                 layout.data, native_session=native)
+    assert layout.journal.exists()
+    assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
+
+
 def _service_fakes(monkeypatch, layout, popen, game_running):
     _patch_launch(monkeypatch, layout, popen, game_running=game_running)
     monkeypatch.setattr(bootstrap, "bakkes_ready", lambda: layout.root)
@@ -278,7 +379,7 @@ def _service_fakes(monkeypatch, layout, popen, game_running):
 
     class FakeBridge:
         def __init__(self, *_args, **_kwargs):
-            return None
+            self.session = "ca57b42f-cdf2-4bc5-b43d-92e2275dc020"
 
         def poll(self):
             return None
@@ -343,6 +444,117 @@ def _service_fakes(monkeypatch, layout, popen, game_running):
     monkeypatch.setattr(qt_widgets, "QApplication", FakeApp)
     monkeypatch.setattr(qt_widgets, "QMessageBox", FakeMessageBox)
     return FakeApp, FakeMessageBox
+
+
+def test_native_service_uses_the_existing_bridge_session(tmp_path, monkeypatch):
+    from my_career_training import native_offline
+
+    layout = _bakkes(tmp_path)
+    original = layout.cfg.read_bytes()
+    _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct game launch"), lambda: False)
+    seen = []
+
+    class Native:
+        def __init__(self, directory, session):
+            seen.append((directory, session))
+
+        def prepare(self, executable, plugin):
+            seen.append((executable, plugin))
+
+        def launch(self, executable):
+            return ProcessIdentity(555, 123.0, str(executable))
+
+        def warning(self):
+            return ""
+
+        def finished(self):
+            return True
+
+    monkeypatch.setattr(native_offline, "NativeOfflineSession", Native)
+    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 0
+    assert seen == [(layout.data, "ca57b42f-cdf2-4bc5-b43d-92e2275dc020"), (layout.executable, layout.source)]
+    assert layout.cfg.read_bytes() == original
+    assert not layout.journal.exists()
+
+
+def test_service_uncertain_native_start_preserves_prepared_files(tmp_path, monkeypatch):
+    from my_career_training import native_offline
+    layout = _bakkes(tmp_path)
+    _, box = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
+
+    class Uncertain(RuntimeError):
+        defer_restore = True
+
+    class Native:
+        def __init__(self, *_args):
+            pass
+
+        def prepare(self, *_args):
+            pass
+
+        def launch(self, *_args):
+            raise Uncertain("offline helper is still validating the launch")
+
+    monkeypatch.setattr(native_offline, "NativeOfflineSession", Native)
+    monkeypatch.setattr(bootstrap, "restore_plugin_session", lambda *_: pytest.fail("early outer restore"))
+    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 1
+    assert layout.journal.exists()
+    assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
+    assert "offline helper" in box.criticals[-1][1]
+
+
+def test_native_service_waits_for_helper_after_child_exit(tmp_path, monkeypatch):
+    from my_career_training import native_offline, platforms
+    import PySide6.QtCore as qt_core
+    layout = _bakkes(tmp_path)
+    app_type, _ = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
+    helper_finished = [False]
+
+    class Native:
+        def __init__(self, *_args):
+            pass
+
+        def prepare(self, *_args):
+            pass
+
+        def launch(self, executable):
+            return ProcessIdentity(555, 123.0, str(executable))
+
+        def warning(self):
+            return ""
+
+        def finished(self):
+            return helper_finished[0]
+
+    monkeypatch.setattr(native_offline, "NativeOfflineSession", Native)
+    monkeypatch.setattr(platforms, "is_alive", lambda _: False)
+    now = [100.0]
+    monkeypatch.setattr(bootstrap.time, "monotonic", lambda: now[0])
+    callbacks = []
+
+    class Timer:
+        def __init__(self):
+            self.timeout = SimpleNamespace(connect=callbacks.append)
+
+        def start(self, _interval):
+            pass
+
+    monkeypatch.setattr(qt_core, "QTimer", Timer)
+    quits = []
+    monkeypatch.setattr(app_type, "quit", lambda self: quits.append(True))
+    def run(self):
+        now[0] = 106.0
+        callbacks[0]()
+        assert not quits
+        assert layout.journal.exists()
+        assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
+        helper_finished[0] = True
+        callbacks[0]()
+        assert quits == [True]
+        return 0
+    monkeypatch.setattr(app_type, "exec", run)
+    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 0
+    assert not layout.journal.exists()
 
 
 def test_service_restores_plugin_files_on_a_normal_exit(tmp_path, monkeypatch):

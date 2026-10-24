@@ -34,10 +34,10 @@ _UNREADABLE = (
     "The record was left in place."
 )
 _OUTSTANDING_GAME = (
-    "Rocket League is still open from an unfinished My Career plugin session. "
-    "My Career will not change BakkesMod files and will not start another session until that game is closed."
+    "Rocket League or its offline menu helper is still open from an unfinished My Career plugin session. "
+    "My Career will not change BakkesMod files and will not start another session until both have closed."
 )
-_CLOSE_GAME = "Close the existing Rocket League window before launching My Career offline."
+_CLOSE_GAME = "Close the existing Rocket League window and wait for any offline menu helper to finish before launching My Career offline."
 _LEGACY_CONFIG = (
     "BakkesMod's plugins.cfg already loads MyCareerTraining. My Career did not remove that line "
     "because this session did not create it. Remove the MyCareerTraining load line from BakkesMod's "
@@ -151,12 +151,16 @@ def _remove_owned_line(current: bytes, prior: bytes, existed: bool) -> bytes | N
 class PluginSession:
     def __init__(self, directory=None, *, root=None, game_running=None):
         from .storage import data_dir
+        from .platforms import native_launcher_pending
         self.base = Path(directory) if directory is not None else data_dir()
         self.journal = self.base / JOURNAL_DIRNAME
         self.receipt_path = self.journal / RECEIPT_NAME
         self.report_path = self.journal / REPORT_NAME
         self.root = None if root is None else Path(root)
-        self.game_running = game_running or _rocket_league_running
+        game_check = game_running or _rocket_league_running
+        # Custom game probes (including the online handoff) must not bypass a
+        # native helper that can still create a child after an app crash.
+        self.game_running = lambda: game_check() or native_launcher_pending()
 
     def outstanding(self) -> bool:
         return self.receipt_path.is_file()

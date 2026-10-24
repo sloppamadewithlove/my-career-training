@@ -43,12 +43,18 @@ def main():
     parser = argparse.ArgumentParser(description="My Career Training")
     parser.add_argument("--worker", action="store_true")
     parser.add_argument("--in-game", action="store_true")
+    parser.add_argument("--native-menu-trial", action="store_true",
+                        help="Use the matching development native menu package (not a compatibility claim)")
     parser.add_argument("--manage", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--screenshot", type=Path)
     args = parser.parse_args()
+    if args.native_menu_trial and (args.worker or args.manage or args.self_test or args.smoke_test):
+        parser.error("--native-menu-trial is only for the owned offline game session")
+    if args.native_menu_trial and sys.platform != "win32":
+        parser.error("--native-menu-trial requires the Windows game host")
     if args.self_test:
         try:
             return self_test()
@@ -69,6 +75,8 @@ def main():
     from .storage import data_dir
     if args.in_game or (sys.platform == "win32" and not args.manage and not args.smoke_test):
         from .bootstrap import run_service
+        if args.native_menu_trial:
+            return run_service(args.data_dir or data_dir(), native_movie_trial=True)
         return run_service(args.data_dir or data_dir())
     from .app import run
     return run(args.data_dir or data_dir(), args.smoke_test, args.screenshot)

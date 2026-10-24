@@ -20,7 +20,8 @@ from .adapter import CORE_VERSION, SDK_VERSION
 from .content import community_catalog, garage_catalog, import_map, validate_loadout
 from . import community_plugins
 from .lifecycle import Lifecycle
-from .platforms import ProcessIdentity, detect_installations, game_processes, graceful_close, is_alive, launch_online
+from .platforms import (ProcessIdentity, detect_installations, game_processes, graceful_close,
+                        is_alive, launch_online, native_launcher_pending)
 from .plugin_session import PluginSession, PluginSessionError
 from .storage import Store, default_state
 from .training import (assistance_preferences, catalog, configure_lesson, import_recording,
@@ -86,7 +87,8 @@ class Backend(QObject):
             elif len(self.installations) > 1:
                 self.notice = "Both launchers were found. Choose Steam or Epic below; Steam is selected initially."
         self.lifecycle = Lifecycle(self._save_current, self._stop_for_online,
-            lambda: graceful_close(self.owned_game), lambda: is_alive(self.owned_game) or bool(game_processes()),
+            lambda: graceful_close(self.owned_game),
+            lambda: is_alive(self.owned_game) or bool(game_processes()) or native_launcher_pending(),
             lambda: launch_online(self.document["settings"]["launcher"]), restore=self._restore_before_online)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -103,7 +105,7 @@ class Backend(QObject):
     def _restore_before_online(self):
         result = PluginSession(self.store.directory, game_running=lambda: bool(game_processes())).finish()
         if result.get("status") not in {"idle", "restored"}:
-            raise PluginSessionError("The temporary My Career setup is still active. Close Rocket League before retrying.")
+            raise PluginSessionError("The temporary My Career setup is still active. Close Rocket League and wait for its offline helper to finish before retrying.")
 
     @Property("QVariantMap", notify=stateChanged)
     def state(self):
@@ -309,6 +311,17 @@ class Backend(QObject):
             self._refresh_workshop()
         elif action == "community_lookup":
             self._community_job("lookup", p.get("id"))
+        elif action == "community_paste_link":
+            # Read text only after this explicit user action, on the Qt thread.
+            # lookup_plugin accepts only a numeric ID or the official page URL.
+            from PySide6.QtGui import QGuiApplication
+            if p:
+                raise ValueError("Paste a plugin page link using the Community button.")
+            clipboard = QGuiApplication.clipboard()
+            text = clipboard.text().strip() if clipboard is not None else ""
+            if not text or len(text) > 2048:
+                raise ValueError("Copy a BakkesPlugins plugin page link, then choose Paste plugin link.")
+            self._community_job("lookup", text)
         elif action == "community_download":
             self._community_job("download")
         elif action == "community_library":

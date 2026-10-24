@@ -71,6 +71,26 @@ def game_processes():
     return found
 
 
+def native_launcher_pending() -> bool:
+    """Conservatively gate file recovery while a native launch can create a game.
+
+    This is a blocking check, never process ownership or permission to terminate.
+    Checking the helper's name also covers a previous app process that exited
+    after Popen but before recording its helper identity. Missing process names
+    or enumeration failures cannot establish that restoration is safe.
+    """
+    try:
+        for process in psutil.process_iter(["name"]):
+            name = process.info.get("name")
+            if not isinstance(name, str) or not name:
+                return True
+            if name.casefold() == "mctnativelauncher.exe":
+                return True
+    except (psutil.Error, OSError):
+        return True
+    return False
+
+
 def offline_launch_arguments(arguments) -> bool:
     """Require whole offline launch tokens, and reject contradictory EAC mode."""
     tokens = {str(argument).lower() for argument in arguments}

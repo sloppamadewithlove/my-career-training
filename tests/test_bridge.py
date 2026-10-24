@@ -283,6 +283,22 @@ def test_online_handoff_refuses_deferred_plugin_restoration(backend, monkeypatch
     assert "still active" in instance.lifecycle.message
 
 
+def test_online_handoff_waits_for_native_helper_before_restoring(backend, monkeypatch):
+    instance, _, launches = backend
+    pending = [True]
+    restored = []
+    monkeypatch.setattr(bridge, "native_launcher_pending", lambda: pending[0])
+    monkeypatch.setattr(bridge.PluginSession, "finish", lambda self: restored.append(True) or {"status": "restored"})
+    instance.dispatch("online_request", {})
+    instance.dispatch("online_confirm", {"yes": True})
+    instance.lifecycle.worker_stopped()
+    assert instance.lifecycle.state == "Waiting for Game Exit"
+    assert not restored and not launches
+    pending[0] = False
+    instance.lifecycle.tick()
+    assert restored == [True] and launches == ["steam"]
+
+
 def test_completed_worker_state_ignores_late_telemetry(backend):
     instance, _, _ = backend
     instance.session_id = str(uuid.uuid4())
@@ -598,6 +614,37 @@ def test_community_lookup_does_not_block_ui_and_cancellation_discards_result(bac
     _finish_community(instance)
     assert instance.community_state["selected"] is None
     assert "cancelled" in instance.community_state["message"]
+
+
+def test_community_paste_reads_only_on_request_and_uses_normal_lookup(backend, monkeypatch):
+    from PySide6.QtGui import QGuiApplication
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    reads, lookups = [], []
+    def clipboard():
+        reads.append(True)
+        return SimpleNamespace(text=lambda: "  https://bakkesplugins.com/plugin/286/  ")
+    monkeypatch.setattr(QGuiApplication, "clipboard", clipboard)
+    monkeypatch.setattr(instance, "_community_job", lambda *args: lookups.append(args))
+    instance._poll_community()
+    assert not reads
+    instance.dispatch("community_paste_link", {})
+    assert not instance.error
+    assert reads == [True]
+    assert lookups == [("lookup", "https://bakkesplugins.com/plugin/286/")]
+    instance.dispatch("community_paste_link", {"url": "https://example.com/plugin"})
+    assert instance.error and reads == [True]
+
+
+@pytest.mark.parametrize("text", ["", " " * 6, "x" * 2049])
+def test_community_paste_rejects_missing_or_oversized_text(backend, monkeypatch, text):
+    from PySide6.QtGui import QGuiApplication
+    from types import SimpleNamespace
+    instance, _, _ = backend
+    monkeypatch.setattr(QGuiApplication, "clipboard", lambda: SimpleNamespace(text=lambda: text))
+    monkeypatch.setattr(instance, "_community_job", lambda *_: pytest.fail("invalid clipboard lookup"))
+    instance.dispatch("community_paste_link", {})
+    assert "Copy a BakkesPlugins" in instance.error
 
 
 def test_community_unchecked_download_and_activation_are_rejected(backend, monkeypatch):

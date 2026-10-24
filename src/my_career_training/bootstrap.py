@@ -10,7 +10,8 @@ import subprocess
 import sys
 import time
 
-from .platforms import ProcessIdentity, detect_installations, game_processes, offline_launch_arguments
+from .platforms import (ProcessIdentity, detect_installations, game_processes,
+                        native_launcher_pending, offline_launch_arguments)
 from .plugin_session import PluginSession, PluginSessionError
 
 
@@ -118,6 +119,8 @@ def preflight_offline(settings):
         raise RuntimeError("The in-game build runs on Windows with your installed Rocket League.")
     if game_processes():
         raise RuntimeError("Close the existing Rocket League window before launching My Career offline.")
+    if native_launcher_pending():
+        raise RuntimeError("The offline menu helper is still finishing a session. Wait for it to exit before launching My Career again.")
     if settings.get("launcher") != "steam":
         raise RuntimeError("The in-game launcher currently requires Steam. Epic support needs a separately verified offline launch route.")
     executable = Path(settings.get("install_path", ""))
@@ -148,16 +151,22 @@ def _usable_timestamp(value):
     return type(value) in (int, float) and math.isfinite(value) and value > 0
 
 
-def launch_offline(settings, directory=None):
+def launch_offline(settings, directory=None, *, native_session=None):
     import psutil
     executable = preflight_offline(settings)
     recover_plugin_session(directory)
+    if native_session is not None:
+        # Preparation writes only a private per-session package. Complete it
+        # before any BakkesMod files/config are temporarily staged.
+        native_session.prepare(executable, plugin_binary())
     try:
         install_plugin(directory)
         ensure_injector_running()
         # A normal Steam launch may have started while dependencies were staged.
         # Refuse another launch and defer file restoration until that game exits.
         preflight_offline(settings)
+        if native_session is not None:
+            return native_session.launch(executable)
         # Current RLBot's Steam launcher uses the installed executable and Steam identity.
         # -noeac is the official offline mode, never an online anti-cheat bypass.
         env = dict(os.environ, SteamAppId="252950", SteamGameId="252950")
@@ -170,6 +179,10 @@ def launch_offline(settings, directory=None):
             raise RuntimeError("Rocket League did not report a valid process start time.")
         return ProcessIdentity(process.pid, created, str(executable.resolve()))
     except Exception as exc:
+        if getattr(exc, "defer_restore", False):
+            # The retained helper can still create its child even when no game
+            # is enumerable yet. Leave the recovery journal and staged files.
+            raise
         try:
             restore_plugin_session(directory)
         except PluginSessionError as restore_error:
@@ -193,7 +206,7 @@ def verify_owned_offline(identity):
         return False
 
 
-def run_service(directory):
+def run_service(directory, *, native_movie_trial=False):
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication, QMessageBox
     from .bridge import Backend
@@ -248,13 +261,21 @@ def run_service(directory):
     backend.exitRequested.connect(app.quit)
     bridge = FileBridge(directory, backend.dispatch, lambda: backend.state)
     bridge.poll()
+    native_session = None
     try:
-        backend.owned_game = launch_offline(backend.document["settings"], directory)
+        if native_movie_trial:
+            from .native_offline import NativeOfflineSession
+            native_session = NativeOfflineSession(directory, bridge.session)
+            backend.owned_game = launch_offline(backend.document["settings"], directory,
+                                               native_session=native_session)
+        else:
+            backend.owned_game = launch_offline(backend.document["settings"], directory)
     except Exception as exc:
-        try:
-            restore_plugin_session(directory)
-        except PluginSessionError as restore_error:
-            exc = RuntimeError(f"{exc} BakkesMod files could not be restored: {restore_error}")
+        if not getattr(exc, "defer_restore", False):
+            try:
+                restore_plugin_session(directory)
+            except PluginSessionError as restore_error:
+                exc = RuntimeError(f"{exc} BakkesMod files could not be restored: {restore_error}")
         bridge.close()
         backend.store.close()
         QMessageBox.critical(None, "My Career offline startup", str(exc))
@@ -273,11 +294,17 @@ def run_service(directory):
             if backend.plugin_status.get("pid") != backend.owned_game.pid:
                 backend.plugin_status = {}
             plugin_seen = plugin_seen or bool(backend.plugin_status)
+            if native_session is not None:
+                warning = native_session.warning()
+                if warning:
+                    backend.error = warning
             bridge.poll()
             if time.monotonic() - started > 5 and not is_alive(backend.owned_game):
                 # The backend's separate timer still needs to restore setup and
                 # request the normal launcher after the career process exits.
                 if backend.lifecycle.frozen:
+                    return
+                if native_session is not None and not native_session.finished():
                     return
                 if backend.lifecycle.state == "Error/Recovery" and not handoff_error_shown:
                     handoff_error_shown = True
@@ -307,8 +334,8 @@ def run_service(directory):
                     restoration = restore_plugin_session(directory)
                     if restoration.get("status") not in {"idle", "restored"}:
                         restore_error = PluginSessionError(
-                            "Rocket League is still open, so My Career's temporary setup could not be restored. "
-                            "Close Rocket League, then open My Career to complete recovery before playing online.")
+                            "Rocket League or its offline menu helper is still open, so My Career's temporary setup could not be restored. "
+                            "Wait for the offline session to finish, then open My Career to complete recovery before playing online.")
                 except PluginSessionError as exc:
                     restore_error = exc
     if restore_error is not None:
