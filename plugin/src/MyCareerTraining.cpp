@@ -357,6 +357,9 @@ mct::NativeCosmeticContext MyCareerTraining::nativeCosmeticContext() {
     context.restorationPending = cosmeticOverride_.restorationPending();
     context.message = runtime.cosmeticMessage;
     std::lock_guard<std::recursive_mutex> guard(preferencesMutex_);
+    context.overrideColors = overrideColors_;
+    context.primary = {primaryColor_[0], primaryColor_[1], primaryColor_[2]};
+    context.secondary = {secondaryColor_[0], secondaryColor_[1], secondaryColor_[2]};
     for (const auto& item : cosmeticItems_)
         context.draft.emplace(item.first, mct::NativeCosmeticSelection{item.second.first, item.second.second});
     return context;
@@ -378,15 +381,24 @@ bool MyCareerTraining::applyNativeCosmetic(const mct::NativeCosmeticRequest& req
     case Kind::ClearSlot:
         cosmeticItems_.erase(request.slot);
         break;
+    case Kind::SetColorOverride:
+        overrideColors_ = request.overrideColors;
+        break;
+    case Kind::SelectPrimaryColor:
+    case Kind::SelectSecondaryColor: {
+        const auto color = mct::nativeCosmeticPaletteRgb(request.paletteIndex);
+        auto* destination = request.kind == Kind::SelectPrimaryColor ? primaryColor_ : secondaryColor_;
+        std::copy(color.begin(), color.end(), destination);
+        break;
+    }
     case Kind::Apply: {
         Json items = Json::array();
         for (int index = 0; index < request.draftCount; ++index) {
             const auto& item = request.draft[static_cast<std::size_t>(index)];
             items.push_back({{"slot", item.slot}, {"product_id", item.productId}, {"paint", item.paint}});
         }
-        Json payload = {{"items", std::move(items)}, {"override_colors", overrideColors_},
-            {"primary", {primaryColor_[0], primaryColor_[1], primaryColor_[2]}},
-            {"secondary", {secondaryColor_[0], secondaryColor_[1], secondaryColor_[2]}}};
+        Json payload = {{"items", std::move(items)}, {"override_colors", request.overrideColors},
+            {"primary", request.primary}, {"secondary", request.secondary}};
         // The execution queue rechecks this design against its then-current
         // catalog before touching the two supported BakkesMod cosmetic cvars.
         mct::validateCosmeticDesign(payload);

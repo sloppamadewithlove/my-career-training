@@ -174,6 +174,47 @@ int main() {
             "Item selection was not a fixed typed request");
         require(!movie.select(command(current, controlId(current, "Halo")), cosmeticLive, cosmeticState, true, cosmetics).accepted,
             "Duplicate cosmetic click accepted");
+
+        NativeMovieProtocol colorMovie;
+        NativeCosmeticContext colorContext;
+        colorContext.available = true;
+        colorContext.catalog = products;
+        colorContext.primary = kNativeCosmeticPalette[0].rgb;
+        colorContext.secondary = kNativeCosmeticPalette[1].rgb;
+        require(colorMovie.open(cosmeticLive, cosmeticState, colorContext), "Color movie did not open");
+        require(colorMovie.select(command(colorMovie.publish(cosmeticLive, cosmeticState, 300, colorContext),
+            NativeCareerLayout::kGarage), cosmeticLive, cosmeticState, true, colorContext).accepted, "Color garage did not open");
+        require(colorMovie.select(command(colorMovie.publish(cosmeticLive, cosmeticState, 301, colorContext),
+            NativeCareerLayout::kAppearance), cosmeticLive, cosmeticState, true, colorContext).accepted,
+            "Color appearance did not open");
+        auto colorAppearance = colorMovie.publish(cosmeticLive, cosmeticState, 302, colorContext);
+        requireMovieWire(colorAppearance);
+        require(colorMovie.select(command(colorAppearance, "cosmetic.colors"), cosmeticLive, cosmeticState, true, colorContext).accepted,
+            "Color page did not open");
+        auto colorMenu = colorMovie.publish(cosmeticLive, cosmeticState, 303, colorContext);
+        requireMovieWire(colorMenu);
+        require(colorMovie.select(command(colorMenu, "cosmetic.colors.primary"), cosmeticLive, cosmeticState, true, colorContext).accepted,
+            "Primary color page did not open");
+        auto primaryWire = colorMovie.publish(cosmeticLive, cosmeticState, 304, colorContext);
+        requireMovieWire(primaryWire);
+        require(primaryWire.dump().find("cosmetic_primary") == std::string::npos, "Color snapshot was published");
+        require(primaryWire.dump().find("palette") == std::string::npos, "Palette authority was published");
+        int redIndex = -1;
+        for (int index = 0; index < kNativeCosmeticPaletteCount; ++index)
+            if (std::string(kNativeCosmeticPalette[index].name) == "Red") redIndex = index;
+        require(redIndex >= 0, "Red is missing from the palette");
+        const auto redCommand = command(primaryWire, "cosmetic.primary." + std::to_string(redIndex));
+        auto extraRgb = Json::parse(redCommand);
+        extraRgb["primary"] = Json::array({1.0, 0.0, 0.0});
+        require(!colorMovie.select(extraRgb.dump(), cosmeticLive, cosmeticState, true, colorContext).accepted,
+            "Movie RGB was accepted");
+        auto pickedPrimary = colorMovie.select(redCommand, cosmeticLive, cosmeticState, true, colorContext);
+        require(pickedPrimary.accepted && pickedPrimary.kind == CareerLayoutEffectKind::LocalCosmetic &&
+            pickedPrimary.cosmetic.kind == NativeCosmeticRequestKind::SelectPrimaryColor &&
+            pickedPrimary.cosmetic.paletteIndex == redIndex && pickedPrimary.cosmetic.primary == std::array<float, 3>{} &&
+            pickedPrimary.cosmetic.secondary == std::array<float, 3>{} && pickedPrimary.cosmetic.draftCount == 0 &&
+            pickedPrimary.action.empty() && pickedPrimary.payload.empty(),
+            "Primary selection took authority from the movie");
         std::cout << "Native movie protocol checks passed; no game was launched.\n";
         return 0;
     } catch (const std::exception& error) {

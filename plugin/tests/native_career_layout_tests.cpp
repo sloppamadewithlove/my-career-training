@@ -441,6 +441,22 @@ int main() {
         require(saved.payload == Json({{"id", "anchor"}, {"car_id", 23}, {"primary_color", 27}, {"secondary_color", 0}}), "Loadout payload");
         require(!saved.payload.contains("wheels_id") && saved.stock == StockRoute::None, "Loadout claimed wheels or stock route");
         require(garage.body.find("do not add items") != std::string::npos, "Garage entitlement copy missing");
+        auto garageNow = layout.view(scope, state);
+        require(choose(layout, findChoice(garageNow, NativeCareerLayout::kAppearance), scope, state, true).accepted,
+            "Local appearance did not open");
+        auto colorEntry = findChoice(layout.view(scope, state), "cosmetic.colors");
+        require(colorEntry.kind == CareerLayoutEffectKind::Navigate && colorEntry.target == CareerLayoutPage::CosmeticColors &&
+            colorEntry.action.empty(), "Colors was not a local page");
+        require(choose(layout, colorEntry, scope, state, true).accepted, "Colors page did not open");
+        auto colorPage = layout.view(scope, state);
+        require(hasChoice(colorPage, "cosmetic.colors.primary") && hasChoice(colorPage, "cosmetic.colors.accent") &&
+            hasChoice(colorPage, "cosmetic.colors.override"), "Color editor removed a control");
+        require(choose(layout, findChoice(colorPage, "nav.back"), scope, state, true).accepted, "Colors back failed");
+        require(choose(layout, findChoice(layout.view(scope, state), "nav.back"), scope, state, true).accepted,
+            "Appearance back failed");
+        auto restoredGarage = layout.view(scope, state);
+        require(hasChoice(restoredGarage, "garage.player") && hasChoice(restoredGarage, "garage.bot.anchor.stock-23"),
+            "Garage routes missing after the color editor");
 
         layout.open(scope, state);
         choose(layout, findChoice(layout.view(scope, state), NativeCareerLayout::kWorkshop), scope, state, false);

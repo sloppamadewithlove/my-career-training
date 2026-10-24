@@ -121,6 +121,10 @@ private:
             {"cosmetic_paintable", choice.cosmetic.paintable},
             {"cosmetic_pending", choice.cosmetic.restorationPending},
             {"cosmetic_count", choice.cosmetic.draftCount}, {"cosmetic_draft", std::move(draft)},
+            {"cosmetic_override", choice.cosmetic.overrideColors},
+            {"cosmetic_palette", choice.cosmetic.paletteIndex},
+            {"cosmetic_primary", {choice.cosmetic.primary[0], choice.cosmetic.primary[1], choice.cosmetic.primary[2]}},
+            {"cosmetic_secondary", {choice.cosmetic.secondary[0], choice.cosmetic.secondary[1], choice.cosmetic.secondary[2]}},
             {"cosmetic_stamp", std::to_string(choice.cosmeticStamp)}};
     }
 

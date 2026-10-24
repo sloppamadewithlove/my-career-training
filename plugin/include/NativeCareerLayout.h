@@ -4,6 +4,7 @@
 #include "NativeCosmeticContext.h"
 
 #include <algorithm>
+#include <cstring>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -22,7 +23,7 @@ namespace mct {
 
 enum class CareerLayoutPage {
     Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings,
-    Appearance, CosmeticItems, CosmeticPaints
+    Appearance, CosmeticItems, CosmeticPaints, CosmeticColors, CosmeticPrimary, CosmeticAccent
 };
 
 enum class CareerLayoutEffectKind {
@@ -167,6 +168,8 @@ public:
     static_assert(kCosmeticItemsPerPage >= 1);
     static_assert(kCosmeticItemsPerPage + 4 <= kMaxChoices);
     static_assert(kNativeCosmeticPaintCount + 2 <= static_cast<int>(kMaxChoices));
+    static_assert(kNativeCosmeticPaletteCount + 1 <= static_cast<int>(kMaxChoices));
+    static_assert(kNativeCosmeticCategoryCount + 4 <= static_cast<int>(kMaxChoices));
 
     // Actions this layout may put on an effect. A subset of the bridge allowlist.
     // play_workshop and any activation command are intentionally absent.
@@ -223,6 +226,9 @@ public:
         case CareerLayoutPage::Appearance: buildAppearance(out, cosmetics); break;
         case CareerLayoutPage::CosmeticItems: buildCosmeticItems(out, cosmetics); break;
         case CareerLayoutPage::CosmeticPaints: buildCosmeticPaints(out, cosmetics); break;
+        case CareerLayoutPage::CosmeticColors: buildCosmeticColors(out, cosmetics); break;
+        case CareerLayoutPage::CosmeticPrimary: buildCosmeticChannel(out, cosmetics, true); break;
+        case CareerLayoutPage::CosmeticAccent: buildCosmeticChannel(out, cosmetics, false); break;
         case CareerLayoutPage::Workshop: buildWorkshop(out, state); break;
         case CareerLayoutPage::Community: buildCommunity(out, state); break;
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
@@ -255,7 +261,8 @@ public:
                 shown.kind == CareerLayoutEffectKind::LocalCosmetic ||
                 shown.cosmetic.kind != NativeCosmeticRequestKind::None ||
                 shown.target == CareerLayoutPage::Appearance || shown.target == CareerLayoutPage::CosmeticItems ||
-                shown.target == CareerLayoutPage::CosmeticPaints;
+                shown.target == CareerLayoutPage::CosmeticPaints || shown.target == CareerLayoutPage::CosmeticColors ||
+                shown.target == CareerLayoutPage::CosmeticPrimary || shown.target == CareerLayoutPage::CosmeticAccent;
             return refuse(effect, wasSpecific ? CareerLayoutRefusal::StaleChoice : CareerLayoutRefusal::UnknownControl,
                 wasSpecific ? kStaleChoice : kUnknown);
         }
@@ -1159,6 +1166,7 @@ private:
     static constexpr const char* kItemModUnavailable = "This game build does not expose the local cosmetic override.";
     static constexpr const char* kRestoreFirst = "Restore the original cosmetic settings before applying another design.";
     static constexpr const char* kChooseItem = "Choose an item before applying a local design.";
+    static constexpr const char* kColorsUnusable = "The saved colors are not usable.";
 
     static std::uint64_t mixStamp(std::uint64_t hash, std::uint64_t value) {
         for (int index = 0; index < 8; ++index) {
@@ -1195,6 +1203,9 @@ private:
         case NativeCosmeticRequestKind::ClearSlot:
         case NativeCosmeticRequestKind::Apply:
         case NativeCosmeticRequestKind::Restore:
+        case NativeCosmeticRequestKind::SetColorOverride:
+        case NativeCosmeticRequestKind::SelectPrimaryColor:
+        case NativeCosmeticRequestKind::SelectSecondaryColor:
             return choice.action.empty() && choice.payload.empty() && choice.stock == StockRoute::None;
         default:
             return false;
@@ -1237,6 +1248,36 @@ private:
         if (!cosmetics.message.empty()) addLine(view.body, "Last cosmetic action: " + cosmetics.message);
     }
 
+    static void describeColors(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) {
+        if (!nativeCosmeticColorsValid(cosmetics)) {
+            addLine(view.body, kColorsUnusable);
+            return;
+        }
+        addLine(view.body, cosmetics.overrideColors ? "Color override is on." : "Color override is off.");
+        addLine(view.body, std::string("Primary: ") + nativeCosmeticColorName(cosmetics.primary));
+        addLine(view.body, std::string("Accent: ") + nativeCosmeticColorName(cosmetics.secondary));
+    }
+
+    static const char* colorEditBlock(const NativeCosmeticContext& cosmetics) {
+        if (cosmetics.scanning) return kCatalogLoading;
+        if (cosmetics.restorationPending) return kRestoreFirst;
+        if (!nativeCosmeticColorsValid(cosmetics)) return kColorsUnusable;
+        return nullptr;
+    }
+
+    static std::uint64_t stampChannel(std::uint64_t hash, float value) {
+        static_assert(sizeof(float) == 4, "Color stamp expects a 32-bit float");
+        std::uint32_t bits = 0;
+        std::memcpy(&bits, &value, sizeof(bits));
+        return mixStamp(hash, bits);
+    }
+
+    static std::uint64_t stampRgb(std::uint64_t hash, const std::array<float, 3>& rgb) {
+        hash = stampChannel(hash, rgb[0]);
+        hash = stampChannel(hash, rgb[1]);
+        return stampChannel(hash, rgb[2]);
+    }
+
     static void describeDraft(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) {
         const auto live = nativeCosmeticValidatedDraft(cosmetics);
         if (live.empty() && cosmetics.draft.empty()) {
@@ -1271,7 +1312,12 @@ private:
             const auto* product = findNativeCosmeticProduct(catalog, entry.slot, entry.productId);
             hash = mixStamp(hash, product ? product->name : std::string{});
         }
-        return hash;
+        hash = stampValue(hash, request.paletteIndex);
+        hash = mixStamp(hash, request.overrideColors ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.overrideColors ? 1ull : 0ull);
+        hash = mixStamp(hash, nativeCosmeticColorsValid(cosmetics) ? 1ull : 0ull);
+        hash = stampRgb(hash, request.primary);
+        return stampRgb(hash, request.secondary);
     }
 
     void pushApply(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
@@ -1285,12 +1331,20 @@ private:
         choice.cosmetic.draftCount = static_cast<int>(live.size());
         for (int index = 0; index < choice.cosmetic.draftCount; ++index)
             choice.cosmetic.draft[static_cast<std::size_t>(index)] = live[static_cast<std::size_t>(index)];
-        const bool ready = cosmetics.available && !cosmetics.scanning && !cosmetics.restorationPending && !live.empty();
+        const bool colorsOk = nativeCosmeticColorsValid(cosmetics);
+        if (colorsOk) {
+            choice.cosmetic.overrideColors = cosmetics.overrideColors;
+            choice.cosmetic.primary = cosmetics.primary;
+            choice.cosmetic.secondary = cosmetics.secondary;
+        }
+        const bool ready = cosmetics.available && !cosmetics.scanning && !cosmetics.restorationPending &&
+            colorsOk && (cosmetics.overrideColors || !live.empty());
         choice.enabled = ready;
         if (!ready) {
             if (cosmetics.scanning) choice.reason = kCatalogLoading;
             else if (!cosmetics.available) choice.reason = kItemModUnavailable;
             else if (cosmetics.restorationPending) choice.reason = kRestoreFirst;
+            else if (!colorsOk) choice.reason = kColorsUnusable;
             else choice.reason = kChooseItem;
         }
         choice.cosmeticStamp = stampApply(cosmetics, choice.cosmetic);
@@ -1379,6 +1433,7 @@ private:
         addLine(view.body, "Bodies, banners, borders, and titles are not equipped here.");
         describeCosmeticStatus(view, cosmetics);
         describeDraft(view, cosmetics);
+        describeColors(view, cosmetics);
         for (const auto& category : kNativeCosmeticCategories) {
             CareerLayoutChoice choice;
             choice.id = std::string("cosmetic.slot.") + std::to_string(category.slot);
@@ -1391,6 +1446,7 @@ private:
             choice.cosmeticStamp = stampValue(kStampBasis, category.slot);
             push(view, std::move(choice));
         }
+        navigate(view, "cosmetic.colors", "Colors", CareerLayoutPage::CosmeticColors);
         pushApply(view, cosmetics);
         pushRestore(view, cosmetics);
         back(view, CareerLayoutPage::Garage);
@@ -1486,6 +1542,67 @@ private:
         }
         pushClear(view, cosmetics, CareerLayoutPage::CosmeticPaints);
         pushItemsBack(view);
+    }
+
+    static std::uint64_t stampColorState(std::uint64_t hash, const NativeCosmeticContext& cosmetics) {
+        hash = mixStamp(hash, cosmetics.overrideColors ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.scanning ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.restorationPending ? 1ull : 0ull);
+        hash = mixStamp(hash, nativeCosmeticColorsValid(cosmetics) ? 1ull : 0ull);
+        if (!nativeCosmeticColorsValid(cosmetics)) return hash;
+        hash = stampRgb(hash, cosmetics.primary);
+        return stampRgb(hash, cosmetics.secondary);
+    }
+
+    void buildCosmeticColors(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        view.title = "Colors";
+        addLine(view.body, "Choosing a color does not apply it.");
+        describeCosmeticStatus(view, cosmetics);
+        describeColors(view, cosmetics);
+        const char* blocked = colorEditBlock(cosmetics);
+        CareerLayoutChoice toggle;
+        toggle.id = "cosmetic.colors.override";
+        toggle.label = cosmetics.overrideColors ? "Turn off color override" : "Turn on color override";
+        toggle.enabled = blocked == nullptr;
+        if (blocked) toggle.reason = blocked;
+        toggle.kind = CareerLayoutEffectKind::LocalCosmetic;
+        toggle.target = CareerLayoutPage::CosmeticColors;
+        toggle.cosmetic.kind = NativeCosmeticRequestKind::SetColorOverride;
+        toggle.cosmetic.overrideColors = !cosmetics.overrideColors;
+        toggle.cosmeticStamp = stampColorState(mixStamp(kStampBasis, toggle.cosmetic.overrideColors ? 1ull : 0ull), cosmetics);
+        push(view, std::move(toggle));
+        navigate(view, "cosmetic.colors.primary", "Primary color", CareerLayoutPage::CosmeticPrimary);
+        navigate(view, "cosmetic.colors.accent", "Accent color", CareerLayoutPage::CosmeticAccent);
+        back(view, CareerLayoutPage::Appearance);
+    }
+
+    void buildCosmeticChannel(CareerLayoutView& view, const NativeCosmeticContext& cosmetics, bool primary) const {
+        view.title = primary ? "Primary color" : "Accent color";
+        addLine(view.body, "Choosing a color does not apply it.");
+        describeCosmeticStatus(view, cosmetics);
+        const bool colorsOk = nativeCosmeticColorsValid(cosmetics);
+        const auto& current = primary ? cosmetics.primary : cosmetics.secondary;
+        const int selected = colorsOk ? nativeCosmeticPaletteIndex(current) : -1;
+        if (colorsOk)
+            addLine(view.body, std::string(primary ? "Current primary: " : "Current accent: ") + nativeCosmeticColorName(current));
+        else addLine(view.body, kColorsUnusable);
+        const char* blocked = colorEditBlock(cosmetics);
+        for (int index = 0; index < kNativeCosmeticPaletteCount; ++index) {
+            CareerLayoutChoice choice;
+            choice.id = std::string(primary ? "cosmetic.primary." : "cosmetic.accent.") + std::to_string(index);
+            const char* name = kNativeCosmeticPalette[index].name;
+            choice.label = index == selected ? std::string("Selected: ") + name : name;
+            choice.enabled = blocked == nullptr;
+            if (blocked) choice.reason = blocked;
+            choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+            choice.target = primary ? CareerLayoutPage::CosmeticPrimary : CareerLayoutPage::CosmeticAccent;
+            choice.cosmetic.kind = primary ? NativeCosmeticRequestKind::SelectPrimaryColor
+                                           : NativeCosmeticRequestKind::SelectSecondaryColor;
+            choice.cosmetic.paletteIndex = index;
+            choice.cosmeticStamp = stampColorState(stampValue(kStampBasis, index + (primary ? 0 : 32)), cosmetics);
+            push(view, std::move(choice));
+        }
+        back(view, CareerLayoutPage::CosmeticColors);
     }
 };
 

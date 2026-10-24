@@ -3,6 +3,7 @@
 #include "NativeMovieProtocol.h"
 
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -139,6 +140,236 @@ static void openAppearance(NativeCareerLayout& layout, const CareerLayoutScope& 
     auto garage = layout.view(scope, state, cosmetics);
     require(choose(layout, findChoice(garage, NativeCareerLayout::kAppearance), scope, state, cosmetics).accepted,
         "Local appearance did not open");
+}
+
+static int namedPalette(const char* name) {
+    for (int index = 0; index < kNativeCosmeticPaletteCount; ++index)
+        if (std::string(kNativeCosmeticPalette[index].name) == name) return index;
+    throw std::runtime_error(std::string("Missing palette color ") + name);
+}
+
+static void checkColorEditor(const CareerLayoutScope& scope, const Json& state, NativeCosmeticContext cosmetics) {
+    require(std::string(kNativeCosmeticPalette[0].name) == "White", "Palette index 0 must stay a real color");
+    require(kNativeCosmeticPaletteCount >= 12 && kNativeCosmeticPaletteCount <= 16, "Palette size left the closed range");
+    const int white = namedPalette("White");
+    const int black = namedPalette("Black");
+    const int red = namedPalette("Red");
+    const int blue = namedPalette("Blue");
+    const int orange = namedPalette("Orange");
+    const int pink = namedPalette("Pink");
+    cosmetics.message = "saved locally";
+    cosmetics.draft.clear();
+    cosmetics.draft[1] = {11, 0};
+    cosmetics.primary = kNativeCosmeticPalette[white].rgb;
+    cosmetics.secondary = kNativeCosmeticPalette[black].rgb;
+
+    NativeCareerLayout layout;
+    openAppearance(layout, scope, state, cosmetics);
+    auto appearance = layout.view(scope, state, cosmetics);
+    audit(appearance);
+    require(appearance.body.find("Last cosmetic action: saved locally") != std::string::npos,
+        "Cosmetic status prefix changed");
+    require(appearance.body.find("Primary: White") != std::string::npos, "Current primary was hidden");
+    require(hasChoice(appearance, "cosmetic.colors") && hasChoice(appearance, "cosmetic.slot.2") &&
+        hasChoice(appearance, "cosmetic.apply"), "Appearance lost an existing route");
+    auto kept = findChoice(appearance, "cosmetic.apply");
+    require(kept.enabled && kept.cosmetic.draftCount == 1 && kept.cosmetic.draft[0].productId == 11 &&
+        !kept.cosmetic.overrideColors && kept.cosmetic.primary == cosmetics.primary,
+        "Item draft was dropped before a color edit");
+
+    require(choose(layout, findChoice(appearance, "cosmetic.colors"), scope, state, cosmetics).accepted,
+        "Colors page did not open");
+    auto colors = layout.view(scope, state, cosmetics);
+    audit(colors);
+    require(colors.body.find("Choosing a color does not apply it.") != std::string::npos, "Apply warning missing");
+    require(colors.body.find("Color override is off.") != std::string::npos, "Override state was hidden");
+    auto enable = findChoice(colors, "cosmetic.colors.override");
+    require(enable.label == "Turn on color override" && enable.enabled && enable.action.empty() && enable.payload.empty() &&
+        enable.cosmetic.kind == NativeCosmeticRequestKind::SetColorOverride && enable.cosmetic.overrideColors &&
+        enable.cosmetic.paletteIndex == -1 && enable.cosmetic.draftCount == 0, "Override toggle was not typed");
+    auto turnedOn = choose(layout, enable, scope, state, cosmetics);
+    require(turnedOn.accepted && turnedOn.kind == CareerLayoutEffectKind::LocalCosmetic &&
+        turnedOn.cosmetic.kind == NativeCosmeticRequestKind::SetColorOverride && turnedOn.cosmetic.overrideColors &&
+        turnedOn.action.empty() && turnedOn.payload.empty() && turnedOn.cosmetic.draftCount == 0,
+        "Turning color override on was not a local request");
+    require(cosmetics.draft[1].productId == 11, "Toggle cleared the item draft");
+    cosmetics.overrideColors = true;
+    require(choose(layout, enable, scope, state, cosmetics).refusal == CareerLayoutRefusal::StaleChoice,
+        "Old override click stayed current");
+    require(findChoice(layout.view(scope, state, cosmetics), "cosmetic.colors.override").label == "Turn off color override",
+        "Disable label missing");
+
+    require(choose(layout, findChoice(layout.view(scope, state, cosmetics), "cosmetic.colors.primary"),
+        scope, state, cosmetics).accepted, "Primary page did not open");
+    auto primary = layout.view(scope, state, cosmetics);
+    audit(primary);
+    require(primary.choices.size() > 7 && primary.choices.size() <= NativeCareerLayout::kMaxChoices,
+        "Primary palette missed the movie paging bounds");
+    require(primary.body.find("Current primary: White") != std::string::npos, "Current primary missing on its page");
+    auto redChoice = findChoice(primary, "cosmetic.primary." + std::to_string(red));
+    require(redChoice.label == "Red" && redChoice.cosmetic.kind == NativeCosmeticRequestKind::SelectPrimaryColor &&
+        redChoice.cosmetic.paletteIndex == red && redChoice.cosmetic.primary == std::array<float, 3>{} &&
+        redChoice.cosmetic.secondary == std::array<float, 3>{} && redChoice.cosmetic.draftCount == 0 &&
+        redChoice.action.empty() && redChoice.payload.empty(), "Primary color carried RGB or the item draft");
+    require(findChoice(primary, "cosmetic.primary." + std::to_string(white)).label == "Selected: White",
+        "Current primary was not marked");
+    cosmetics.primary = kNativeCosmeticPalette[blue].rgb;
+    require(choose(layout, redChoice, scope, state, cosmetics).refusal == CareerLayoutRefusal::StaleChoice,
+        "Same Red label reused an older primary");
+    auto redAgain = findChoice(layout.view(scope, state, cosmetics), redChoice.id);
+    require(redAgain.label == "Red", "Red label changed after another color became current");
+    auto picked = choose(layout, redAgain, scope, state, cosmetics);
+    require(picked.accepted && picked.cosmetic.kind == NativeCosmeticRequestKind::SelectPrimaryColor &&
+        picked.cosmetic.paletteIndex == red && picked.cosmetic.primary == std::array<float, 3>{} &&
+        picked.cosmetic.draftCount == 0 && picked.action.empty(), "Primary selection was not a palette index");
+    require(cosmetics.draft[1].productId == 11, "Primary selection cleared the item draft");
+    cosmetics.primary = kNativeCosmeticPalette[red].rgb;
+
+    require(choose(layout, findChoice(layout.view(scope, state, cosmetics), "nav.back"), scope, state, cosmetics).accepted,
+        "Primary back failed");
+    require(choose(layout, findChoice(layout.view(scope, state, cosmetics), "cosmetic.colors.accent"),
+        scope, state, cosmetics).accepted, "Accent page did not open");
+    auto accent = layout.view(scope, state, cosmetics);
+    audit(accent);
+    require(accent.body.find("Current accent: Black") != std::string::npos, "Current accent missing");
+    auto accentChoice = findChoice(accent, "cosmetic.accent." + std::to_string(orange));
+    require(accentChoice.cosmetic.kind == NativeCosmeticRequestKind::SelectSecondaryColor &&
+        accentChoice.cosmetic.paletteIndex == orange && accentChoice.cosmetic.draftCount == 0 &&
+        accentChoice.action.empty(), "Accent selection was not typed");
+    auto accented = choose(layout, accentChoice, scope, state, cosmetics);
+    require(accented.accepted && accented.cosmetic.paletteIndex == orange &&
+        accented.cosmetic.secondary == std::array<float, 3>{}, "Accent selection supplied RGB");
+    cosmetics.secondary = kNativeCosmeticPalette[orange].rgb;
+    require(choose(layout, findChoice(layout.view(scope, state, cosmetics), "nav.back"), scope, state, cosmetics).accepted,
+        "Accent back failed");
+    require(choose(layout, findChoice(layout.view(scope, state, cosmetics), "nav.back"), scope, state, cosmetics).accepted,
+        "Colors back failed");
+    auto mixed = findChoice(layout.view(scope, state, cosmetics), "cosmetic.apply");
+    require(mixed.enabled && mixed.label == "Apply local design" && mixed.cosmetic.draftCount == 1 &&
+        mixed.cosmetic.draft[0].slot == 1 && mixed.cosmetic.draft[0].productId == 11 && mixed.cosmetic.overrideColors &&
+        mixed.cosmetic.primary == cosmetics.primary && mixed.cosmetic.secondary == cosmetics.secondary &&
+        mixed.cosmetic.paletteIndex == -1, "Apply dropped the item draft or the color snapshot");
+
+    NativeCosmeticContext only = cosmetics;
+    only.draft.clear();
+    NativeCareerLayout colorOnly;
+    openAppearance(colorOnly, scope, state, only);
+    auto colorApply = findChoice(colorOnly.view(scope, state, only), "cosmetic.apply");
+    require(colorApply.enabled && colorApply.cosmetic.draftCount == 0 && colorApply.cosmetic.overrideColors &&
+        colorApply.cosmetic.primary == only.primary && colorApply.cosmetic.secondary == only.secondary,
+        "Color-only Apply was disabled");
+    require(nativeCosmeticRequestCurrent(colorApply.cosmetic, only), "Color-only snapshot was rejected");
+    only.primary = kNativeCosmeticPalette[pink].rgb;
+    require(choose(colorOnly, colorApply, scope, state, only).refusal == CareerLayoutRefusal::StaleChoice,
+        "Same Apply label reused an older color");
+    auto freshColor = findChoice(colorOnly.view(scope, state, only), "cosmetic.apply");
+    require(freshColor.label == colorApply.label && freshColor.cosmetic.primary == only.primary,
+        "Fresh color snapshot was not retained");
+    require(!nativeCosmeticRequestCurrent(colorApply.cosmetic, only), "Old color snapshot stayed current");
+    require(nativeCosmeticRequestCurrent(freshColor.cosmetic, only), "Fresh color snapshot was rejected");
+    auto tainted = freshColor.cosmetic;
+    tainted.paletteIndex = 0;
+    require(!nativeCosmeticRequestCurrent(tainted, only), "Apply kept a palette index");
+
+    NativeCosmeticContext off = only;
+    off.overrideColors = false;
+    off.draft.clear();
+    NativeCareerLayout offLayout;
+    openAppearance(offLayout, scope, state, off);
+    require(!findChoice(offLayout.view(scope, state, off), "cosmetic.apply").enabled,
+        "Apply was enabled with override off and no items");
+
+    NativeCosmeticContext unavailable = only;
+    unavailable.available = false;
+    NativeCareerLayout unavailableLayout;
+    openAppearance(unavailableLayout, scope, state, unavailable);
+    require(!findChoice(unavailableLayout.view(scope, state, unavailable), "cosmetic.apply").enabled,
+        "Color-only Apply ignored an unavailable item mod");
+    require(choose(unavailableLayout, findChoice(unavailableLayout.view(scope, state, unavailable), "cosmetic.colors"),
+        scope, state, unavailable).accepted, "Colors stayed closed while item mod is unavailable");
+    require(findChoice(unavailableLayout.view(scope, state, unavailable), "cosmetic.colors.override").enabled,
+        "Color draft editing was blocked while item mod is unavailable");
+
+    NativeCosmeticContext scanning = only;
+    scanning.scanning = true;
+    NativeCareerLayout scanningLayout;
+    openAppearance(scanningLayout, scope, state, scanning);
+    require(choose(scanningLayout, findChoice(scanningLayout.view(scope, state, scanning), "cosmetic.colors"),
+        scope, state, scanning).accepted, "Colors page closed while scanning");
+    require(!findChoice(scanningLayout.view(scope, state, scanning), "cosmetic.colors.override").enabled,
+        "Override stayed enabled while scanning");
+    require(choose(scanningLayout, findChoice(scanningLayout.view(scope, state, scanning), "cosmetic.colors.primary"),
+        scope, state, scanning).accepted, "Primary page closed while scanning");
+    require(!findChoice(scanningLayout.view(scope, state, scanning), "cosmetic.primary." + std::to_string(red)).enabled,
+        "Primary color stayed enabled while scanning");
+
+    NativeCosmeticContext pending = only;
+    pending.restorationPending = true;
+    pending.draft[1] = {11, 0};
+    NativeCareerLayout pendingLayout;
+    openAppearance(pendingLayout, scope, state, pending);
+    auto pendingView = pendingLayout.view(scope, state, pending);
+    require(!findChoice(pendingView, "cosmetic.apply").enabled && findChoice(pendingView, "cosmetic.restore").enabled,
+        "Pending restoration changed the restore route");
+    require(choose(pendingLayout, findChoice(pendingView, "cosmetic.colors"), scope, state, pending).accepted,
+        "Colors page closed during restoration");
+    require(!findChoice(pendingLayout.view(scope, state, pending), "cosmetic.colors.override").enabled,
+        "Color editing stayed enabled during restoration");
+
+    NativeCosmeticContext custom = only;
+    custom.primary = {0.04f, 0.36f, 0.85f};
+    custom.secondary = {1.0f, 0.53f, 0.18f};
+    NativeCareerLayout customLayout;
+    openAppearance(customLayout, scope, state, custom);
+    require(choose(customLayout, findChoice(customLayout.view(scope, state, custom), "cosmetic.colors"),
+        scope, state, custom).accepted, "Custom colors did not open");
+    auto customColors = customLayout.view(scope, state, custom);
+    require(customColors.body.find("Primary: Custom") != std::string::npos &&
+        customColors.body.find("Accent: Custom") != std::string::npos, "Unlisted host colors were renamed");
+
+    NativeCosmeticRequest unused = redAgain.cosmetic;
+    unused.productId = 11;
+    require(!nativeCosmeticRequestCurrent(unused, cosmetics), "A color request kept an item field");
+    NativeCosmeticRequest badIndex;
+    badIndex.kind = NativeCosmeticRequestKind::SelectPrimaryColor;
+    badIndex.paletteIndex = 99;
+    require(!nativeCosmeticRequestCurrent(badIndex, cosmetics), "Palette index 99 was accepted");
+    badIndex.paletteIndex = -1;
+    require(!nativeCosmeticRequestCurrent(badIndex, cosmetics), "Unused palette index was accepted as a color");
+    badIndex.paletteIndex = red;
+    badIndex.primary = kNativeCosmeticPalette[red].rgb;
+    require(!nativeCosmeticRequestCurrent(badIndex, cosmetics), "A color selection carried RGB");
+    badIndex.primary = {};
+    require(nativeCosmeticRequestCurrent(badIndex, cosmetics), "A current palette selection was rejected");
+    NativeCosmeticRequest mode;
+    mode.kind = static_cast<NativeCosmeticRequestKind>(40);
+    require(!nativeCosmeticRequestCurrent(mode, cosmetics), "An unsupported cosmetic mode was accepted");
+    auto nan = cosmetics;
+    nan.primary[0] = std::numeric_limits<float>::quiet_NaN();
+    require(!nativeCosmeticRequestCurrent(freshColor.cosmetic, nan), "A nonfinite primary was accepted");
+    nan.primary[0] = std::numeric_limits<float>::infinity();
+    require(!nativeCosmeticRequestCurrent(badIndex, nan), "An infinite primary was accepted");
+    nan.primary = {1.5f, 0.f, 0.f};
+    require(!nativeCosmeticRequestCurrent(freshColor.cosmetic, nan), "A color above 1 was accepted");
+    nan.primary = {-0.01f, 0.f, 0.f};
+    require(!nativeCosmeticRequestCurrent(enable.cosmetic, nan), "A negative color was accepted");
+    NativeCosmeticRequest item;
+    item.kind = NativeCosmeticRequestKind::SelectItem;
+    item.slot = 2;
+    item.productId = 3;
+    item.paintable = true;
+    item.paletteIndex = 0;
+    require(!nativeCosmeticRequestCurrent(item, cosmetics), "An item request kept a palette index");
+    NativeCosmeticRequest sameOverride;
+    sameOverride.kind = NativeCosmeticRequestKind::SetColorOverride;
+    sameOverride.overrideColors = cosmetics.overrideColors;
+    require(!nativeCosmeticRequestCurrent(sameOverride, cosmetics), "An old override snapshot stayed current");
+
+    NativeCareerLayout routeLayout;
+    openGarage(routeLayout, scope, state);
+    auto garage = routeLayout.view(scope, state, cosmetics);
+    require(findChoice(garage, "garage.player").kind == CareerLayoutEffectKind::PreserveStockRoute, "Stock garage route changed");
+    require(findChoice(garage, "garage.bot.anchor.stock-23").action == "loadout", "Bot preset route changed");
 }
 
 static void openSlot(NativeCareerLayout& layout, const CareerLayoutScope& scope, const Json& state,
@@ -456,6 +687,11 @@ int main() {
         }
         require(foundUnicode, "Unicode cosmetic name was lost");
         require(hasProduct(decals, 12) && !hasProduct(decals, 6), "Decal page mixed in another slot");
+
+        NativeCosmeticContext colorBase;
+        colorBase.available = true;
+        colorBase.catalog = cosmetics.catalog;
+        checkColorEditor(scope, state, colorBase);
 
         std::cout << "Native cosmetic layout checks passed; no game was launched.\n";
         return 0;
