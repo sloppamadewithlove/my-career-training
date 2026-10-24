@@ -1,0 +1,16 @@
+{
+  "source": "native_ui/menus/MctRootMenu.as",
+  "source_sha256": "1ba9168d4a32e9c0c3ea4c7d7bbe29fda9aae35d3a985d9f3a6c382d91a49600",
+  "abc_sha256": "9d423d2e39743473bec792c0ca38f3b28946238183b03bbfb0a4681767721768",
+  "abc_bytes": 6124,
+  "classes": [
+    "menus::MctRootMenu"
+  ],
+  "method_bodies": 23,
+  "compiler": "Apache Flex 4.16.1",
+  "swf_version": 20,
+  "abc_version": "46.16",
+  "game_classes_linked": false,
+  "runtime_verified": false,
+  "production_ready": false
+}

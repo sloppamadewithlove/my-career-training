@@ -1,0 +1,328 @@
+package menus
+{
+    import flash.events.Event;
+    import flash.events.IOErrorEvent;
+    import flash.events.SecurityErrorEvent;
+    import flash.events.TimerEvent;
+    import flash.net.URLLoader;
+    import flash.net.URLRequest;
+    import flash.text.TextField;
+    import flash.text.TextFormat;
+    import flash.utils.Timer;
+    import flash.utils.getTimer;
+    import projectx.core.UIMenu;
+    import scaleform.clik.controls.Button;
+    import scaleform.clik.core.UIComponent;
+    import tagame.api.DevUtil;
+    import tagame.api.MenuSequence;
+    import tagame.api.Shell;
+    import tagame.api.System;
+    import tagame.constants.MenuName;
+    import tagame.core.ITAGameShell;
+    import tagame.core.TAGameShellInstance;
+    import tagame.menus.BranchingMenu;
+
+    // Authored mod source, compiled against private external game declarations.
+    // The build replaces only these two literals for the owned session.
+    // URLLoader file access and the DevUtil hook still require game validation.
+    public class MctRootMenu extends BranchingMenu
+    {
+        private static const VIEW_URL:String = "__MCT_VIEW_URL__";
+        private static const SESSION:String = "__MCT_SESSION__";
+        private static const PAGE_SIZE:int = 7;
+        private var timer:Timer;
+        private var loader:URLLoader;
+        private var loadStarted:int;
+        private var view:Object;
+        private var generation:String = "";
+        private var page:int = 0;
+        private var focusId:String = "";
+        private var details:TextField;
+        private var attached:Boolean = false;
+        private var busy:Boolean = false;
+        private var busyStarted:int = 0;
+        private var resetFocus:Boolean = false;
+        private var lastHello:int = -1000;
+
+        public function MctRootMenu()
+        {
+            super();
+            details = new TextField();
+            details.multiline = true;
+            details.wordWrap = true;
+            details.selectable = false;
+            details.mouseEnabled = false;
+            details.width = 620;
+            details.height = 530;
+            details.defaultTextFormat = new TextFormat("Arial", 20, 0xFFFFFF);
+            addChild(details);
+        }
+
+        override protected function configUI() : void
+        {
+            m_defaultControlClassName = "BasicThickExtendableMenuButtonWithIcon";
+            m_controlWidth = 0;
+            super.configUI();
+            m_controlSpacing = 35;
+        }
+
+        override protected function handleAddedToStage(event:Event) : void
+        {
+            super.handleAddedToStage(event);
+            attached = true;
+            if (timer == null)
+            {
+                timer = new Timer(250);
+                timer.addEventListener(TimerEvent.TIMER, poll, false, 0, true);
+            }
+            timer.start();
+            poll();
+        }
+
+        override protected function handleRemovedFromStage(event:Event) : void
+        {
+            attached = false;
+            if (timer != null) timer.stop();
+            closeLoader();
+            super.handleRemovedFromStage(event);
+        }
+
+        override public function onAddedToStack() : void
+        {
+            super.onAddedToStack();
+            MenuSequence.PushMenuSequence("MainMenu", "RootMenu");
+        }
+
+        override public function onRemovedFromStack() : void
+        {
+            super.onRemovedFromStack();
+            MenuSequence.PopMenuSequence("RootMenu");
+        }
+
+        override protected function handleBackEvent(event:Event = null) : Boolean
+        {
+            if (isSubMenu) return false;
+            if (!current()) return true;
+            for each (var item:Object in view.controls)
+            {
+                if (item.id == "nav.back")
+                {
+                    choose(item);
+                    return true;
+                }
+            }
+            // Root stays in this offline menu; Exit is an explicit choice.
+            return true;
+        }
+
+        override protected function refreshMenu() : void
+        {
+            if (resetFocus)
+            {
+                currentFocus = null;
+                focusId = "";
+                resetFocus = false;
+            }
+            else if (currentFocus != null) focusId = currentFocus.name;
+            super.refreshMenu();
+            for each (var control:UIComponent in m_controls)
+                if (control.name == focusId && control.enabled) currentFocus = control;
+            if (details != null)
+            {
+                details.x = Math.max(380, m_controlContainer.width + 40);
+                details.y = m_controlContainer.y;
+            }
+        }
+
+        override protected function generateControls() : void
+        {
+            if (!current())
+            {
+                addChoice({id:"waiting", label:"MY CAREER", reason:"Waiting for the offline career service", enabled:false});
+                var exitButton:UIComponent = createControl({label:"EXIT", descLabel:"Close Rocket League"}, Shell.ExitGame);
+                if (exitButton != null) exitButton.validateNow();
+                setDetails("My Career", "Connecting to your offline career. Your saved progress stays on this computer.");
+                return;
+            }
+            var count:int = view.controls.length;
+            if (page * PAGE_SIZE >= count) page = 0;
+            var end:int = Math.min(count, (page + 1) * PAGE_SIZE);
+            for (var i:int = page * PAGE_SIZE; i < end; ++i) addChoice(view.controls[i]);
+            if (page > 0) pageButton("PREVIOUS", -1);
+            if (end < count) pageButton("MORE", 1);
+            setDetails(String(view.title), String(view.body));
+        }
+
+        private function addChoice(item:Object) : void
+        {
+            var button:UIComponent = createControl({name:String(item.id), label:String(item.label),
+                descLabel:String(item.reason), enabled:item.enabled === true && !busy}, choose, [item]);
+            if (button == null) return;
+            button.validateNow();
+            // Reuse the actual native button's font when the timeline supplies it.
+            var nativeButton:Button = button as Button;
+            if (nativeButton != null && nativeButton.textField != null && details != null)
+            {
+                var format:TextFormat = nativeButton.textField.defaultTextFormat;
+                format.size = 20;
+                details.defaultTextFormat = format;
+            }
+        }
+
+        private function pageButton(label:String, direction:int) : void
+        {
+            var button:UIComponent = createControl({label:label, descLabel:"More choices", enabled:!busy}, turnPage, [direction]);
+            if (button != null) button.validateNow();
+        }
+
+        private function turnPage(direction:int) : void
+        {
+            if (!current() || busy) return;
+            page = Math.max(0, page + direction);
+            resetFocus = true;
+            refreshMenu();
+        }
+
+        private function setDetails(title:String, body:String) : void
+        {
+            if (details != null) details.text = title + "\n\n" + body;
+        }
+
+        private function current() : Boolean
+        {
+            return validView(view);
+        }
+
+        private function validView(candidate:Object) : Boolean
+        {
+            if (candidate == null || candidate.active !== true || candidate.protocol !== 1 ||
+                candidate.session !== SESSION || !(candidate.generation is String) ||
+                !/^[1-9][0-9]{0,19}$/.test(candidate.generation)) return false;
+            var age:Number = new Date().time / 1000 - Number(candidate.published_at);
+            return isFinite(age) && age >= -1 && age <= 5 && candidate.controls is Array;
+        }
+
+        private function choose(item:Object) : void
+        {
+            if (isSubMenu || !current() || busy || item.enabled !== true) return;
+            var present:Boolean = false;
+            for each (var candidate:Object in view.controls)
+                if (candidate === item) present = true;
+            if (!present) return;
+            if (item.stock === "garage")
+            {
+                if (TAGameShellInstance.get() == null) return;
+                UIMenu.openMenu(MenuName.GARAGE_MAIN, parent, true);
+                return;
+            }
+            if (item.stock === "options")
+            {
+                var shell:ITAGameShell = TAGameShellInstance.get();
+                if (shell != null && shell.screenManager.isScreenOpen("ChallengesPrimeMenu")) return;
+                System.SetSharedUIState("Options");
+                return;
+            }
+            busy = true;
+            busyStarted = getTimer();
+            DevUtil.Log("MCT_NATIVE_UI_V1", JSON.stringify({protocol:1, session:SESSION,
+                generation:generation, revision:String(item.revision), control:String(item.id)}));
+            refreshMenu();
+        }
+
+        private function poll(event:TimerEvent = null) : void
+        {
+            if (!attached || isSubMenu) return;
+            if (view != null && !current()) loseConnection();
+            if (loader != null)
+            {
+                if (getTimer() - loadStarted < 1500) return;
+                closeLoader();
+            }
+            if (VIEW_URL.indexOf("file:///") != 0 || SESSION.indexOf("__MCT_") == 0) return;
+            loader = new URLLoader();
+            loader.addEventListener(Event.COMPLETE, loaded, false, 0, true);
+            loader.addEventListener(IOErrorEvent.IO_ERROR, failed, false, 0, true);
+            loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, failed, false, 0, true);
+            loadStarted = getTimer();
+            try { loader.load(new URLRequest(VIEW_URL)); }
+            catch (error:Error) { failed(); }
+        }
+
+        private function loaded(event:Event) : void
+        {
+            if (loader == null || event.currentTarget !== loader) return;
+            var raw:String = String(loader.data);
+            closeLoader();
+            if (isSubMenu) return;
+            if (raw.length > 65536) { loseConnection(); return; }
+            try
+            {
+                var incoming:Object = JSON.parse(raw);
+                if (incoming == null || !(incoming.controls is Array) || incoming.controls.length > 24)
+                    throw new Error("Invalid menu");
+                for each (var item:Object in incoming.controls)
+                    if (!(item.id is String) || !(item.label is String) || item.label.length > 80 ||
+                        !(item.reason is String) || item.reason.length > 240 || !(item.revision is String))
+                        throw new Error("Invalid control");
+                if (!validView(incoming)) { loseConnection(); return; }
+                if (getTimer() - lastHello >= 1000)
+                {
+                    DevUtil.Log("MCT_NATIVE_UI_V1", JSON.stringify({protocol:1, session:SESSION, event:"ready"}));
+                    lastHello = getTimer();
+                }
+                var next:String = incoming.generation;
+                if (next != generation)
+                {
+                    if (view == null || incoming.title !== view.title)
+                    {
+                        page = 0;
+                        resetFocus = true;
+                    }
+                    view = incoming;
+                    generation = next;
+                    busy = false;
+                    refreshMenu();
+                }
+                else
+                {
+                    // Keep the control objects captured by visible callbacks.
+                    // The host advances generation whenever a binding changes.
+                    view.published_at = incoming.published_at;
+                    if (busy && getTimer() - busyStarted >= 2000)
+                    {
+                        // The host rejects any repeated accepted generation.
+                        busy = false;
+                        refreshMenu();
+                    }
+                }
+            }
+            catch (error:Error) { loseConnection(); }
+        }
+
+        private function failed(event:Event = null) : void
+        {
+            closeLoader();
+            if (!current()) loseConnection();
+        }
+
+        private function closeLoader() : void
+        {
+            if (loader == null) return;
+            loader.removeEventListener(Event.COMPLETE, loaded);
+            loader.removeEventListener(IOErrorEvent.IO_ERROR, failed);
+            loader.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, failed);
+            try { loader.close(); } catch (error:Error) {}
+            loader = null;
+        }
+
+        private function loseConnection() : void
+        {
+            if (view == null && generation == "") return;
+            view = null;
+            generation = "";
+            busy = false;
+            lastHello = -1000;
+            refreshMenu();
+        }
+    }
+}
