@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#09121d">
-  <meta name="description" content="My Career Training is developing a solo offline Rocket League career for Windows and Steam. Native menu integration is unfinished; no new download is available yet.">
+  <meta name="description" content="Download the My Career Training native-menu test build for offline Rocket League on Windows and Steam. Compiled portable package; in-game verification is still pending.">
   <title>My Career Training</title>
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="stylesheet" href="styles.css">
@@ -12,19 +12,27 @@
 <body>
   <main>
     <img class="app-icon" src="assets/icon.svg" width="64" height="64" alt="">
-    <p class="eyebrow">OFFLINE ROCKET LEAGUE CAREER · IN DEVELOPMENT</p>
+    <p class="eyebrow">OFFLINE ROCKET LEAGUE CAREER · TEST BUILD</p>
     <h1>My Career Training</h1>
     <p class="intro">A solo Rocket League career played through a personalized menu in offline mode.</p>
 
+    <div class="actions">
+      <a class="button download" href="https://github.com/sloppamadewithlove/my-career-training/releases/download/native-candidate-2026-10-24/MyCareerTraining-NativeCandidate-2fed6cd.zip">Download Windows test build</a>
+      <a class="button github" href="https://github.com/sloppamadewithlove/my-career-training/releases/tag/native-candidate-2026-10-24">Read test build notes</a>
+    </div>
+    <p class="download-details">24 October 2026 · Windows 64-bit · Portable ZIP · 267 MB</p>
+
     <div class="notes">
-      <p><strong>Windows build:</strong> Version 0.3.0 is in development. The native-menu download is not ready yet.</p>
-      <p><strong>The goal:</strong> Career, Training, Garage, Workshop and Settings inside Rocket League's own offline menus. Manage your squad, schedule and season within Career.</p>
-      <p><strong>Current work:</strong> Native-menu investigation and Windows testing. The Windows checker collects game version information without changing the game. It does not prove that the custom menus work.</p>
-      <p><strong>Still to verify:</strong> Native menu buttons must work in the current Steam build, route to career actions, and restore the original menus safely.</p>
+      <p><strong>How to start:</strong> Close Rocket League, extract the entire ZIP, open the extracted folder and run <strong>MyCareerTraining.exe</strong>. Keep all the files together. The app starts the offline session and manages its temporary plugin setup.</p>
+      <p><strong>What you need:</strong> Your installed Steam copy of Rocket League and BakkesMod. This package is already compiled; Visual Studio, Python and Cursor are not required. This candidate targets the Steam build tested on SLAVAPC (build 25914621); other builds are refused.</p>
+      <p><strong>Included for testing:</strong> My Career, Training, Garage, Workshop, Community and Settings routes, with career management, local appearance options and installed Steam Workshop map selection.</p>
+      <p><strong>Test status:</strong> Automated package and code checks passed. The custom menu, button navigation, gameplay and restoration of the normal game still need in-game testing. This is a development candidate, not a verified finished release.</p>
+      <p><strong>Current limits:</strong> Car bodies use your owned Garage choices. Imported local maps are not launchable yet. Community plugins can be downloaded and cached; only the reviewed Speedflip Trainer has a trial activation route.</p>
+      <p><strong>Offline sessions:</strong> Gameplay is offline; normal account and cloud connections are not blocked. Use the app's Exit control and let recovery finish before starting normal Rocket League.</p>
     </div>
     <nav class="links" aria-label="Project information">
       <a href="https://github.com/sloppamadewithlove/my-career-training">View the GitHub repository <span aria-hidden="true">↗</span></a>
-      <a href="https://github.com/sloppamadewithlove/my-career-training/blob/main/docs/WINDOWS_VALIDATION.md">Windows test setup <span aria-hidden="true">↗</span></a>
+      <a href="https://github.com/sloppamadewithlove/my-career-training/blob/native-candidate-2026-10-24/docs/NATIVE_ACCEPTANCE_SESSION.md">In-game test guide <span aria-hidden="true">↗</span></a>
     </nav>
     <footer>Independent project. Not affiliated with Rocket League, Psyonix, or Epic Games.</footer>
   </main>

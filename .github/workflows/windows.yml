@@ -23,8 +23,9 @@ jobs:
       QT_QUICK_BACKEND: software
       SDL_VIDEODRIVER: dummy
       PYTHONUTF8: '1'
-      # Owner requires verified native menus before another public download.
-      # Build and installation checks still run; no artifacts are uploaded while held.
+      # Stable installers remain held pending verified native menus.
+      # The owner separately authorized the 2026-10-24 native candidate prerelease.
+      # Build and installation checks still run; this workflow uploads no artifacts while held.
       MCT_INSTALLER_HOLD: 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

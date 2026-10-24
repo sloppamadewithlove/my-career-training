@@ -5,10 +5,16 @@ The goal is a desktop shortcut that starts offline Rocket League with Career,
 Training, Garage, Workshop and Settings in the game's own menu style.
 Squad, Schedule and League Table belong inside Career.
 
-**The native-menu edition is not available to download yet.** The current
-implementation uses an in-game plugin window. Replacing Rocket League's native
-buttons and their actions is still under investigation. The next public
-installer is held until that integration is verified.
+**A compiled native-menu test build is available from the
+[project website](https://my-career-training.vercel.app/).** Extract the complete
+portable ZIP and run `MyCareerTraining.exe`; no developer tools are required.
+It targets the pinned Steam build on SLAVAPC and requires installed Rocket League
+and BakkesMod. Automated checks passed; native menus, gameplay and restoration
+still require in-game verification. The stable installer remains on hold.
+
+The [24 October candidate release](https://github.com/sloppamadewithlove/my-career-training/releases/tag/native-candidate-2026-10-24)
+contains the exact compiled package, checksums, validation evidence, source and
+current limits. The owner authorized this separate prerelease for testing.
 
 [Project website](https://my-career-training.vercel.app/) ·
 [Current development status](docs/RELEASE_NOTES.md) ·
@@ -34,7 +40,8 @@ source, plugin and frozen-application checks passed for
 [PR #2](https://github.com/sloppamadewithlove/my-career-training/pull/2).
 Installer creation and upload were deliberately skipped in that run. The 0.3.0
 workflow also builds and checks installation, same-version reinstall and
-uninstallation while keeping downloadable artifacts on hold. These automated
+uninstallation while keeping stable installer artifacts on hold. The separate
+native candidate is published for testing. These automated
 checks do not verify gameplay, older-version upgrades or native menu replacement.
 
 A supported [native dialog trial](docs/NATIVE_DIALOG_TRIAL.md) now routes Career
