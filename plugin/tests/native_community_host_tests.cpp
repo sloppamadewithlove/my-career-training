@@ -100,6 +100,28 @@ void writeBytes(const std::filesystem::path& path, const std::vector<unsigned ch
     require(static_cast<bool>(file), "fixture write failed");
 }
 
+// Hosted Windows TEMP can be an 8.3 alias. Production compares the opened file with
+// GetFinalPathNameByHandleW(FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) after stripping \\?\.
+// The directory must exist before that query, and later paths are built from the result.
+std::filesystem::path finalDosDirectory(const std::filesystem::path& path) {
+    std::filesystem::create_directories(path);
+    const HANDLE opened =
+        CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    require(opened != INVALID_HANDLE_VALUE, "fixture path resolution failed");
+    constexpr DWORD kCapacity = 4096;
+    wchar_t resolved[kCapacity] = {};
+    const DWORD length = GetFinalPathNameByHandleW(opened, resolved, kCapacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CloseHandle(opened);
+    const bool drivePrefix =
+        length >= 7 && length < kCapacity && resolved[0] == L'\\' && resolved[1] == L'\\' && resolved[2] == L'?' &&
+        resolved[3] == L'\\' &&
+        ((resolved[4] >= L'A' && resolved[4] <= L'Z') || (resolved[4] >= L'a' && resolved[4] <= L'z')) &&
+        resolved[5] == L':' && resolved[6] == L'\\';
+    require(drivePrefix, "fixture path resolution failed");
+    return std::filesystem::path(std::wstring(resolved + 4, resolved + length));
+}
+
 struct World {
     NativeCommunityProfile profile;
     NativeCommunityObservation observation;
@@ -248,9 +270,10 @@ int main(int argc, char** argv) {
 #else
     try {
         require(!NativeCommunityHost::kGameVerified && !NativeCommunityHost::kProductionAllowed, "trial flags");
-        const auto fixture = std::filesystem::temp_directory_path() / "mct-community-host";
+        const auto fixtureRoot = std::filesystem::temp_directory_path() / "mct-community-host";
         std::error_code removeError;
-        std::filesystem::remove_all(fixture, removeError);
+        std::filesystem::remove_all(fixtureRoot, removeError);
+        const auto fixture = finalDosDirectory(fixtureRoot);
         const auto plugins = fixture / "plugins";
         const auto bytes = syntheticPe(256);
         const auto member = digestOf(bytes);
