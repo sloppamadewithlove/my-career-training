@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 project(MctNativeFileView LANGUAGES CXX)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "native_file_view is a 64-bit Windows MSVC fixture.")
 endif()
