@@ -1,10 +1,10 @@
-my-career-training — complete Astra build prompt
-Evidence baseline: 23 October 2026. Recheck current game and dependency versions when building.
+my-career-training — product build specification
+Product scope updated: 24 October 2026. Recheck current game and dependency versions when building.
 How to use this prompt
-Open the my-career-training repository in your coding workspace, select Astra with the desired reasoning setting, and give it this entire file. If starting in a new chat, attach the source archive as well. This document is self-contained; the reference starter is optional.
+Open the canonical my-career-training GitHub repository in the coding workspace. The current requested team is the primary coding agent working alongside exact Grok 4.7 High builders, with GPT-6 Luna Max for research/discovery. Do not claim a requested model was used when it was unavailable. This document is self-contained; the reference starter is optional.
 Everything below is the build assignment. Product defaults are already chosen so implementation can proceed without a long clarification round.
 1. Assignment and definition of success
-Build My Career Training, a complete Windows desktop career and training application that works with the player's real, current Rocket League installation. The GitHub repository must be named my-career-training. Astra owns the implementation, interface design, integration, testing, debugging, and packaging.
+Build My Career Training, an offline career and training mod for the player's real, current Rocket League installation, with a local service for careers, training and saves. The canonical repository is sloppamadewithlove/my-career-training. The implementation includes interface design, integration, testing, debugging, and packaging.
 The player drives their own car, manages a five-member squad, plays short seasons with bot teammates and opponents, and optionally practices specific skills. Preserve normal Rocket League movement, physics, rules, controls, arenas, and the installed game's visual assets. This is an addition around the real game, not a recreated driving game or a browser simulation.
 The intended player understands Rocket League but is not a programmer. The first user plays through Steam, is around Diamond, and particularly wants to learn speed flips and flip resets. Support Epic Games installations as an equal product target, with separate runtime verification.
 One-shot means one complete implementation run: inspect, build the whole specified release, exercise it, repair concrete failures, and package it. Use internal milestones to control the work, but do not stop after a plan, attractive mockup, generated match file, or one working lesson. Continue through all deliverables that the available environment allows.
@@ -14,9 +14,9 @@ If a required first-release feature, teaching reference, or runtime acceptance c
 Use a local desktop application with an isolated RLBot v5 game worker connecting to the installed Rocket League game. The application owns careers, fixtures, squad management, training definitions, preferences, and saves. Rocket League remains responsible for the actual match and physics.
 The documented bot/mod route uses the current game's supported EAC-off environment. Epic documents offline matches, training, LAN matches, and replays in that environment. Ordinary official online play uses an EAC-enabled launch. Both environments can exist on the same computer and use the same installed game; switch sessions cleanly. Do not require an old game version or a second account. [1–3]
 Use the existing Steam or Epic signed-in session. Do not collect platform passwords, invent an account-linking service, or promise an inventory API. The app remembers the selected launcher. Detect both installations and ask once if the choice is ambiguous; prefer Steam for the initial user's setup.
-The release's main menu is an app-owned career menu. It can open and accompany Rocket League. In-game training instructions can use documented rendering. A native button inserted into Rocket League's home menu or a native Rocket League confirmation dialog is an optional integration only if a current supported mechanism is found and demonstrated. An external window must not be represented as a native game menu.
+The required release interface customizes Rocket League's native offline main menu: its buttons, destinations, options and settings must serve My Career. Preserve the game's visual language, native controls, animations, controller navigation and Back behavior. Remove online/store routes from the My Career session, or make them non-clickable if removal cannot be verified. A desktop window, plugin overlay or modal dialog does not satisfy native menu replacement. The normal Steam/Epic online launch must retain its original behavior and menu. Native integration is required for completion; it is not an optional enhancement. See docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md and the current acceptance evidence.
 No runtime AI subscription is needed by players. Bots, detectors, coaching rules, season management, and saves run locally. Do not make cloud accounts or internet access to a career server mandatory. Steam/Epic may have their own launch and authentication requirements; distinguish those from the app's local operation.
-Use only supported integration and launch routes. Do not hide modifications from anti-cheat, patch protected online behavior, or send career bot control into ordinary official matches.
+Use the game's supported offline launch route and validate any native adapter against the exact installed build. Undocumented signatures or generated offsets alone do not authorize production writes. Do not hide modifications from anti-cheat, patch protected online behavior, or send career bot control into ordinary official matches.
 3. Full first-release scope
 Implement all of the following:
 1. A Windows desktop application with original icon, installer, portable package, shortcut, settings, diagnostics, and clear first-run setup.
@@ -24,16 +24,16 @@ Implement all of the following:
 3. Team creation, a five-member squad, specialist bot behavior, lineup selection, between-match substitutions, difficulty settings, and progression.
 4. A complete short league season, standings, results, a season conclusion, continued careers, and reliable saves.
 5. A complete optional training catalog described below, repeatable scenarios, useful measured feedback, demonstration playback, and independently configurable assistance.
-6. Supported bot appearance customization and career-local cosmetic rewards; preserve the human's ordinary garage choice unless an actual supported local override is verified.
-7. A community-map catalog/import boundary with attribution and launcher compatibility information.
+6. Bot appearance customization, career-local cosmetic rewards, and BakkesMod-style local human cosmetic designs from the installed catalog. Validate supported items and restore the player's ordinary appearance on leaving My Career; do not grant online ownership or inventory.
+7. Workshop browsing, settings and verified offline map loading without substituting an installed game asset. Community BakkesPlugins links should support downloading creator releases into My Career and enabling compatible reviewed helpers in an owned offline session. Cached downloads alone do not satisfy activation; site verification alone does not establish compatibility or cleanup.
 8. The complete Play Online confirmation, save, close, and normal-launch transition.
 9. Automated checks, a Windows build workflow, versioned release artifacts, and a precise implementation/game-test report.
 The first release has one human captain and bot teammates. This is a deliberate release boundary, not a claim that mods or Rocket League custom-bot matches cannot be multiplayer. Keep the match adapter separable so a private two-captain version can be developed without rewriting the career engine. Section 14 defines the investigation and acceptance requirements for that extension.
 The enlarged-map/22-player lobby is a separate project and must not enter this repository's scope. Extra modes such as Hoops, Rumble, and Dropshot are also outside this first Soccar release.
-4. Desktop experience and interface
+4. Native game interface and desktop management
 Build a polished, readable sports-career interface. Use original artwork and an original icon rather than copied EA or Rocket League branding. Use a dark neutral background, restrained blue/orange accents, large readable labels, clear selected states, and consistent spacing. Do not show decorative controls that do nothing.
 Main destinations:
-- Home: Continue Career, New Career, Training, Play Online, Settings.
+- Native home: My Career, Training, Garage, Workshop, Community, Settings, Exit. My Career includes Continue Career and New Career. Online/store destinations are disabled or removed for this session. Any separate return-to-normal-game command must complete the save, close, restore and normal-launch sequence first.
 - Career Hub: next fixture, team, recent result, standings summary, and one prominent Play Match button.
 - Squad: human plus four bots, starter/bench positions, role, level, appearance, and recruitment choices.
 - Season: schedule, complete league table, match history, and season awards.
