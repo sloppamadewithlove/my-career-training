@@ -26,7 +26,7 @@ The executable's library is the initial limit. A path under another library is "
 
 With no bound context, the workshop page keeps the previous disabled list, including favorites and refresh. A bound context paginates valid rows by 8, scanning up to 512, so a map past the first 64 can be reached with "More maps" and "Previous maps". Favorites and refresh stay bridge actions.
 
-Play is disabled, in plain language, when the session is busy, a map is already held, a package is still preparing, or the owned offline frontend is not ready. The status line uses the same sentences. Entering a map does not release its pin. A lost owned session or new bridge nonce cancels pending preparation without joining its worker on the game tick; an already-dispatched package remains pinned until plugin unload. Normal online handoff closes the owned offline process first.
+Play is disabled, in plain language, when the session is busy, a request has an unknown outcome, the retained-map limit is reached, a package is still preparing, or the owned offline frontend is not ready. Retaining an earlier map's pin does not itself disable another selection after returning to the frontend. A lost owned session or new bridge nonce cancels pending preparation without joining its worker on the game tick; already-dispatched packages remain pinned until plugin unload. Normal online handoff closes the owned offline process first.
 
 ## Host
 

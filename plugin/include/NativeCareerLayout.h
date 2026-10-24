@@ -356,7 +356,7 @@ public:
                 live->packagePath != match->workshop.packagePath || live->contentRoot != match->workshop.contentRoot ||
                 live->workshopId != match->workshop.workshopId || workshop.nonce != match->workshop.nonce ||
                 workshop.generation != match->workshop.generation || !workshop.scopeReady || workshop.preparing ||
-                workshop.held)
+                workshop.blocked)
                 return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
             if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
             effect.accepted = true;
@@ -377,18 +377,18 @@ public:
     // the executable's own Steam library are left unbound.
     static NativeWorkshopContext bindWorkshop(const Json& state, const std::string& executablePath,
                                               const std::string& nonce, std::uint64_t generation, bool scopeReady,
-                                              bool preparing, bool held) {
+                                              bool preparing, bool blocked) {
         NativeWorkshopContext context;
         context.bound = true;
         context.scopeReady = scopeReady;
         context.preparing = preparing;
-        context.held = held;
+        context.blocked = blocked;
         context.nonce = nonce;
         context.generation = generation;
         context.libraryRoot = nativeWorkshopLibraryRoot(executablePath);
         context.libraryConfirmed = !context.libraryRoot.empty();
         const auto contentRoot = nativeWorkshopContentRoot(context.libraryRoot);
-        if (held) context.status = "A map is open for this offline session.";
+        if (blocked) context.status = "Close this session before loading another map.";
         else if (preparing) context.status = "Preparing this map.";
         else if (!scopeReady) context.status = "Play is available during an offline career session.";
         else if (!context.libraryConfirmed) context.status = "This game's Steam library could not be confirmed.";
@@ -1195,7 +1195,7 @@ private:
 
     static const char* workshopBlock(const Json& item, const NativeWorkshopContext& workshop, bool waiting) {
         if (waiting) return kWait;
-        if (workshop.held) return "A map is open for this offline session.";
+        if (workshop.blocked) return "Close this session before loading another map.";
         if (workshop.preparing) return "Preparing this map.";
         if (!workshop.scopeReady) return "Play is available during an offline career session.";
         if (findNativeWorkshopPackage(workshop, text(item, "id"))) return nullptr;

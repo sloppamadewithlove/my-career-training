@@ -28,6 +28,7 @@ mct::WorkshopLaunchResult result = launcher.poll();
 launcher.waitForPreparation();
 launcher.shutdown();
 bool held = launcher.holding();
+bool canRequest = launcher.canRequest();
 ```
 
 `scope` is `std::function<mct::WorkshopLoadScope()>`. `execute` is `std::function<void(const std::string&)>`. `developmentEnabled` defaults to false. Copy and move are deleted. The destructor calls `shutdown()`.
@@ -43,12 +44,13 @@ bool held = launcher.holding();
 | `preparing` | The worker has been started and `poll` has not finished the request. |
 | `requested` | The execute callback was entered. This is not a load. |
 | `callbackReturned` | The execute callback returned. False when it threw. |
-| `held` | This object still has the package pin. |
+| `held` | This attempt's dispatched pin was retained. Older pins may still exist when a later attempt is refused; use `holding()` for that. |
+| `gameVerified` | Always false. |
 | `gameTested` | Always false. |
 | `productionAllowed` | Always false. |
 | `reason` | A fixed token. Paths are not copied into it. |
 
-`begin` returns `preparing` / reason `preparing` without reading the package. A second `begin` while a request is preparing, ready, or held returns `request_held`.
+`begin` returns `preparing` / reason `preparing` without reading the package. A second `begin` while a request is preparing, ready, dispatching, or has an unknown result returns `request_held`. A successful callback allows a later preparation in a fresh offline frontend. `canRequest()` exposes this state gate without calling the scope callback; the host separately checks frontend ownership. Retaining earlier files does not by itself block another map.
 
 `cancelPending()` is the nonblocking game-tick path for scope loss or nonce
 rotation. It cancels a pending dispatch and preserves any already-dispatched
@@ -68,20 +70,20 @@ Other platforms return `unsupported_platform` and do not call either callback.
 ## Sequence
 
 1. `developmentEnabled == false` returns `development_disabled` without calling either callback.
-2. A pin, a worker, or a result waiting for `poll` returns `request_held` without calling either callback.
+2. An active worker, result waiting for `poll`, dispatch, or unknown callback result returns `request_held` without calling either callback. A full retained set returns `pin_capacity`.
 3. An empty scope or execute callback returns `scope_missing` or `executor_missing`.
 4. `begin` calls scope once and starts the worker. The worker runs `prepare`. The command must be exactly `load_workshop "<canonical path>"` from that plan. The worker opens the read-only handles and calls `prepare` again with the captured scope. A changed file stores the plan's reason and closes the handles.
 5. `poll` on the game thread, after the worker finishes, calls scope again. Nonce, generation, executable hash, BakkesMod core, game build, and the owned-session flags (`owned`, `offline`, `fresh`, `online`, `steamFrontend`, `inGame`, `replay`, `busy`, `developmentTrial`) must match the captured scope. Any difference returns `scope_changed` and releases the not-yet-dispatched pin.
 6. `poll` checks ancestor reparse points, the resolved path, the size, and the four-byte magic. Then it marks the pin held and calls execute. The success and unknown result objects are built before that call.
 7. If execute returns, the pin stays open for the owned offline session. If execute throws, the pin stays open, `requested` is true, `callbackReturned` is false, `held` is true, and the reason is `request_outcome_unknown`. A `release` inside that callback does not drop the pin.
 
-The host retains a dispatched pin until plugin unload, including if the frontend becomes an in-game map or the session nonce changes. Scope loss and nonce rotation only cancel preparation that has not dispatched. A second map request stays refused for the rest of this owned process.
+The host retains every dispatched pin until plugin unload, including if the frontend becomes an in-game map or the session nonce changes. Scope loss and nonce rotation only cancel preparation that has not dispatched. Up to 32 dispatched groups fit in a fixed array. Each group owns its package and bounded parent-directory handles. Committing a group swaps handles without allocation; failed or cancelled later preparation closes only its current, never-dispatched group. An unknown later result keeps both older and current groups and blocks further requests. Reaching the cap never evicts a group.
 
 A thrown scope callback becomes `scope_exception`. Any other exception becomes `request_exception`. Those results leave `requested` false. Exceptions from the callbacks do not leave `begin` or `poll`.
 
 ## Reasons introduced here
 
-`development_disabled`, `request_held`, `scope_missing`, `executor_missing`, `unsupported_platform`, `scope_exception`, `scope_changed`, `command_rejected`, `request_exception`, `request_outcome_unknown`, `preparing`, `cancelled`, `idle`, and `development_trial_only` on a handoff.
+`development_disabled`, `request_held`, `pin_capacity`, `scope_missing`, `executor_missing`, `unsupported_platform`, `scope_exception`, `scope_changed`, `command_rejected`, `request_exception`, `request_outcome_unknown`, `preparing`, `cancelled`, `idle`, and `development_trial_only` on a handoff.
 
 Plan refusals pass through unchanged, including `executable_hash_mismatch`, `bakkes_core_mismatch`, `game_build_mismatch`, `stale_session`, `unowned_session`, `nonce_mismatch`, `generation_mismatch`, `path_forbidden_characters`, `path_traversal`, `package_changed`, and `symlink_or_reparse`.
 
@@ -91,12 +93,13 @@ When `MCT_ENABLE_NATIVE_MOVIE_TRIAL` is on, `MyCareerTraining` constructs the la
 
 A build with the trial macro off does not construct the launcher and does not hash, hook, or prepare a workshop package for this route.
 
-Suggested registration, for the root build. It is not in `plugin/CMakeLists.txt` yet.
+Registered in `plugin/CMakeLists.txt` for both plugin configurations, with `Threads::Threads`:
 
 ```cmake
 add_executable(mct_native_workshop_launcher_tests tests/native_workshop_launcher_tests.cpp)
 target_include_directories(mct_native_workshop_launcher_tests PRIVATE include)
 target_compile_features(mct_native_workshop_launcher_tests PRIVATE cxx_std_17)
+target_link_libraries(mct_native_workshop_launcher_tests PRIVATE Threads::Threads)
 add_test(NAME native_workshop_launcher COMMAND mct_native_workshop_launcher_tests)
 ```
 
@@ -108,6 +111,12 @@ cmd /c 'call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\
 ```
 
 `cl` does not create the `/Fo` directory.
+
+The fixture now checks two distinct successful maps remain write/delete blocked,
+an in-game second request is refused, cancellation/validation/scope failure of
+the second preserves the first, an unknown second callback pins both and prevents
+retry, the 32-group cap never evicts an earlier pin, and shutdown releases all.
+The callback-reentrant release and nonblocking cancellation checks remain.
 
 ## Unknowns
 

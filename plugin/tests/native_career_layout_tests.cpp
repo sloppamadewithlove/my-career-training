@@ -802,7 +802,7 @@ int main() {
             std::string("Wait for the current game transition to finish."), "Busy play reason");
         auto held = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, true, false, true);
         require(findChoice(aliasLayout.view(scope, aliasState, {}, held), "workshop.play.dribble-challenge").reason ==
-            "A map is open for this offline session.", "Held play reason");
+            "Close this session before loading another map.", "Blocked play reason");
         auto preparing = NativeCareerLayout::bindWorkshop(aliasState, exe, scope.nonce, 7, true, true, false);
         require(findChoice(aliasLayout.view(scope, aliasState, {}, preparing), "workshop.play.dribble-challenge").reason ==
             "Preparing this map.", "Preparing play reason");

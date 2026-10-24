@@ -476,10 +476,13 @@ int main() {
 
         int calls = 0;
         std::vector<std::string> commands;
+        auto liveScope = readyScope();
+        const std::string secondPath = root + "\\" + item + "\\Second Map.upk";
+        writeBytes(secondPath, body);
         mct::NativeWorkshopLauncher launcher(
             [&]() {
                 ++calls;
-                return readyScope();
+                return liveScope;
             },
             [&](const std::string& command) { commands.push_back(command); },
             true);
@@ -496,24 +499,99 @@ int main() {
         expectDeleteDenied(packageWide);
         require(readAll(packageWide) == before, "denied write changed the package");
 
-        const auto second = finish(launcher, selected);
-        expectRefused(second, "request_held");
-        require(commands.size() == 1, "held request invoked the callback again");
-        require(calls == 2, "held request read the scope");
-        require(launcher.holding(), "refused request dropped the hold");
+        require(launcher.canRequest(), "successful dispatch blocked later maps");
+        liveScope.inGame = true;
+        expectRefused(launcher.begin(selectionFor(root, secondPath, item)), "in_game");
+        require(commands.size() == 1 && launcher.holding(), "in-game followup lost the prior pin");
+        liveScope.inGame = false;
+        const auto second = finish(launcher, selectionFor(root, secondPath, item));
+        expectHandedOff(second);
+        require(commands.size() == 2, "second map was not dispatched");
+        expectWriteDenied(packageWide);
+        expectDeleteDenied(packageWide);
+        expectWriteDenied(widen(secondPath));
+        expectDeleteDenied(widen(secondPath));
 
         launcher.release();
         require(!launcher.holding(), "release kept the hold");
         launcher.release();
         expectWriteAllowed(packageWide, before);
+        expectWriteAllowed(widen(secondPath), body);
         require(readAll(packageWide) == before, "allowed write changed the package");
         const auto third = finish(launcher, selected);
         expectHandedOff(third);
-        require(commands.size() == 2, "released launcher did not hand off once more");
-        require(commands[1] == independent.command, "second command " + commands[1]);
+        require(commands.size() == 3, "released launcher did not hand off once more");
+        require(commands[2] == independent.command, "third command " + commands[2]);
         launcher.release();
         require(!launcher.holding(), "second release kept the hold");
         expectDeleteAllowed(packageWide);
+
+        {
+            const std::string firstPath = root + "\\" + item + "\\Retained First.upk";
+            const std::string laterPath = root + "\\" + item + "\\Retained Later.upk";
+            writeBytes(firstPath, body);
+            writeBytes(laterPath, body);
+            auto scope = readyScope();
+            bool explode = false;
+            int dispatched = 0;
+            mct::NativeWorkshopLauncher multiple([&] { return scope; }, [&](const std::string&) {
+                ++dispatched;
+                if (explode) throw std::runtime_error("unknown second result");
+            }, true);
+            const auto firstSelection = selectionFor(root, firstPath, item);
+            const auto laterSelection = selectionFor(root, laterPath, item);
+            expectHandedOff(finish(multiple, firstSelection));
+            require(multiple.begin(laterSelection).preparing, "second preparation was not allowed");
+            multiple.cancelPending();
+            multiple.waitForPreparation();
+            expectRefused(multiple.poll(), "cancelled");
+            require(multiple.holding() && multiple.canRequest() && dispatched == 1, "cancel discarded earlier hold");
+            expectWriteDenied(widen(firstPath));
+            expectWriteAllowed(widen(laterPath), body);
+            auto badSelection = laterSelection;
+            badSelection.expectedSize = body.size() + 1;
+            require(!finish(multiple, badSelection).requested, "bad second map dispatched");
+            expectWriteDenied(widen(firstPath));
+            expectWriteAllowed(widen(laterPath), body);
+            require(multiple.begin(laterSelection).preparing, "second scope test did not prepare");
+            multiple.waitForPreparation();
+            scope.inGame = true;
+            expectRefused(multiple.poll(), "scope_changed");
+            scope.inGame = false;
+            expectWriteDenied(widen(firstPath));
+            expectWriteAllowed(widen(laterPath), body);
+            explode = true;
+            expectUnknown(finish(multiple, laterSelection));
+            require(multiple.holding() && !multiple.canRequest(), "unknown second result allowed more requests");
+            expectWriteDenied(widen(firstPath));
+            expectDeleteDenied(widen(firstPath));
+            expectWriteDenied(widen(laterPath));
+            expectDeleteDenied(widen(laterPath));
+            expectRefused(multiple.begin(firstSelection), "request_held");
+            require(dispatched == 2, "uncertain second map was retried");
+            multiple.shutdown();
+            expectWriteAllowed(widen(firstPath), body);
+            expectWriteAllowed(widen(laterPath), body);
+        }
+
+        {
+            const std::string capPath = root + "\\" + item + "\\Capacity.upk";
+            writeBytes(capPath, body);
+            int dispatched = 0;
+            mct::NativeWorkshopLauncher bounded([&] { return readyScope(); },
+                [&](const std::string&) { ++dispatched; }, true);
+            for (std::size_t index = 0; index < mct::NativeWorkshopLauncher::kMaxRetainedGroups; ++index) {
+                require(bounded.canRequest(), "retained cap was reached too early");
+                expectHandedOff(finish(bounded, selectionFor(root, capPath, item)));
+            }
+            require(!bounded.canRequest() && bounded.holding(), "full retained set dropped pins or allowed more");
+            expectRefused(bounded.begin(selectionFor(root, capPath, item)), "pin_capacity");
+            require(dispatched == 32, "cap request reached the callback");
+            expectWriteDenied(widen(capPath));
+            expectDeleteDenied(widen(capPath));
+            bounded.shutdown();
+            expectWriteAllowed(widen(capPath), body);
+        }
 
         {
             const std::string throwPath = root + "\\" + item + "\\Throw.upk";

@@ -35,10 +35,11 @@ while the player is unavailable and has asked for source-only work.
 5. Try one supported local appearance change and restore it. Verify the actual
    car appearance; catalog enumeration and CVar writes are not appearance proof.
    Car bodies remain selected through the game's owned Garage loadout.
-6. Try one installed Workshop map from its original Steam Workshop location.
+6. Try two installed Workshop maps from their original Steam Workshop locations,
+   returning to the frontend between them.
    Record actual map identity and verify no installed game map was replaced.
    A return from executeCommand is only dispatch evidence. The current candidate
-   retains that map's file hold until this owned process ends.
+   retains both maps' file holds until this owned process ends.
 7. Community download checks may run independently of the game. An optional
    reviewed plugin trial needs the exact cached artifact and actual PluginManager
    confirmation. Also verify its intended gameplay mode; a loaded DLL alone is

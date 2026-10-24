@@ -485,9 +485,9 @@ mct::NativeWorkshopContext MyCareerTraining::nativeWorkshopContext() {
     const bool ready = offlineReady_ && verified && bridge_->fresh() && !gameWrapper->IsInOnlineGame() &&
         !gameWrapper->IsInGame() && !gameWrapper->IsInReplay();
     const bool preparing = workshopLauncher_ && workshopLauncher_->preparing();
-    const bool held = workshopLauncher_ && workshopLauncher_->holding();
+    const bool blocked = workshopLauncher_ && !preparing && !workshopLauncher_->canRequest();
     return mct::NativeCareerLayout::bindWorkshop(state, processScope_.executable, mct::stringValue(state, "bridge_session"),
-        workshopGeneration_, ready, preparing, held);
+        workshopGeneration_, ready, preparing, blocked);
 #else
     return {};
 #endif

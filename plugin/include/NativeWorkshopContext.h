@@ -43,7 +43,9 @@ struct NativeWorkshopContext {
     bool bound = false;
     bool scopeReady = false;
     bool preparing = false;
-    bool held = false;
+    // Prior dispatched files can stay pinned while another request is allowed.
+    // This flag means the host cannot accept another request in this session.
+    bool blocked = false;
     bool libraryConfirmed = false;
     std::string nonce;
     std::uint64_t generation = 0;
