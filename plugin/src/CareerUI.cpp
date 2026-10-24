@@ -625,7 +625,7 @@ void MyCareerTraining::renderGarage(const MctRuntime& runtime) {
     }
     ImGui::SameLine(); if (button("RESTORE ORIGINAL")) queueLocal(LocalRequest::RestoreCosmetics);
     if (!runtime.itemModAvailable) detail("This game build does not expose the local cosmetic override.");
-    else if (!runtime.cosmeticMessage.empty()) detail(runtime.cosmeticMessage);
+    else if (!runtime.cosmeticMessage.empty()) detail("Last cosmetic action: " + runtime.cosmeticMessage);
     if (button("REFRESH CATALOG")) queueLocal(LocalRequest::RefreshProducts);
 }
 

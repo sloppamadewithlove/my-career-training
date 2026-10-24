@@ -1,6 +1,8 @@
 #include "NativeMovieProtocol.h"
 #include <iostream>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 using namespace mct;
 static void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
@@ -14,6 +16,28 @@ static std::string command(const Json& view, const std::string& id) {
         return Json{{"protocol", 1}, {"session", view.at("session")},
             {"generation", view.at("generation")}, {"revision", item.at("revision")}, {"control", id}}.dump();
     throw std::runtime_error("Control not published");
+}
+static std::string controlId(const Json& view, const std::string& label) {
+    for (const auto& item : view.at("controls"))
+        if (item.at("label") == label) return item.at("id").get<std::string>();
+    throw std::runtime_error("Label not published");
+}
+static void requireMovieWire(const Json& view) {
+    require(!view.at("runtime_verified") && !view.at("production_ready"), "Compatibility falsely granted");
+    require(view.at("controls").size() <= NativeCareerLayout::kMaxChoices, "Published controls exceed the movie cap");
+    require(Json::parse(view.dump()) == view, "Published view did not round trip");
+    require(!view.contains("payload") && !view.contains("action") && !view.contains("product_id") &&
+        !view.contains("cosmetic_draft") && !view.contains("cl_itemmod_code"), "Trusted field was published");
+    require(view.dump().find("cl_itemmod") == std::string::npos, "Item-mod cvar was published");
+    for (const auto& control : view.at("controls")) {
+        require(control.size() == 6, "Control gained a trusted field");
+        require(control.contains("id") && control.contains("label") && control.contains("enabled") &&
+            control.contains("reason") && control.contains("stock") && control.contains("revision"),
+            "Control keys changed");
+        require(!control.contains("payload") && !control.contains("action") && !control.contains("product_id") &&
+            !control.contains("paint"), "Control carried a cosmetic payload");
+        require(control.at("label").get<std::string>().size() <= NativeCareerLayout::kMaxLabel, "Label exceeded the display bound");
+    }
 }
 
 int main() {
@@ -57,6 +81,99 @@ int main() {
         require(effect.accepted && effect.action == "quit_game", "Exit did not reach fixed bridge action");
         require(effect.payload.empty(), "Exit carried arbitrary data");
         require(!protocol.select(exit, live, data, true).accepted, "Exit repeated");
+
+        // Names supplied by the player or community can cross a display byte
+        // limit in the middle of a Unicode character. The published view must
+        // remain valid JSON, including the ellipsis and accumulated body text.
+        std::string unicode;
+        for (int i = 0; i < 100; ++i) unicode += u8"\u754c\U0001f680";
+        data["lessons"] = {{{"id", "unicode-lesson"}, {"title", unicode}, {"description", unicode}}};
+        require(protocol.open(live, data), "Unicode menu did not open");
+        auto unicodeRoot = protocol.publish(live, data, 105);
+        require(protocol.select(command(unicodeRoot, NativeCareerLayout::kTraining), live, data, true).accepted,
+            "Unicode training page did not open");
+        auto unicodeTraining = protocol.publish(live, data, 106);
+        const auto serialized = unicodeTraining.dump();
+        require(Json::parse(serialized) == unicodeTraining, "Unicode controls did not round trip");
+        bool foundUnicode = false;
+        for (const auto& control : unicodeTraining.at("controls")) {
+            const auto label = control.at("label").get<std::string>();
+            require(label.size() <= NativeCareerLayout::kMaxLabel, "Unicode control exceeded its display bound");
+            foundUnicode = foundUnicode || label.find(u8"\u754c") != std::string::npos;
+        }
+        require(foundUnicode, "Unicode label was lost");
+
+        NativeMovieProtocol movie;
+        auto cosmeticLive = scope();
+        auto cosmeticState = state();
+        NativeCosmeticContext cosmetics;
+        cosmetics.available = true;
+        cosmetics.message = "Local design is not a visible-skin claim.";
+        std::string cosmeticName;
+        for (int index = 0; index < 40; ++index) cosmeticName += u8"\u754c\U0001f680";
+        auto products = std::make_shared<std::vector<NativeCosmeticProduct>>();
+        products->push_back(NativeCosmeticProduct{3, 2, "Halo", true});
+        products->push_back(NativeCosmeticProduct{12, 1, cosmeticName, true});
+        cosmetics.catalog = products;
+        require(movie.open(cosmeticLive, cosmeticState, cosmetics), "Cosmetic movie did not open");
+        auto cosmeticRoot = movie.publish(cosmeticLive, cosmeticState, 200, cosmetics);
+        require(movie.select(command(cosmeticRoot, NativeCareerLayout::kGarage), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Cosmetic garage did not open");
+        auto cosmeticGarage = movie.publish(cosmeticLive, cosmeticState, 201, cosmetics);
+        requireMovieWire(cosmeticGarage);
+        require(movie.select(command(cosmeticGarage, NativeCareerLayout::kAppearance), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Local appearance did not open");
+        auto appearance = movie.publish(cosmeticLive, cosmeticState, 202, cosmetics);
+        requireMovieWire(appearance);
+        require(movie.select(command(appearance, "cosmetic.slot.1"), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Decal category did not open");
+        auto decals = movie.publish(cosmeticLive, cosmeticState, 203, cosmetics);
+        requireMovieWire(decals);
+        bool foundCosmeticName = false;
+        for (const auto& control : decals.at("controls")) {
+            const auto label = control.at("label").get<std::string>();
+            foundCosmeticName = foundCosmeticName || label.find(u8"\u754c") != std::string::npos;
+        }
+        require(foundCosmeticName, "Unicode cosmetic name was lost");
+        require(movie.select(command(decals, "nav.back"), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Cosmetic back failed");
+        auto appearanceAgain = movie.publish(cosmeticLive, cosmeticState, 204, cosmetics);
+        require(movie.select(command(appearanceAgain, "cosmetic.slot.2"), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Wheel category did not open");
+        auto wheels = movie.publish(cosmeticLive, cosmeticState, 205, cosmetics);
+        requireMovieWire(wheels);
+        const auto halo = command(wheels, controlId(wheels, "Halo"));
+        auto malformed = Json::parse(halo);
+        malformed["product_id"] = 3;
+        require(!movie.select(malformed.dump(), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Cosmetic caller payload accepted");
+        auto foreign = cosmeticLive;
+        foreign.nonce = "other-session-nonce";
+        require(!movie.select(halo, foreign, cosmeticState, true, cosmetics).accepted, "Foreign cosmetic scope accepted");
+        auto changed = cosmetics;
+        auto changedProducts = std::make_shared<std::vector<NativeCosmeticProduct>>(*products);
+        (*changedProducts)[0].paintable = false;
+        changed.catalog = changedProducts;
+        auto stalePaint = movie.select(halo, cosmeticLive, cosmeticState, true, changed);
+        require(!stalePaint.accepted && stalePaint.action.empty() && stalePaint.cosmetic.kind == NativeCosmeticRequestKind::None,
+            "Changed paintability reused a cosmetic click");
+        auto republished = movie.publish(cosmeticLive, cosmeticState, 206, changed);
+        require(republished.at("generation") != wheels.at("generation"), "Paintability change kept the generation");
+        require(controlId(republished, "Halo") == controlId(wheels, "Halo"), "Same label lost its control");
+        require(!movie.select(halo, cosmeticLive, cosmeticState, true, changed).accepted, "Stale cosmetic generation accepted");
+        auto currentHalo = command(republished, controlId(republished, "Halo"));
+        changed = cosmetics;
+        auto restored = movie.select(currentHalo, cosmeticLive, cosmeticState, true, changed);
+        require(!restored.accepted && restored.cosmetic.kind == NativeCosmeticRequestKind::None,
+            "Republished click applied against an older catalog");
+        auto current = movie.publish(cosmeticLive, cosmeticState, 207, cosmetics);
+        auto selectedItem = movie.select(command(current, controlId(current, "Halo")), cosmeticLive, cosmeticState, true, cosmetics);
+        require(selectedItem.accepted && selectedItem.kind == CareerLayoutEffectKind::LocalCosmetic, "Item selection was not local");
+        require(selectedItem.cosmetic.kind == NativeCosmeticRequestKind::SelectItem && selectedItem.cosmetic.productId == 3 &&
+            selectedItem.cosmetic.slot == 2 && selectedItem.cosmetic.paint == 0 && selectedItem.action.empty() && selectedItem.payload.empty(),
+            "Item selection was not a fixed typed request");
+        require(!movie.select(command(current, controlId(current, "Halo")), cosmeticLive, cosmeticState, true, cosmetics).accepted,
+            "Duplicate cosmetic click accepted");
         std::cout << "Native movie protocol checks passed; no game was launched.\n";
         return 0;
     } catch (const std::exception& error) {

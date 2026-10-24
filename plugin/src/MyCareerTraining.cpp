@@ -106,6 +106,9 @@ void MyCareerTraining::onLoad() {
     try {
         bridge_ = std::make_unique<mct::LocalBridge>(bridgeDirectory());
         processScope_ = currentProcessScope();
+        nativeMovie_ = std::make_unique<mct::NativeMovieHost>(gameWrapper, *bridge_, [this] { return ownedOfflineNow(); },
+            [this] { return nativeCosmeticContext(); },
+            [this](const mct::NativeCosmeticRequest& request) { return applyNativeCosmetic(request); });
         loadPreferences();
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
             if (!offlineReady_ || !ownedOfflineNow()) return;
@@ -142,6 +145,9 @@ void MyCareerTraining::onLoad() {
 
 void MyCareerTraining::onUnload() {
     alive_.reset();
+    nativeMovieReady_ = false;
+    if (nativeMovie_) nativeMovie_->stop();
+    nativeMovie_.reset();
     if (!restoreCosmetics())
         cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
     updateNavigationFlags(false);
@@ -327,9 +333,73 @@ MctRuntime MyCareerTraining::runtimeSnapshot() const {
     std::lock_guard<std::mutex> guard(runtimeMutex_);
     return runtime_;
 }
-void MyCareerTraining::queueLocal(LocalRequest::Type type, Json payload) {
+bool MyCareerTraining::queueLocal(LocalRequest::Type type, Json payload) {
     std::lock_guard<std::mutex> guard(runtimeMutex_);
-    if (localRequests_.size() < 8) localRequests_.push_back({type, std::move(payload)});
+    if (localRequests_.size() >= 8) return false;
+    localRequests_.push_back({type, std::move(payload)});
+    return true;
+}
+
+mct::NativeCosmeticContext MyCareerTraining::nativeCosmeticContext() {
+    const auto runtime = runtimeSnapshot();
+    if (runtime.products != nativeCatalogSource_) {
+        std::vector<mct::NativeCosmeticProduct> products;
+        products.reserve(runtime.products->size());
+        for (const auto& product : *runtime.products)
+            products.push_back({product.id, product.slot, product.name, product.paintable});
+        nativeCatalog_ = std::make_shared<const std::vector<mct::NativeCosmeticProduct>>(std::move(products));
+        nativeCatalogSource_ = runtime.products;
+    }
+    mct::NativeCosmeticContext context;
+    context.catalog = nativeCatalog_;
+    context.available = runtime.itemModAvailable;
+    context.scanning = scanningProducts_;
+    context.restorationPending = cosmeticOverride_.restorationPending();
+    context.message = runtime.cosmeticMessage;
+    std::lock_guard<std::recursive_mutex> guard(preferencesMutex_);
+    for (const auto& item : cosmeticItems_)
+        context.draft.emplace(item.first, mct::NativeCosmeticSelection{item.second.first, item.second.second});
+    return context;
+}
+
+bool MyCareerTraining::applyNativeCosmetic(const mct::NativeCosmeticRequest& request) {
+    if (!offlineReady_ || !ownedOfflineNow() || gameWrapper->IsInGame() || gameWrapper->IsInReplay()) return false;
+    std::lock_guard<std::recursive_mutex> guard(preferencesMutex_);
+    const auto context = nativeCosmeticContext();
+    if (!mct::nativeCosmeticRequestCurrent(request, context)) return false;
+    using Kind = mct::NativeCosmeticRequestKind;
+    switch (request.kind) {
+    case Kind::SelectItem:
+        cosmeticItems_[request.slot] = {request.productId, 0};
+        break;
+    case Kind::SelectPaint:
+        cosmeticItems_.at(request.slot).second = request.paint;
+        break;
+    case Kind::ClearSlot:
+        cosmeticItems_.erase(request.slot);
+        break;
+    case Kind::Apply: {
+        Json items = Json::array();
+        for (int index = 0; index < request.draftCount; ++index) {
+            const auto& item = request.draft[static_cast<std::size_t>(index)];
+            items.push_back({{"slot", item.slot}, {"product_id", item.productId}, {"paint", item.paint}});
+        }
+        Json payload = {{"items", std::move(items)}, {"override_colors", overrideColors_},
+            {"primary", {primaryColor_[0], primaryColor_[1], primaryColor_[2]}},
+            {"secondary", {secondaryColor_[0], secondaryColor_[1], secondaryColor_[2]}}};
+        // The execution queue rechecks this design against its then-current
+        // catalog before touching the two supported BakkesMod cosmetic cvars.
+        mct::validateCosmeticDesign(payload);
+        if (!queueLocal(LocalRequest::ApplyCosmetics, std::move(payload))) return false;
+        break;
+    }
+    case Kind::Restore:
+        return queueLocal(LocalRequest::RestoreCosmetics);
+    default:
+        return false;
+    }
+    savePreferences();
+    return true;
 }
 
 void MyCareerTraining::tick() {
@@ -352,6 +422,10 @@ void MyCareerTraining::tick() {
         next.toggleKey = toggleKey_;
         const auto publishedState = bridge_->state();
         offlineReady_ = fresh && ownedOfflineNow();
+        if (nativeMovie_) {
+            nativeMovie_->tick();
+            nativeMovieReady_ = offlineReady_ && nativeMovie_->movieReady();
+        } else nativeMovieReady_ = false;
         if (nativeDialogActive_ && (!offlineReady_ || next.inGame || next.replay ||
             nativeNonce_ != stringValue(publishedState, "bridge_session"))) closeNativeMenu();
         // Empty observations enforce timeout/scope without recording tick spam.
@@ -422,7 +496,8 @@ void MyCareerTraining::tick() {
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"cosmetic_restoration_pending", cosmeticOverride_.restorationPending()},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
-                    {"menu_mode", "full-screen custom PluginWindow with input capture"},
+                    {"menu_mode", nativeMovieReady_ ? "authored native movie development trial" : "full-screen custom PluginWindow with input capture"},
+                    {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
@@ -461,6 +536,7 @@ void MyCareerTraining::tick() {
         std::lock_guard<std::mutex> guard(runtimeMutex_);
         runtime_.error = error.what();
         tickFailed_ = true;
+        nativeMovieReady_ = false;
         offlineReady_ = false;
         menuOpen_ = false;
         releaseMenuBind();
@@ -670,6 +746,7 @@ void MyCareerTraining::advanceResume(MctRuntime& result) {
 }
 
 void MyCareerTraining::loadPreferences() {
+    std::lock_guard<std::recursive_mutex> guard(preferencesMutex_);
     preferences_ = {{"controller", true}, {"controller_scale", 1.0}, {"controller_corner", 1},
         {"bindings", {{"jump", "Cross"}, {"boost", "Circle"}, {"handbrake", "Square"},
         {"air_roll", "L1"}, {"throttle", "R2"}, {"reverse", "L2"}}}};
@@ -712,6 +789,7 @@ void MyCareerTraining::loadPreferences() {
     }
 }
 void MyCareerTraining::savePreferences() {
+    std::lock_guard<std::recursive_mutex> preferenceGuard(preferencesMutex_);
     try {
         preferences_["cosmetic_items"] = Json::array();
         for (const auto& item : cosmeticItems_) preferences_["cosmetic_items"].push_back(
@@ -745,7 +823,7 @@ void MyCareerTraining::updateNavigationFlags(bool active) {
     ImGui::SetCurrentContext(previous);
 }
 bool MyCareerTraining::ShouldBlockInput() {
-    return mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
+    return !nativeMovieReady_ && mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
 }
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
 void MyCareerTraining::OnOpen() { windowOpen_ = true; }
@@ -756,8 +834,11 @@ void MyCareerTraining::OnClose() {
 
 void MyCareerTraining::Render() {
     updateNavigationFlags(hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
-        bridge_ && bridge_->fresh() && !nativeDialogActive_);
-    if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_) return;
+        bridge_ && bridge_->fresh() && !nativeDialogActive_ && !nativeMovieReady_);
+    // The replacement only takes over after its own validated ready message.
+    // Gameplay clears readiness, so the existing training HUD remains usable.
+    if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_ || nativeMovieReady_) return;
+    std::lock_guard<std::recursive_mutex> preferenceGuard(preferencesMutex_);
     try {
         const auto state = bridge_->state();
         const auto runtime = runtimeSnapshot();

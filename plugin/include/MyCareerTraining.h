@@ -4,6 +4,8 @@
 #include "NativeMenuProbe.h"
 #include "OwnedSession.h"
 #include "NativeCareerMenu.h"
+#include "NativeMovieHost.h"
+#include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
@@ -59,6 +61,8 @@ private:
         StartProbe, SaveProbe, CancelProbe, OpenNativeMenu } type; mct::Json payload; };
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
+    std::unique_ptr<mct::NativeMovieHost> nativeMovie_;
+    std::atomic<bool> nativeMovieReady_{false};
     std::atomic<bool> menuOpen_{true};
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
@@ -102,6 +106,11 @@ private:
     double resumeInjectAt_ = 0;
     double resumeVerifyAt_ = 0;
     mct::Json preferences_ = mct::Json::object();
+    // Both menu renderers share one draft. Native callbacks run on the game
+    // thread, while the existing plugin window may render on another thread.
+    mutable std::recursive_mutex preferencesMutex_;
+    std::shared_ptr<const std::vector<MctProduct>> nativeCatalogSource_;
+    std::shared_ptr<const std::vector<mct::NativeCosmeticProduct>> nativeCatalog_;
     std::atomic<int> page_{0};
     int workshopTab_ = 0;
     int garageSlot_ = 2;
@@ -142,7 +151,9 @@ private:
     bool restoreCosmetics();
     void advanceResume(MctRuntime& result);
     MctRuntime runtimeSnapshot() const;
-    void queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());
+    bool queueLocal(LocalRequest::Type type, mct::Json payload = mct::Json::object());
+    mct::NativeCosmeticContext nativeCosmeticContext();
+    bool applyNativeCosmetic(const mct::NativeCosmeticRequest& request);
     void loadPreferences();
     void savePreferences();
     bool command(const std::string& action, mct::Json payload = mct::Json::object());

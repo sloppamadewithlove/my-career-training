@@ -89,7 +89,14 @@ static CareerLayoutEffect choose(NativeCareerLayout& layout, const CareerLayoutC
     require(effect.action.empty() || NativeCareerLayout::supportedAction(effect.action), "Effect action is not supported");
     if (effect.kind == CareerLayoutEffectKind::PreserveStockRoute)
         require(effect.action.empty() && effect.payload.empty(), "Stock effect also dispatches");
-    if (!effect.accepted) require(effect.action.empty() && !effect.leaveMenu, "Refused effect still dispatches");
+    if (effect.kind != CareerLayoutEffectKind::LocalCosmetic)
+        require(effect.cosmetic.kind == NativeCosmeticRequestKind::None && effect.cosmetic.draftCount == 0,
+            "Non-cosmetic effect carried a local cosmetic request");
+    if (!effect.accepted) {
+        require(effect.action.empty() && !effect.leaveMenu, "Refused effect still dispatches");
+        require(effect.cosmetic.kind == NativeCosmeticRequestKind::None && effect.cosmetic.draftCount == 0,
+            "Refused effect kept a cosmetic request");
+    }
     return effect;
 }
 
@@ -105,6 +112,8 @@ int main() {
             "Non-bridge actions were marked supported");
         require(!NativeCareerLayout::supportedAction("settings") && !NativeCareerLayout::supportedAction("navigate"),
             "Stock or local navigation was marked as a bridge action");
+        require(!NativeCareerLayout::supportedAction("apply_cosmetics") && !NativeCareerLayout::supportedAction("restore_cosmetics"),
+            "Local cosmetic requests were marked as bridge actions");
         require(!NativeCareerLayout::supportedAction("") && !NativeCareerLayout::supportedAction("PLAY_MATCH"), "Unknown action accepted");
 
         const auto scope = ownedScope();
@@ -417,6 +426,10 @@ int main() {
         choose(layout, findChoice(layout.view(scope, state), NativeCareerLayout::kGarage), scope, state, false);
         auto garage = layout.view(scope, state);
         audit(garage);
+        auto appearanceChoice = findChoice(garage, NativeCareerLayout::kAppearance);
+        require(appearanceChoice.enabled && appearanceChoice.kind == CareerLayoutEffectKind::Navigate &&
+            appearanceChoice.target == CareerLayoutPage::Appearance && appearanceChoice.action.empty() &&
+            appearanceChoice.cosmetic.kind == NativeCosmeticRequestKind::None, "Local appearance was not a local page");
         auto player = findChoice(garage, "garage.player");
         auto stock = choose(layout, player, scope, state, true);
         require(stock.accepted && stock.kind == CareerLayoutEffectKind::PreserveStockRoute && stock.stock == StockRoute::Garage, "Garage stock route");

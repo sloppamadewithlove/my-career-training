@@ -1,27 +1,32 @@
 #pragma once
 
 #include "LocalBridge.h"
+#include "NativeCosmeticContext.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace mct {
 
 // Presentation and routing plan for a future engine binding adapter.
 // This class does not draw, write memory, send bridge commands, or launch the game.
+// Local appearance reads NativeCosmeticContext on each call and returns a typed
+// request. It does not read that catalog from worker JSON or movie JSON.
 // It is not a finished native menu replacement and it does not enable a production gate.
 // A consumed-original acknowledgement is only a precondition for a custom dispatch.
 // Route suppression is a binding plan; this model does not claim clicks are blocked.
 
 enum class CareerLayoutPage {
-    Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings
+    Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings,
+    Appearance, CosmeticItems, CosmeticPaints
 };
 
 enum class CareerLayoutEffectKind {
-    None, Navigate, PreserveStockRoute, Dispatch, Unavailable
+    None, Navigate, PreserveStockRoute, Dispatch, Unavailable, LocalCosmetic
 };
 
 enum class CareerLayoutRefusal {
@@ -71,6 +76,11 @@ struct CareerLayoutChoice {
     std::string fixtureId;
     std::string recruitId;
     std::string itemId;
+    // Local appearance binding. Navigate choices may carry a slot here with kind None.
+    // LocalCosmetic choices carry the request the plugin should apply after revalidation.
+    NativeCosmeticRequest cosmetic;
+    // Catalog and draft stamp. Same visible label with a different stamp is stale.
+    std::uint64_t cosmeticStamp = 0;
     // Monotonic render generation. Logical ids stay stable; this value does not.
     std::uint64_t revision = 0;
 };
@@ -102,6 +112,8 @@ struct CareerLayoutEffect {
     bool compatibilityGrant = false;
     bool consumesUnlistedCallback = false;
     std::string reason;
+    // Set only for an accepted LocalCosmetic effect. Refusals leave this empty.
+    NativeCosmeticRequest cosmetic;
 };
 
 struct NativeRouteDecision {
@@ -125,6 +137,7 @@ public:
     static constexpr std::size_t kMaxLabel = 80;
     static constexpr std::size_t kMaxReason = 240;
     static constexpr std::size_t kLessonsPerPage = 4;
+    static constexpr std::size_t kCosmeticItemsPerPage = 16;
     static constexpr std::size_t kMaxLessons = 96;
     static constexpr std::size_t kMaxRows = 8;
     static constexpr std::size_t kMaxSquad = 4;
@@ -132,6 +145,7 @@ public:
     static constexpr const char* kCareer = "career.open";
     static constexpr const char* kTraining = "training.open";
     static constexpr const char* kGarage = "garage.open";
+    static constexpr const char* kAppearance = "garage.appearance";
     static constexpr const char* kWorkshop = "workshop.open";
     static constexpr const char* kCommunity = "community.open";
     static constexpr const char* kSettings = "settings.open";
@@ -150,6 +164,9 @@ public:
     static_assert(!kTerminatesProcess);
     static_assert(std::char_traits<char>::length(kMapLaunchReason) <= kMaxReason);
     static_assert(std::char_traits<char>::length(kActivationReason) <= kMaxReason);
+    static_assert(kCosmeticItemsPerPage >= 1);
+    static_assert(kCosmeticItemsPerPage + 4 <= kMaxChoices);
+    static_assert(kNativeCosmeticPaintCount + 2 <= static_cast<int>(kMaxChoices));
 
     // Actions this layout may put on an effect. A subset of the bridge allowlist.
     // play_workshop and any activation command are intentionally absent.
@@ -161,10 +178,15 @@ public:
             action == "community_cancel" || action == "training_settings" || action == "quit_game";
     }
 
-    bool open(const CareerLayoutScope& scope, const Json& state) {
+    // `cosmetics` is not stored. Publication and selection receive a fresh context.
+    bool open(const CareerLayoutScope& scope, const Json& state, const NativeCosmeticContext& cosmetics = {}) {
+        (void)cosmetics;
         page_ = CareerLayoutPage::Root;
         lessonPage_ = 0;
         lessonId_.clear();
+        cosmeticSlot_ = -1;
+        cosmeticPage_ = 0;
+        cosmeticProductId_ = 0;
         opened_ = false;
         if (!scopeOk(scope) || !stateMatches(state, scope)) return false;
         // Advance even when the supplied scope is unchanged, so a choice captured
@@ -177,7 +199,8 @@ public:
 
     // current is the live owned-session scope. state.offline is not that signal.
     // There is no overload that plans from the captured open scope alone.
-    [[nodiscard]] CareerLayoutView view(const CareerLayoutScope& current, const Json& state) const {
+    [[nodiscard]] CareerLayoutView view(const CareerLayoutScope& current, const Json& state,
+                                       const NativeCosmeticContext& cosmetics = {}) const {
         if (!planActive(current, state)) return passthrough();
         CareerLayoutView out;
         out.offersReplacement = true;
@@ -197,11 +220,14 @@ public:
         case CareerLayoutPage::Standings: buildStandings(out, state); break;
         case CareerLayoutPage::Squad: buildSquad(out, state); break;
         case CareerLayoutPage::Garage: buildGarage(out, state); break;
+        case CareerLayoutPage::Appearance: buildAppearance(out, cosmetics); break;
+        case CareerLayoutPage::CosmeticItems: buildCosmeticItems(out, cosmetics); break;
+        case CareerLayoutPage::CosmeticPaints: buildCosmeticPaints(out, cosmetics); break;
         case CareerLayoutPage::Workshop: buildWorkshop(out, state); break;
         case CareerLayoutPage::Community: buildCommunity(out, state); break;
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
         }
-        if (out.body.size() > kMaxBody) out.body.resize(kMaxBody);
+        if (out.body.size() > kMaxBody) out.body.resize(utf8Prefix(out.body, kMaxBody));
         for (auto& choice : out.choices) choice.revision = revision_;
         return out;
     }
@@ -210,13 +236,14 @@ public:
     // Navigate and PreserveStockRoute never carry a bridge action.
     // A refusal does not ask the adapter to swallow unrelated native callbacks.
     [[nodiscard]] CareerLayoutEffect choose(const CareerLayoutChoice& shown, const CareerLayoutScope& click,
-                                            const Json& latestState, bool originalConsumed) {
+                                            const Json& latestState, bool originalConsumed,
+                                            const NativeCosmeticContext& cosmetics = {}) {
         CareerLayoutEffect effect;
         if (!opened_ || !scopeOk(openedScope_)) return refuse(effect, CareerLayoutRefusal::NoPlan, kNoPlan);
         if (!sameScope(click, openedScope_) || !stateMatches(latestState, openedScope_))
             return refuse(effect, CareerLayoutRefusal::StaleScope, kStaleScope);
         if (!revisionUsable()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
-        const auto current = view(click, latestState);
+        const auto current = view(click, latestState, cosmetics);
         const CareerLayoutChoice* match = nullptr;
         for (const auto& choice : current.choices)
             if (choice.id == shown.id) { match = &choice; break; }
@@ -224,7 +251,11 @@ public:
             if (shown.revision != 0 && shown.revision != revision_)
                 return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
             const bool wasSpecific = !shown.lessonId.empty() || !shown.fixtureId.empty() ||
-                shown.kind == CareerLayoutEffectKind::Dispatch || shown.kind == CareerLayoutEffectKind::Unavailable;
+                shown.kind == CareerLayoutEffectKind::Dispatch || shown.kind == CareerLayoutEffectKind::Unavailable ||
+                shown.kind == CareerLayoutEffectKind::LocalCosmetic ||
+                shown.cosmetic.kind != NativeCosmeticRequestKind::None ||
+                shown.target == CareerLayoutPage::Appearance || shown.target == CareerLayoutPage::CosmeticItems ||
+                shown.target == CareerLayoutPage::CosmeticPaints;
             return refuse(effect, wasSpecific ? CareerLayoutRefusal::StaleChoice : CareerLayoutRefusal::UnknownControl,
                 wasSpecific ? kStaleChoice : kUnknown);
         }
@@ -263,6 +294,26 @@ public:
             effect.accepted = true;
             effect.kind = CareerLayoutEffectKind::Navigate;
             effect.page = apply(match);
+            return effect;
+        }
+        if (match->kind == CareerLayoutEffectKind::LocalCosmetic) {
+            // Not a bridge action. The movie does not send the request; this
+            // rebuild already compared it, and the live context is checked again.
+            if (!match->action.empty() || !match->payload.empty() || match->stock != StockRoute::None ||
+                !supportedCosmeticChoice(*match))
+                return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+            if (!nativeCosmeticRequestCurrent(match->cosmetic, cosmetics))
+                return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true;
+            effect.kind = CareerLayoutEffectKind::LocalCosmetic;
+            effect.cosmetic = match->cosmetic;
+            effect.action.clear();
+            effect.payload = Json::object();
+            effect.stock = StockRoute::None;
+            effect.leaveMenu = false;
+            effect.page = acceptLocal(match);
+            effect.reason.clear();
             return effect;
         }
         return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
@@ -316,6 +367,9 @@ private:
     CareerLayoutPage page_ = CareerLayoutPage::Root;
     std::size_t lessonPage_ = 0;
     std::string lessonId_;
+    int cosmeticSlot_ = -1;
+    std::size_t cosmeticPage_ = 0;
+    int cosmeticProductId_ = 0;
     bool opened_ = false;
     CareerLayoutScope openedScope_{};
     std::uint64_t revision_ = 0;
@@ -352,6 +406,7 @@ private:
         effect.originalConsumptionSatisfied = false;
         effect.compatibilityGrant = false;
         effect.consumesUnlistedCallback = false;
+        effect.cosmetic = {};
         if (refusal != CareerLayoutRefusal::NotConsumed) effect.originalConsumptionRequired = false;
         effect.reason = reason.empty() ? kUnknown : reason;
         return effect;
@@ -366,6 +421,17 @@ private:
         if (choice->kind == CareerLayoutEffectKind::Navigate) {
             page_ = choice->target;
             if (choice->target == CareerLayoutPage::Training) lessonPage_ = choice->page;
+            if (choice->target == CareerLayoutPage::CosmeticItems) {
+                cosmeticSlot_ = choice->cosmetic.slot;
+                cosmeticPage_ = choice->page;
+                cosmeticProductId_ = 0;
+            } else if (choice->target == CareerLayoutPage::Appearance ||
+                       choice->target == CareerLayoutPage::Garage ||
+                       choice->target == CareerLayoutPage::Root) {
+                cosmeticSlot_ = -1;
+                cosmeticPage_ = 0;
+                cosmeticProductId_ = 0;
+            }
             return page_;
         }
         if (choice->action == "select_lesson") {
@@ -420,6 +486,7 @@ private:
             a.kind == b.kind && a.action == b.action && a.payload == b.payload && a.stock == b.stock &&
             a.target == b.target && a.page == b.page && a.lessonId == b.lessonId && a.careerId == b.careerId &&
             a.fixtureId == b.fixtureId && a.recruitId == b.recruitId && a.itemId == b.itemId &&
+            a.cosmetic == b.cosmetic && a.cosmeticStamp == b.cosmeticStamp &&
             a.revision == b.revision;
     }
 
@@ -505,22 +572,26 @@ private:
         return true;
     }
 
-    static std::string plain(const std::string& value, std::size_t limit) {
-        if (limit == 0) return {};
+    static std::size_t utf8Prefix(const std::string& value, std::size_t limit) {
         std::size_t count = (std::min)(limit, value.size());
         while (count > 0 && count < value.size() && (static_cast<unsigned char>(value[count]) & 0xc0) == 0x80) --count;
+        return count;
+    }
+
+    static std::string plain(const std::string& value, std::size_t limit) {
+        if (limit == 0) return {};
+        const bool shortened = value.size() > limit;
+        // Reserve the ellipsis before cutting the UTF-8 text. Cutting it again
+        // afterwards can split a character and make JSON publication fail.
+        const std::size_t markSize = shortened ? (std::min)(limit, std::size_t{3}) : 0;
+        const auto count = utf8Prefix(value, limit - markSize);
         std::string out;
-        out.reserve((std::min)(count + 3, limit));
-        for (std::size_t i = 0; i < count && out.size() < limit; ++i) {
+        out.reserve(count + markSize);
+        for (std::size_t i = 0; i < count; ++i) {
             const auto c = static_cast<unsigned char>(value[i]);
             out.push_back(c < 32 || c == 127 || c == '<' || c == '>' || c == '&' ? ' ' : static_cast<char>(c));
         }
-        if (count < value.size()) {
-            const std::string mark = "...";
-            if (out.size() + mark.size() > limit) out.resize(limit - mark.size());
-            out += mark;
-        }
-        if (out.size() > limit) out.resize(limit);
+        out.append(markSize, '.');
         return out;
     }
 
@@ -532,7 +603,7 @@ private:
             body.push_back('\n');
         }
         if (body.size() >= kMaxBody) return;
-        if (body.size() + text.size() > kMaxBody) text.resize(kMaxBody - body.size());
+        if (body.size() + text.size() > kMaxBody) text.resize(utf8Prefix(text, kMaxBody - body.size()));
         body += text;
     }
 
@@ -923,6 +994,7 @@ private:
         view.title = "Garage";
         addLine(view.body, "Your car stays in the game's garage.");
         addLine(view.body, "Bot presets below are local career appearances. They do not add items to your garage.");
+        addLine(view.body, "Local appearance is a separate machine override, not a bot preset.");
         CareerLayoutChoice stock;
         stock.id = "garage.player";
         stock.label = "Your car";
@@ -930,6 +1002,7 @@ private:
         stock.kind = CareerLayoutEffectKind::PreserveStockRoute;
         stock.stock = StockRoute::Garage;
         push(view, std::move(stock));
+        navigate(view, kAppearance, "Local appearance", CareerLayoutPage::Appearance);
         const auto career = careerOf(state);
         const auto recruits = object(career, "recruits");
         const auto squad = array(career, "squad");
@@ -1079,6 +1152,340 @@ private:
             dispatch(view, std::string("settings.view.") + item.id, item.label, canEdit, kWait, "training_settings",
                 {{"key", "ghost_view"}, {"value", item.value}});
         back(view, CareerLayoutPage::Root);
+    }
+
+    static constexpr std::uint64_t kStampBasis = 14695981039346656037ull;
+    static constexpr const char* kCatalogLoading = "The local catalog is still loading.";
+    static constexpr const char* kItemModUnavailable = "This game build does not expose the local cosmetic override.";
+    static constexpr const char* kRestoreFirst = "Restore the original cosmetic settings before applying another design.";
+    static constexpr const char* kChooseItem = "Choose an item before applying a local design.";
+
+    static std::uint64_t mixStamp(std::uint64_t hash, std::uint64_t value) {
+        for (int index = 0; index < 8; ++index) {
+            hash ^= value & 0xffu;
+            hash *= 1099511628211ull;
+            value >>= 8;
+        }
+        return hash;
+    }
+
+    static std::uint64_t mixStamp(std::uint64_t hash, const std::string& text) {
+        for (unsigned char character : text) {
+            hash ^= character;
+            hash *= 1099511628211ull;
+        }
+        return hash;
+    }
+
+    static std::uint64_t stampValue(std::uint64_t hash, int value) {
+        return mixStamp(hash, static_cast<std::uint64_t>(static_cast<std::int64_t>(value)));
+    }
+
+    static std::uint64_t stampProduct(std::uint64_t hash, const NativeCosmeticProduct& product) {
+        hash = stampValue(hash, product.slot);
+        hash = stampValue(hash, product.id);
+        hash = mixStamp(hash, product.paintable ? 1ull : 0ull);
+        return mixStamp(hash, product.name);
+    }
+
+    static bool supportedCosmeticChoice(const CareerLayoutChoice& choice) {
+        switch (choice.cosmetic.kind) {
+        case NativeCosmeticRequestKind::SelectItem:
+        case NativeCosmeticRequestKind::SelectPaint:
+        case NativeCosmeticRequestKind::ClearSlot:
+        case NativeCosmeticRequestKind::Apply:
+        case NativeCosmeticRequestKind::Restore:
+            return choice.action.empty() && choice.payload.empty() && choice.stock == StockRoute::None;
+        default:
+            return false;
+        }
+    }
+
+    CareerLayoutPage acceptLocal(const CareerLayoutChoice* choice) {
+        if (choice && choice->cosmetic.kind == NativeCosmeticRequestKind::SelectItem) {
+            cosmeticSlot_ = choice->cosmetic.slot;
+            cosmeticProductId_ = choice->cosmetic.productId;
+            page_ = CareerLayoutPage::CosmeticPaints;
+        }
+        return page_;
+    }
+
+    // Every listable product in this slot. Not capped at 24 or 64.
+    static void listSlotProducts(const NativeCosmeticContext& cosmetics, int slot,
+                                 std::vector<const NativeCosmeticProduct*>& out) {
+        out.clear();
+        if (cosmetics.scanning || !nativeCosmeticSlotEquipable(slot)) return;
+        std::unordered_set<int> seen;
+        for (const auto& product : nativeCosmeticCatalog(cosmetics)) {
+            if (product.slot != slot || !nativeCosmeticListable(product)) continue;
+            if (!seen.insert(product.id).second) continue;
+            out.push_back(&product);
+        }
+    }
+
+    static std::string productName(const NativeCosmeticContext& cosmetics, int slot, int productId) {
+        const auto* product = findNativeCosmeticProduct(nativeCosmeticCatalog(cosmetics), slot, productId);
+        return product ? product->name : std::string("Item");
+    }
+
+    static void describeCosmeticStatus(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) {
+        if (cosmetics.scanning) addLine(view.body, kCatalogLoading);
+        else if (!cosmetics.catalog || cosmetics.catalog->empty())
+            addLine(view.body, "No local cosmetic catalog is available yet.");
+        if (!cosmetics.available) addLine(view.body, kItemModUnavailable);
+        if (cosmetics.restorationPending) addLine(view.body, "Original cosmetic settings still need to be restored.");
+        if (!cosmetics.message.empty()) addLine(view.body, "Last cosmetic action: " + cosmetics.message);
+    }
+
+    static void describeDraft(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) {
+        const auto live = nativeCosmeticValidatedDraft(cosmetics);
+        if (live.empty() && cosmetics.draft.empty()) {
+            addLine(view.body, "No local design is selected.");
+            return;
+        }
+        for (const auto& entry : live) {
+            std::string line = std::string(nativeCosmeticCategoryLabel(entry.slot)) + ": " +
+                productName(cosmetics, entry.slot, entry.productId);
+            if (entry.paintable && entry.paint != 0)
+                line += ", " + std::string(nativeCosmeticPaintName(entry.paint));
+            addLine(view.body, line);
+        }
+        if (live.size() != cosmetics.draft.size())
+            addLine(view.body, "Some saved entries are outside this local catalog and are not part of Apply.");
+    }
+
+    static std::uint64_t stampApply(const NativeCosmeticContext& cosmetics, const NativeCosmeticRequest& request) {
+        auto hash = kStampBasis;
+        hash = stampValue(hash, request.draftCount);
+        hash = mixStamp(hash, cosmetics.available ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.scanning ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.restorationPending ? 1ull : 0ull);
+        const auto& catalog = nativeCosmeticCatalog(cosmetics);
+        const int count = request.draftCount < 0 ? 0 : (std::min)(request.draftCount, kNativeCosmeticDraftCap);
+        for (int index = 0; index < count; ++index) {
+            const auto& entry = request.draft[static_cast<std::size_t>(index)];
+            hash = stampValue(hash, entry.slot);
+            hash = stampValue(hash, entry.productId);
+            hash = stampValue(hash, entry.paint);
+            hash = mixStamp(hash, entry.paintable ? 1ull : 0ull);
+            const auto* product = findNativeCosmeticProduct(catalog, entry.slot, entry.productId);
+            hash = mixStamp(hash, product ? product->name : std::string{});
+        }
+        return hash;
+    }
+
+    void pushApply(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        CareerLayoutChoice choice;
+        choice.id = "cosmetic.apply";
+        choice.label = "Apply local design";
+        choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+        choice.target = CareerLayoutPage::Appearance;
+        choice.cosmetic.kind = NativeCosmeticRequestKind::Apply;
+        const auto live = nativeCosmeticValidatedDraft(cosmetics);
+        choice.cosmetic.draftCount = static_cast<int>(live.size());
+        for (int index = 0; index < choice.cosmetic.draftCount; ++index)
+            choice.cosmetic.draft[static_cast<std::size_t>(index)] = live[static_cast<std::size_t>(index)];
+        const bool ready = cosmetics.available && !cosmetics.scanning && !cosmetics.restorationPending && !live.empty();
+        choice.enabled = ready;
+        if (!ready) {
+            if (cosmetics.scanning) choice.reason = kCatalogLoading;
+            else if (!cosmetics.available) choice.reason = kItemModUnavailable;
+            else if (cosmetics.restorationPending) choice.reason = kRestoreFirst;
+            else choice.reason = kChooseItem;
+        }
+        choice.cosmeticStamp = stampApply(cosmetics, choice.cosmetic);
+        push(view, std::move(choice));
+    }
+
+    static std::uint64_t stampRestore(const NativeCosmeticContext& cosmetics) {
+        auto hash = kStampBasis;
+        hash = mixStamp(hash, cosmetics.available ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.scanning ? 1ull : 0ull);
+        hash = mixStamp(hash, cosmetics.restorationPending ? 1ull : 0ull);
+        return mixStamp(hash, cosmetics.message);
+    }
+
+    void pushRestore(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        CareerLayoutChoice choice;
+        choice.id = "cosmetic.restore";
+        choice.label = "Restore original";
+        choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+        choice.target = CareerLayoutPage::Appearance;
+        choice.cosmetic.kind = NativeCosmeticRequestKind::Restore;
+        choice.cosmetic.restorationPending = cosmetics.restorationPending;
+        choice.enabled = cosmetics.available && !cosmetics.scanning;
+        if (!choice.enabled) choice.reason = cosmetics.scanning ? kCatalogLoading : kItemModUnavailable;
+        choice.cosmeticStamp = stampRestore(cosmetics);
+        push(view, std::move(choice));
+    }
+
+    static std::uint64_t stampClear(const NativeCosmeticContext& cosmetics, int slot, const NativeCosmeticSelection& selection) {
+        auto hash = stampValue(kStampBasis, slot);
+        hash = stampValue(hash, selection.productId);
+        hash = stampValue(hash, selection.paint);
+        const auto* product = findNativeCosmeticProduct(nativeCosmeticCatalog(cosmetics), slot, selection.productId);
+        if (product) hash = stampProduct(hash, *product);
+        return hash;
+    }
+
+    void pushClear(CareerLayoutView& view, const NativeCosmeticContext& cosmetics, CareerLayoutPage where) const {
+        if (cosmetics.scanning || cosmetics.restorationPending || !nativeCosmeticSlotEquipable(cosmeticSlot_)) return;
+        const auto drafted = cosmetics.draft.find(cosmeticSlot_);
+        if (drafted == cosmetics.draft.end()) return;
+        CareerLayoutChoice choice;
+        choice.id = "cosmetic.clear";
+        choice.label = std::string("Clear ") + nativeCosmeticCategoryLabel(cosmeticSlot_);
+        choice.enabled = true;
+        choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+        choice.target = where;
+        choice.cosmetic.kind = NativeCosmeticRequestKind::ClearSlot;
+        choice.cosmetic.slot = cosmeticSlot_;
+        choice.cosmetic.productId = drafted->second.productId;
+        choice.cosmetic.paint = drafted->second.paint;
+        choice.cosmeticStamp = stampClear(cosmetics, cosmeticSlot_, drafted->second);
+        push(view, std::move(choice));
+    }
+
+    void pushPage(CareerLayoutView& view, const char* id, const char* label, std::size_t page) const {
+        CareerLayoutChoice choice;
+        choice.id = id;
+        choice.label = label;
+        choice.enabled = true;
+        choice.kind = CareerLayoutEffectKind::Navigate;
+        choice.target = CareerLayoutPage::CosmeticItems;
+        choice.page = page;
+        choice.cosmetic.slot = cosmeticSlot_;
+        choice.cosmeticStamp = mixStamp(stampValue(kStampBasis, cosmeticSlot_), static_cast<std::uint64_t>(page));
+        push(view, std::move(choice));
+    }
+
+    void pushItemsBack(CareerLayoutView& view) const {
+        CareerLayoutChoice choice;
+        choice.id = "nav.back";
+        choice.label = "Back";
+        choice.enabled = true;
+        choice.kind = CareerLayoutEffectKind::Navigate;
+        choice.target = CareerLayoutPage::CosmeticItems;
+        choice.page = cosmeticPage_;
+        choice.cosmetic.slot = cosmeticSlot_;
+        choice.cosmeticStamp = mixStamp(stampValue(kStampBasis, cosmeticSlot_), static_cast<std::uint64_t>(cosmeticPage_));
+        push(view, std::move(choice));
+    }
+
+    void buildAppearance(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        view.title = "Local appearance";
+        addLine(view.body, "Local appearance uses this machine's cosmetic override.");
+        addLine(view.body, "It does not change Rocket League inventory or show that an item is visible in a match.");
+        addLine(view.body, "Bodies, banners, borders, and titles are not equipped here.");
+        describeCosmeticStatus(view, cosmetics);
+        describeDraft(view, cosmetics);
+        for (const auto& category : kNativeCosmeticCategories) {
+            CareerLayoutChoice choice;
+            choice.id = std::string("cosmetic.slot.") + std::to_string(category.slot);
+            choice.label = category.label;
+            choice.enabled = true;
+            choice.kind = CareerLayoutEffectKind::Navigate;
+            choice.target = CareerLayoutPage::CosmeticItems;
+            choice.page = 0;
+            choice.cosmetic.slot = category.slot;
+            choice.cosmeticStamp = stampValue(kStampBasis, category.slot);
+            push(view, std::move(choice));
+        }
+        pushApply(view, cosmetics);
+        pushRestore(view, cosmetics);
+        back(view, CareerLayoutPage::Garage);
+    }
+
+    void buildCosmeticItems(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        view.title = nativeCosmeticCategoryLabel(cosmeticSlot_);
+        if (!nativeCosmeticSlotEquipable(cosmeticSlot_)) {
+            addLine(view.body, "That category cannot be equipped by the local override.");
+            back(view, CareerLayoutPage::Appearance);
+            return;
+        }
+        describeCosmeticStatus(view, cosmetics);
+        std::vector<const NativeCosmeticProduct*> listed;
+        listSlotProducts(cosmetics, cosmeticSlot_, listed);
+        const std::size_t pageCount = listed.empty() ? 1 : (listed.size() + kCosmeticItemsPerPage - 1) / kCosmeticItemsPerPage;
+        const std::size_t page = cosmeticPage_ < pageCount ? cosmeticPage_ : pageCount - 1;
+        addLine(view.body, "Page " + std::to_string(page + 1) + " of " + std::to_string(pageCount) + ".");
+        const auto drafted = cosmetics.draft.find(cosmeticSlot_);
+        if (drafted != cosmetics.draft.end()) {
+            std::string selected = std::string("Selected: ") + productName(cosmetics, cosmeticSlot_, drafted->second.productId);
+            if (drafted->second.paint > 0 && drafted->second.paint <= kNativeCosmeticPaintMax)
+                selected += ", " + std::string(nativeCosmeticPaintName(drafted->second.paint));
+            addLine(view.body, selected);
+        }
+        if (!cosmetics.scanning && listed.empty()) addLine(view.body, "No supported items are in this category.");
+        if (page > 0) pushPage(view, "cosmetic.previous", "Previous page", page - 1);
+        const bool canSelect = !cosmetics.restorationPending;
+        const auto first = page * kCosmeticItemsPerPage;
+        const auto last = (std::min)(first + kCosmeticItemsPerPage, listed.size());
+        for (std::size_t index = first; index < last; ++index) {
+            const auto* product = listed[index];
+            CareerLayoutChoice choice;
+            choice.id = "cosmetic.item." + std::to_string(page) + "." + std::to_string(index - first);
+            choice.label = drafted != cosmetics.draft.end() && drafted->second.productId == product->id
+                ? "Design: " + product->name : product->name;
+            choice.enabled = canSelect;
+            choice.reason = canSelect ? "" : "Restore the original cosmetic settings before choosing another item.";
+            choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+            choice.target = CareerLayoutPage::CosmeticItems;
+            choice.cosmetic.kind = NativeCosmeticRequestKind::SelectItem;
+            choice.cosmetic.slot = product->slot;
+            choice.cosmetic.productId = product->id;
+            choice.cosmetic.paint = 0;
+            choice.cosmetic.paintable = product->paintable;
+            choice.cosmeticStamp = stampProduct(mixStamp(kStampBasis, static_cast<std::uint64_t>(index)), *product);
+            push(view, std::move(choice));
+        }
+        if (page + 1 < pageCount) pushPage(view, "cosmetic.next", "Next page", page + 1);
+        pushClear(view, cosmetics, CareerLayoutPage::CosmeticItems);
+        back(view, CareerLayoutPage::Appearance);
+    }
+
+    void buildCosmeticPaints(CareerLayoutView& view, const NativeCosmeticContext& cosmetics) const {
+        view.title = "Paint";
+        const auto* product = cosmetics.scanning ? nullptr
+            : findNativeCosmeticProduct(nativeCosmeticCatalog(cosmetics), cosmeticSlot_, cosmeticProductId_);
+        if (!product) {
+            addLine(view.body, cosmetics.scanning ? kCatalogLoading : "This item is no longer in the local catalog.");
+            describeCosmeticStatus(view, cosmetics);
+            pushClear(view, cosmetics, CareerLayoutPage::CosmeticPaints);
+            pushItemsBack(view);
+            return;
+        }
+        addLine(view.body, product->name);
+        addLine(view.body, "Choosing a paint does not show that this item is visible in a match.");
+        describeCosmeticStatus(view, cosmetics);
+        const auto drafted = cosmetics.draft.find(cosmeticSlot_);
+        const bool draftMatches = drafted != cosmetics.draft.end() && drafted->second.productId == product->id &&
+            drafted->second.paint >= 0 && drafted->second.paint <= kNativeCosmeticPaintMax;
+        if (!product->paintable) addLine(view.body, "This item does not support paint.");
+        else if (cosmetics.restorationPending)
+            addLine(view.body, "Restore the original cosmetic settings before choosing a paint.");
+        else if (!draftMatches) addLine(view.body, "Choose this item before choosing a paint.");
+        else {
+            const int currentPaint = drafted->second.paint;
+            addLine(view.body, std::string("Current paint: ") + nativeCosmeticPaintName(currentPaint));
+            for (int paint = 0; paint < kNativeCosmeticPaintCount; ++paint) {
+                CareerLayoutChoice choice;
+                choice.id = "cosmetic.paint." + std::to_string(paint);
+                choice.label = std::string(paint == currentPaint ? "Selected: " : "") + nativeCosmeticPaintName(paint);
+                choice.enabled = true;
+                choice.kind = CareerLayoutEffectKind::LocalCosmetic;
+                choice.target = CareerLayoutPage::CosmeticPaints;
+                choice.cosmetic.kind = NativeCosmeticRequestKind::SelectPaint;
+                choice.cosmetic.slot = product->slot;
+                choice.cosmetic.productId = product->id;
+                choice.cosmetic.paint = paint;
+                choice.cosmetic.paintable = true;
+                choice.cosmeticStamp = stampValue(stampProduct(stampValue(kStampBasis, paint), *product), currentPaint);
+                push(view, std::move(choice));
+            }
+        }
+        pushClear(view, cosmetics, CareerLayoutPage::CosmeticPaints);
+        pushItemsBack(view);
     }
 };
 

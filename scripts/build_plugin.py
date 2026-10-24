@@ -20,7 +20,10 @@ def main() -> int:
     if os.name != 'nt':
         raise RuntimeError('Build the in-game DLL on Windows with the MSVC x64 toolchain')
     build = ROOT / 'build' / 'plugin'
-    subprocess.run(['cmake', '-S', str(ROOT / 'plugin'), '-B', str(build), '-A', 'x64'], check=True)
+    # A developer may have reused this CMake cache for a native experiment.
+    # Release staging must explicitly reset both development switches.
+    subprocess.run(['cmake', '-S', str(ROOT / 'plugin'), '-B', str(build), '-A', 'x64',
+                    '-DMCT_ENABLE_NATIVE_MOVIE_TRIAL=OFF', '-DMCT_BUILD_HOST_PROBE=OFF'], check=True)
     subprocess.run(['cmake', '--build', str(build), '--config', 'Release', '--parallel', '2'], check=True)
     subprocess.run(['ctest', '--test-dir', str(build), '-C', 'Release', '--output-on-failure'], check=True)
     compiled = build / 'Release' / 'MyCareerTraining.dll'
@@ -55,7 +58,7 @@ def main() -> int:
         'source_files': source_files, 'dependencies': dependencies, 'source_archives': source_archives,
         'sha256': hashlib.sha256(compiled.read_bytes()).hexdigest(),
         'native': details, 'configuration': 'Release', 'architecture': 'x64',
-        'gameplay_verified': False,
+        'gameplay_verified': False, 'native_movie_trial': False, 'native_host_probe': False,
     }
     (destination / 'plugin-build-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     print(f'Compiled {compiled.name}; AMD64 DLL and required exports verified')
