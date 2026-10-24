@@ -1,0 +1,6 @@
+LIBRARY MctNativeFileView64
+EXPORTS
+    ; Ordinal 1 is the import DetourCreateProcessWithDllEx uses to map this DLL
+    ; before the fixture entry point. The body lives in the Detours static library.
+    DetourFinishHelperProcess @1
+    MctFileViewScopeActive @2
