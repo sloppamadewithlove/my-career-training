@@ -70,6 +70,29 @@ def _patch_launch(monkeypatch, layout, popen, *, created=10.0, game_running=None
     monkeypatch.setattr(bootstrap.subprocess, "Popen", _popen)
 
 
+def test_injector_installed_on_another_drive_is_found_and_started_directly(tmp_path, monkeypatch):
+    from my_career_training import bakkes_installation
+
+    layout = _bakkes(tmp_path)
+    injector = tmp_path / "custom-install" / "BakkesMod.exe"
+    injector.parent.mkdir()
+    injector.write_bytes(b"injector-fixture")
+    monkeypatch.setattr(bootstrap, "bakkes_directory", lambda: layout.root)
+    monkeypatch.setattr(bootstrap, "_injector_running", lambda: False)
+    monkeypatch.setattr(bakkes_installation, "discover_bakkesmod_injectors", lambda: [injector])
+    for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        monkeypatch.setenv(variable, str(tmp_path / "unused-default"))
+    started = []
+    monkeypatch.setattr(bootstrap.subprocess, "Popen", lambda args, **kw: started.append((args, kw)))
+
+    assert bootstrap.bakkes_ready() == layout.root
+    assert started == []
+    bootstrap.ensure_injector_running()
+    assert started == [([str(injector)], {"shell": False})]
+    assert layout.cfg.read_bytes() == b"plugin load alpha\n"
+    assert not layout.journal.exists()
+
+
 def test_verify_owned_offline_uses_shared_launch_tokens_and_rejects_bad_clocks(monkeypatch):
     expected = r"C:\Games\RocketLeague.exe"
     seen = {}

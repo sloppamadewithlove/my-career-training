@@ -111,6 +111,18 @@ def _verifier():
     return _VERIFIER
 
 
+def _registered_injectors() -> list[str]:
+    # Load just this standard-library-only source module. The collector must
+    # remain usable without installing the application or its dependencies.
+    location = Path(__file__).resolve().parents[1] / "src/my_career_training/bakkes_installation.py"
+    spec = importlib.util.spec_from_file_location("mct_bakkes_installation", location)
+    if spec is None or spec.loader is None:
+        raise ImportError(location.name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return [str(path) for path in module.discover_bakkesmod_injectors()]
+
+
 def _code_from_message(message: str) -> str:
     text = message.lower()
     if "symlink" in text or "reparse" in text:
@@ -507,6 +519,7 @@ def _live_registry() -> dict:
     return {
         "steam_paths": {"status": steam_status, "paths": steam_paths},
         "bakkes_path": {"status": bakkes_status, "path": bakkes_path},
+        "injector_paths": _registered_injectors(),
     }
 
 
@@ -526,6 +539,8 @@ def _normalize_registry(payload) -> dict:
     return {
         "steam_paths": {"status": steam_status if steam_status in allowed else "unknown", "paths": paths},
         "bakkes_path": {"status": bakkes_status if bakkes_status in allowed else "unknown", "path": bakkes_path},
+        "injector_paths": [path for path in payload.get("injector_paths", []) if isinstance(path, str)]
+        if isinstance(payload.get("injector_paths"), list) else [],
     }
 
 
@@ -1149,7 +1164,8 @@ def _inspect_bakkes(registry: dict, reader, roots: list[Path], seen: set[str], g
         gaps.unknown("bakkes_version_file")
     if bakkes_root is not None or sys.platform == "win32":
         injector, injector_files = _component_versions(
-            _injector_candidates(bakkes_root), reader, MAX_VERSION_TARGET_BYTES,
+            _injector_candidates(bakkes_root) + [Path(path) for path in registry.get("injector_paths", [])],
+            reader, MAX_VERSION_TARGET_BYTES,
         )
     else:
         injector = {

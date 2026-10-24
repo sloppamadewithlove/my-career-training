@@ -507,3 +507,30 @@ def test_source_has_no_network_shell_or_writes():
     assert "subprocess.run" in text
     assert "tasklist" in text
     assert '.open("x"' in text
+
+
+def test_registered_injector_outside_defaults_is_private_and_protected(tmp_path):
+    bakkes = tmp_path / "host-data"
+    (bakkes / "plugins").mkdir(parents=True)
+    (bakkes / "version.txt").write_text("229", encoding="utf-8")
+    injector = tmp_path / "custom-host-install" / "BakkesMod.exe"
+    injector.parent.mkdir()
+    injector.write_bytes(b"INJECTOR_SECRET")
+    before = fingerprint(tmp_path)
+    registry = {
+        "steam_paths": {"status": "absent", "paths": []},
+        "bakkes_path": {"status": "read", "path": str(bakkes)},
+        "injector_paths": [str(injector)],
+    }
+    document, protected = baseline.collect(
+        registry_reader=lambda: registry,
+        process_probe=lambda: {"running": False},
+        version_reader=lambda path: "3.0.0.0" if path == injector else None,
+    )
+    assert document["bakkesmod"]["injector"]["file_status"] == "present"
+    assert document["bakkesmod"]["injector"]["file_version"] == "3.0.0.0"
+    assert injector.parent.resolve() in protected
+    assert fingerprint(tmp_path) == before
+    assert_private(document, (str(tmp_path), "custom-host-install", "INJECTOR_SECRET"))
+    with pytest.raises(baseline.ReportWriteError, match="output_inside_protected_root"):
+        baseline._refuse_output_location(injector.parent / "baseline.json", protected)

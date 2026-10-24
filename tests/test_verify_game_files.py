@@ -119,6 +119,48 @@ def test_file_replaced_during_hash_and_directory_change_are_errors(tmp_path, mon
     assert any("changed" in error["error"].lower() for error in current["errors"])
 
 
+@pytest.mark.parametrize(
+    ("field", "expected_complete"),
+    [("st_size", True), ("st_mtime_ns", False), ("st_ctime_ns", False), ("st_ino", False)],
+)
+def test_directory_guard_ignores_size_only_change_and_rejects_identity_changes(
+        tmp_path, monkeypatch, field, expected_complete):
+    root = installation(tmp_path).resolve()
+    real_lstat = verify.Path.lstat
+    root_lstat_calls = 0
+
+    def changed_directory_stat(path):
+        nonlocal root_lstat_calls
+        info = real_lstat(path)
+        if path != root:
+            return info
+        root_lstat_calls += 1
+        # _root checks the install once; visit() then stats the directory
+        # before scanning and after scanning. Change one field only at the end.
+        if root_lstat_calls != 3:
+            return info
+        fields = {
+            name: getattr(info, name)
+            for name in ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+        }
+        fields["st_file_attributes"] = getattr(info, "st_file_attributes", 0)
+        fields[field] += 4096 if field == "st_size" else 1
+        return SimpleNamespace(**fields)
+
+    monkeypatch.setattr(verify.Path, "lstat", changed_directory_stat)
+    receipt = verify.snapshot(root)
+
+    assert receipt["complete"] is expected_complete, receipt["errors"]
+    assert root_lstat_calls == 3
+    if expected_complete:
+        assert receipt["errors"] == []
+    else:
+        assert any(
+            error["path"] == "." and error["error"] == "Directory contents changed during snapshot"
+            for error in receipt["errors"]
+        )
+
+
 def test_manifest_limits_and_wrong_install_are_refused(tmp_path, monkeypatch):
     root = installation(tmp_path)
     monkeypatch.setattr(verify, "MAX_ENTRIES", 1)

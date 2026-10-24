@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 import ssl
 import stat
 import zipfile
@@ -651,7 +652,7 @@ def test_valid_archive_is_cached_privately_and_not_enabled(tmp_path):
     assert cached_plugins(cache) == [receipt]
 
 
-def test_cached_listing_rejects_identity_mismatch_and_links(tmp_path):
+def test_cached_listing_rejects_identity_mismatch_and_partial_objects(tmp_path):
     opener, _seen = service()
     record = lookup_plugin("223", opener=opener)
     cache = tmp_path / "cache"
@@ -667,18 +668,37 @@ def test_cached_listing_rejects_identity_mismatch_and_links(tmp_path):
     assert cached_plugins(cache) == []
 
     receipt_path.write_text(json.dumps(receipt))
-    outside = tmp_path / "outside.zip"
-    outside.write_bytes(original)
-    archive.unlink()
-    archive.symlink_to(outside)
-    assert cached_plugins(cache) == []
-    assert outside.read_bytes() == original
-
     partial = cache / "objects" / ("ab" * 32)
     partial.mkdir()
     (partial / "archive.zip").write_bytes(original)
     assert all(item["artifact_sha256"] != partial.name for item in cached_plugins(cache))
+    assert cached_plugins(cache) == [receipt]
+
+
+def _symlink_or_skip(link, target, *, target_is_directory=False):
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows denied symlink creation because this account lacks the required privilege")
+        raise
+
+
+def test_cached_listing_rejects_symlinked_archives(tmp_path):
+    opener, _seen = service()
+    record = lookup_plugin("223", opener=opener)
+    cache = tmp_path / "cache"
+    receipt = download_plugin(record, cache, opener=opener)
+    archive = cache / receipt["archive"]
+    original = archive.read_bytes()
+    outside = tmp_path / "outside.zip"
+    outside.write_bytes(original)
+    archive.unlink()
+
+    _symlink_or_skip(archive, outside)
+
     assert cached_plugins(cache) == []
+    assert outside.read_bytes() == original
 
 
 @pytest.mark.parametrize(("field", "value"), [
@@ -699,13 +719,13 @@ def test_malformed_cached_receipt_types_are_skipped(tmp_path, field, value):
     assert cached_plugins(cache) == []
 
 
-def test_linked_parents_and_relative_directories_are_not_written(tmp_path, monkeypatch):
+def test_symlinked_cache_parent_is_not_written(tmp_path):
     opener, _seen = service()
     record = lookup_plugin("223", opener=opener)
     outside = tmp_path / "outside"
     outside.mkdir()
     linked_parent = tmp_path / "linked"
-    linked_parent.symlink_to(outside, target_is_directory=True)
+    _symlink_or_skip(linked_parent, outside, target_is_directory=True)
     cache = linked_parent / "cache"
     cache.mkdir()
     with pytest.raises(CommunityPluginError, match="link") as caught:
@@ -715,24 +735,35 @@ def test_linked_parents_and_relative_directories_are_not_written(tmp_path, monke
     with pytest.raises(CommunityPluginError, match="link"):
         cached_plugins(cache)
 
+
+def test_symlink_cache_directory_is_not_written(tmp_path):
+    opener, _seen = service()
+    record = lookup_plugin("223", opener=opener)
     real = tmp_path / "real"
     real.mkdir()
     alias = tmp_path / "alias"
-    alias.symlink_to(real, target_is_directory=True)
+    _symlink_or_skip(alias, real, target_is_directory=True)
     with pytest.raises(CommunityPluginError, match="link"):
         download_plugin(record, alias, opener=opener)
     assert list(real.iterdir()) == []
 
+
+def test_symlinked_objects_directory_is_not_written(tmp_path):
+    opener, _seen = service()
+    record = lookup_plugin("223", opener=opener)
     holder = tmp_path / "holder"
     holder.mkdir()
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (holder / "objects").symlink_to(elsewhere, target_is_directory=True)
+    _symlink_or_skip(holder / "objects", elsewhere, target_is_directory=True)
     with pytest.raises(CommunityPluginError, match="link"):
         download_plugin(record, holder, opener=opener)
     assert list(elsewhere.iterdir()) == []
-    assert list((outside / "cache").iterdir()) == []
 
+
+def test_relative_cache_directory_is_not_written(tmp_path, monkeypatch):
+    opener, _seen = service()
+    record = lookup_plugin("223", opener=opener)
     monkeypatch.chdir(tmp_path)
     with pytest.raises(CommunityPluginError):
         download_plugin(record, Path("relative-cache"), opener=opener)

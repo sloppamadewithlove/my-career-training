@@ -33,6 +33,13 @@ def _identity(info: os.stat_result) -> tuple:
     return (*_file_identity(info), info.st_ctime_ns)
 
 
+def _directory_identity(info: os.stat_result) -> tuple:
+    # Directory size may change when a directory is first enumerated on Windows.
+    # Keep entry-change metadata and the filesystem identity, but do not treat
+    # that storage-size report as evidence that children changed.
+    return (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns)
+
+
 def _root(path: Path) -> Path:
     path = path.absolute()
     for component in (path, *path.parents):
@@ -145,7 +152,7 @@ def snapshot(root: Path) -> dict:
                     if entries > MAX_ENTRIES:
                         raise
         after = directory.lstat()
-        if _linked(after) or _identity(before) != _identity(after):
+        if _linked(after) or _directory_identity(before) != _directory_identity(after):
             raise ValueError("Directory contents changed during snapshot")
 
     try:

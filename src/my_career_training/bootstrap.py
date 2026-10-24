@@ -35,11 +35,13 @@ def _injector_running():
 
 
 def _injector_candidates(root=None):
+    from .bakkes_installation import discover_bakkesmod_injectors
     candidates = [Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "BakkesMod/BakkesMod.exe",
                   Path(os.environ.get("PROGRAMFILES(X86)", "C:/Program Files (x86)")) / "BakkesMod/BakkesMod.exe",
                   Path(os.environ.get("LOCALAPPDATA", "")) / "BakkesMod/BakkesMod.exe"]
     if root is not None:
         candidates.extend((root.parent / "BakkesMod.exe", root.parent.parent / "BakkesMod.exe"))
+    candidates.extend(discover_bakkesmod_injectors())
     return candidates
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -179,16 +180,28 @@ def test_user_edit_to_the_autoload_line_is_not_deleted(layout):
     assert (layout.journal / "active.json").is_file()
 
 
-def test_symlink_and_outside_receipt_paths_are_refused(layout, tmp_path):
+def _symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows denied symlink creation because this account lacks the required privilege")
+        raise
+
+
+def test_symlinked_plugin_config_is_refused(layout, tmp_path):
     outside = tmp_path / "outside.cfg"
     outside.write_bytes(b"plugin load alpha\n")
-    layout.cfg.symlink_to(outside)
+    _symlink_or_skip(layout.cfg, outside)
     with pytest.raises(PluginSessionError, match="link"):
         session(layout).begin(layout.source)
     assert outside.read_bytes() == b"plugin load alpha\n"
     assert not (layout.journal / "active.json").exists()
 
-    layout.cfg.unlink()
+
+def test_outside_receipt_paths_are_refused(layout, tmp_path):
+    outside = tmp_path / "outside.cfg"
+    outside.write_bytes(b"plugin load alpha\n")
     layout.cfg.write_bytes(b"plugin load alpha\n")
     receipt = {
         "schema": 1,

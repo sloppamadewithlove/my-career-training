@@ -25,13 +25,13 @@ def detect_installations() -> list[dict]:
     for root in list(roots):
         vdf = root / "steamapps/libraryfolders.vdf"
         if vdf.exists():
-            for path in re.findall(r'"path"\s+"([^"]+)"', vdf.read_text(errors="replace")):
+            for path in re.findall(r'"path"\s+"([^"]+)"', vdf.read_text(encoding="utf-8", errors="replace")):
                 roots.add(Path(path.replace("\\\\", "\\")))
     found = []
     for root in roots:
         manifest = root / "steamapps/appmanifest_252950.acf"
         if manifest.exists():
-            matches = re.findall(r'"installdir"\s+"([^"]+)"', manifest.read_text(errors="replace"))
+            matches = re.findall(r'"installdir"\s+"([^"]+)"', manifest.read_text(encoding="utf-8", errors="replace"))
             for folder in matches:
                 exe = root / "steamapps/common" / folder / "Binaries/Win64/RocketLeague.exe"
                 if exe.is_file():
