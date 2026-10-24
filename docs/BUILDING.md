@@ -75,6 +75,20 @@ installer lifecycle test and real game acceptance are
 still needed. These executables are unsigned unless a real signing step and
 verified signature are recorded.
 
+Inno Setup 6.7.3 is not long-path aware. A script-relative bundle `Source` keeps
+a `packaging\..` prefix, so a normalized 247-character license path becomes 260
+characters and compression fails with "The system cannot find the path specified"
+even though the file exists. Other bundled license paths reach 287 characters.
+The builder copies the smoke-verified bundle to an owned temporary directory
+(`mct-*/bundle`), passes that absolute path as `/DBundleDir`, and writes the
+compiler output to `mct-*/out`. It then copies those new bytes into the unique
+staging folder and promotes that file only after the copy, the original bundle,
+and the source commit still match. If the temporary directory still cannot hold
+every compiler source path and the output file under 260 characters, the build
+stops before the compiler starts. Cleanup removes only that temporary copy.
+Required licenses stay in the bundle. The stable release remains held.
+Gameplay, lifecycle, and production flags stay false.
+
 ## Verification and publication
 
 `.github/workflows/native-candidate.yml` builds the native candidate on a clean

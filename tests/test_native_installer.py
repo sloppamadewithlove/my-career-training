@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -167,7 +168,13 @@ def test_installer_rebuilds_and_smokes_before_compiling(packaged_world, tmp_path
         events.append("compile")
         assert cwd == root and check is True
         assert (bundle / "MyCareerTraining.exe").read_bytes() == b"fresh clean-source executable"
+        bundle_dir = Path(next(argument.split("=", 1)[1] for argument in argv if argument.startswith("/DBundleDir=")))
+        assert bundle_dir.name == "bundle" and bundle_dir.parent.name.startswith("mct-")
+        assert bundle_dir != bundle
+        assert (bundle_dir / "MyCareerTraining.exe").read_bytes() == b"fresh clean-source executable"
+        assert smoke.bundle_inventory(bundle_dir) == smoke.bundle_inventory(bundle)
         fresh_output = Path(next(argument[2:] for argument in argv if argument.startswith("/O")))
+        assert fresh_output.name == "out" and fresh_output.parent == bundle_dir.parent
         assert fresh_output != previous.parent
         output = fresh_output / (
             f"MyCareerTraining-Windows-Test-{COMMIT[:12]}-Setup.exe"
@@ -183,6 +190,12 @@ def test_installer_rebuilds_and_smokes_before_compiling(packaged_world, tmp_path
 
     if produce_installer:
         assert installer.main() == 0
+        assert previous.read_bytes() == b"fake installer artifact"
+        receipt = json.loads(previous.with_suffix(".json").read_text(encoding="utf-8"))
+        assert receipt["sha256"] == hashlib.sha256(b"fake installer artifact").hexdigest()
+        assert receipt["gameplay_verified"] is False
+        assert receipt["production_ready"] is False
+        assert receipt["installer_lifecycle_verified"] is False
     else:
         with pytest.raises(RuntimeError, match="did not produce a new"):
             installer.main()
@@ -214,7 +227,10 @@ def test_compiler_mutation_of_unlisted_bundle_file_is_rejected(packaged_world, t
         return 0
 
     def mocked_compile(_argv, *, cwd, check):
+        bundle_dir = Path(next(argument.split("=", 1)[1] for argument in _argv if argument.startswith("/DBundleDir=")))
+        assert smoke.bundle_inventory(bundle_dir) == smoke.bundle_inventory(bundle)
         fresh_output = Path(next(argument[2:] for argument in _argv if argument.startswith("/O")))
+        assert fresh_output.name == "out" and fresh_output.parent == bundle_dir.parent
         output = fresh_output / (
             f"MyCareerTraining-Windows-Test-{COMMIT[:12]}-Setup.exe"
         )
@@ -257,6 +273,105 @@ def test_source_change_during_candidate_build_is_rejected(tmp_path, monkeypatch)
 
     with pytest.raises(RuntimeError, match="Commit reviewed source changes"):
         installer.main()
+
+
+DEEP_LICENSE = (
+    "_internal/licenses/my-career-training/"
+    "my_career_training-0.3.0.dist-info/licenses/LICENSE"
+)
+
+
+def _bind_mocked_installer(world, bundle, tmp_path, monkeypatch, compile_run):
+    root = world.root
+    compiler = tmp_path / "fake-iscc.exe"
+    compiler.write_bytes(b"mock compiler marker")
+    (root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
+    monkeypatch.setattr(installer, "ROOT", root)
+    monkeypatch.setattr(installer, "clean_source_commit", lambda _root=root: COMMIT)
+    real_verify_inputs = installer.verify_inputs
+    monkeypatch.setattr(installer, "verify_inputs", lambda: real_verify_inputs(root))
+    monkeypatch.setattr(sys, "argv", ["build_native_installer.py", "--compiler", str(compiler)])
+
+    def fresh_build(_build_root, *, freeze, clean_freeze):
+        assert freeze is True and clean_freeze is True
+
+    def mocked_smoke(_argv):
+        receipt = root / "build" / "native-menu-candidate-smoke-receipt.json"
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_text(json.dumps(smoke._evidence(bundle)), encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(candidate, "build_candidate", fresh_build)
+    monkeypatch.setattr(installer, "smoke_main", mocked_smoke)
+    monkeypatch.setattr(installer.subprocess, "run", compile_run)
+    return root
+
+
+def test_installer_script_requires_short_bundle_directory():
+    script = (REPO / "packaging" / "native-candidate.iss").read_text(encoding="utf-8")
+    assert "#ifndef BundleDir" in script
+    assert 'Source: "{#BundleDir}\\*"' in script
+    assert "MyCareerTrainingNativeCandidate\\*" not in script
+    assert "LicenseFile=..\\LICENSE" in script
+
+
+def test_short_copy_tamper_is_refused_before_compiler(packaged_world, tmp_path, monkeypatch):
+    world, bundle = packaged_world
+    before = smoke.bundle_inventory(bundle)
+    real_copy = shutil.copytree
+
+    def tamper(src, dst, *args, **kwargs):
+        real_copy(src, dst, *args, **kwargs)
+        (Path(dst) / "MyCareerTraining.exe").write_bytes(b"tampered copy")
+
+    monkeypatch.setattr(installer.shutil, "copytree", tamper)
+
+    def fail_compile(*_args, **_kwargs):
+        raise AssertionError("compiler started")
+
+    _bind_mocked_installer(world, bundle, tmp_path, monkeypatch, fail_compile)
+    with pytest.raises(RuntimeError, match="does not match the smoke-verified bundle"):
+        installer.main()
+    assert smoke.bundle_inventory(bundle) == before
+
+
+def test_compiler_tamper_of_short_copy_is_not_promoted(packaged_world, tmp_path, monkeypatch):
+    world, bundle = packaged_world
+    filename = f"MyCareerTraining-Windows-Test-{COMMIT[:12]}-Setup.exe"
+    final = world.root / "build" / "native-candidate" / "installers" / filename
+    final.parent.mkdir(parents=True, exist_ok=True)
+    final.write_bytes(b"stale installer")
+
+    def mocked_compile(argv, *, cwd, check):
+        assert cwd == world.root and check is True
+        bundle_dir = Path(next(argument.split("=", 1)[1] for argument in argv if argument.startswith("/DBundleDir=")))
+        (bundle_dir / "compiler-added.dat").write_bytes(b"tampered input")
+        output = Path(next(argument[2:] for argument in argv if argument.startswith("/O"))) / filename
+        output.write_bytes(b"must not be promoted")
+        return SimpleNamespace(returncode=0)
+
+    _bind_mocked_installer(world, bundle, tmp_path, monkeypatch, mocked_compile)
+    with pytest.raises(RuntimeError, match="Compiler input copy changed"):
+        installer.main()
+    assert final.read_bytes() == b"stale installer"
+    assert not final.with_suffix(".json").exists()
+
+
+def test_overlong_short_stage_refuses_before_compiler(packaged_world, tmp_path, monkeypatch):
+    world, bundle = packaged_world
+    deep = bundle.joinpath(*Path(DEEP_LICENSE).parts)
+    deep.parent.mkdir(parents=True)
+    deep.write_bytes(b"required license")
+    monkeypatch.setattr(installer, "COMPILER_PATH_LIMIT", 32)
+
+    def fail_compile(*_args, **_kwargs):
+        raise AssertionError("compiler started")
+
+    _bind_mocked_installer(world, bundle, tmp_path, monkeypatch, fail_compile)
+    with pytest.raises(RuntimeError, match="temporary directory is still too long") as refused:
+        installer.main()
+    assert "Refusing to start the installer compiler" in str(refused.value)
+    assert deep.read_bytes() == b"required license"
 
 
 def test_unverified_compiler_is_refused_before_build(tmp_path, monkeypatch):

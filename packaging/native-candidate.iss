@@ -3,6 +3,9 @@
 #ifndef BuildId
   #error BuildId must be the exact candidate source commit
 #endif
+#ifndef BundleDir
+  #error BundleDir must be the absolute short temporary bundle copy
+#endif
 #ifndef AppVersion
   #define AppVersion "0.3.0"
 #endif
@@ -42,7 +45,10 @@ VersionInfoVersion={#AppVersion}
 Name: "desktopicon"; Description: "Create a My Career Training desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
-Source: "..\build\native-candidate\dist\MyCareerTrainingNativeCandidate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; BundleDir is a short absolute copy of the smoke-verified bundle. ISCC 6.7.3
+; keeps a script-relative packaging\.. prefix and then rejects the resulting
+; 260-character license path even though the file exists.
+Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 ; Remove only the obsolete public helper when upgrading a previous app bundle.
