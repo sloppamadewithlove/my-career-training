@@ -75,6 +75,8 @@ class Backend(QObject):
         self.stop_reason = None
         self.pending_launch = None
         self.native_return_ready = None
+        self.native_forfeit_rejected = None
+        self._forfeit_score_observation = None
         self._native_return_request = None
         self.close_deadline = None
         self.start_deadline = None
@@ -101,13 +103,15 @@ class Backend(QObject):
         self.timer.timeout.connect(self._tick)
         self.timer.start(200)
         self._recover_outbox()
-        if self.latest_result is None and self.document["career"]:
+        if self.document["career"]:
             played = [f for season in self.document["career"]["seasons"]
                       for f in domain._fixtures(season)
                       if f["status"] == "completed" and "human" in (f["home"], f["away"])]
             if played:
                 latest = max(played, key=lambda f: f["result"]["completed_at"])
                 self.latest_result = dict(latest["result"], home=latest["home"], away=latest["away"])
+                if latest["result"].get("outcome") == "forfeited":
+                    self.latest_result["label"] = "Forfeited loss · observed score"
 
     def _restore_before_online(self):
         from .native_community_binding import recover_native_community
@@ -143,6 +147,7 @@ class Backend(QObject):
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
             "native_return_ready": copy.deepcopy(self.native_return_ready),
+            "native_forfeit_rejected": copy.deepcopy(self.native_forfeit_rejected),
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
@@ -312,12 +317,91 @@ class Backend(QObject):
                 self._community_cancel.set()
                 if self.community_state["busy"]:
                     self.community_state["message"] = "Cancelling the plugin request…"
+            elif action == "forfeit_match":
+                self._forfeit_match(payload)
             else:
                 self._require_editable(allow_community_pending=action in {"quit_game", "stop_session", "return_hub"})
                 self._action(action, payload)
         except Exception as exc:
             self.error = str(exc)
+            if action == "forfeit_match":
+                identity = self._forfeit_identity(payload)
+                if identity and not self._stored_forfeit(identity["session_id"], identity["fixture_id"]):
+                    # A generic error must never revoke a committed navigation.
+                    # The host compares all three fields with its current intent.
+                    self.native_forfeit_rejected = identity
         self.stateChanged.emit()
+
+    @staticmethod
+    def _forfeit_identity(payload):
+        if (not isinstance(payload, dict)
+                or set(payload) != {"expected_session_id", "expected_fixture_id", "confirm", "return_intent"}
+                or payload.get("confirm") is not True):
+            return None
+        session, fixture, intent = (payload.get(key) for key in
+            ("expected_session_id", "expected_fixture_id", "return_intent"))
+        if (not all(isinstance(value, str) and 0 < len(value) <= 128 for value in (session, fixture))
+                or not isinstance(intent, str) or len(intent) != 32
+                or any(character not in "0123456789abcdef" for character in intent)):
+            return None
+        return {"session_id": session, "fixture_id": fixture, "intent": intent}
+
+    def _stored_forfeit(self, session_id, fixture_id):
+        career = self.document.get("career")
+        if not career:
+            return None
+        fixture = next((item for item in domain._all_fixtures(career)
+                        if item["id"] == fixture_id), None)
+        result = fixture and fixture.get("result")
+        if (result and result.get("session_id") == session_id
+                and result.get("provenance") == "forfeit"
+                and result.get("outcome") == "forfeited"
+                and result.get("forfeited_by") == "human"):
+            return fixture
+        return None
+
+    def _forfeit_match(self, payload):
+        identity = self._forfeit_identity(payload)
+        if not identity:
+            raise ValueError("Confirm forfeiting the current career match again.")
+        self.native_forfeit_rejected = None
+        request = self.request or {}
+        if (not self.in_game or not self.session_id
+                or identity["session_id"] != self.session_id
+                or identity["fixture_id"] != request.get("fixture", {}).get("id")
+                or request.get("lesson_id") or request.get("calibration") or request.get("workshop")):
+            raise ValueError("The career match changed. Open its pause menu again before forfeiting.")
+        committed = self._stored_forfeit(identity["session_id"], identity["fixture_id"])
+        if committed:
+            # A repeated click cannot rewrite the observed score or stop twice.
+            if self.stop_reason:
+                return
+        else:
+            self._require_editable()
+            if not self._worker_active() or self.session_state != "Playing":
+                raise ValueError("Only a running, unfinished career match can be forfeited.")
+            # Drain both channels before choosing the result. A natural finish
+            # already received is authoritative even when this click raced it.
+            self._drain_activity_results()
+            pending = (self.document.get("career") or {}).get("pending_session")
+            if (not pending or pending.get("session_id") != self.session_id
+                    or pending.get("fixture_id") != identity["fixture_id"]):
+                raise ValueError("This match has already finished. Its saved result was kept.")
+            observed = self._forfeit_score_observation
+            if (not observed or observed["session_id"] != self.session_id
+                    or observed["fixture_id"] != identity["fixture_id"]):
+                raise ValueError("The current match score has not been observed. Resume briefly before forfeiting.")
+            if observed["ended"]:
+                raise ValueError("The final result is still being saved. Wait before returning to My Career.")
+            state = copy.deepcopy(self.document)
+            state["career"] = domain.forfeit_fixture(state["career"], identity["fixture_id"],
+                self.session_id, *observed["scores"])
+            self._commit(state)  # No shutdown, abandonment or ACK before this succeeds.
+            committed = self._stored_forfeit(identity["session_id"], identity["fixture_id"])
+        self.latest_result = dict(committed["result"], home=committed["home"], away=committed["away"],
+            label="Forfeited loss · observed score")
+        self._action("return_hub", {"expected_session_id": identity["session_id"],
+            "expected_fixture_id": identity["fixture_id"], "abandon": False})
 
     def _action(self, action, p):
         if action == "retry_result_save":
@@ -693,6 +777,8 @@ class Backend(QObject):
         self.startup_stop_acknowledged = False
         self.worker_ready = False
         self.native_return_ready = None
+        self.native_forfeit_rejected = None
+        self._forfeit_score_observation = None
         self._native_return_request = None
         self.lifecycle.state = "Idle"
         self.lifecycle.last_error = ""
@@ -770,6 +856,8 @@ class Backend(QObject):
         elif kind == "session":
             if cancelled:
                 return  # Only an actually saved result can leave recovery.
+            if self.stop_reason:
+                return  # Late running/completed messages cannot undo cleanup.
             worker_state = event.get("state")
             if self.session_state == "Career Ready" and worker_state in ("starting", "running", "training"):
                 return
@@ -782,6 +870,18 @@ class Backend(QObject):
             if cancelled:
                 return
             self.telemetry = {key: value for key, value in event.items() if key not in ("type", "session_id")}
+            scores = event.get("scores")
+            if event.get("session_id") == self.session_id:
+                self._forfeit_score_observation = None
+            if (event.get("session_id") == self.session_id and self.session_id
+                    and isinstance(scores, list) and len(scores) == 2
+                    and event.get("phase") in {"MatchPhase.Countdown", "MatchPhase.Kickoff",
+                        "MatchPhase.Active", "MatchPhase.GoalScored", "MatchPhase.Replay",
+                        "MatchPhase.Paused", "MatchPhase.Ended"}
+                    and all(type(score) is int and 0 <= score <= 999 for score in scores)):
+                self._forfeit_score_observation = {"session_id": self.session_id,
+                    "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
+                    "scores": list(scores), "ended": "Ended" in str(event.get("phase", ""))}
             self.start_deadline = None
             if self.session_state != "Career Ready" and (not self.latest_result or self.latest_result.get("session_id") != self.session_id):
                 self.session_state = "training" if self.request.get("lesson_id") else "Playing"
@@ -792,8 +892,9 @@ class Backend(QObject):
                 self._ack_outbox(event["session_id"])
             else:
                 self._commit_result(event)
-            self.session_state = "Career Ready"
-            self.session_message = "Match complete. Your result is saved. Continue when you are ready."
+            if not self.stop_reason:
+                self.session_state = "Career Ready"
+                self.session_message = "Match complete. Your result is saved. Continue when you are ready."
             if cancelled:
                 self.error = ""
             self.page = "hub"
@@ -819,6 +920,23 @@ class Backend(QObject):
                     self._send("shutdown", session_id=self.session_id)
 
     def _commit_result(self, event, note=None):
+        forfeited = self._stored_forfeit(event.get("session_id"), event.get("fixture_id"))
+        if forfeited:
+            # The worker may finish between our drain and the durable forfeit.
+            # Only an exact, valid natural result receipt may be acknowledged;
+            # it cannot replace the chosen outcome or award progression twice.
+            if (event.get("type") != "result" or event.get("calibration")
+                    or event.get("provenance", "game") != "game"
+                    or not all(type(event.get(key)) is int and 0 <= event[key] <= 999
+                               for key in ("home_score", "away_score"))
+                    or event["home_score"] == event["away_score"]):
+                raise ValueError("The late result receipt does not match a valid completed game.")
+            if (not self.latest_result or self.latest_result.get("session_id") == event["session_id"]
+                    or self.session_id == event["session_id"]):
+                self.latest_result = dict(forfeited["result"], home=forfeited["home"], away=forfeited["away"],
+                    label="Forfeited loss · observed score")
+            self._ack_outbox(event["session_id"])
+            return
         state = copy.deepcopy(self.document)
         state["career"] = domain.complete_fixture(state["career"], event["fixture_id"], event["session_id"],
             event["home_score"], event["away_score"], event.get("provenance", "game"))
@@ -848,8 +966,10 @@ class Backend(QObject):
                 event = json.loads(path.read_text())
                 if event.get("calibration"):
                     continue
+                kept_forfeit = bool(self._stored_forfeit(event.get("session_id"), event.get("fixture_id")))
                 self._commit_result(event)
-                self.notice = "Recovered a completed match from the game worker's durable result receipt."
+                self.notice = ("Kept the saved forfeited loss and acknowledged the late game result."
+                    if kept_forfeit else "Recovered a completed match from the game worker's durable result receipt.")
                 if (self.session_id and event.get("session_id") == self.session_id
                         and event.get("fixture_id") == (self.request or {}).get("fixture", {}).get("id")
                         and not self.stop_reason):
