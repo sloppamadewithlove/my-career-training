@@ -44,9 +44,12 @@ public:
             if (scope.surface == NativeMenuSurface::Pause)
                 add(out, "pause.resume", "Resume", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
                     "", Json::object(), StockRoute::Resume);
-            add(out, scope.surface == NativeMenuSurface::Pause ? "pause.options" : "results.options",
-                "Game options", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
-                "", Json::object(), StockRoute::Options);
+            if (scope.surface == NativeMenuSurface::Pause)
+                add(out, "pause.options", "Game options", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
+                    "", Json::object(), StockRoute::Options);
+            else
+                add(out, "results.settings", "Settings", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
+                    "", Json::object(), StockRoute::Settings);
             if (!error.empty() && kind == "career")
                 add(out, "results.retry_save", "Retry saving", canReturn,
                     CareerLayoutEffectKind::Dispatch, "retry_result_save",
@@ -309,8 +312,9 @@ private:
         if (info.lineups.size() > 1) {
             for (std::size_t index = 0; index < info.lineups.size(); ++index) {
                 const auto& row = info.lineups[index];
-                const auto label = (row == draft_ ? std::string("Selected: ") : std::string("Lineup: ")) +
-                    memberNames(info.roster, row);
+                // The movie refuses labels over 80 characters; cap bytes on a UTF-8 boundary.
+                const auto label = bounded((row == draft_ ? std::string("Selected: ") : std::string("Lineup: ")) +
+                    memberNames(info.roster, row), 80);
                 add(out, ("results.lineup." + std::to_string(index)).c_str(), label.c_str(), true,
                     CareerLayoutEffectKind::Navigate, "", {{"lineup_ids", row}});
             }

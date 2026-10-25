@@ -361,6 +361,30 @@ static void continuationChecks() {
     effect = host.select(command(preview, "results.start"), scope, solo, true);
     require(effect.accepted && effect.payload["lineup_ids"] == Json::array() && effect.payload.size() == 4,
         "Solo Start payload is wrong");
+
+    // Unicode 4v4 names stay inside the movie's label bound on a UTF-8 boundary.
+    auto wide = state; wide["career"]["format"] = 4;
+    wide["career"]["lineup"] = Json::array({"anchor", "shield", "relay"});
+    std::string name; for (int i = 0; i < 20; ++i) name += u8"\u754c";
+    for (const char* id : {"anchor", "shield", "relay", "comet", "orbit"}) wide["career"]["recruits"][id]["name"] = name;
+    require(host.open(scope, wide), "Unicode results did not open");
+    root = host.publish(scope, wide, ++now);
+    require(host.select(command(root, "results.next"), scope, wide, true).accepted, "Unicode preview refused");
+    preview = Json::parse(host.publish(scope, wide, ++now).dump());
+    require(ids(preview).size() == 6, "4v4 preview should offer four lineups plus Start and Back");
+    for (const auto& row : preview["controls"]) {
+        const auto label = row["label"].get<std::string>();
+        require(!label.empty() && label.size() <= 80, "Lineup label exceeded the movie bound");
+    }
+
+    // Pending results recovery offers the game's Settings, never the old Options submenu.
+    require(host.open(scope, state), "Pending results did not open");
+    auto held = host.publish(scope, state, ++now, {}, {}, true);
+    require(!hasControl(held, "results.options") && control(held, "results.settings")["label"] == "Settings" &&
+        control(held, "results.settings")["stock"] == "settings" && control(held, "results.settings")["enabled"] == false,
+        "Held results recovery did not use a disabled Settings route");
+    auto released = host.publish(scope, state, ++now, {}, {}, true, Json::object(), false, false);
+    require(control(released, "results.settings")["enabled"] == true, "Released results recovery kept Settings disabled");
 }
 int main() {
     try {
