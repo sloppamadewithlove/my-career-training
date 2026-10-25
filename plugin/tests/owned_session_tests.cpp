@@ -8,7 +8,7 @@ static void require(bool ok, const char* message) {
 int main() {
     using namespace mct;
     try {
-        const ProcessScope process{42, 1000, "RocketLeague.exe", {"RocketLeague.exe", "-noeac", "-rlbot"}};
+        const ProcessScope process{42, 1000, "RocketLeague.exe", {"RocketLeague.exe", "-rlbot"}};
         Json state = {{"offline", true}, {"bridge_session", "session-a"},
             {"owned_game", {{"pid", 42}, {"created", 1000}, {"executable", "RocketLeague.exe"}}}};
         require(ownedSession(state, process, true, false, true), "Valid owned offline launch rejected");
@@ -27,9 +27,14 @@ int main() {
         changed = state; changed["bridge_session"] = "";
         require(!ownedSession(changed, process, true, false, true), "Missing session accepted");
         require(!offlineArguments({"-noeac", "-rlbot", "-eac"}), "Conflicting EAC accepted");
-        require(!offlineArguments({"-noeac-extra", "-rlbot"}), "Partial flag accepted");
-        require(!offlineArguments({"-rlbot"}), "Missing offline flag accepted");
-        require(offlineArguments({"-NOEAC", "-RLBOT"}), "Case-normalized flags rejected");
+        require(!offlineArguments({"-noeac", "-rlbot"}), "Conflicting noeac accepted");
+        require(!offlineArguments({"-NOEAC", "-RLBOT"}), "Case-normalized conflict accepted");
+        require(!offlineArguments({"-noeac-extra", "-rlbot-helper"}), "Partial flag accepted");
+        require(!offlineArguments({"-noeac"}), "Missing RLBot flag accepted");
+        require(offlineArguments({"-RLBOT"}), "Case-normalized RLBot flag rejected");
+        auto conflicting = process;
+        conflicting.arguments.push_back("-noeac");
+        require(!ownedSession(state, conflicting, true, false, true), "Conflicting owned launch accepted");
         SessionShortcut shortcut;
         require(!shortcut.observe(true, true), "A held key on startup opened a menu");
         require(!shortcut.observe(false, true), "Key release activated shortcut");

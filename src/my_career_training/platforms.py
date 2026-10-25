@@ -92,9 +92,9 @@ def native_launcher_pending() -> bool:
 
 
 def offline_launch_arguments(arguments) -> bool:
-    """Require whole offline launch tokens, and reject contradictory EAC mode."""
+    """Require RLBot's offline mode and reject conflicting EAC launch modes."""
     tokens = {str(argument).lower() for argument in arguments}
-    return {"-noeac", "-rlbot"} <= tokens and "-eac" not in tokens
+    return "-rlbot" in tokens and not ({"-noeac", "-eac"} & tokens)
 
 
 def owned_game_since(started: float, expected_path: str = "") -> ProcessIdentity | None:

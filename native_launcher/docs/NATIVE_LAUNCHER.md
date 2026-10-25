@@ -51,9 +51,11 @@ The helper holds read-only handles to the executable, every approved source pack
 
 The command line is exactly:
 
-`RocketLeague.exe -noeac -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie`
+`RocketLeague.exe -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie`
 
-`-noeac` is the existing offline mode used by `bootstrap.py`, not an online anti-cheat bypass. The working directory is the executable's parent. Child handles are not inherited. The game is not started hidden; the helper itself is a windowless program. The child environment is a copy of the parent block with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the session. The parent process environment is unchanged.
+The launch mode follows the pinned [RLBot v5.0.0-rc18 Steam launcher](https://github.com/RLBot/core/blob/v5.0.0-rc18/RLBotCS/ManagerTools/LaunchManager/Steam.Windows.cs), which supplies the RLBot arguments and Steam environment without adding `-noeac`.
+
+`-rlbot` selects RLBot's offline mode. Do not combine it with `-noeac`: the supported game build connected to RLBot and produced live packets with the official RLBot argument set, while adding `-noeac` prevented that connection in the controlled test. Manual BakkesMod-only `-noeac` guidance is a separate mode. The working directory is the executable's parent. Child handles are not inherited. The game is not started hidden; the helper itself is a windowless program. The child environment is a copy of the parent block with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the session. The parent process environment is unchanged.
 
 While the new process is suspended, the helper checks its pid, creation time, Win32 image path, and NT image path against the held executable. With no extra package it copies one `MctFileViewScopeV1`. With one or both extras it copies one fixed `MctFileViewScopeV2` (count 2 or 3, three slots, ids main=1, midgame=2, endgame=3). Both use `DetourCopyPayloadToProcess` and GUID `{7B1E6A14-2C4F-4A8E-9D33-5F0B8C2E71A6}`. The scope names only those approved packages. It checks again for any other `RocketLeague.exe` and resumes only after that check. On a failure before resume, it calls `TerminateProcess` only on the new process handle and waits up to 5 seconds. It does not open or kill a process by pid, and it does not kill a game that was already running.
 

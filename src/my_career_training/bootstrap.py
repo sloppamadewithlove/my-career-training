@@ -180,9 +180,9 @@ def launch_offline(settings, directory=None, *, native_session=None):
         if native_session is not None:
             return native_session.launch(executable)
         # Current RLBot's Steam launcher uses the installed executable and Steam identity.
-        # -noeac is the official offline mode, never an online anti-cheat bypass.
+        # -rlbot selects its own offline mode; adding -noeac prevents the game bridge connecting.
         env = dict(os.environ, SteamAppId="252950", SteamGameId="252950")
-        process = subprocess.Popen([str(executable), "-noeac", "-rlbot",
+        process = subprocess.Popen([str(executable), "-rlbot",
             "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie"],
             cwd=executable.parent, env=env, shell=False)
         owned = psutil.Process(process.pid)

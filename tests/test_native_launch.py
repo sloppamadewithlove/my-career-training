@@ -300,7 +300,7 @@ def test_pinned_contract_and_detours_notice():
     assert native_launch.SOURCE_ENDGAME_SIZE == 4348661
     assert native_launch.RECEIPT_MAX_BYTES == 8192
     assert native_launch.OFFLINE_ARGUMENTS == (
-        "-noeac", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie",
+        "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie",
     )
     notice = native_launch.DETOURS_NOTICE_BYTES
     assert len(notice) == native_launch.DETOURS_NOTICE_SIZE == 1099
@@ -517,13 +517,30 @@ def test_receipt_mismatches_stay_uncertain_and_preserve_files(monkeypatch, tmp_p
 
 def test_cmdline_must_be_the_whole_offline_vector(monkeypatch, tmp_path):
     world = World(monkeypatch, tmp_path)
-    world.child.command = [str(world.exe.resolve()), "-noeac", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233",
+    world.child.command = [str(world.exe.resolve()), "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233",
                             "RLBot_PacketSendRate=240"]
     with pytest.raises(NativeLaunchUncertain) as caught:
         world.launch([world.ready()])
     assert caught.value.reason == "cmdline_mismatch"
-    world.owned = []
-    world.child.command = [str(world.exe.resolve()), *native_launch.OFFLINE_ARGUMENTS, "-eac"]
+    for conflict in ("-eac", "-noeac", "-NOEAC"):
+        world.owned = []
+        world.child.command = [str(world.exe.resolve()), *native_launch.OFFLINE_ARGUMENTS, conflict]
+        with pytest.raises(NativeLaunchUncertain) as caught:
+            world.launch([world.ready()])
+        assert caught.value.reason == "cmdline_mismatch"
+    assert world.private.read_bytes() == PRIVATE_BYTES
+
+
+@pytest.mark.parametrize("arguments", [
+    ("RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie"),
+    ("-rlbot", "RLBot_PacketSendRate=240", "-nomovie"),
+    ("-rlbot", "RLBot_ControllerURL=127.0.0.1:23234", "RLBot_PacketSendRate=240", "-nomovie"),
+    ("-rlbot", "RLBot_ControllerURL=127.0.0.1:23233", "-nomovie"),
+    ("-rlbot", "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=120", "-nomovie"),
+])
+def test_cmdline_rejects_missing_or_changed_rlbot_settings(monkeypatch, tmp_path, arguments):
+    world = World(monkeypatch, tmp_path)
+    world.child.command = [str(world.exe.resolve()), *arguments]
     with pytest.raises(NativeLaunchUncertain) as caught:
         world.launch([world.ready()])
     assert caught.value.reason == "cmdline_mismatch"

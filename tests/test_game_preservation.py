@@ -77,11 +77,13 @@ def test_normal_steam_entry_uses_the_regular_game_launch_uri(monkeypatch):
 @pytest.mark.parametrize(
     ("arguments", "allowed"),
     [
-        (["RocketLeague.exe", "-noeac", "-rlbot"], True),
-        (["RocketLeague.exe", "-NOEAC", "-RLBOT"], True),
+        (["RocketLeague.exe", "-rlbot"], True),
+        (["RocketLeague.exe", "-RLBOT"], True),
         (["RocketLeague.exe"], False),
         (["RocketLeague.exe", "-noeac"], False),
-        (["RocketLeague.exe", "-rlbot"], False),
+        (["RocketLeague.exe", "-noeac", "-rlbot"], False),
+        (["RocketLeague.exe", "-NOEAC", "-RLBOT"], False),
+        (["RocketLeague.exe", "-rlbot", "-eac"], False),
         (["RocketLeague.exe", "-noeac", "-rlbot", "-eac"], False),
         (["RocketLeague.exe", "-noeac-extra", "-rlbot-helper"], False),
     ],
@@ -94,10 +96,10 @@ def test_offline_mode_uses_exact_expected_launch_flags(arguments, allowed):
     ("created", "executable", "arguments"),
     [
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe"]),
-        (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
+        (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-noeac"]),
-        (123.0, r"C:\Other\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
-        (124.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
+        (123.0, r"C:\Other\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
+        (124.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac", "-eac"]),
     ],
 )
@@ -135,7 +137,7 @@ def test_offline_identity_accepts_only_the_exact_offline_child(monkeypatch):
             return expected
 
         def cmdline(self):
-            return ["RocketLeague.exe", "-noeac", "-rlbot"]
+            return ["RocketLeague.exe", "-rlbot"]
 
     import psutil
 

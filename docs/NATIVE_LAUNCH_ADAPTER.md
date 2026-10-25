@@ -70,10 +70,10 @@ One JSON object is written to stdin, then stdin is closed:
 There is no executable, DLL, PID, or argument field. The helper owns the game command. The offline child arguments it must use, and that this module requires on the live process, are exactly:
 
 ```text
--noeac -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie
+-rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie
 ```
 
-The child environment remains the helper's responsibility: a copy of the parent environment with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the same session value.
+The owned RLBot mode rejects extra `-noeac` or `-eac` flags. It is distinct from manually launching BakkesMod without RLBot. The child environment remains the helper's responsibility: a copy of the parent environment with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the same session value.
 
 ## Stdout receipts
 

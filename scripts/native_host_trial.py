@@ -156,7 +156,7 @@ def launch(directory):
     bootstrap.preflight_offline(settings)
     env = dict(os.environ, SteamAppId="252950", SteamGameId="252950",
                MCT_HOST_PROBE_DIRECTORY=str(directory))
-    process = subprocess.Popen([str(executable), "-noeac", "-rlbot", "-nomovie"],
+    process = subprocess.Popen([str(executable), "-rlbot", "-nomovie"],
                                cwd=executable.parent, env=env, shell=False)
     created = psutil.Process(process.pid).create_time()
     issued = time.time()

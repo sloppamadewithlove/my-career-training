@@ -48,15 +48,14 @@ private:
 };
 
 inline bool offlineArguments(const std::vector<std::string>& arguments) {
-    bool noEac = false, rlbot = false;
+    bool rlbot = false;
     for (auto argument : arguments) {
         std::transform(argument.begin(), argument.end(), argument.begin(),
             [](unsigned char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; });
-        if (argument == "-eac") return false;
-        noEac = noEac || argument == "-noeac";
+        if (argument == "-eac" || argument == "-noeac") return false;
         rlbot = rlbot || argument == "-rlbot";
     }
-    return noEac && rlbot;
+    return rlbot;
 }
 
 inline bool ownedSession(const Json& state, const ProcessScope& current,

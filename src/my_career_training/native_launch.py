@@ -54,7 +54,6 @@ SOURCE_ENDGAME_SHA256 = "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4
 SOURCE_ENDGAME_SIZE = 4348661
 
 OFFLINE_ARGUMENTS = (
-    "-noeac",
     "-rlbot",
     "RLBot_ControllerURL=127.0.0.1:23233",
     "RLBot_PacketSendRate=240",

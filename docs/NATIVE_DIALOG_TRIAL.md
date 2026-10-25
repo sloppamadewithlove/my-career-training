@@ -34,7 +34,7 @@ The existing menu key returns to the prototype controls.
 Native dialog clicks are deferred to the game thread. Every click must match
 the displayed dialog generation and current bridge session. The plugin checks
 the actual process ID, creation time, executable identity, Steam runtime,
-`-noeac` and `-rlbot` arguments, fresh service state and offline status before
+the `-rlbot` argument without conflicting `-noeac` or `-eac` flags, fresh service state and offline status before
 using the native interface. Match requests include the displayed career and
 fixture IDs; the backend checks them again before changing a save or starting
 a worker. Losing scope invalidates pending clicks.
