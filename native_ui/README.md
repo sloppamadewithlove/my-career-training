@@ -74,6 +74,14 @@ The private SDKs and compiler output containers must never be committed.
 classes, intended for a private, version-checked menu composition.
 It is not a replacement game file and is not enabled in the release.
 
+Frontend refreshes clear the base menu's callback-based focus restoration before
+rebuilding. An enabled control ID is preserved for the same page, including
+stable local pagination IDs; title, control-list and explicit pagination changes
+choose a fresh safe default. Recovery confirmation defaults to Back. The authored
+selection excludes Exit from automatic defaults and synchronizes real focus only
+for a validated, attached control in the current front menu. Stock waiting-screen
+fallback behavior and physical controller mapping still require live checks.
+
 `MctRootMenuMovie` is a public dynamic, zero-argument wrapper around `menus.MctRootMenu`.
 It is compiled under that name because the private SDK already exports
 `RootMenuMovie`. The composer renames the compiled string to `RootMenuMovie`

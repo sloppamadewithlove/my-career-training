@@ -17,6 +17,7 @@ package menus
     import projectx.core.UIScreen;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
+    import scaleform.clik.managers.FocusHandler;
     import scaleform.gfx.TextFieldEx;
     import tagame.api.DevUtil;
     import tagame.api.MenuSequence;
@@ -127,17 +128,55 @@ package menus
 
         override protected function refreshMenu() : void
         {
-            if (resetFocus)
-            {
-                currentFocus = null;
-                focusId = "";
-                resetFocus = false;
-            }
-            else if (currentFocus != null) focusId = currentFocus.name;
+            if (resetFocus) focusId = "";
+            else if (currentFocus is UIComponent && UIComponent(currentFocus).enabled && contains(currentFocus))
+                focusId = currentFocus.name;
+            resetFocus = false;
+            clearMenuFocus();
             super.refreshMenu();
+
+            var selected:UIComponent = null;
+            var firstSafe:UIComponent = null;
+            var back:UIComponent = null;
+            var recoveryConfirmation:Boolean = false;
             for each (var control:UIComponent in m_controls)
-                if (control.name == focusId && control.enabled) currentFocus = control;
+            {
+                if (control.name == "career.recover.confirm") recoveryConfirmation = true;
+                if (!control.enabled) continue;
+                if (control.name != "session.exit" && control.name != "mct.exit" && control.name != "career.recover.confirm" && firstSafe == null)
+                    firstSafe = control;
+                if (control.name == "nav.back") back = control;
+                if (focusId != "" && control.name == focusId) selected = control;
+            }
+            if (selected == null)
+                selected = recoveryConfirmation ? back : firstSafe;
+            // DynamicMenu restores by callback, shared by every career button.
+            // Replace that incidental choice with the validated control identity.
+            clearMenuFocus();
+            if (selected != null) currentFocus = selected;
             layoutDetails();
+            if (selected == null || !isFrontMenu()) return;
+            selected.validateNow();
+            if (selected.stage != null && selected.tabEnabled && selected.enabled && m_controls.indexOf(selected) >= 0)
+                FocusHandler.getInstance().setFocus(selected);
+        }
+
+        private function clearMenuFocus() : void
+        {
+            if (m_currentFocus != null)
+                m_currentFocus.removeEventListener(Event.TAB_ENABLED_CHANGE, invalidateFocus);
+            // UIMenu's currentFocus setter deliberately ignores null. Clear
+            // protected state and stale callback restoration before rebuilding.
+            m_currentFocus = null;
+            m_currentFocusCallbackData = null;
+        }
+
+        private function sameControlIds(left:Object, right:Object) : Boolean
+        {
+            if (left == null || right == null || left.controls.length != right.controls.length) return false;
+            for (var i:int = 0; i < left.controls.length; ++i)
+                if (left.controls[i].id !== right.controls[i].id) return false;
+            return true;
         }
 
         override protected function handleStageResized(event:Event = null) : void
@@ -193,7 +232,7 @@ package menus
             if (!current())
             {
                 addChoice({id:"waiting", label:"MY CAREER", reason:"Waiting for the offline career service", enabled:false});
-                var exitButton:UIComponent = createControl({label:"EXIT", descLabel:"Close Rocket League"}, Shell.ExitGame);
+                var exitButton:UIComponent = createControl({name:"mct.exit", label:"EXIT", descLabel:"Close Rocket League"}, Shell.ExitGame);
                 if (exitButton != null) exitButton.validateNow();
                 setDetails("My Career", "Connecting to your offline career. Your saved progress stays on this computer.");
                 return;
@@ -225,7 +264,7 @@ package menus
 
         private function pageButton(label:String, direction:int) : void
         {
-            var button:UIComponent = createControl({label:label, descLabel:"More choices", enabled:!busy}, turnPage, [direction]);
+            var button:UIComponent = createControl({name:direction < 0 ? "mct.page.previous" : "mct.page.more", label:label, descLabel:"More choices", enabled:!busy}, turnPage, [direction]);
             if (button != null) button.validateNow();
         }
 
@@ -345,7 +384,7 @@ package menus
                 var next:String = incoming.generation;
                 if (next != generation)
                 {
-                    if (view == null || incoming.title !== view.title)
+                    if (view == null || incoming.title !== view.title || !sameControlIds(view, incoming))
                     {
                         page = 0;
                         resetFocus = true;
