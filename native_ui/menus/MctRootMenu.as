@@ -9,6 +9,7 @@ package menus
     import flash.net.URLLoader;
     import flash.net.URLRequest;
     import flash.text.TextField;
+    import flash.text.TextFieldAutoSize;
     import flash.text.TextFormat;
     import flash.utils.Timer;
     import flash.utils.getTimer;
@@ -16,6 +17,7 @@ package menus
     import projectx.core.UIScreen;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
+    import scaleform.gfx.TextFieldEx;
     import tagame.api.DevUtil;
     import tagame.api.MenuSequence;
     import tagame.api.Shell;
@@ -53,6 +55,7 @@ package menus
             details = new TextField();
             details.multiline = true;
             details.wordWrap = true;
+            details.autoSize = TextFieldAutoSize.NONE;
             details.selectable = false;
             details.mouseEnabled = false;
             details.width = 620;
@@ -150,6 +153,32 @@ package menus
             details.width = Math.max(260, UIScreen.ContentStageWidth - details.x - 40);
             details.height = Math.min(530, Math.max(120, UIScreen.ContentStageHeight - 160));
             details.y = Math.max(40, Math.min(m_controlContainer.y, UIScreen.ContentStageHeight - details.height - 120));
+            fitDetails();
+        }
+
+        private function fitDetails() : void
+        {
+            var copy:String = details.text;
+            var format:TextFormat = details.defaultTextFormat;
+            if (format == null) format = new TextFormat("Arial", 20, 0xFFFFFF);
+            // The native button format may reserve space for its icon. The
+            // separate body field uses the full bounded text rectangle.
+            format.leftMargin = 0;
+            format.rightMargin = 0;
+            format.indent = 0;
+            format.blockIndent = 0;
+            format.align = "left";
+            details.wordWrap = true;
+            details.autoSize = TextFieldAutoSize.NONE;
+            for (var size:int = 20; size >= 14; --size)
+            {
+                format.size = size;
+                details.defaultTextFormat = format;
+                details.text = copy;
+                details.setTextFormat(format);
+                if (details.textHeight <= details.height - 4 && details.textWidth <= details.width - 4) break;
+            }
+            TextFieldEx.setTextAutoSize(details, TextFieldEx.TEXTAUTOSZ_SHRINK);
         }
 
         override protected function getDirectionalFocus(direction:String) : InteractiveObject
@@ -210,7 +239,9 @@ package menus
 
         private function setDetails(title:String, body:String) : void
         {
-            if (details != null) details.text = title + "\n\n" + body;
+            if (details == null) return;
+            details.text = title + "\n\n" + body;
+            layoutDetails();
         }
 
         private function current() : Boolean

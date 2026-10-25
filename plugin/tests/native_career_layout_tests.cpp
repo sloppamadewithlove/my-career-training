@@ -242,6 +242,8 @@ int main() {
         auto career = layout.view(scope, state);
         audit(career);
         require(career.body.find("Orbit vs Nova") != std::string::npos, "Next match text missing");
+        require(career.body.find(NativeCareerManagement::careerSummary(state)) != std::string::npos,
+            "Career summary rows were flattened or truncated as one line");
         auto play = findChoice(career, "career.play");
         require(play.enabled && play.action == "play_match", "Play Next Match was not executable");
         auto failedLaunch = state;
@@ -888,6 +890,22 @@ int main() {
         auto recoveryEntry = findChoice(recovery.view(scope, recoveryState), "career.recover");
         require(recoveryEntry.kind == CareerLayoutEffectKind::Navigate && recoveryEntry.action.empty(),
             "Recovery entry changed a save without confirmation");
+        for (const auto& phase : {"Starting Career", "Playing", "Stopping Career"}) {
+            auto active = recoveryState;
+            active["session"]["state"] = phase;
+            active["session"]["busy"] = std::string(phase) != "Playing";
+            active["session"]["worker_running"] = std::string(phase) == "Playing";
+            const auto shown = recovery.view(scope, active);
+            require(!hasChoice(shown, "career.recover"), "Active match offered unfinished recovery");
+            require(shown.body.find("Your last match did not finish") == std::string::npos,
+                "Active match was described as unfinished");
+            require(!choose(recovery, recoveryEntry, scope, active, false).accepted,
+                "Stale recovery navigation remained available during an active match");
+        }
+        auto unknownWorker = recoveryState;
+        unknownWorker["session"].erase("worker_running");
+        require(!hasChoice(recovery.view(scope, unknownWorker), "career.recover"),
+            "Recovery guessed that an unknown worker was inactive");
         choose(recovery, recoveryEntry, scope, recoveryState, false);
         auto confirmation = findChoice(recovery.view(scope, recoveryState), "career.recover.confirm");
         audit(recovery.view(scope, recoveryState));

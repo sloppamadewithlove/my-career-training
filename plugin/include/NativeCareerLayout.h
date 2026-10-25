@@ -752,6 +752,18 @@ private:
         body += text;
     }
 
+    static void addSummary(std::string& body, const std::string& summary) {
+        // Management summaries already contain rows. Sanitize each row without
+        // flattening the standings or truncating the whole summary as one line.
+        std::size_t start = 0;
+        while (start < summary.size() && body.size() < kMaxBody) {
+            const auto end = summary.find('\n', start);
+            addLine(body, summary.substr(start, end == std::string::npos ? end : end - start));
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    }
+
     static void push(CareerLayoutView& view, CareerLayoutChoice choice) {
         if (view.choices.size() >= kMaxChoices) return;
         if (choice.id.empty() || choice.id.size() > 160) return;
@@ -930,10 +942,19 @@ private:
         const auto fixture = object(state, "next_fixture");
         if (career.empty()) addLine(view.body, "No career exists yet.");
         else addLine(view.body, plain(text(career, "team_name", "My club"), 48));
-        addLine(view.body, NativeCareerManagement::careerSummary(state));
+        addSummary(view.body, NativeCareerManagement::careerSummary(state));
         if (pending(career)) {
-            addLine(view.body, "Your last match did not finish. Restart it before playing or training.");
-            navigate(view, "career.recover", "Restart unfinished match", CareerLayoutPage::RecoverCareer);
+            const auto session = sessionOf(state);
+            const bool active = busy(state) || flag(session, "worker_running", true);
+            if (active) {
+                const auto phase = text(session, "state");
+                if (phase == "Starting Career") addLine(view.body, "Your match is starting. Please wait for Rocket League.");
+                else if (phase == "Playing") addLine(view.body, "Your match is in progress.");
+                else addLine(view.body, "Return from the current activity before restarting this match.");
+            } else {
+                addLine(view.body, "Your last match did not finish. Restart it before playing or training.");
+                navigate(view, "career.recover", "Restart unfinished match", CareerLayoutPage::RecoverCareer);
+            }
         }
         navigate(view, "career.create", "New career", CareerLayoutPage::CreateCareer);
         CareerLayoutChoice play;
@@ -1175,7 +1196,7 @@ private:
 
     void buildGarage(CareerLayoutView& view, const Json& state) const {
         view.title = "Garage";
-        addLine(view.body, NativeCareerManagement::rewardSummary(state));
+        addSummary(view.body, NativeCareerManagement::rewardSummary(state));
         addLine(view.body, "Your car stays in the game's garage.");
         addLine(view.body, "Bot presets below are local career appearances. They do not add items to your garage.");
         addLine(view.body, "Local appearance is a separate machine override, not a bot preset.");
