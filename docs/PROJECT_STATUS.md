@@ -47,14 +47,23 @@ Repair commits and CI artifacts are not published player releases.
   importing NumPy, before loading the Necto model. A read-only stack sample
   showed the session thread inside NumPy extension initialization while the
   command thread blocked on stdin. This matches the trigger described in
-  [NumPy issue 24290](https://github.com/numpy/numpy/issues/24290); the startup
-  ordering fix still needs controlled and live verification. The earlier
-  standalone model benchmark did not reproduce the pipe-backed worker setup.
+  [NumPy issue 24290](https://github.com/numpy/numpy/issues/24290). A controlled
+  Pythonw/QProcess test reproduced the late-import hang; loading NumPy before
+  reading stdin let the actual Necto controller initialize in about four
+  seconds. GPT-6 Luna Max independently repeated both outcomes. `ba0618a`
+  applies that worker-only fix and adds real redirected-entry regressions.
+  The earlier standalone benchmark did not reproduce the pipe-backed setup.
 - Both [native installer checks](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40148712013)
   and [general Windows checks](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40148714700)
   passed for `7e3338d`. The integration tree also passed 952 Python tests
   (15 skipped), 27 plugin tests and 13 native launcher/file-view tests.
   These passes do not resolve the live worker hang or certify match navigation.
+
+The repaired source worker subsequently passed bot loading in the actual app,
+but that run never passed the start screen while Windows was locked. No
+game-to-core connection was observed and it timed out. Test again after reaching
+the main menu; the existing-game launch order is not yet a confirmed cause.
+Do not infer complete gameplay from the model-startup repair.
 
 ## Current integration
 
@@ -67,6 +76,18 @@ Main, pause and results are separate movies. New pause/results classes retain
 stock pause/input cleanup and expose career actions. Both authored bytecodes
 were independently rebuilt to identical bytes, containing only project classes
 and the public JSON codec. Private game SDKs and movies are not distributed.
+Frontend `d426ea1` fits text after sizing its rectangle, preserves standings
+rows, and separates an active match from unfinished-fixture recovery. Its
+focused layout and preparation checks passed; readability still needs a live
+check of the rebuilt movie.
+
+Startup cancellation in `9ad1c8e` latches the timed-out activity, requests
+shutdown and rejects late startup/telemetry messages. Models load before the
+core is created, and cancellation shares the core-spawn lock. Only retained
+owned process handles may be stopped. Real result receipts and failed cleanup
+remain recoverable; the worker does not claim completion or disappear during
+a post-core receipt write. The change passed 108 focused tests and independent
+Luna review, with Grok's source design advice. It still needs frozen/live checks.
 
 The bounded match-package writer preserves other exports and appends the
 selected movie's new serial. Tests checked unchanged, grown and subsequently
@@ -97,6 +118,12 @@ Agent participation is not gameplay evidence.
    plugin restoration and the normal Steam launch boundary.
 6. Publish only the exact tested Setup, hashes, required sources/notices and a
    sanitized receipt; update the existing website to that artifact.
+
+CI retains the exact smoke-inventoried installer input as a separate developer
+acceptance artifact. Check its complete inventory against that run's smoke
+receipt before a game test. This lets a tester run the installer's files without
+replacing an existing registered installation. The player download remains the
+single Setup executable; the CI bundle is not the website download.
 
 Target: Steam `25914621`, Rocket League `261013.63066.530866`, BakkesMod `229`.
 Unknown builds are refused. Epic has no separate acceptance yet. Full cosmetic

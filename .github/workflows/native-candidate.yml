@@ -94,3 +94,14 @@ jobs:
             build/upstream-sources/*
           if-no-files-found: error
           retention-days: 14
+      - name: Retain the exact installer input for game acceptance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-live-acceptance-bundle-${{ github.sha }}
+          path: build/native-candidate/dist/MyCareerTrainingNativeCandidate/
+          # Only this clean, smoke-inventoried build folder is included. Some
+          # runtime libraries use dot-prefixed files which must be retained.
+          include-hidden-files: true
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

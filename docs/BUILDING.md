@@ -97,6 +97,14 @@ disposable environment, refuses existing product registrations, checks every
 installed payload file, one player shortcut, same-version reinstall, obsolete
 Worker cleanup, uninstall and preservation of a separate real-format career.
 It retains the exact tested installer and sanitized evidence for live acceptance.
+The separate `native-live-acceptance-bundle-<commit>` Actions artifact contains
+the exact folder used to create that installer. Before running it on a gaming
+PC, compare every extracted file and its SHA-256 with `bundle_files` in the
+same run's `native-menu-candidate-smoke-receipt.json`, and reject missing or
+extra files. The installer lifecycle already checks its installed payload
+against that inventory. Test this bundle in a copied career profile without
+replacing an existing registered installation. This is a developer testing
+artifact; players receive the single Setup executable.
 It does not publish a release or establish gameplay support.
 
 Keep source tests, native fixture tests, frozen package tests, installer
