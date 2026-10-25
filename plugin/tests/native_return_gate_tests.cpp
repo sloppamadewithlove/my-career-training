@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
             require(gate.arm(c.nonce, fixture.at("payload"), kIntent), "Actual service fixture did not arm");
             require(gate.poll(c, fixture.at("state")), "Actual Backend.state refused navigation");
             require(gate.markConsumed(c, fixture.at("state"), "pause", "2"), "Actual service fixture consumption refused");
+            require(gate.noteExecutePublished("pause", "2"), "Actual service fixture execute publication refused");
             require(gate.markIssued(c, fixture.at("state"), "pause", "2"), "Actual service fixture attempt refused");
             require(!gate.poll(c, fixture.at("state")), "Actual Backend.state navigated twice");
             std::cout << "Actual service return fixture passed\n";
@@ -73,6 +74,9 @@ int main(int argc, char** argv) {
         require(gate.markConsumed(c, state, "pause", "2"), "Identical consume retry was not idempotent");
         require(!gate.markConsumed(c, state, "pause", "3"), "Different consumption replaced current grant");
         require(gate.authorization(true, "pause").at("consumed_generation") == "2", "Execute not tied to consumption");
+        require(!gate.markIssued(c, state, "pause", "2"), "Attempt recorded before successful execute publication");
+        require(gate.noteExecutePublished("pause", "2") && gate.executeOffered() && !gate.issued(),
+            "Execute publication incorrectly claimed an attempt");
         require(!gate.markIssued(c, state, "results", "2"), "Other surface used pause consumption");
         require(!gate.markIssued(c, state, "pause", "3"), "Other generation used consumption");
         require(gate.markIssued(c, state, "pause", "2") && gate.issued(), "Validated execute attempt not recorded");
@@ -91,6 +95,9 @@ int main(int argc, char** argv) {
         c.frontendRoot = true;
         require(!gate.poll(c, state) && !gate.pending() && gate.arrived(), "Fresh authored root did not complete return");
         require(!gate.poll(c, state) && gate.arrived(), "Arrival evidence disappeared on next poll");
+        gate.clear();
+        require(gate.arrived() && !gate.pending(), "Later scope loss erased historical arrival evidence");
+        require(gate.arm(context().nonce, payload(), kIntent) && !gate.arrived(), "New Return kept previous arrival evidence");
         c = context();
 
         // Unload between consumption and execute must revoke that movie's
@@ -113,6 +120,19 @@ int main(int argc, char** argv) {
         arrivedWithoutLog.frontendReady = arrivedWithoutLog.frontendRoot = true;
         require(!unloaded.poll(arrivedWithoutLog, state) && unloaded.arrived() && !unloaded.issued(),
             "Actual root arrival required or fabricated a possibly dropped issued log");
+
+        auto offered = armed();
+        require(offered.poll(c, state) && offered.markConsumed(c, state, "pause", "13"), "Offered fixture could not consume");
+        require(offered.noteExecutePublished("pause", "13") && !offered.issued(), "Offered execute claimed delivery");
+        require(offered.authorization(true, "pause").at("phase") == "execute", "Same movie lost its published execute view");
+        require(offered.authorization(true, "results").empty(), "Other movie reused an offered execute");
+        offered.suspendExecution(); // Unload or READY expiry; the issued log may have been lost.
+        require(offered.poll(c, state) && offered.pending() && offered.executeOffered(), "Lost issue diagnostic forgot offered execute");
+        require(offered.authorization(true, "pause").empty() && !offered.takeReopenAttempt(c),
+            "Uncertain execute delivery permitted another Shell grant or pause reopen");
+        require(!offered.markConsumed(c, state, "pause", "15"), "Uncertain delivery rearmed a new consumption");
+        require(!offered.poll(arrivedWithoutLog, state) && offered.arrived() && !offered.issued(),
+            "Actual arrival with missing issued diagnostic did not complete offered execute");
 
         auto reopen = armed();
         require(!reopen.takeReopenAttempt(c), "Pause reopened before durable ACK");

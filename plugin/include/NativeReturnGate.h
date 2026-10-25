@@ -40,6 +40,7 @@ public:
         intent_ = intent;
         ready_ = false;
         issued_ = false;
+        executeOffered_ = false;
         arrived_ = false;
         consumedGeneration_.clear();
         consumedSurface_.clear();
@@ -86,6 +87,7 @@ public:
     Json authorization(bool currentMovieReady, const std::string& surface) const {
         if (!ready_ || issued_ || !currentMovieReady || (surface != "pause" && surface != "results"))
             return Json::object();
+        if (executeOffered_ && (consumedGeneration_.empty() || consumedSurface_ != surface)) return Json::object();
         Json value = {{"phase", "authorize"}, {"intent", intent_}, {"activity", activity_}, {"fixture", fixture_}};
         if (!consumedGeneration_.empty() && consumedSurface_ == surface) {
             value["phase"] = "execute";
@@ -102,14 +104,25 @@ public:
             (surface != "pause" && surface != "results") || !validGeneration(generation)) return false;
         if (!consumedGeneration_.empty())
             return consumedGeneration_ == generation && consumedSurface_ == surface;
+        if (executeOffered_) return false;
         consumedGeneration_ = generation;
         consumedSurface_ = surface;
         return true;
     }
 
+    // Set only after the host successfully writes an execute view. Delivery is
+    // uncertain if its issued log is lost, so never offer another Shell attempt
+    // after that movie unloads or its grant is withdrawn.
+    bool noteExecutePublished(const std::string& surface, const std::string& generation) {
+        if (!pending() || !ready_ || issued_ || consumedGeneration_.empty() ||
+            consumedSurface_ != surface || consumedGeneration_ != generation) return false;
+        executeOffered_ = true;
+        return true;
+    }
+
     bool markIssued(const NativeReturnContext& context, const Json& state,
                     const std::string& surface, const std::string& consumedGeneration) {
-        if (!safe(context) || !pending() || !ready_ || issued_ || !durable(state) ||
+        if (!safe(context) || !pending() || !ready_ || issued_ || !executeOffered_ || !durable(state) ||
             consumedGeneration_.empty() || consumedGeneration != consumedGeneration_ || surface != consumedSurface_)
             return false;
         issued_ = true;
@@ -123,7 +136,7 @@ public:
     }
 
     bool takeReopenAttempt(const NativeReturnContext& context) {
-        if (!safe(context) || !ready_ || issued_ || reopenAttempted_ || !context.inGame || context.paused ||
+        if (!safe(context) || !ready_ || issued_ || executeOffered_ || reopenAttempted_ || !context.inGame || context.paused ||
             !context.matchAvailable) return false;
         reopenAttempted_ = true; // Before the void SDK call, including exceptions.
         return true;
@@ -135,7 +148,7 @@ public:
 
     void clear() {
         nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear();
-        ready_ = false; issued_ = false; arrived_ = false; reopenAttempted_ = false;
+        ready_ = false; issued_ = false; executeOffered_ = false; reopenAttempted_ = false;
         consumedGeneration_.clear(); consumedSurface_.clear();
     }
     bool pending() const { return !activity_.empty(); }
@@ -143,6 +156,7 @@ public:
     bool ready() const { return ready_; }
     bool consumed() const { return !consumedGeneration_.empty(); }
     bool arrived() const { return arrived_; }
+    bool executeOffered() const { return executeOffered_; }
     bool reopenAttempted() const { return reopenAttempted_; }
     bool matchesNonce(const std::string& nonce) const { return !pending() || nonce == nonce_; }
 
@@ -192,6 +206,7 @@ private:
     bool ready_ = false;
     bool issued_ = false;
     bool arrived_ = false;
+    bool executeOffered_ = false;
     bool reopenAttempted_ = false;
     std::string consumedGeneration_;
     std::string consumedSurface_;

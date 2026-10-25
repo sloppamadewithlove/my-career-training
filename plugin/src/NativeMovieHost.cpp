@@ -264,6 +264,8 @@ void NativeMovieHost::State::suspend(const char* why, const std::string& current
         session.release();
         movieReady = false;
         reason = why;
+        if (returnGate.pending() && returnGate.executeOffered())
+            reason = returnGate.issued() ? "return_waiting_for_root" : "return_outcome_unconfirmed";
     }
     opened = false;
     protocol.invalidate();
@@ -296,6 +298,9 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
         bool durable = false;
         {
             std::lock_guard<std::mutex> guard(mutex);
+            // A fresh view without navigation revokes the movie's local latch.
+            // Never resume its old execute phase after READY later recovers.
+            if (!session.ready(monotonic)) returnGate.suspendExecution();
             pending = returnGate.pending();
             durable = returnGate.ready();
             navigation = returnGate.authorization(session.ready(monotonic), nativeSurfaceName(scope.surface));
@@ -315,6 +320,10 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
     viewOnDisk = true;
     viewPublished = wire.value("active", false);
     returnAuthorizationPublished = viewPublished && wire.contains("navigation");
+    if (returnAuthorizationPublished && stringValue(wire["navigation"], "phase") == "execute")
+        returnGate.noteExecutePublished(nativeSurfaceName(scope.surface), stringValue(wire["navigation"], "consumed_generation"));
+    if (returnGate.pending() && returnGate.executeOffered() && !returnAuthorizationPublished)
+        reason = returnGate.issued() ? "return_waiting_for_root" : "return_outcome_unconfirmed";
     if (!viewPublished) {
         session.endHello();
         movieReady = false;
@@ -864,6 +873,7 @@ Json NativeMovieHost::status() const {
         result["return_authorized"] = state_->returnAuthorizationPublished && state_->scopeLive && state_->returnGate.pending();
         result["return_consumed"] = state_->returnGate.consumed();
         result["return_navigation_issued"] = state_->returnGate.issued();
+        result["return_execute_offered"] = state_->returnGate.executeOffered();
         result["return_arrived"] = state_->returnGate.arrived();
         result["return_reopen_attempted"] = state_->returnGate.reopenAttempted();
         result["menu_top"] = state_->menuTop;
