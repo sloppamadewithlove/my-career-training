@@ -18,6 +18,7 @@
 #include "NativeMovieCommandReader.h"
 #include "NativeMovieProtocol.h"
 #include "NativeMovieSession.h"
+#include "NativeReturnGate.h"
 #include "bakkesmod/wrappers/Engine/ActorWrapper.h"
 #include "bakkesmod/wrappers/GameEvent/ServerWrapper.h"
 
@@ -125,6 +126,7 @@ struct NativeMovieHost::State {
     mutable std::mutex mutex;
     NativeMovieProtocol protocol;
     NativeMovieSession session;
+    NativeReturnGate returnGate;
     std::string publishedNonce;
     std::string reason = "waiting_for_session";
     DWORD gameThread = 0;
@@ -156,7 +158,7 @@ struct NativeMovieHost::State {
     void suspend(const char* why, const std::string& currentSession);
     void retire(double now);
     void publish(const CareerLayoutScope& scope, const Json& state, double wall, double monotonic);
-    bool preconditions(std::string& sessionId, Json& state, const char*& why);
+    bool preconditions(std::string& sessionId, Json& state, const char*& why, bool requireSurface = true);
     bool liveNow(const std::string& sessionId) const;
     NativeMenuSurface observedSurface() const;
     bool drain(const CareerLayoutScope& scope, double monotonic);
@@ -185,19 +187,21 @@ bool NativeMovieHost::State::liveNow(const std::string& sessionId) const {
     }
 }
 
-bool NativeMovieHost::State::preconditions(std::string& sessionId, Json& bridgeState, const char*& why) {
+bool NativeMovieHost::State::preconditions(std::string& sessionId, Json& bridgeState, const char*& why, bool requireSurface) {
     if (!game || !bridge) { why = "host_missing"; return false; }
     const DWORD present = GetEnvironmentVariableW(L"MCT_NATIVE_MOVIE_SESSION", nullptr, 0);
     sessionId = sessionEnvironment();
     if (present < 2) { why = "session_unset"; return false; }
     if (!canonicalUuid(sessionId)) { why = "session_invalid"; return false; }
-    try { bridgeState = bridge->state(); }
-    catch (...) { why = "stale_bridge"; return false; }
-    if (stringValue(bridgeState, "bridge_session") != sessionId) { why = "session_mismatch"; return false; }
     if (game->IsInOnlineGame()) { why = "online"; return false; }
     if (game->IsInReplay()) { why = "replay"; return false; }
-    if (observedSurface() == NativeMenuSurface::None) { why = "in_game"; return false; }
+    try { bridgeState = bridge->state(); }
+    catch (...) { why = "stale_bridge"; return false; }
+    // poll() clears its cached JSON on stale/invalid input. Missing bridge
+    // evidence is a suspension, not proof of a new nonce or lost process.
     if (!bridge->fresh()) { why = "stale_bridge"; return false; }
+    if (stringValue(bridgeState, "bridge_session") != sessionId) { why = "session_mismatch"; return false; }
+    if (requireSurface && observedSurface() == NativeMenuSurface::None) { why = "in_game"; return false; }
     bool owned = false;
     try { owned = ownedOffline && ownedOffline(); }
     catch (...) { owned = false; }
@@ -367,6 +371,10 @@ void NativeMovieHost::State::apply(CareerLayoutEffect effect, const CareerLayout
     if (effect.kind == CareerLayoutEffectKind::Dispatch) {
         const bool allowed = liveNow(scope.nonce) && NativeCareerLayout::supportedAction(effect.action) &&
             effect.payload.is_object() && bridge && bridge->send(effect.action, effect.payload);
+        if (allowed && effect.action == "return_hub") {
+            std::lock_guard<std::mutex> guard(mutex);
+            returnGate.arm(scope.nonce, effect.payload);
+        }
         count(allowed, allowed ? "command_accepted" : "dispatch_not_sent");
         return;
     }
@@ -444,7 +452,11 @@ void NativeMovieHost::State::tick() {
     Json bridgeState;
     const char* why = "waiting_for_session";
     try {
-        if (!preconditions(sessionId, bridgeState, why)) {
+        if (!preconditions(sessionId, bridgeState, why, false)) {
+            {
+                std::lock_guard<std::mutex> guard(mutex);
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+            }
             suspend(why, stringValue(bridgeState, "bridge_session"));
             return;
         }
@@ -458,6 +470,7 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
+                returnGate.clear();
             }
             removeHook();
             suspend(hashWhy, sessionId);
@@ -469,6 +482,7 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
+                returnGate.clear();
             }
             removeHook();
             suspend(version != kBakkesVersion ? "bakkesmod_version_mismatch" : "build_mismatch", sessionId);
@@ -476,8 +490,40 @@ void NativeMovieHost::State::tick() {
         }
         // The executable hash can take seconds. Recheck the live scope before
         // opening a view or trusting the state captured beforehand.
-        if (!preconditions(sessionId, bridgeState, why)) {
+        if (!preconditions(sessionId, bridgeState, why, false)) {
+            {
+                std::lock_guard<std::mutex> guard(mutex);
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+            }
             suspend(why, stringValue(bridgeState, "bridge_session"));
+            return;
+        }
+        // Persistence and worker shutdown finish asynchronously. This survives
+        // Resume/unloading the pause movie and runs on this same game thread.
+        NativeReturnContext returnContext;
+        returnContext.nonce = sessionEnvironment();
+        returnContext.owned = true; // Revalidated by preconditions on this game-thread tick.
+        returnContext.fresh = bridge->fresh();
+        returnContext.offline = true;
+        returnContext.online = game->IsInOnlineGame();
+        returnContext.replay = game->IsInReplay();
+        returnContext.buildVerified = hashMatched && !buildRefused;
+        returnContext.inGame = game->IsInGame();
+        returnContext.matchAvailable = returnContext.inGame && bool(game->GetGameEventAsServer());
+        bool returnNow = false;
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            returnNow = returnGate.poll(returnContext, bridge->state());
+        }
+        if (returnNow) {
+            // Fixed offline navigation, never a movie/JSON-supplied command.
+            // A void SDK return is not proof of reaching the frontend.
+            game->ExecuteUnrealCommand("disconnect");
+            count(true, "return_navigation_issued");
+            return;
+        }
+        if (observedSurface() == NativeMenuSurface::None) {
+            suspend("in_game", sessionId);
             return;
         }
         if (!hooked) {
@@ -590,6 +636,7 @@ void NativeMovieHost::State::stop() {
         std::lock_guard<std::mutex> guard(mutex);
         if (stopped) return;
         stopped = true;
+        returnGate.clear();
         scopeLive = false;
         movieReady = false;
         movieCallbackSeen = false;
@@ -700,6 +747,8 @@ Json NativeMovieHost::status() const {
         result["commands_rejected"] = state_->rejected;
         result["reason"] = state_->reason;
         result["surface"] = nativeSurfaceName(state_->surface);
+        result["return_pending"] = state_->returnGate.pending();
+        result["return_navigation_issued"] = state_->returnGate.issued();
         result["movie_ready"] = state_->scopeLive && !state_->stopped && state_->session.ready(monotonicSeconds());
     }
     std::string executableSha;
