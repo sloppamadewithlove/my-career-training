@@ -105,6 +105,9 @@ extra files. The installer lifecycle already checks its installed payload
 against that inventory. Test this bundle in a copied career profile without
 replacing an existing registered installation. This is a developer testing
 artifact; players receive the single Setup executable.
+The installer/source artifact also retains `build/upstream-sources` and the
+three native candidate source ZIPs named by `source_archives` in its manifest.
+Verify their hashes before preparing a public download.
 It does not publish a release or establish gameplay support.
 
 Keep source tests, native fixture tests, frozen package tests, installer

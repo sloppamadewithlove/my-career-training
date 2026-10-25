@@ -73,7 +73,11 @@ The same unquoted control connected within half a second when its core started
 core restarted. Core-first startup and a persistent core are therefore not
 required by this evidence. The native formatting repair must still pass a real
 My Career session; neither these controls nor model startup certify the mod's
-complete gameplay.
+complete gameplay. `6381456` aligns the native command with the passing control:
+the validated executable path stays quoted, the same four fixed options do
+not, and the launch guard still requires the exact canonical command. The
+independent launcher suite passed 162 checks; raw extra arguments, old quoting,
+newlines and stray quotes remain rejected.
 
 ## Current integration
 

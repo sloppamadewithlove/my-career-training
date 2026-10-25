@@ -91,6 +91,7 @@ jobs:
           path: |
             build/native-candidate/installers/*-Setup.exe
             build/native-candidate/installers/*.json
+            build/native-candidate/source-archives/*
             build/upstream-sources/*
           if-no-files-found: error
           retention-days: 14
