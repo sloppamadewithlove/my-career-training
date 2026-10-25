@@ -5,6 +5,31 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
+The owner paused on 25 October and requested a fresh session. Read
+[SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) first. The next
+product direction is **Training and Workshop**: inspect their existing
+capabilities, then ask the owner which concrete improvements they want. The
+continuation performance target is now **12 seconds**, versus about 26 seconds
+observed in the e41 package; it has not been achieved.
+
+The exact e41 frozen package subsequently completed a normal timed native 1v1.
+Its real human 0–22 result saved once, cleared the pending fixture and received
+the durable receipt ACK. One actual results Play Next Match click started the
+next fixture in the same game without another setup menu or confirmation.
+Native pause, Settings/Back, Resume and canceling unfinished Return passed.
+On the second fixture, Forfeit Back preserved play; explicit confirmation saved
+the observed human 0–2 score as a labelled forfeited loss, cleared pending and
+reached a visible authored hub with fresh root READY. The original result stayed
+unchanged. This is real frozen evidence, distinct from the OneGoal checks below.
+
+The first frozen game and service closed through actual home Quit. A second
+frozen launch used a copy of its saved career and reached the title screen.
+The owner's pause interrupted the visual career/schedule restart check; it is
+**not a completed restart acceptance pass**. The title-screen game was closed
+normally for the pause. See the handoff for final cleanup and remaining checks.
+Physical USB DualShock 4 acceptance stays deferred; no replacement release or
+website download has been published.
+
 Current coherent source candidate: `e41ad45`. **Play Next Match now starts the
 next fixture from one results click, using the saved lineup, without a preview
 or another Start confirmation.** A controlled copied-career source test observed
@@ -31,7 +56,8 @@ bound; it is not an approval. Both exact e41 CI runs passed. Independent Luna/ma
 verification checked all 4,470 bundle files and nine source archives against the
 same-run records. The Setup is 178,282,685 bytes, SHA-256
 `3d29d1d705827dfbf964b64acc09755534257f91cc44cfb85bac71a909940156`.
-Normal timed frozen acceptance is now the next gate. Nothing is published.
+The normal timed frozen fixture/continuation evidence is recorded above; full
+release acceptance still has open checks. Nothing is published.
 
 Earlier `ff3ee52` evidence: its full source suite passed
 1,057 tests with 15 skipped, and its native build passed 42 checks. The actual
@@ -394,15 +420,18 @@ Agent participation is not gameplay evidence.
 
 ## Remaining live acceptance
 
-1. Build/freeze one clean integrated revision with matching runtime receipts.
-2. Open the player executable: one game, no worker console, readable menus.
-3. In that exact frozen revision, complete a real 1v1 career fixture, save it
-   once, return home and start the next activity without a second game process.
-4. Test practice/retry, native pause/options/resume, unfinished-match
-   confirmation, results saving/return, and keyboard/controller controls.
-   Replacement menus must not expose online routes.
-5. Restart and verify progress. Check installed files, player saves, temporary
-   plugin restoration and the normal Steam launch boundary.
+1. Preserve the exact e41 package and its completed normal fixture/direct-next/
+   Forfeit evidence. Documentation-only checkpoints do not require repackaging.
+2. Complete the paused visual career/schedule restart check; disk comparison
+   already preserves the 0–22 natural result and 0–2 forfeit exactly once.
+3. Finish appropriate exact-package practice/Retry, delayed cleanup, standalone
+   results Exit/subpage, physical controller and final normal Steam checks.
+   Earlier source results stay separately attributed. No online routes belong
+   in the offline career, and ordinary saves/configuration must remain protected.
+4. Profile continuation toward the owner's 12-second target; the observed
+   package timing was about 26 seconds. Keep durable ACK and fresh root arrival.
+5. Ask the owner for Training/Workshop priorities before choosing the next
+   implementation slice. Build and test a new coherent candidate after changes.
 6. Publish only the exact tested Setup, hashes, required sources/notices and a
    sanitized receipt; update the existing website to that artifact.
 

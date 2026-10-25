@@ -73,7 +73,7 @@ Keep the previous installer on hold even if its CI pipeline passed.
    and pending Quit cannot receive an accidental carried Enter/A press.
 5. Complete a real career fixture. Verify its actual score saves exactly once,
    its pending fixture clears, and its durable receipt is acknowledged. Use the
-   actual results Return button and repeat the hub arrival checks.
+   actual results Exit button and repeat the hub arrival checks.
 6. Start another activity without another game process. Restart the app using
    the copied saved career and verify the completed result persists. Repeat the
    real fixture/save/Return/restart cycle with the exact frozen build.
@@ -89,8 +89,17 @@ Keep the previous installer on hold even if its CI pipeline passed.
    receipts; do not manufacture such game scores for a live test.
 9. After a natural completed fixture, leave the actual results screen open past
    the previous 60-second expiry. Observe the finished-state countdown refresh,
-   retained results READY and unchanged saved score, then use the actual Return
+   retained results READY and unchanged saved score, then use the actual Exit
    button. Timer setter dispatch alone is not a successful retention test.
+10. Check the ordered results controls: Play Next Match, Schedule, Change Preset,
+    Settings, Exit. One Play Next Match click must use the saved lineup, finish
+    exact cleanup, reach fresh native-root READY internally, and start one next
+    fixture in the same game without another setup menu or confirmation. Verify
+    the prior result remains saved once. Schedule and Settings must remain usable
+    beyond the former expiry and Back must return to the same ended match. Equip
+    an existing local preset, observe the change and restore the original.
+    Results Exit returns to the hub; home Quit My Career closes the app/game.
+    Test mouse and keyboard independently from the physical controller.
 
 ## Restoration and normal launch
 

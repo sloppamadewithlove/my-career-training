@@ -9,6 +9,10 @@ Use the project's existing launcher and private test helpers to reach a known
 state, capture evidence, and leave the player's installation restored. This
 skill records navigation knowledge; it does not certify a new candidate.
 
+For continuation performance work, use the measured phases and the owner's
+12-second target in [evidence-and-recovery.md](references/evidence-and-recovery.md).
+That target is not an achieved timing or permission to skip durable saves.
+
 ## Establish the current checkpoint
 
 Locate the repository from the active workspace or the optional, private

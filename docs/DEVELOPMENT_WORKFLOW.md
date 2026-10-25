@@ -86,7 +86,31 @@ not an automatic lock enforced by the helpers.
 | 7. Bounded reviews with required artifacts | Prevent open-ended review loops and vague completion claims | Adopt this workflow: immutable scope, time budget, actual model receipt, findings, test result and unresolved limits |
 | 8. Measure waiting and rework | Spend effort on the actual bottleneck | Start private per-cycle timing now: build, test, game startup, fixture, focus recovery, review wait and rework. No benchmarked speedup claimed yet |
 
-## Change-to-check guide
+## Refinements after the direct-continuation session
+
+Observed on e41: native CI took about 15 minutes; the normal packaged fixture
+took about 13.5 minutes from Play to saved result, including deliberate pause
+checks. One results click reached the next Playing state in about 26 seconds.
+The owner accepted these refinements and set a **12-second continuation target**.
+It is not achieved yet. These are individual observations, not a benchmark or
+guaranteed timings. Keep the same click-to-Playing definition and record visible
+kickoff separately; never shorten the measurement by dropping save/arrival checks.
+Manual screenshots/round trips, an artifact-transfer cancellation race, and an
+independent probe's incorrect schema assumptions also caused avoidable rework.
+The skill reduced repeated research; it is not yet an automated test driver.
+
+| Refinement | Concrete next step / current status |
+| --- | --- |
+| 1. Verified menu-route driver | Build short routes that verify current process, foreground, surface and control identity before acting; stop on mismatch. Retain one input owner. Planned |
+| 2. Checkpoint screenshots | Capture initial state, meaningful arrival and failures; use fresh scoped status for routine intermediate observations. Existing observer supports this; reduce manual over-inspection |
+| 3. Immutable package reuse | Private frozen launcher now accepts an explicit full source pin while preserving manifest and complete same-run inventory checks. Documentation commits need not cause another binary build |
+| 4. Resumable artifact transfer | Add byte-progress, total deadlines and digest-verified resume/reuse. This run recovered completed archives; a general robust transfer helper remains planned |
+| 5. Exact reviewer input contract | Supply validated paths, current schemas and sample synthetic records with every assignment. Require a standard receipt separating observed evidence, inference and probe errors |
+| 6. One bounded review per changed boundary | Review once, then only changed/failing portions; an incomplete review is not approval. Keep unrelated work moving and retain partial findings |
+| 7. Two test speeds | Use the existing opt-in OneGoal source harness during iteration; run normal timed gameplay on the final coherent frozen candidate. Never label shortened development fixtures as normal acceptance |
+| 8. Per-phase measurements | Record build, first launch, continuation, game waiting, manual actions and reviewer rework separately. Profile the observed continuation delay before changing startup or cleanup safeguards |
+
+## Change-to-check mapping
 
 | Change | First check | Broader evidence when ready |
 | --- | --- | --- |

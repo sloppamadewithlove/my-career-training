@@ -15,19 +15,28 @@ The historical report below explains the original player failures. Current
 implementation and live evidence are in [PROJECT_STATUS.md](PROJECT_STATUS.md),
 which takes precedence. Authored root/pause/results now exist. Red Forfeit Match,
 Back-first confirmation, root focus handling and explicit Forfeit loss history
-are integrated through `9d1d433`, with source/native checks and live acceptance
-still pending. Do not redesign those from scratch.
+were integrated through `9d1d433`; later source and e41 frozen evidence is now
+recorded in PROJECT_STATUS.md. Do not redesign those from scratch.
 
 Remaining design work, to assign in separate scopes:
 
-- Implement the owner's results order: Play Next Match, Schedule, Change Preset,
+Pause update, 25 October: the five results controls and direct one-click
+continuation are implemented at e41. Source live checks covered local presets,
+Back and Exit; the exact frozen package completed a normal fixture, direct next
+fixture and confirmed Forfeit. Do not rebuild those controls from scratch.
+The owner's next product focus is Training and Workshop. Inspect current
+capabilities and ask for their priorities before assigning design work. The
+12-second continuation target is a performance goal, not a current claim.
+
+- Preserve the owner's results order: Play Next Match, Schedule, Change Preset,
   Settings, Exit. Exit returns to the hub; its close-app label is Quit My Career.
   Schedule stays in the completed game without a time limit. Play Next Match
   immediately continues with the saved lineup, with no extra setup or confirmation
   menu; lineup changes remain in Squad. Use direct typed local preset/Settings controls and hide the
   misleading stock countdown. Follow
   [RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). This scoped
-  assignment is in progress; new controls and compiled movies are not accepted yet.
+  assignment is implemented; remaining exact-package and physical-controller
+  acceptance is tracked in PROJECT_STATUS.md.
 - Inspect the rebuilt Forfeit menu in the actual game: red styling, text fit,
   safe default Back, mouse/keyboard focus, physical DS4 navigation and readable
   saved-loss labels. Main/tester owns game input; designer reviews evidence.

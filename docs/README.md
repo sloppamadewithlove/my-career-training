@@ -5,6 +5,7 @@ documents' claims about publication, implementation and untested behavior.
 
 | Need | Read |
 | --- | --- |
+| Resume the latest paused session and Training/Workshop direction | [SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) |
 | Resume the paused 24 October repair session | [SESSION_HANDOFF_2026-10-24.md](SESSION_HANDOFF_2026-10-24.md) |
 | Build the current Windows candidate | [BUILDING.md](BUILDING.md), [NATIVE_CANDIDATE.md](NATIVE_CANDIDATE.md) |
 | Understand the requested product | [BUILD_SPEC.md](BUILD_SPEC.md) |

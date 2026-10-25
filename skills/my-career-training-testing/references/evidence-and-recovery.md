@@ -31,7 +31,32 @@ only if its inputs and scope are unchanged; record the tested revision. Do not
 rerun every test for wording-only changes. Do not relabel an older binary with a
 new revision. Follow `docs/BUILDING.md` and the candidate manifest machinery.
 
-## Bounded failures
+For a frozen restart after documentation-only checkpoints, the private launcher
+can take an explicit full `--expected-source-commit` with `--ci-bundle` and the
+same-run smoke receipt. It must still compare the manifest revision and every
+bundle file with that receipt, and record the original artifact revision in the
+run. This avoids rebuilding unchanged binaries just because HEAD gained test
+notes; it does not turn those binaries into a newer candidate.
+
+## Continuation timing
+
+The owner set a 12-second target for Play Next Match on 25 October 2026.
+The e41 frozen observation was about 26 seconds from the actual results click
+to the next fixture's Playing state with fresh telemetry, in the same game.
+The source OneGoal check was about 14 seconds and is a different environment.
+Neither establishes that the 12-second target is achieved.
+
+Record activation, prepare acceptance, durable cleanup ACK, navigation issued,
+fresh root READY, next-start dispatch, worker/core readiness, map arrival,
+first current-fixture telemetry and visible kickoff separately. Compare the
+same start/end definition across cold/warm runs; report kickoff/controllability
+separately if the first Playing packet is still Countdown. Profile the largest
+phase before changing it. Consider redundant file validation, synchronous work
+and reusable initialization only when measurements support them. Retain exact
+save ACK, identity/freshness checks, one-shot launch and recoverable cancellation.
+Keep internal engine travel automatic; never add another setup/Start screen.
+
+## Bounded failures and recovery
 
 Set an expected transition and a scenario-appropriate deadline before action.
 Use short bounded waits (normally at most 55 seconds per tool call); a complete
