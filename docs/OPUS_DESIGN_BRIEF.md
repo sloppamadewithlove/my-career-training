@@ -37,6 +37,25 @@ Remaining design work, to assign in separate scopes:
 Each design delivery includes changed files/assets, exact labels, focus/default
 states, visual evidence or explicit visual-test limits, and remaining backlog.
 
+Actual Claude Opus 5.5 High subsequently reviewed four live `d95f4cc` screenshots
+and the matching source. The coordinator also inspected them. Pause and Forfeit
+confirmation were readable, with Back visibly selected. No design blocker was
+reported. Keep these concrete follow-ups for a scoped design iteration:
+
+- Add restrained dark navy backing behind Career/Schedule details; white text
+  currently crosses the bright car. Preserve native controls and focus.
+- Explain in pause copy that unfinished Return requeues the fixture, while
+  Forfeit saves a loss and advances the season.
+- Consider focusing enabled Play Next Match when entering Career. The current
+  New career default opens a setup page and is not an immediate destructive act.
+- Optionally clarify that Forfeit counts as a loss even while ahead. Existing
+  FORFEIT — LOSS and score-at-forfeit labels already distinguish that outcome;
+  this is copy refinement, not evidence of a scoring defect.
+
+The results countdown still displays NEXT MATCH IN while retention refreshes it.
+Review that misleading stock label once the results lifecycle is accepted.
+Do not change or reload movies during an exact-candidate acceptance session.
+
 **Product status:** The owner reports that the downloaded Windows preview is
 currently unusable on their PC. The initial test has already happened: Career
 fixtures and Start Practice failed, the menu repeatedly reopened over Rocket

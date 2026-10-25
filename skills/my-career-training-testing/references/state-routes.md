@@ -16,9 +16,9 @@ labels and refreshed view/status files; coordinates depend on the window.
 | Confirm unfinished Return | Same confirmation → explicit confirm | Worker cleanup and exact ACK, typed shell attempt, fresh visible hub; pending fixture remains replayable | Source 374c85d; observe saved-state semantics separately |
 | Delayed cleanup | In a disposable practice session, use the existing bounded cleanup-delay helper around confirmed Return; try Escape/Resume | Leaving screen retained during the bounded hold; after worker resumes, exact ACK and fresh hub in same game | Source 24a8bbe passed Escape during a 3.5-second hold; not every possible screen-unload path |
 | Natural results | Start a real native career fixture and let the game finish; start the transition observer before kickoff | Actual score persists once, pending clears, durable receipt is ACKed, actual EndGameMenuMovie and fresh results READY | e5dec4c saved actual 0–24; older results auto-travelled after about 60 seconds; mostly unattended score is not skill evidence |
-| Saved-results retention | On current candidate, remain on natural results for more than 60 seconds; also test Options/Back over that interval | Countdown actually refreshes, same saved score, results remain/reacquire fresh READY; no automatic map travel | Source implementation through 9d1d433; live UNVERIFIED |
+| Saved-results retention | On current candidate, remain on natural results for more than 60 seconds; also test Options/Back over that interval | Countdown actually refreshes, same saved score, results remain/reacquire fresh READY; no automatic map travel | d95f4cc passed plain results beyond 80 seconds; intermediate OptionsEndGameMenuMovie failed retention. Fix/retest required |
 | Saved-results Return | Click the actual results Return after the exact save acknowledgement | Fresh frontend READY + actual RootMenuMovie + visible authored hub; start another activity in same PID | Live UNVERIFIED; service Idle or leaving the match is not arrival |
-| Forfeit | Active career → pause → red Forfeit Match → Back first; reopen and explicitly confirm | Cancel preserves fixture; confirm saves labelled forfeited loss once, advances schedule, then exact ACK and fresh hub; restart preserves it | Source/contract checks through 9d1d433; live UNVERIFIED; never invent a score to exercise this |
+| Forfeit | Active career → pause → red Forfeit Match → Back first; reopen and explicitly confirm | Cancel preserves fixture; confirm saves labelled forfeited loss once, advances schedule, then exact ACK and fresh hub; restart preserves it | d95f4cc source passed cancel, confirm, saved observed 0–1 loss, Schedule and next native fixture in same game. Restart/frozen checks remain open |
 | Normal Steam | Close owned game/helpers normally, settle recovery journals, verify restoration, launch normal Steam route | No offline arguments, visible original root; close normally | Visually verified separately on 25 October; online play / anti-cheat certification remain unverified |
 
 ## Observe before intervening
@@ -29,7 +29,14 @@ it does not claim a failed capture succeeded. `observe-live.py` is a shorter
 read-only snapshot/wait helper. Inspect their current CLI help before use. Keep
 long observers asynchronous so the operator can react when results arrive and
 keep the user informed. An observer log alone is not a user notification; active
-notification integration is still planned.
+notification integration is separate. The private `wait-live-milestone.py` now
+checks explicit candidate/activity/fixture and fresh matching snapshots, emits
+one compact semantic signal, and bounds each wait to 55 seconds. Main can forward
+actionable events while continuing independent work. It has observed Playing,
+returned hub and natural results on d95f4cc; it does not replace foreground
+screenshots or independent disk-save verification. Treat its normal timeout as
+pending, not success. Propagate the Python exit code explicitly in PowerShell,
+or parse the emitted event; a shell's generic nonzero result is not the event.
 
 Use `owned-game.ps1` only with the current ownership record and a fresh visible
 screen. Use the existing `check-delayed-cleanup.py` only for its disposable
@@ -52,3 +59,7 @@ game, an unrelated worker, or a career fixture to manufacture an outcome.
   D-pad/right stick and community plugin 707 still need their own real tests.
 - A private short-match mutator has only been researched. It is not an available
   tested shortcut and cannot replace normal frozen-release acceptance.
+- Results Game options first opened `OptionsEndGameMenuMovie` with Change Preset
+  and Settings on d95f4cc. Do not assume it directly opens `OptionsMenuMovie`.
+  This intermediate route exposed a retention failure; verify both submenu and
+  Settings/Back beyond the former expiry after the fix.

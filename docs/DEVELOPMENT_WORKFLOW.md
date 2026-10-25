@@ -7,6 +7,13 @@ and useful evidence. Current product/release truth remains in
 known failures and recovery. Install that folder in the local Codex skills
 directory; keep machine-specific helper locations in an uncommitted local map.
 
+The owner accepted this workflow. First priorities are state notifications,
+healthy-session reuse and focused checks. Keep useful work as the measure of
+model usage; quota exhaustion is a fallback trigger, not an objective. In the
+first resumed cycle, actual Forfeit and the next native fixture shared one game,
+and a private milestone notifier detected fresh results. The timer Options test
+then exposed a real unhandled screen; the release stayed on hold.
+
 ## Roles and work ownership
 
 | Role | Requested model / route | Concrete output and boundary |
@@ -66,7 +73,7 @@ not an automatic lock enforced by the helpers.
 | Improvement | Benefit | Status / next concrete step |
 | --- | --- | --- |
 | 1. Short real development fixtures | Reach save/results without waiting through every normal match | Research only: RLBot OneGoal exists. Verify a private source-only launch hook, retain real goals, copied saves and explicit evidence. Normal timed frozen acceptance remains required |
-| 2. Notify on state changes | Stop missing the short results window or waiting after work finished | Read-only transition observer exists; active notification integration is planned. It should notify on results, failure, timeout or actionable completion, not every frame |
+| 2. Notify on state changes | Stop missing the short results window or waiting after work finished | Private bounded milestone observer now emits one scoped signal; main forwards actionable events. Playing, returned-hub and natural-results signals observed on d95f4cc. 32 synthetic checks cover identity, freshness and transient file reads. This is a test helper, not a shipped player feature |
 | 3. Reuse a healthy game session | Avoid repeated startup, injection and focus setup | Source tests have started another activity in the same process. Group routes and use the skill; never reuse across loaded native-code changes |
 | 4. Tests selected by changed boundary | Catch errors early without rerunning unrelated suites | Focused suites already used; maintain a simple change-to-check mapping below. Full coherent source checks remain separate |
 | 5. Incremental builds with verified inputs | Avoid recompiling or repackaging unchanged components | Native build tooling is incremental; measure actual cache hits. Broader artifact reuse is planned and must preserve input hashes/provenance, never relabel binaries |

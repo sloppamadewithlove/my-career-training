@@ -3,6 +3,18 @@
 Updated 25 October 2026. Start here; older research and validation notes describe
 individual checkpoints, not the current player's complete experience.
 
+## Resume here
+
+Latest live source candidate: `d95f4cc`. Native Forfeit cancel/confirm, durable
+loss, visible hub arrival, schedule advance and next native Play passed. A real
+1–19 result saved once; plain results retention passed beyond 80 seconds.
+The stock `OptionsEndGameMenuMovie` submenu then lost retention and travelled
+to team selection. Fix its exact stack classification, retest submenu and
+Settings/Back, then use the actual saved-results Return button. That button,
+restart persistence and exact frozen gameplay acceptance remain open. The d95
+installer inventory passed but the artifact is held. Physical DS4 testing is
+deferred at the owner's request. Details and historical evidence follow.
+
 ## Download and source
 
 The published `native-candidate-2026-10-24` ZIP from `2fed6cd` failed player
@@ -133,11 +145,36 @@ archive has been inventoried, but physical-controller behavior, matching source
 and redistribution permission are not established. No new community DLL has
 been loaded or bundled.
 
+Source `d95f4cc` passed actual red Forfeit confirmation/cancellation, saved the
+observed 0–1 human loss once as a forfeit, advanced the schedule and reached the
+visible authored hub with a fresh frontend READY in the same game process.
+The next fixture started through native Play in that process. Pause, Options,
+Back and Resume worked. That real fixture saved its actual 1–19 human result
+once, cleared pending and acknowledged its durable receipt. These test scores
+are not player-skill assessments. Forfeit persistence after app restart remains
+to be checked on the next candidate.
+
+The natural results screen stayed open beyond 80 seconds with observed countdown
+refreshes. The longer results Options check then found an unhandled intermediate
+stock screen: `OptionsEndGameMenuMovie` (Change Preset / Settings). The timer
+guard recognized only `OptionsMenuMovie`, so it revoked retention and the game
+travelled to `TeamSelectMenuMovie` after the remaining countdown. Saved data was
+preserved. The actual saved-results Return button remains unverified. A narrowly
+scoped classification fix and a repeated live Options/Return check are required.
+
+The exact `d95f4cc` Windows pipeline passed. Independent Luna verification matched
+all 4,470 bundle files, nine source archives and the 178,249,099-byte Setup against
+same-run inventories and hashes. That downloaded Setup has not been executed
+or published; the observed Options failure supersedes it for frozen acceptance.
+Physical USB DualShock 4 testing is deferred because the owner is unavailable;
+do not replace that evidence with software key events.
+
 The reusable [game-state skill](../skills/my-career-training-testing/SKILL.md)
 and [development workflow](DEVELOPMENT_WORKFLOW.md) now preserve tested routes,
 one input owner, explicit model/fallback choices and eight tracked speed
-improvements. Their documentation does not imply that proposed short fixtures,
-active state notifications or automatic input ownership are implemented.
+improvements. A private bounded milestone notifier is now implemented and has
+observed actual results. Proposed short fixtures and automatic input ownership
+remain unimplemented; no measured speedup is claimed.
 
 ## Verified observations
 
