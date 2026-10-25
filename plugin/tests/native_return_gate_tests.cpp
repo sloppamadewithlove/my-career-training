@@ -45,6 +45,11 @@ int main(int argc, char** argv) {
             return 0;
         }
         auto c = context(); auto state = readyState();
+        require(!NativeReturnGate::permitsAction("play_match") && !NativeReturnGate::permitsAction("start_lesson") &&
+            !NativeReturnGate::permitsAction("retry_lesson") && !NativeReturnGate::permitsAction("return_hub"),
+            "Pending Return permitted a new activity or repeated cleanup");
+        require(NativeReturnGate::permitsAction("retry_result_save") && NativeReturnGate::permitsAction("quit_game"),
+            "Pending Return prevented save recovery or safe exit");
         NativeReturnGate none;
         require(!none.poll(c, state), "Service receipt granted navigation without accepted native return");
         auto emptyString = state; emptyString["session"]["id"] = "";
@@ -158,6 +163,8 @@ int main(int argc, char** argv) {
             case 6: unsafe.nonce = "new-native-nonce"; break;
             }
             auto refused = armed();
+            require(refused.poll(c, state), "Unsafe-context fixture did not first authorize");
+            require(!refused.markConsumed(unsafe, state, "pause", "3"), "Unsafe context consumed published authority");
             require(!refused.poll(unsafe, state) && !refused.pending(), "Scope loss retained return authority");
             require(!refused.poll(c, state), "Old receipt regained cleared authority");
         }

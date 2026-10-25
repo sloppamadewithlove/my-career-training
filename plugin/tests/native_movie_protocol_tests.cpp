@@ -108,7 +108,10 @@ static void returnNavigationContract() {
     require(!frontend.contains("navigation"), "Frontend received match-exit authority");
     Json strongReady = {{"protocol", 1}, {"event", "ready"}, {"session", live.nonce},
         {"surface", "frontend"}, {"generation", frontend.at("generation")}};
-    require(host.readyMessage(strongReady.dump(), live), "Current generation frontend READY refused");
+    require(host.readyMessage(strongReady.dump(), live, true), "Current generation frontend READY refused");
+    const Json legacyReady = {{"protocol", 1}, {"event", "ready"}, {"session", live.nonce}};
+    require(host.readyMessage(legacyReady.dump(), live), "Ordinary frontend compatibility hello regressed");
+    require(!host.readyMessage(legacyReady.dump(), live, true), "Legacy READY qualified as fresh Return arrival");
     strongReady["generation"] = offered.at("generation");
     require(!host.readyMessage(strongReady.dump(), live), "Old generation acknowledged new frontend");
 }

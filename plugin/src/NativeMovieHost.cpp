@@ -551,7 +551,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
             }
-            suspend(why, stringValue(bridgeState, "bridge_session"));
+            suspend(why, sessionId);
             return;
         }
         const char* hashWhy = "executable_hash_mismatch";
@@ -589,7 +589,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
             }
-            suspend(why, stringValue(bridgeState, "bridge_session"));
+            suspend(why, sessionId);
             return;
         }
         // Persistence and worker shutdown finish asynchronously. This survives
@@ -733,12 +733,7 @@ void NativeMovieHost::State::tick() {
             else if (viewPublished && reason == "awaiting_view")
                 reason = movieReady ? "handshake_seen" : "awaiting_handshake";
         }
-    } catch (...) {
-        std::lock_guard<std::mutex> guard(mutex);
-        scopeLive = false;
-        movieReady = false;
-        reason = "tick_failed";
-    }
+    } catch (...) { suspend("tick_failed", sessionId); }
 }
 
 NativeWorkshopContext NativeMovieHost::State::workshopNow() const {
