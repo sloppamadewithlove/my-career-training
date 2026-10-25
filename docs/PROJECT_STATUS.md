@@ -16,6 +16,14 @@ GitHub is canonical. The repair branch is `fix/windows-startup-and-download`;
 The main, pause and results integration is merged into that branch at `7e3338d`.
 Repair commits and CI artifacts are not published player releases.
 
+The user paused for a new session. Read the
+[complete session handoff](SESSION_HANDOFF_2026-10-24.md) before continuing.
+The completed native overlay/input-ownership fix is integrated at `3cdaad0`;
+the actual Return destination is still unfinished. Partial navigation work is
+preserved separately on `fix/native-return-shell-ready` at `dd1c176`, with an
+explicit WIP warning at `5c643f1`. That branch is not buildable or mergeable yet.
+No replacement player release has been published.
+
 ## Verified observations
 
 - The startup crash came from querying the original menu's file size while
