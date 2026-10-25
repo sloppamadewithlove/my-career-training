@@ -314,7 +314,24 @@ class Backend(QObject):
         self.stateChanged.emit()
 
     def _action(self, action, p):
-        if action == "return_hub":
+        if action == "retry_result_save":
+            fixture_id = (self.request or {}).get("fixture", {}).get("id")
+            if (set(p) != {"expected_session_id", "expected_fixture_id"}
+                    or not self.session_id or not fixture_id
+                    or p["expected_session_id"] != self.session_id
+                    or p["expected_fixture_id"] != fixture_id):
+                raise ValueError("The match changed. Open its results menu again before retrying the save.")
+            canonical = str(uuid.UUID(self.session_id))
+            path = self.store.directory / "outbox" / f"{canonical}.json"
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+                raise ValueError("The final score is not ready to save. Wait for the match to finish.")
+            event = json.loads(path.read_text())
+            if (not isinstance(event, dict) or event.get("type") != "result"
+                    or event.get("session_id") != self.session_id
+                    or event.get("fixture_id") != fixture_id or event.get("calibration")):
+                raise ValueError("The saved score does not belong to this match.")
+            self._event(event)
+        elif action == "return_hub":
             if "expected_session_id" in p or "expected_fixture_id" in p:
                 if (set(p) != {"expected_session_id", "expected_fixture_id", "abandon"}
                         or type(p["abandon"]) is not bool
@@ -796,6 +813,13 @@ class Backend(QObject):
                     continue
                 self._commit_result(event)
                 self.notice = "Recovered a completed match from the game worker's durable result receipt."
+                if (self.session_id and event.get("session_id") == self.session_id
+                        and event.get("fixture_id") == (self.request or {}).get("fixture", {}).get("id")
+                        and not self.stop_reason):
+                    self.session_state = "Career Ready"
+                    self.session_message = "Match complete. Your result is saved. Continue when you are ready."
+                    self.error = ""
+                    self.page = "hub"
             except Exception as exc:
                 self.error = "A saved result receipt needs recovery: " + str(exc)
 

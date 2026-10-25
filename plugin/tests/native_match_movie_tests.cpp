@@ -55,6 +55,18 @@ int main() {
         require(control(unsaved, "results.return")["enabled"] == false, "Unsaved result allowed return");
         require(!host.select(command(unsaved, "results.return"), scope, state, true).accepted,
             "Disabled return dispatched");
+        state["error"] = "Save unavailable";
+        auto failedSave = host.publish(scope, state, 102);
+        require(control(failedSave, "results.retry_save")["enabled"] == true,
+            "Save failure did not offer retry");
+        auto changedResult = state; changedResult["session"]["id"] = "new-activity";
+        require(!host.select(command(failedSave, "results.retry_save"), scope, changedResult, true).accepted,
+            "Old results retried a new match");
+        result = host.select(command(failedSave, "results.retry_save"), scope, state, true);
+        require(result.accepted && result.action == "retry_result_save" &&
+            result.payload["expected_session_id"] == "activity-1" &&
+            result.payload["expected_fixture_id"] == "career-1:s1:league:1:0", "Save retry lost match identity");
+        state["error"] = "";
         state["session"]["state"] = "Career Ready";
         state["career"]["pending_session"] = nullptr;
         state["latest_result"] = {{"session_id", "activity-1"}, {"fixture_id", "other-fixture"}};

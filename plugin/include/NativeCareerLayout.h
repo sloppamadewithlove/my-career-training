@@ -205,7 +205,7 @@ public:
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
             action == "training_settings" || action == "quit_game" || action == "abandon_fixture" ||
-            action == "retry_lesson" || action == "return_hub";
+            action == "retry_lesson" || action == "return_hub" || action == "retry_result_save";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.

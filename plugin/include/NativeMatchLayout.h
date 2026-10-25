@@ -30,12 +30,11 @@ public:
         const auto binding = returnBinding(state);
         const bool canReturn = !busy && !stringValue(session, "id").empty();
         out.title = scope.surface == NativeMenuSurface::Results ? "Match complete" : "My Career paused";
-        out.body = stringValue(state, "error");
-        out.body = bounded(out.body, 320);
-        if (!out.body.empty()) out.body = "Could not finish: " + out.body + "\n\n";
+        const auto error = bounded(stringValue(state, "error"), 320);
         if (confirming_ && binding == confirmation_) {
             out.title = "Leave this unfinished match?";
             out.body += "This match will restart from kickoff. No score or rewards will be added. Your completed progress stays saved.";
+            if (!error.empty()) out.body += "\n\nCould not finish: " + error;
             add(out, "match.confirm_return", "Leave match", canReturn, CareerLayoutEffectKind::Dispatch,
                 "return_hub", binding);
             add(out, "match.cancel_return", "Back", true, CareerLayoutEffectKind::Navigate);
@@ -66,10 +65,18 @@ public:
                 "Saving the match result. Please wait before returning to My Career.";
             add(out, "results.return", "Return to My Career", canReturn && saved,
                 CareerLayoutEffectKind::Dispatch, "return_hub", binding);
+            if (!saved && !stringValue(state, "error").empty() && kind == "career") {
+                out.body += "\nChoose Retry saving after fixing the save problem. Your score receipt stays available.";
+                add(out, "results.retry_save", "Retry saving", canReturn,
+                    CareerLayoutEffectKind::Dispatch, "retry_result_save",
+                    {{"expected_session_id", stringValue(session, "id")},
+                     {"expected_fixture_id", stringValue(session, "fixture_id")}});
+            }
             add(out, "results.options", "Game options", true, CareerLayoutEffectKind::PreserveStockRoute,
                 "", Json::object(), StockRoute::Options);
         }
         if (busy) out.body += "\n" + bounded(stringValue(session, "message"), 240);
+        if (!error.empty()) out.body += "\n\nCould not finish: " + error;
         return out;
     }
 

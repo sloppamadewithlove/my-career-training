@@ -306,6 +306,72 @@ def test_native_lesson_retry_requires_current_worker_and_activity(in_game_backen
     assert not instance.error and json.loads(processes[-1].writes[-1])["type"] == "retry"
 
 
+def test_native_results_retry_saves_once_without_restarting_live_worker(in_game_backend, monkeypatch):
+    instance, identity, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Retry Score", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    sid, fid = instance.session_id, instance.request["fixture"]["id"]
+    result = {"type": "result", "session_id": sid, "fixture_id": fid,
+              "home_score": 2, "away_score": 1, "provenance": "game"}
+    receipt = game_worker.persist_result(instance.store.directory, result)
+    save = instance.store.save
+    monkeypatch.setattr(instance.store, "save", lambda _doc: (_ for _ in ()).throw(OSError("disk unavailable")))
+    with pytest.raises(OSError):
+        instance._event(result)
+    payload = {"expected_session_id": sid, "expected_fixture_id": fid}
+    instance.dispatch("retry_result_save", payload)
+    assert "disk unavailable" in instance.error and receipt.exists()
+    assert instance.document["career"]["pending_session"]["session_id"] == sid
+    monkeypatch.setattr(instance.store, "save", save)
+    instance.dispatch("retry_result_save", payload)
+    assert not instance.error and not receipt.exists()
+    assert instance.session_state == "Career Ready"
+    assert instance.latest_result["session_id"] == sid
+    assert instance.document["career"]["pending_session"] is None
+    assert instance.owned_game == identity and instance._worker_active()
+    assert len(processes) == 1 and not processes[-1].writes
+    before = json.dumps(instance.document, sort_keys=True)
+    instance.dispatch("retry_result_save", payload)
+    assert "not ready" in instance.error
+    assert json.dumps(instance.document, sort_keys=True) == before
+
+
+@pytest.mark.parametrize("changed", ["expected_session_id", "expected_fixture_id", "extra"])
+def test_native_results_retry_rejects_changed_identity(in_game_backend, changed):
+    instance, _, _, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Bound Score", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    sid, fid = instance.session_id, instance.request["fixture"]["id"]
+    receipt = game_worker.persist_result(instance.store.directory, {
+        "type": "result", "session_id": sid, "fixture_id": fid,
+        "home_score": 2, "away_score": 1, "provenance": "game"})
+    payload = {"expected_session_id": sid, "expected_fixture_id": fid}
+    payload[changed] = "changed"
+    before = json.dumps(instance.document, sort_keys=True)
+    instance.dispatch("retry_result_save", payload)
+    assert "match changed" in instance.error and receipt.exists()
+    assert json.dumps(instance.document, sort_keys=True) == before
+
+
+def test_worker_exit_receipt_recovery_unlocks_current_results(in_game_backend):
+    instance, _, processes, _ = in_game_backend
+    instance.dispatch("new_career", {"team_name": "Recovered Score", "format": 1})
+    instance.dispatch("play_match", {})
+    instance.session_state = "Playing"
+    sid, fid = instance.session_id, instance.request["fixture"]["id"]
+    receipt = game_worker.persist_result(instance.store.directory, {
+        "type": "result", "session_id": sid, "fixture_id": fid,
+        "home_score": 2, "away_score": 1, "provenance": "game"})
+    processes[-1].current_state = FakeWorkerProcess.NotRunning
+    instance._process_finished(1, None)
+    assert not receipt.exists() and not instance.error
+    assert instance.session_state == "Career Ready"
+    assert instance.latest_result["session_id"] == sid
+    assert instance.document["career"]["pending_session"] is None
+
+
 @pytest.mark.parametrize("phase", ["Waiting for Worker", "Waiting for Game Exit"])
 def test_abandonment_commit_failure_stays_recoverable(in_game_backend, monkeypatch, phase):
     instance, _, processes, _ = in_game_backend
