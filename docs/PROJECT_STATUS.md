@@ -13,8 +13,8 @@ worker. Its exact frozen build must pass live acceptance before publication.
 
 GitHub is canonical. The repair branch is `fix/windows-startup-and-download`;
 [PR #7](https://github.com/sloppamadewithlove/my-career-training/pull/7) tracks it.
-Match-menu integration is being assembled separately before merging into that
-branch. Local integration commits are not published player releases.
+The main, pause and results integration is merged into that branch at `7e3338d`.
+Repair commits and CI artifacts are not published player releases.
 
 ## Verified observations
 
@@ -41,6 +41,20 @@ branch. Local integration commits are not published player releases.
   passed its installer pipeline. Install/reinstall/uninstall checks use a
   disposable Windows runner and preserve its test career. That artifact
   predates the connection and pause/results repairs.
+- Integrated source `7e3338d` again reached the seven-route native frontend in
+  a Unicode test profile. Native recovery and Career Rules worked; a native
+  Play Next Match click reached the worker's bot-loading stage. It then hung
+  importing NumPy, before loading the Necto model. A read-only stack sample
+  showed the session thread inside NumPy extension initialization while the
+  command thread blocked on stdin. This matches the trigger described in
+  [NumPy issue 24290](https://github.com/numpy/numpy/issues/24290); the startup
+  ordering fix still needs controlled and live verification. The earlier
+  standalone model benchmark did not reproduce the pipe-backed worker setup.
+- Both [native installer checks](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40148712013)
+  and [general Windows checks](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40148714700)
+  passed for `7e3338d`. The integration tree also passed 952 Python tests
+  (15 skipped), 27 plugin tests and 13 native launcher/file-view tests.
+  These passes do not resolve the live worker hang or certify match navigation.
 
 ## Current integration
 
