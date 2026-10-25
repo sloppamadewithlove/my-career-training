@@ -137,6 +137,9 @@ struct NativeMovieHost::State {
     NativeMovieProtocol protocol;
     NativeMovieSession session;
     NativeReturnGate returnGate;
+    Json matchTimerObservation = nullptr;
+    double matchTimerObservedAt = 0;
+    double verifiedBuildObservedAt = 0;
     std::string frontendHello;
     std::string menuTop;
     std::string publishedNonce;
@@ -552,6 +555,9 @@ bool NativeMovieHost::State::drain(const CareerLayoutScope& scope, double monoto
 void NativeMovieHost::State::tick() {
     {
         std::lock_guard<std::mutex> guard(mutex);
+        matchTimerObservation = nullptr;
+        matchTimerObservedAt = 0;
+        verifiedBuildObservedAt = 0;
         if (stopped || buildRefused) return;
     }
     std::string sessionId;
@@ -603,6 +609,25 @@ void NativeMovieHost::State::tick() {
             }
             suspend(why, sessionId);
             return;
+        }
+        // Read-only diagnostic snapshot, taken only on the game thread after
+        // ownership, offline scope, executable hash and SDK build are verified.
+        // A missing menu does not make a valid owned match unavailable.
+        Json timerObservation = nullptr;
+        if (game->IsInGame()) {
+            auto server = game->GetGameEventAsServer();
+            if (server) {
+                timerObservation = {{"is_finished", server.IsFinished()},
+                    {"game_state_time_remaining", server.GetGameStateTimeRemaining()},
+                    {"replicated_game_state_time_remaining", server.GetReplicatedGameStateTimeRemaining()},
+                    {"match_ended", server.GetbMatchEnded() != 0}};
+            }
+        }
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            verifiedBuildObservedAt = monotonicSeconds();
+            matchTimerObservation = std::move(timerObservation);
+            if (!matchTimerObservation.is_null()) matchTimerObservedAt = verifiedBuildObservedAt;
         }
         // Persistence and worker shutdown finish asynchronously. This survives
         // Resume/unloading the pause movie and runs on this same game thread.
@@ -728,7 +753,15 @@ void NativeMovieHost::State::tick() {
             else if (viewPublished && reason == "awaiting_view")
                 reason = movieReady ? "handshake_seen" : "awaiting_handshake";
         }
-    } catch (...) { suspend("tick_failed", sessionId); }
+    } catch (...) {
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            matchTimerObservation = nullptr;
+            matchTimerObservedAt = 0;
+            verifiedBuildObservedAt = 0;
+        }
+        suspend("tick_failed", sessionId);
+    }
 }
 
 NativeWorkshopContext NativeMovieHost::State::workshopNow() const {
@@ -743,6 +776,9 @@ void NativeMovieHost::State::stop() {
         std::lock_guard<std::mutex> guard(mutex);
         if (stopped) return;
         stopped = true;
+        matchTimerObservation = nullptr;
+        matchTimerObservedAt = 0;
+        verifiedBuildObservedAt = 0;
         returnGate.clear();
         scopeLive = false;
         movieReady = false;
@@ -843,7 +879,7 @@ Json NativeMovieHost::status() const {
     Json result = {{"trial_enabled", MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0}, {"view_published", false},
         {"movie_callback_seen", false}, {"commands_accepted", 0}, {"commands_rejected", 0},
         {"parameter_abi_verified", false}, {"runtime_verified", false}, {"production_ready", false},
-        {"movie_ready", false},
+        {"movie_ready", false}, {"match_timer", nullptr},
         {"reason", MCT_ENABLE_NATIVE_MOVIE_TRIAL ? "waiting_for_session" : "trial_compiled_out"}};
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     if (state_) {
@@ -866,14 +902,20 @@ Json NativeMovieHost::status() const {
             state_->surface == NativeMenuSurface::None;
         result["menu_top"] = state_->menuTop;
         result["movie_ready"] = state_->scopeLive && !state_->stopped && state_->session.ready(monotonicSeconds());
-    }
-    std::string executableSha;
-    std::string bakkesCore;
-    std::string gameBuild;
-    if (verifiedBuild(executableSha, bakkesCore, gameBuild)) {
-        result["executable_sha256"] = executableSha;
-        result["bakkes_core"] = bakkesCore;
-        result["game_build"] = gameBuild;
+        // Background status readers use cached game-thread observations only.
+        // Expire them if ticking stalls; false/zero would imply an observation.
+        const auto now = monotonicSeconds();
+        const auto timerAge = now - state_->matchTimerObservedAt;
+        if (!state_->stopped && !state_->matchTimerObservation.is_null() && timerAge >= 0 && timerAge <= 1) {
+            result["match_timer"] = state_->matchTimerObservation;
+            result["match_timer"]["age_ms"] = static_cast<int>(timerAge * 1000);
+        }
+        const auto buildAge = now - state_->verifiedBuildObservedAt;
+        if (!state_->stopped && state_->verifiedBuildObservedAt > 0 && buildAge >= 0 && buildAge <= 1) {
+            result["executable_sha256"] = kExecutableSha256;
+            result["bakkes_core"] = std::to_string(kBakkesVersion);
+            result["game_build"] = kBuildId;
+        }
     }
 #endif
     result["runtime_verified"] = false;
