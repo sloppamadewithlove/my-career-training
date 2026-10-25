@@ -67,19 +67,32 @@ Back and Resume worked. Its delayed-cleanup test still let Escape unload the
 pause screen, bypassing the child-menu guard. Manual Escape recovery again
 reached fresh READY and `RootMenuMovie`. A follow-up now guards the typed
 document-screen close path and records fixed removal diagnostics. Direct
-screen-manager/native removal may bypass that method too; this boundary remains
-unverified until the next controlled live test. The superseded installers remain
-on hold.
+screen-manager/native removal may bypass that method too. Source `24a8bbe`
+passed the next controlled test: the owned training worker was temporarily held,
+Escape left the committed pause screen present, and resuming the worker completed
+the exact acknowledgement and typed Return. A visible native hub, fresh frontend
+READY and `RootMenuMovie` arrived in the same game process. This verifies the
+observed delayed Escape path, not every possible native removal path. Its coherent
+40-test native build and installer pipeline passed; the installer remains
+unpublished and has not received live frozen acceptance.
 
 Another real fixture on `374c85d`, started through native Play after practice,
 saved its actual 0–32 score once, cleared its pending fixture, and acknowledged
 the durable receipt. This mostly unattended score is not a skill assessment.
 The later visual inspection found `TeamSelectMenuMovie`, not the authored
-results screen. The intervening transition was not recorded; saved-results
-Return therefore remains unverified. The next test must observe the complete
-end-of-match screen transition. Normal game closure restored the temporary
+results screen. Later private-log review found results READY heartbeats followed
+by the game's Finished-state timer expiry and automatic map travel about 68
+seconds after EndGame. No results Return was observed. Saved-results Return
+therefore remains unverified. The next test must observe the complete end-of-match
+screen transition and the actual finished-state timers. Normal game closure restored the temporary
 plugin/configuration files and preserved the original My Career files; ordinary
 Rocket League save data changed and was not overwritten with the snapshot.
+
+The next candidate adds read-only finished-state timer diagnostics. Sampling runs
+on the game thread after owned offline scope and build verification, and status
+readers receive a cache that expires after one second. Independent Luna review
+found no issues; these diagnostics do not change match timing or scores and
+still require coherent compilation and live observation.
 
 The current training input display uses logical game actions and configured
 button labels; its right stick and D-pad are placeholders. A USB DualShock 4
