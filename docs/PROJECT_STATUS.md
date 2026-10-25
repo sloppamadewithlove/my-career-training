@@ -1,6 +1,6 @@
 # Current project status
 
-Updated 24 October 2026. Start here; older research and validation notes describe
+Updated 25 October 2026. Start here; older research and validation notes describe
 individual checkpoints, not the current player's complete experience.
 
 ## Download and source
@@ -16,13 +16,25 @@ GitHub is canonical. The repair branch is `fix/windows-startup-and-download`;
 The main, pause and results integration is merged into that branch at `7e3338d`.
 Repair commits and CI artifacts are not published player releases.
 
-The user paused for a new session. Read the
-[complete session handoff](SESSION_HANDOFF_2026-10-24.md) before continuing.
+Work resumed from the
+[complete session handoff](SESSION_HANDOFF_2026-10-24.md).
 The completed native overlay/input-ownership fix is integrated at `3cdaad0`;
-the actual Return destination is still unfinished. Partial navigation work is
-preserved separately on `fix/native-return-shell-ready` at `dd1c176`, with an
-explicit WIP warning at `5c643f1`. That branch is not buildable or mergeable yet.
-No replacement player release has been published.
+the actual Return destination still needs live acceptance. The historical partial
+navigation snapshot was `dd1c176`, with an explicit WIP warning at `5c643f1`.
+The resumed host implementation and all three rebuilt authored movies are now
+integrated into the repair branch for full compilation and testing.
+No replacement player release has been published. The resumed repair requires
+a two-phase native consumption acknowledgement before typed shell navigation,
+followed by current-generation frontend READY and actual `RootMenuMovie`
+arrival. See the updated integration contract and acceptance checklist.
+
+The host's four focused Return/protocol/match/session tests passed. Authored
+movie composition, asset and candidate checks passed 109 tests with one skipped.
+The first combined native build passed 27 plugin tests and 13 launcher/file-view
+tests. A follow-up retires stale exit grants and adds negative regressions;
+its four focused tests also passed. These are source/build checks only. The final
+candidate, independent review and source/frozen gameplay sequence remain release
+requirements.
 
 ## Verified observations
 
@@ -111,6 +123,12 @@ smoke inventory and verified nine corresponding source archives. Its Setup is
 `bf8c047f2bc6d15144cd83fe101ff613cfff3c62d61329e6076d64a328844bf4`.
 It has not passed frozen game acceptance and contains the observed Return bug;
 it is not a replacement player release.
+
+The later [`2a3f960` Windows run](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40155909420)
+has now completed successfully, including the installer job. Its evidence,
+frozen bundle and installer/source artifacts were listed on resume; they were
+not downloaded or used for a new gameplay test. CI success does not remove the
+Return defect or the publication hold.
 
 ## Current integration
 

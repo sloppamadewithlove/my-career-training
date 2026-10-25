@@ -47,7 +47,37 @@ while the player is unavailable and has asked for source-only work.
    training pack, and fetching a new pack may need normal account services.
    Unknown/refused trials require closing this session before another activity.
 
-## After the session
+## Return repair acceptance
+
+For the Return repair, first test one coherent source candidate, then the exact
+same-run inventoried frozen installer input. Record these as separate results.
+Keep the previous installer on hold even if its CI pipeline passed.
+
+1. Start an activity with the actual native Play button. Record the owned game
+   PID and creation time, source revision, and matching runtime hashes.
+2. Exercise a lesson, Retry, Escape, Game options/Back and Resume. Confirm that
+   an unfinished career fixture requires Return confirmation and that Cancel
+   leaves that fixture active.
+3. Return from a lesson and from an explicitly abandoned unfinished fixture.
+   Observe the durable service acknowledgement, navigation attempt, and actual
+   arrival separately. Require a fresh frontend READY, `RootMenuMovie`, and a
+   foreground screenshot of the authored hub. A screenshot requires a fresh
+   identity and foreground check; a blocked input is not a successful test.
+4. Exercise Resume while cleanup is delayed. Confirm intent survives the pause
+   movie unloading. If `OnOpenPauseMenu` is attempted, record its single attempt
+   and whether an actual pause movie plus READY appeared. Do not infer success
+   from that SDK method's name or void return.
+5. Complete a real career fixture. Verify its actual score saves exactly once,
+   its pending fixture clears, and its durable receipt is acknowledged. Use the
+   actual results Return button and repeat the hub arrival checks.
+6. Start another activity without another game process. Restart the app using
+   the copied saved career and verify the completed result persists. Repeat the
+   real fixture/save/Return/restart cycle with the exact frozen build.
+7. Check mouse, keyboard and a real controller separately. Software key events
+   are not physical-controller evidence. Verify the offline menus have no
+   actionable matchmaking, tournaments or store routes.
+
+## Restoration and normal launch
 
 - Wait for the owned game and helper to exit. Complete community and base-plugin
   recovery before starting the normal launcher. Preserve conflicting files and
