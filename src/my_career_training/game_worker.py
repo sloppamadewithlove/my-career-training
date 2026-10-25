@@ -380,6 +380,7 @@ class GameSession:
         self.core = subprocess.Popen([str(executable), str(port)], cwd=runtime, shell=False,
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        self.event("session", state="starting", message="Connecting to the offline bot service.")
         self.manager = MatchManager(executable)
         self.manager.rlbot_interface = isolated_relay(self.manager.rlbot_interface)
         master = self.manager.rlbot_interface
@@ -392,7 +393,9 @@ class GameSession:
         self.renderer = Renderer(master)
         self.renderer._used_group_ids = set()
         self.renderer._current_renders = []
+        self.event("session", state="starting", message="Asking Rocket League to open the offline match.")
         self.start_acknowledged_match(config)
+        self.event("session", state="starting", message="Loading the selected offline bots.")
         for index, descriptor in descriptors.items():
             self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"), descriptor.get("role", "all-rounder"),
                 descriptor["level"], descriptor["difficulty"], descriptor["seed"])
