@@ -27,6 +27,23 @@ consumption grant; a replacement movie must consume a new authorization.
 `return_navigation_issued` records an attempt, not arrival. Completion still
 requires the host to observe fresh frontend READY and the real `RootMenuMovie`.
 
+Return retention is explicit: every view carries Boolean `return_pending` and
+`return_hold`, and every control carries Boolean `return_commit`. Only an actual
+Return commit starts a local hold, limited to two seconds while waiting for the
+host. Fresh accepted `return_hold` then keeps Resume, Options, Escape and
+controller Back/Start from unloading the movie during cleanup. Stale data,
+host error, uncertain navigation or the host's bounded hold deadline releases
+normal recovery input; the pending intent remains owned by the host. The
+navigation-issued latch prevents another typed exit but does not disable the
+host's recovery Quit or ordinary Resume/Options after release.
+
+Rebuilt controls synchronize focus only for the validated front menu, retaining
+an enabled matching control and defaulting destructive confirmation to Back.
+During a committed hold, pending-only Quit receives no automatic focus. A fresh
+arrow or mouse selection can reach it deliberately. Cancel before commit keeps
+its normal behavior. These source safeguards still require live keyboard and
+controller verification of the exact rebuilt movies.
+
 The two surfaces validate `surface`, session, generation, revisions, and control
 types. READY includes the currently validated generation, and continues while
 stock Options owns focus. Title/body text explains confirmation, saving, and

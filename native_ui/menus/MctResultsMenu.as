@@ -16,10 +16,12 @@ package menus
     import projectx.core.UIMenu;
     import projectx.core.UIScreen;
     import scaleform.clik.constants.NavigationCode;
+    import scaleform.clik.constants.InputValue;
     import scaleform.gfx.TextFieldEx;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
     import scaleform.clik.events.InputEvent;
+    import scaleform.clik.managers.FocusHandler;
     import tagame.api.DevUtil;
     import tagame.api.Shell;
     import tagame.core.ITAGameShell;
@@ -53,6 +55,11 @@ package menus
         private var consumeSends:int = 0;
         private var lastConsume:int = 0;
         private var navigationIssued:Boolean = false;
+        private var returnRequestGeneration:String = "";
+        private var returnRequestStarted:int = 0;
+        private var returnRequestId:String = "";
+        private var returnRequestRevision:String = "";
+        private var suppressHoldFocus:Boolean = false;
 
         public function MctResultsMenu()
         {
@@ -84,6 +91,10 @@ package menus
         {
             attached = false;
             clearConsumption();
+            returnRequestGeneration = "";
+            suppressHoldFocus = false;
+            removeEventListener(Event.RENDER, validateFocus);
+            removeEventListener(Event.ENTER_FRAME, validateFocus);
             closeLoader();
             if (timer != null && !UIMenu.isMenuInStack(menuName)) timer.stop();
             super.handleRemovedFromStage(event);
@@ -93,6 +104,7 @@ package menus
         {
             super.refreshMenu();
             layoutDetails();
+            syncFocus();
         }
 
         override protected function handleStageResized(event:Event = null) : void
@@ -164,6 +176,7 @@ package menus
         override protected function generateControls() : void
         {
             var focusName:String = currentFocus != null ? currentFocus.name : "";
+            suppressHoldFocus = false;
             var made:UIComponent = null;
             if (!current())
             {
@@ -174,8 +187,8 @@ package menus
             {
                 if (!usable(item)) continue;
                 made = createControl({name:String(item.id), label:String(item.label), desc:String(item.reason),
-                    enabled:item.enabled === true && !navigationIssued &&
-                    (item.stock === "options" || (!busy && view.navigation == null))}, choose, [item]);
+                    enabled:item.enabled === true && !(navigationIssued && item.return_commit === true) &&
+                    (item.stock === "options" ? !returnLocked() : (!busy && !(returnLocked() && item.return_commit === true)))}, choose, [item]);
                 ownControl(made);
             }
             var fallback:UIComponent = null;
@@ -190,7 +203,8 @@ package menus
                 }
                 if (fallback == null) fallback = control;
             }
-            if (fallback != null) currentFocus = fallback;
+            if (returnLocked()) holdWithoutFocus();
+            else if (fallback != null) currentFocus = fallback;
         }
 
         override protected function getDirectionalFocus(direction:String) : InteractiveObject
@@ -214,8 +228,52 @@ package menus
         {
         }
 
+        override public function close(transition:Boolean = true) : void
+        {
+            // Keep the current movie available while an accepted Return drains.
+            // The fixed typed exit is allowed to perform its stock cleanup.
+            if (!navigationIssued && isFrontMenu() && returnLocked()) return;
+            super.close(transition);
+        }
+
         override protected function handleInput(event:InputEvent) : void
         {
+            if (suppressHoldFocus && returnLocked() && isFrontMenu() &&
+                event != null && event.details != null && event.details.value == InputValue.KEY_DOWN &&
+                (event.details.navEquivalent == NavigationCode.UP || event.details.navEquivalent == NavigationCode.DOWN))
+            {
+                // Quit remains reachable deliberately, but an Enter carried
+                // over from Leave match must not select it automatically.
+                for each (var recovery:UIComponent in m_controls)
+                {
+                    if (recovery == null || !recovery.enabled) continue;
+                    suppressHoldFocus = false;
+                    currentFocus = recovery;
+                    syncFocus();
+                    event.handled = true;
+                    event.preventDefault();
+                    return;
+                }
+            }
+            if (suppressHoldFocus && returnLocked() && isFrontMenu())
+            {
+                // No safe default control exists during cleanup. A carried
+                // Enter/A or held direction must not activate recovery Quit.
+                event.handled = true;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
+            if (isFrontMenu() && returnLocked() && event != null && event.details != null &&
+                (event.details.navEquivalent == NavigationCode.ESCAPE ||
+                 event.details.navEquivalent == NavigationCode.GAMEPAD_B ||
+                 event.details.navEquivalent == NavigationCode.GAMEPAD_START))
+            {
+                event.handled = true;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
             if (event != null && event.details != null && event.details.navEquivalent == NavigationCode.GAMEPAD_Y)
             {
                 event.handled = true;
@@ -230,20 +288,30 @@ package menus
 
         private function choose(item:Object) : void
         {
-            if (navigationIssued || !isFrontMenu() || !current() || item == null || item.enabled !== true) return;
+            if (!isFrontMenu() || !current() || item == null || item.enabled !== true) return;
             var present:Boolean = false;
             for each (var candidate:Object in view.controls)
                 if (candidate === item) present = true;
             if (!present || String(view.generation) != generation) return;
             if (item.stock === "options")
             {
+                if (returnLocked()) return;
                 openOptionsMenu();
                 return;
             }
             if (item.stock != null && item.stock !== "") return;
-            if (busy || view.navigation != null) return;
+            if (busy || (item.return_commit === true && (navigationIssued || returnLocked()))) return;
             busy = true;
             busyStarted = getTimer();
+            if (item.return_commit === true)
+            {
+                // Cover only the click-to-host-view gap. Rejection, lost input,
+                // or stale data must not trap the player in a local-only lock.
+                returnRequestGeneration = generation;
+                returnRequestStarted = busyStarted;
+                returnRequestId = String(item.id);
+                returnRequestRevision = String(item.revision);
+            }
             DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                 surface:SURFACE, generation:generation, revision:String(item.revision), control:String(item.id)}));
             refreshMenu();
@@ -281,6 +349,7 @@ package menus
                 var next:String = String(incoming.generation);
                 if (highestGeneration != "" && compareGeneration(next, highestGeneration) < 0) return;
                 highestGeneration = next;
+                updateReturnRequest(incoming, next);
                 if (getTimer() - lastHello >= 1000)
                 {
                     DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1,
@@ -313,6 +382,76 @@ package menus
                 processNavigation();
             }
             catch (error:Error) { loseConnection(); }
+        }
+
+        private function returnLocked() : Boolean
+        {
+            if (!current()) return false;
+            if (view.return_hold === true) return true;
+            return returnRequestGeneration != "" && getTimer() - returnRequestStarted < 2000;
+        }
+
+        private function updateReturnRequest(incoming:Object, next:String) : void
+        {
+            if (returnRequestGeneration == "") return;
+            if (incoming.return_pending === true || getTimer() - returnRequestStarted >= 2000)
+            {
+                // Accepted host hold takes over, or explicit host recovery
+                // releases it. Neither state relies on this provisional latch.
+                returnRequestGeneration = "";
+                return;
+            }
+            if (compareGeneration(next, returnRequestGeneration) <= 0) return;
+            for each (var item:Object in incoming.controls)
+            {
+                if (item.id === returnRequestId && item.revision === returnRequestRevision &&
+                    item.return_commit === true) return;
+            }
+            // A newer view replaced the clicked binding without accepting it.
+            // An unrelated body refresh with the same binding is not rejection.
+            returnRequestGeneration = "";
+        }
+
+        private function holdWithoutFocus() : void
+        {
+            suppressHoldFocus = true;
+            if (m_currentFocus != null)
+                m_currentFocus.removeEventListener(Event.TAB_ENABLED_CHANGE, invalidateFocus);
+            // The inherited setter deliberately ignores null.
+            m_currentFocus = null;
+        }
+
+        override protected function validateFocus(event:Event = null) : void
+        {
+            var control:UIComponent = currentFocus as UIComponent;
+            if (suppressHoldFocus && returnLocked() &&
+                (control == null || !control.enabled || control.stage == null || !contains(control)))
+            {
+                removeEventListener(Event.RENDER, validateFocus);
+                removeEventListener(Event.ENTER_FRAME, validateFocus);
+                if (isFrontMenu()) FocusHandler.getInstance().setFocus(this);
+                return;
+            }
+            suppressHoldFocus = false;
+            super.validateFocus(event);
+        }
+
+        private function syncFocus() : void
+        {
+            if (!isFrontMenu()) return;
+            if (suppressHoldFocus && returnLocked() && currentFocus == null)
+            {
+                FocusHandler.getInstance().setFocus(this);
+                return;
+            }
+            if (currentFocus == null) return;
+            var control:UIComponent = currentFocus as UIComponent;
+            if (control == null || !control.enabled) return;
+            control.validateNow();
+            if (control.stage == null || !control.tabEnabled) return;
+            // currentFocus alone defers to the stock interaction-mode check.
+            // Sync this rebuilt front menu so Enter works before an arrow key.
+            FocusHandler.getInstance().setFocus(control);
         }
 
         // A log callback has no return value. Consumption requests never exit;
@@ -423,6 +562,7 @@ package menus
             // until a fresh view arrives; unloading clears the grant separately.
             view = null;
             generation = "";
+            returnRequestGeneration = "";
             busy = false;
             if (isFrontMenu()) refreshMenu();
             else heldBack = true;
@@ -446,22 +586,26 @@ package menus
             if (incoming == null || incoming.active !== true || incoming.protocol !== 1 ||
                 incoming.surface !== SURFACE || incoming.session !== SESSION ||
                 !(incoming.generation is String) || !/^[1-9][0-9]{0,19}$/.test(String(incoming.generation)) ||
-                !(incoming.controls is Array) || incoming.controls.length > 24) return false;
+                !(incoming.controls is Array) || incoming.controls.length > 24 ||
+                !(incoming.return_pending is Boolean) || !(incoming.return_hold is Boolean) ||
+                (incoming.return_hold === true && incoming.return_pending !== true)) return false;
             var age:Number = new Date().time / 1000 - Number(incoming.published_at);
             if (!(isFinite(age) && age >= -1 && age <= 5)) return false;
             if (!(incoming.title is String) || incoming.title.length == 0 || incoming.title.length > 80) return false;
             if (!(incoming.body is String) || incoming.body.length == 0 || utf8Size(String(incoming.body)) > BODY_UTF8_MAX) return false;
             for each (var item:Object in incoming.controls)
                 if (!usable(item)) return false;
-            return validNavigation(incoming.navigation);
+            return validNavigation(incoming.navigation) &&
+                (incoming.navigation == null || incoming.return_pending === true);
         }
 
         private function usable(item:Object) : Boolean
         {
-            if (item == null || !(item.enabled is Boolean) || !(item.id is String) || item.id.length == 0 || item.id.length > 80 ||
+            if (item == null || !(item.return_commit is Boolean) || !(item.enabled is Boolean) || !(item.id is String) || item.id.length == 0 || item.id.length > 80 ||
                 !(item.label is String) || item.label.length == 0 || item.label.length > 80 ||
                 !(item.reason is String) || item.reason.length > 240 ||
                 !(item.revision is String) || !/^[0-9]{1,20}$/.test(String(item.revision))) return false;
+            if (item.return_commit === true && item.stock != null && item.stock !== "") return false;
             return item.stock == null || item.stock === "" || item.stock === "options";
         }
 
