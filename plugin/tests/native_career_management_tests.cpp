@@ -500,6 +500,74 @@ void testSeason() {
     require(findId(held, "season.next.human")->reason == mct::NativeCareerManagement::kPending, "pending season reason");
 }
 
+void testForfeitHistory() {
+    const std::string loss = u8"FORFEIT \u2014 LOSS";
+    auto career = careerWith(3, lineupFor(3));
+    career["seasons"] = mct::Json::array({emptySeason()});
+    career["current_season"] = 0;
+    for (int scenario = 0; scenario < 3; ++scenario) {
+        auto fixture = playedFixture("forfeit-1", 1, scenario == 0 ? 0 : 7, scenario == 0 ? 0 : 2);
+        if (scenario == 2) {
+            fixture["home"] = "aurora"; fixture["away"] = "human";
+            fixture["result"]["home_score"] = 2; fixture["result"]["away_score"] = 7;
+        }
+        fixture["result"]["provenance"] = "forfeit";
+        fixture["result"]["outcome"] = "forfeited";
+        fixture["result"]["forfeited_by"] = "human";
+        fixture["result"]["simulated"] = false;
+        fixture["result"]["winner"] = "aurora";
+        career["seasons"][0]["fixtures"] = mct::Json::array({fixture});
+        const auto state = stateWith(career);
+        const auto season = mct::NativeCareerManagement::season(state);
+        const auto summary = mct::NativeCareerManagement::careerSummary(state);
+        const auto recent = mct::NativeCareerManagement::recentHumanResults(state);
+        const auto score = scenario == 0 ? "My Career Club 0, Aurora Athletic 0" : scenario == 1 ?
+            "My Career Club 7, Aurora Athletic 2" : "Aurora Athletic 2, My Career Club 7";
+        require(season.body.find(loss + "; score at forfeit: " + score) != std::string::npos,
+            "Forfeit history hid or mislabelled tied/leading/away observed score");
+        require(summary.find("Last result: " + loss + "; score at forfeit: " + score) != std::string::npos,
+            "Last result did not identify forfeited loss independently of the score");
+        require(recent.find(loss + "; score at forfeit: " + score) != std::string::npos,
+            "Recent human results did not identify forfeited loss");
+        for (int malformed = 0; malformed < 7; ++malformed) {
+            auto bad = fixture;
+            if (malformed == 0) bad["result"].erase("outcome");
+            if (malformed == 1) bad["result"]["provenance"] = "game";
+            if (malformed == 2) bad["result"]["forfeited_by"] = "aurora";
+            if (malformed == 3) bad["result"]["simulated"] = true;
+            if (malformed == 4) bad["result"]["winner"] = "human";
+            if (malformed == 5) bad["result"]["home_score"] = "7";
+            if (malformed == 6) { bad["home"] = "aurora"; bad["away"] = "cinder"; }
+            auto invalid = career; invalid["seasons"][0]["fixtures"] = mct::Json::array({bad});
+            const auto hidden = mct::NativeCareerManagement::season(stateWith(invalid));
+            require(hidden.body.find(loss) == std::string::npos && hidden.body.find("Round 1 played:") == std::string::npos,
+                "Malformed forfeit metadata became a claimed loss or ordinary played win");
+            require(mct::NativeCareerManagement::recentHumanResults(stateWith(invalid)).empty(),
+                "Malformed forfeit entered schedule history");
+        }
+    }
+    career["seasons"][0]["fixtures"] = mct::Json::array();
+    for (int index = 0; index < 6; ++index)
+        career["seasons"][0]["fixtures"].push_back(playedFixture("human-" + std::to_string(index), index + 1, 101 + index, 3));
+    for (int index = 0; index < 12; ++index) {
+        auto simulated = playedFixture("sim-" + std::to_string(index), 1, 90, 80);
+        simulated["home"] = "aurora"; simulated["away"] = "cinder";
+        simulated["result"]["simulated"] = true; simulated["result"]["provenance"] = "simulated";
+        simulated["result"]["winner"] = "aurora";
+        career["seasons"][0]["fixtures"].push_back(simulated);
+    }
+    const auto recent = mct::NativeCareerManagement::recentHumanResults(stateWith(career));
+    require(recent.find("My Career Club 101,") == std::string::npos &&
+        recent.find("My Career Club 102,") != std::string::npos && recent.find("My Career Club 106,") != std::string::npos,
+        "Recent human result limit did not retain the latest five");
+    require(recent.find("My Career Club 106,") < recent.find("My Career Club 102,") &&
+        recent.find("recorded:") == std::string::npos && recent.find(loss) == std::string::npos,
+        "Recent results changed normal labels or included simulated fixtures");
+    require(mct::NativeCareerManagement::careerSummary(stateWith(career)).find(
+        "Last played result: My Career Club 106, Aurora Athletic 3") != std::string::npos,
+        "Simulated fixtures hid the last saved human result");
+}
+
 void testRules() {
     auto state = stateWith(careerWith(3, lineupFor(3)));
     state["career"]["bot_policy"] = "necto";
@@ -642,6 +710,7 @@ int main() {
         testCreate();
         testSquad();
         testSeason();
+        testForfeitHistory();
         testRules();
         testAbsenceAndBounds();
         std::cout << "Native career management choices match the career actions and published state.\n";

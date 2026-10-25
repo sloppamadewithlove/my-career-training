@@ -100,7 +100,11 @@ public:
                 stringValue(result, "session_id") == stringValue(session, "id") &&
                 stringValue(result, "fixture_id") == stringValue(session, "fixture_id") &&
                 !stringValue(session, "id").empty() && !boolValue(binding, "abandon", false);
-            out.body += saved ? "Your result is saved. Return to My Career to see the updated season." :
+            const bool forfeited = saved && career_management_detail::humanForfeitedResult(result,
+                stringValue(result, "home"), stringValue(result, "away"));
+            out.body += forfeited ? u8"FORFEIT \u2014 LOSS saved. The score shown is the score at forfeit. "
+                "Return to My Career to see the updated season." :
+                saved ? "Your result is saved. Return to My Career to see the updated season." :
                 "Saving the match result. Please wait before returning to My Career.";
             add(out, "results.return", "Return to My Career", canReturn && saved,
                 CareerLayoutEffectKind::Dispatch, "return_hub", binding);

@@ -1131,6 +1131,7 @@ private:
             ++shown;
         }
         if (!shown) addLine(view.body, "No upcoming matches.");
+        addSummary(view.body, NativeCareerManagement::recentHumanResults(state));
         back(view, CareerLayoutPage::Career);
     }
 

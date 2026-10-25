@@ -135,9 +135,42 @@ static void forfeitChecks() {
         require(!host.open(rejected, state), "Unsafe game scope opened Forfeit controls");
     }
 }
+static void forfeitResultLabels() {
+    CareerLayoutScope scope{true, true, true, false, "test-owned-forfeit-results", 1, NativeMenuSurface::Results};
+    for (int scenario = 0; scenario < 3; ++scenario) {
+        const bool awayHuman = scenario == 2;
+        Json result = {{"session_id", "saved-forfeit"}, {"fixture_id", "career-1:s1:league:1:0"},
+            {"home", awayHuman ? "aurora" : "human"}, {"away", awayHuman ? "human" : "aurora"},
+            {"home_score", scenario == 0 ? 0 : awayHuman ? 2 : 7},
+            {"away_score", scenario == 0 ? 0 : awayHuman ? 7 : 2}, {"winner", "aurora"},
+            {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"}, {"simulated", false}};
+        Json state = {{"protocol", 1}, {"offline", true}, {"bridge_session", scope.nonce},
+            {"session", {{"id", "saved-forfeit"}, {"fixture_id", "career-1:s1:league:1:0"},
+                {"kind", "career"}, {"state", "Career Ready"}, {"worker_running", false}, {"busy", false}}},
+            {"career", {{"pending_session", nullptr}}}, {"latest_result", result}};
+        NativeMovieProtocol host;
+        require(host.open(scope, state), "Saved Forfeit results did not open");
+        auto view = host.publish(scope, state, 100);
+        require(view["body"].get<std::string>().find(u8"FORFEIT \u2014 LOSS saved") != std::string::npos &&
+            view["body"].get<std::string>().find("score at forfeit") != std::string::npos &&
+            control(view, "results.return")["enabled"] == true, "Saved results did not identify forfeited loss");
+        state["latest_result"]["winner"] = "human";
+        auto malformed = host.publish(scope, state, 101);
+        require(malformed["body"].get<std::string>().find("FORFEIT") == std::string::npos,
+            "Malformed Forfeit result claimed an authoritative loss");
+        state["latest_result"] = {{"session_id", "saved-forfeit"}, {"fixture_id", "career-1:s1:league:1:0"},
+            {"home", "human"}, {"away", "aurora"}, {"home_score", 7}, {"away_score", 2},
+            {"winner", "human"}, {"provenance", "game"}, {"simulated", false}};
+        auto played = host.publish(scope, state, 102);
+        require(played["body"].get<std::string>().find("Your result is saved.") != std::string::npos &&
+            played["body"].get<std::string>().find("FORFEIT") == std::string::npos,
+            "Normal saved result label changed");
+    }
+}
 int main() {
     try {
         forfeitChecks();
+        forfeitResultLabels();
         CareerLayoutScope scope{true, true, true, false, "test-owned-native-session", 1, NativeMenuSurface::Pause};
         Json state = {{"protocol", 1}, {"offline", true}, {"bridge_session", scope.nonce},
             {"session", {{"id", "activity-1"}, {"fixture_id", "career-1:s1:league:1:0"}, {"kind", "career"},

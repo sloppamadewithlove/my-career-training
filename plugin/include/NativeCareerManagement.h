@@ -60,6 +60,7 @@ public:
     static NativeManagementView season(const Json& state);
     static NativeManagementView rules(const Json& state);
     static std::string careerSummary(const Json& state);
+    static std::string recentHumanResults(const Json& state);
     static std::string rewardSummary(const Json& state);
 };
 
@@ -616,7 +617,27 @@ inline std::string scoreLine(const std::string& prefix, const std::string& kind,
         std::to_string(awayScore);
 }
 
-inline bool completedScore(const Json& fixture, int& homeScore, int& awayScore, bool& simulated,
+inline bool hasForfeitMetadata(const Json& result) {
+    std::string provenance;
+    return (copyString(child(result, "provenance"), 32, provenance) && provenance == "forfeit") ||
+        child(result, "outcome") != nullptr || child(result, "forfeited_by") != nullptr;
+}
+
+inline bool humanForfeitedResult(const Json& result, const std::string& home, const std::string& away) {
+    if (!result.is_object() || !knownClub(home) || !knownClub(away) || home == away ||
+        (home != "human" && away != "human")) return false;
+    std::string provenance, outcome, forfeitedBy, winner;
+    const Json* simulated = child(result, "simulated");
+    int homeScore = 0, awayScore = 0;
+    return copyString(child(result, "provenance"), 32, provenance) && provenance == "forfeit" &&
+        copyString(child(result, "outcome"), 32, outcome) && outcome == "forfeited" &&
+        copyString(child(result, "forfeited_by"), 32, forfeitedBy) && forfeitedBy == "human" &&
+        simulated && simulated->is_boolean() && !simulated->get<bool>() &&
+        copyString(child(result, "winner"), 32, winner) && winner == (home == "human" ? away : home) &&
+        whole(result, "home_score", homeScore, 0, 999) && whole(result, "away_score", awayScore, 0, 999);
+}
+
+inline bool completedScore(const Json& fixture, int& homeScore, int& awayScore, bool& simulated, bool& forfeited,
                            std::string& home, std::string& away, std::string& phase, int& round) {
     std::string status;
     if (!copyString(child(fixture, "status"), 32, status) || status != "completed") return false;
@@ -624,9 +645,12 @@ inline bool completedScore(const Json& fixture, int& homeScore, int& awayScore, 
     if (!result || !result->is_object()) return false;
     if (!whole(*result, "home_score", homeScore, 0, 999) || !whole(*result, "away_score", awayScore, 0, 999))
         return false;
-    if (homeScore == awayScore) return false;
     if (!copyString(child(fixture, "home"), 32, home) || !copyString(child(fixture, "away"), 32, away)) return false;
     if (!knownClub(home) || !knownClub(away) || home == away) return false;
+    forfeited = humanForfeitedResult(*result, home, away);
+    // Partial or contradictory forfeit metadata is not a normal played win.
+    if (hasForfeitMetadata(*result) && !forfeited) return false;
+    if (homeScore == awayScore && !forfeited) return false;
     simulated = false;
     const Json* flag = child(*result, "simulated");
     if (flag && flag->is_boolean() && flag->get<bool>()) simulated = true;
@@ -640,7 +664,8 @@ inline bool completedScore(const Json& fixture, int& homeScore, int& awayScore, 
     return true;
 }
 
-inline void collectHistory(const Json& career, const Json* season, std::vector<std::string>& lines) {
+inline void collectHistory(const Json& career, const Json* season, std::vector<std::string>& lines,
+                           bool humanOnly = false, std::size_t shownRows = NativeCareerManagement::kShownRows) {
     lines.clear();
     if (!season) return;
     const char* keys[] = {"fixtures", "playoffs"};
@@ -654,21 +679,26 @@ inline void collectHistory(const Json& career, const Json* season, std::vector<s
             const auto& fixture = (*rows)[index];
             if (!fixture.is_object()) continue;
             int homeScore = 0, awayScore = 0, round = 0;
-            bool simulated = false;
+            bool simulated = false, forfeited = false;
             std::string home, away, phase;
-            if (!completedScore(fixture, homeScore, awayScore, simulated, home, away, phase, round)) continue;
+            if (!completedScore(fixture, homeScore, awayScore, simulated, forfeited, home, away, phase, round)) continue;
             const bool played = !simulated && (home == "human" || away == "human");
+            if (humanOnly && !played) continue;
             std::string prefix = "Match";
             if (phase == "final") prefix = "Final";
             else if (phase == "semifinal") prefix = "Semifinal";
             else if (round > 0) prefix = "Round " + std::to_string(round);
-            lines.push_back(scoreLine(prefix, played ? "played" : "recorded",
-                                      clubName(career, season, home), homeScore,
-                                      clubName(career, season, away), awayScore));
+            if (forfeited)
+                lines.push_back(scoreLine(prefix + u8" FORFEIT \u2014 LOSS;", "score at forfeit",
+                    clubName(career, season, home), homeScore, clubName(career, season, away), awayScore));
+            else
+                lines.push_back(scoreLine(prefix, played ? "played" : "recorded",
+                    clubName(career, season, home), homeScore, clubName(career, season, away), awayScore));
         }
     }
-    if (lines.size() > NativeCareerManagement::kShownRows)
-        lines.erase(lines.begin(), lines.begin() + static_cast<std::ptrdiff_t>(lines.size() - NativeCareerManagement::kShownRows));
+    shownRows = (std::min)(shownRows, NativeCareerManagement::kShownRows);
+    if (lines.size() > shownRows)
+        lines.erase(lines.begin(), lines.begin() + static_cast<std::ptrdiff_t>(lines.size() - shownRows));
 }
 
 inline std::string rewardLine(const Json& reward) {
@@ -745,8 +775,13 @@ inline int seasonNumber(const Json& career, const Json* season) {
 inline bool lastPlayed(const Json& state, const Json& career, const Json* season, std::string& line) {
     (void)state; // Only saved fixtures in this career establish its played results.
     std::vector<std::string> history;
-    collectHistory(career, season, history);
+    collectHistory(career, season, history, true);
     for (auto it = history.rbegin(); it != history.rend(); ++it) {
+        const auto forfeit = it->find(u8" FORFEIT \u2014 LOSS; score at forfeit: ");
+        if (forfeit != std::string::npos && forfeit < it->find(": ")) {
+            line = "Last result: " + it->substr(forfeit + 1);
+            return true;
+        }
         if (it->find(" played: ") != std::string::npos) {
             const auto split = it->find(": ");
             line = "Last played result: " + (split == std::string::npos ? *it : it->substr(split + 2));
@@ -1020,6 +1055,19 @@ inline std::string NativeCareerManagement::careerSummary(const Json& state) {
     std::string played;
     if (lastPlayed(state, *career, season, played)) addLine(body, played);
     else addLine(body, "No played result is published yet.");
+    capText(body);
+    return body;
+}
+
+inline std::string NativeCareerManagement::recentHumanResults(const Json& state) {
+    using namespace career_management_detail;
+    const Json* career = identifiedCareer(state);
+    if (!career) return {};
+    std::vector<std::string> history;
+    collectHistory(*career, currentSeason(*career), history, true, 5);
+    if (history.empty()) return {};
+    std::string body = "Recent results (newest first):";
+    for (auto it = history.rbegin(); it != history.rend(); ++it) addLine(body, *it);
     capText(body);
     return body;
 }

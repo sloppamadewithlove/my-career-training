@@ -389,6 +389,35 @@ int main() {
         require(advanced.accepted && advanced.action == "next_season" && advanced.page == CareerLayoutPage::Career,
             "Completed season cannot advance from native menu");
 
+        for (int scenario = 0; scenario < 3; ++scenario) {
+            auto forfeited = readyState();
+            const bool awayHuman = scenario == 2;
+            const int homeScore = scenario == 0 ? 0 : awayHuman ? 2 : 7;
+            const int awayScore = scenario == 0 ? 0 : awayHuman ? 7 : 2;
+            forfeited["career"]["seasons"][0]["fixtures"].push_back({
+                {"id", "saved-forfeit"}, {"home", awayHuman ? "aurora" : "human"},
+                {"away", awayHuman ? "human" : "aurora"}, {"round", 1}, {"phase", "league"}, {"status", "completed"},
+                {"result", {{"home_score", homeScore}, {"away_score", awayScore}, {"winner", "aurora"},
+                    {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"}, {"simulated", false}}}});
+            NativeCareerLayout forfeitLayout;
+            require(forfeitLayout.open(scope, forfeited), "Forfeit career layout did not open");
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), NativeCareerLayout::kCareer), scope, forfeited, false);
+            require(forfeitLayout.view(scope, forfeited).body.find(u8"FORFEIT \u2014 LOSS") != std::string::npos,
+                "Career last result hid forfeit outcome");
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), "career.schedule"), scope, forfeited, false);
+            const auto schedule = forfeitLayout.view(scope, forfeited);
+            const auto observed = scenario == 0 ? "Orbit 0, Nova 0" : awayHuman ? "Nova 2, Orbit 7" : "Orbit 7, Nova 2";
+            require(schedule.body.find("Upcoming matches.") != std::string::npos &&
+                schedule.body.find("Recent results (newest first):") != std::string::npos &&
+                schedule.body.find(std::string(u8"FORFEIT \u2014 LOSS; score at forfeit: ") + observed) != std::string::npos,
+                "Schedule hid the loss or reversed actual home/away scores");
+            require(schedule.body.size() <= NativeCareerLayout::kMaxBody, "Schedule result text exceeded its bound");
+            choose(forfeitLayout, findChoice(schedule, "nav.back"), scope, forfeited, false);
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), "career.standings"), scope, forfeited, false);
+            require(forfeitLayout.view(scope, forfeited).body.find(u8"FORFEIT \u2014 LOSS") != std::string::npos,
+                "Season history hid forfeit outcome");
+        }
+
         auto wide = state;
         wide["career"]["seasons"][0]["fixtures"] = Json::array();
         wide["standings"] = Json::array();
