@@ -2,6 +2,7 @@
 
 #include "NativeCareerLayout.h"
 #include "NativeMatchLayout.h"
+#include "NativeReturnGate.h"
 #include <cmath>
 
 namespace mct {
@@ -28,7 +29,8 @@ public:
     }
 
     Json publish(const CareerLayoutScope& scope, const Json& state, double now,
-                 const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {}) {
+                 const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {},
+                 bool returnPending = false, const Json& navigation = Json::object()) {
         Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"surface", nativeSurfaceName(scope.surface)}, {"published_at", now},
             {"active", false}, {"runtime_verified", kRuntimeVerified}, {"production_ready", kProductionReady},
             {"controls", Json::array()}};
@@ -44,7 +46,18 @@ public:
             invalidate();
             return wire;
         }
+        for (auto& choice : view.choices) {
+            if (returnPending && ((choice.kind == CareerLayoutEffectKind::Dispatch &&
+                !NativeReturnGate::permitsAction(choice.action)) || choice.kind == CareerLayoutEffectKind::LocalWorkshop)) {
+                choice.enabled = false;
+                choice.reason = "Wait until My Career has returned to the hub.";
+            }
+        }
+        const auto authorized = validNavigation(navigation) &&
+            (scope.surface == NativeMenuSurface::Pause || scope.surface == NativeMenuSurface::Results)
+            ? navigation : Json::object();
         Json signature = {{"title", view.title}, {"body", view.body}, {"choices", Json::array()}};
+        signature["navigation"] = authorized;
         for (const auto& choice : view.choices) {
             // Include the full binding, even when its visible label is unchanged.
             // Cosmetic fields stay in this retained signature. They are not copied
@@ -62,6 +75,8 @@ public:
         wire["generation"] = std::to_string(generation_);
         wire["title"] = view.title;
         wire["body"] = view.body;
+        navigation_ = authorized;
+        if (!navigation_.empty()) wire["navigation"] = navigation_;
         for (const auto& choice : shown_) {
             wire["controls"].push_back({{"id", choice.id}, {"label", choice.label},
                 {"enabled", choice.enabled}, {"reason", choice.reason},
@@ -112,6 +127,26 @@ public:
         published_ = false;
         shown_.clear();
         nonce_.clear();
+        navigation_ = Json::object();
+    }
+
+    bool navigationIssuedMessage(const std::string& message, const CareerLayoutScope& live) const {
+        if (!published_ || navigation_.empty() || message.size() > kMaxCommandBytes ||
+            live.surface != surface_ || live.nonce != nonce_ || live.generation != scopeGeneration_ ||
+            !live.owned || !live.offline || !live.fresh || live.online) return false;
+        try {
+            const auto event = Json::parse(message);
+            return event.is_object() && event.size() == 8 && event.contains("protocol") &&
+                event["protocol"].is_number_integer() && event["protocol"] == 1 &&
+                stringValue(event, "event") == "return_navigation_issued" &&
+                stringValue(event, "session") == nonce_ &&
+                stringValue(event, "surface") == nativeSurfaceName(surface_) &&
+                stringValue(event, "generation") == std::to_string(generation_) &&
+                stringValue(event, "intent") == stringValue(navigation_, "intent") &&
+                stringValue(event, "activity") == stringValue(navigation_, "activity") &&
+                event.contains("fixture") && event["fixture"].is_string() &&
+                event["fixture"] == navigation_["fixture"];
+        } catch (const Json::exception&) { return false; }
     }
 
     bool readyMessage(const std::string& message, const CareerLayoutScope& live) const {
@@ -130,6 +165,16 @@ public:
     }
 
 private:
+    static bool validNavigation(const Json& value) {
+        if (!value.is_object() || value.size() != 3 || !value.contains("fixture") ||
+            !value["fixture"].is_string()) return false;
+        const auto intent = stringValue(value, "intent");
+        const auto activity = stringValue(value, "activity");
+        if (intent.size() != 32 || activity.empty() || activity.size() > 128 ||
+            value["fixture"].get<std::string>().size() > 128) return false;
+        for (const auto c : intent) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+        return true;
+    }
     static Json binding(const CareerLayoutChoice& choice) {
         Json draft = Json::array();
         const int count = choice.cosmetic.draftCount < 0 ? 0
@@ -176,6 +221,7 @@ private:
     std::vector<CareerLayoutChoice> shown_;
     std::string nonce_;
     std::string lastSignature_;
+    Json navigation_ = Json::object();
     std::uint64_t generation_ = 0;
     std::uint64_t scopeGeneration_ = 0;
     bool published_ = false;
