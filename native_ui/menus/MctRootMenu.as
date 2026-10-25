@@ -330,7 +330,8 @@ package menus
                 if (!validView(incoming)) { loseConnection(); return; }
                 if (getTimer() - lastHello >= 1000)
                 {
-                    DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION, event:"ready"}));
+                    DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
+                        surface:"frontend", generation:String(incoming.generation), event:"ready"}));
                     lastHello = getTimer();
                 }
                 if (!isFrontMenu())

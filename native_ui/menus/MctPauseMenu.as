@@ -19,6 +19,7 @@ package menus
     import scaleform.clik.events.InputEvent;
     import scaleform.gfx.TextFieldEx;
     import tagame.api.DevUtil;
+    import tagame.api.Shell;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
 
@@ -41,6 +42,14 @@ package menus
         private var heldBack:Boolean = false;
         private var lastHello:int = -1000;
         private var details:TextField;
+        private var highestGeneration:String = "";
+        private var consumedIntent:String = "";
+        private var consumedActivity:String = "";
+        private var consumedFixture:String = "";
+        private var consumedGeneration:String = "";
+        private var consumeSends:int = 0;
+        private var lastConsume:int = 0;
+        private var navigationIssued:Boolean = false;
 
         public function MctPauseMenu()
         {
@@ -71,6 +80,7 @@ package menus
         override protected function handleRemovedFromStage(event:Event) : void
         {
             attached = false;
+            clearConsumption();
             closeLoader();
             if (timer != null && !UIMenu.isMenuInStack(menuName)) timer.stop();
             super.handleRemovedFromStage(event);
@@ -180,7 +190,8 @@ package menus
             {
                 if (!usable(item)) continue;
                 made = createButton({name:String(item.id), label:String(item.label),
-                    enabled:item.enabled === true && !busy}, choose, [item]);
+                    enabled:item.enabled === true && !navigationIssued &&
+                    ((item.stock === "resume" || item.stock === "options") || (!busy && view.navigation == null))}, choose, [item]);
                 if (item.stock === "resume") resumeButton = made;
             }
             if (focusName != "")
@@ -194,13 +205,24 @@ package menus
                     }
                 }
             }
-            if (resumeButton != null) currentFocus = resumeButton;
-            else if (m_buttons.length > 0) currentFocus = m_buttons[0] as Button;
+            if (resumeButton != null && resumeButton.enabled)
+            {
+                currentFocus = resumeButton;
+                return;
+            }
+            for each (var open:Button in m_buttons)
+            {
+                if (open.enabled)
+                {
+                    currentFocus = open;
+                    return;
+                }
+            }
         }
 
         private function choose(item:Object) : void
         {
-            if (!isFrontMenu() || !current() || item == null || item.enabled !== true) return;
+            if (navigationIssued || !isFrontMenu() || !current() || item == null || item.enabled !== true) return;
             var present:Boolean = false;
             for each (var candidate:Object in view.controls)
                 if (candidate === item) present = true;
@@ -216,7 +238,7 @@ package menus
                 return;
             }
             if (item.stock != null && item.stock !== "") return;
-            if (busy) return;
+            if (busy || view.navigation != null) return;
             busy = true;
             busyStarted = getTimer();
             DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
@@ -253,6 +275,9 @@ package menus
             {
                 var incoming:Object = com.adobe.serialization.json.JSON.decode(raw, true);
                 if (!acceptable(incoming)) throw new Error("Invalid menu");
+                var next:String = String(incoming.generation);
+                if (highestGeneration != "" && compareGeneration(next, highestGeneration) < 0) return;
+                highestGeneration = next;
                 if (getTimer() - lastHello >= 1000)
                 {
                     DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1,
@@ -265,7 +290,6 @@ package menus
                     heldBack = true;
                     return;
                 }
-                var next:String = String(incoming.generation);
                 if (heldBack || next != generation)
                 {
                     heldBack = false;
@@ -283,8 +307,96 @@ package menus
                         refreshMenu();
                     }
                 }
+                processNavigation();
             }
             catch (error:Error) { loseConnection(); }
+        }
+
+        // A log callback has no return value. Consumption requests never exit;
+        // only a later host execute view can grant this movie the fixed call.
+        private function processNavigation() : void
+        {
+            if (navigationIssued || !isFrontMenu() || !current()) return;
+            var navigation:Object = view.navigation;
+            if (navigation == null)
+            {
+                clearConsumption();
+                return;
+            }
+            if (consumedIntent != String(navigation.intent) ||
+                consumedActivity != String(navigation.activity) ||
+                consumedFixture != String(navigation.fixture)) clearConsumption();
+            if (navigation.phase === "authorize")
+            {
+                if (consumedGeneration != generation)
+                {
+                    consumedIntent = String(navigation.intent);
+                    consumedActivity = String(navigation.activity);
+                    consumedFixture = String(navigation.fixture);
+                    consumedGeneration = generation;
+                    consumeSends = 0;
+                }
+                // Bounded retransmission handles a dropped void log callback.
+                // The payload and local grant stay identical; exit is never retried.
+                if (consumeSends >= 3 || (consumeSends > 0 && getTimer() - lastConsume < 1000)) return;
+                consumeSends++;
+                lastConsume = getTimer();
+                DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1,
+                    event:"return_navigation_consumed", session:SESSION, surface:SURFACE,
+                    generation:consumedGeneration, intent:consumedIntent,
+                    activity:consumedActivity, fixture:consumedFixture}));
+                return;
+            }
+            if (consumedGeneration == "" || consumeSends == 0 ||
+                navigation.consumed_generation !== consumedGeneration ||
+                compareGeneration(generation, consumedGeneration) <= 0) return;
+            // Latch before logging or calling. Re-entrant callbacks, polling, and
+            // stale-view recovery cannot issue a second exit from this movie.
+            navigationIssued = true;
+            busy = true;
+            DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1,
+                event:"return_navigation_issued", session:SESSION, surface:SURFACE,
+                generation:generation, intent:consumedIntent, activity:consumedActivity,
+                fixture:consumedFixture, consumed_generation:consumedGeneration}));
+            if (!isFrontMenu() || !current()) return;
+            m_bExitingMatch = true;
+            Shell.ExitToMainMenu();
+        }
+
+        private function clearConsumption() : void
+        {
+            consumedIntent = "";
+            consumedActivity = "";
+            consumedFixture = "";
+            consumedGeneration = "";
+            consumeSends = 0;
+            lastConsume = 0;
+        }
+
+        private function validNavigation(navigation:Object) : Boolean
+        {
+            if (navigation == null) return true;
+            var keys:int = 0;
+            for (var key:String in navigation)
+            {
+                if (key != "phase" && key != "intent" && key != "activity" &&
+                    key != "fixture" && key != "consumed_generation") return false;
+                keys++;
+            }
+            if (!(navigation.intent is String) || !/^[0-9a-f]{32}$/.test(String(navigation.intent)) ||
+                !(navigation.activity is String) || navigation.activity.length == 0 || navigation.activity.length > 128 ||
+                !(navigation.fixture is String) || navigation.fixture.length > 128) return false;
+            if (navigation.phase === "authorize") return keys == 4 && !navigation.hasOwnProperty("consumed_generation");
+            return navigation.phase === "execute" && keys == 5 &&
+                navigation.consumed_generation is String &&
+                /^[1-9][0-9]{0,19}$/.test(String(navigation.consumed_generation));
+        }
+
+        private function compareGeneration(left:String, right:String) : int
+        {
+            if (left.length != right.length) return left.length < right.length ? -1 : 1;
+            if (left == right) return 0;
+            return left < right ? -1 : 1;
         }
 
         private function failed(event:Event = null) : void
@@ -305,6 +417,8 @@ package menus
 
         private function loseConnection() : void
         {
+            // Keep consumption during a temporary stale poll. No effect can run
+            // until a fresh view arrives; unloading clears the grant separately.
             view = null;
             generation = "";
             busy = false;
@@ -337,7 +451,7 @@ package menus
             if (!(incoming.body is String) || incoming.body.length == 0 || utf8Size(String(incoming.body)) > BODY_UTF8_MAX) return false;
             for each (var item:Object in incoming.controls)
                 if (!usable(item)) return false;
-            return true;
+            return validNavigation(incoming.navigation);
         }
 
         private function usable(item:Object) : Boolean

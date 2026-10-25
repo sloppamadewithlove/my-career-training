@@ -9,7 +9,20 @@ The pause document keeps stock pause, resume, and input release behavior while
 hiding Friends and matchmaking controls. Results keeps the stock scoreboard
 and replaces menu actions. Resume and Options use typed stock callbacks only
 for the current validated front menu. Career commands use opaque host control
-ids; these classes do not call raw restart or exit-to-main-menu commands.
+ids. Return uses the fixed typed `Shell.ExitToMainMenu` only after the service's
+durable acknowledgement and a two-stage native authorization exchange. No raw
+restart or console navigation command is accepted.
+
+The host first publishes `navigation` with `phase:"authorize"`, a one-shot
+`intent`, and the accepted activity and fixture. The current front movie records
+that generation locally and sends `return_navigation_consumed`. This log call
+has no return value and is not permission to leave. The movie waits for a fresh
+host `phase:"execute"` view whose `consumed_generation` matches its own pending
+consumption. Only then can that movie issue the fixed exit once. The pause movie
+also preserves the stock `m_bExitingMatch` flag. Unloading clears the local
+consumption grant; a replacement movie must consume a new authorization.
+`return_navigation_issued` records an attempt, not arrival. Completion still
+requires the host to observe fresh frontend READY and the real `RootMenuMovie`.
 
 The two surfaces validate `surface`, session, generation, revisions, and control
 types. READY includes the currently validated generation, and continues while
