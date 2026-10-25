@@ -323,7 +323,7 @@ def _match_pins() -> dict[str, dict]:
             "document_target_name": "MctPauseMenuScreen",
             "symbol_character": 6,
             "symbol_name": "MidGameMenuMovie",
-            "method_bodies": 94,
+            "method_bodies": 95,
             "class_flags": (9, 8, 9, 11, 9, 9, 11, 9, 11, 9),
             "authored_classes": pause,
             "compiled_classes": pause + tuple(codec),

@@ -100,7 +100,8 @@ public:
                 {"stock", choice.stock == StockRoute::Garage ? "garage" :
                     choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" : ""},
                 {"revision", std::to_string(choice.revision)},
-                {"return_commit", choice.kind == CareerLayoutEffectKind::Dispatch && choice.action == "return_hub"}});
+                {"return_commit", choice.kind == CareerLayoutEffectKind::Dispatch &&
+                    (choice.action == "return_hub" || choice.action == "forfeit_match")}});
         }
         nonce_ = scope.nonce;
         scopeGeneration_ = scope.generation;

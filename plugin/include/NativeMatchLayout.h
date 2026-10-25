@@ -11,6 +11,7 @@ public:
     bool open(const CareerLayoutScope& scope, const Json& state) {
         opened_ = false;
         confirming_ = false;
+        confirmingForfeit_ = false;
         confirmation_ = Json::object();
         if (!valid(scope, state) || !advance()) return false;
         scope_ = scope;
@@ -19,9 +20,9 @@ public:
     }
 
     CareerLayoutView view(const CareerLayoutScope& scope, const Json& state,
-                          bool returnPending = false, bool returnHold = false) const {
+                          bool returnPending = false, bool returnHold = false) {
         CareerLayoutView out;
-        if (!current(scope, state)) return out;
+        if (!current(scope, state)) { confirmingForfeit_ = false; return out; }
         out.offersReplacement = true;
         const auto session = objectValue(state, "session");
         const auto phase = stringValue(session, "state");
@@ -30,6 +31,12 @@ public:
         const bool worker = boolValue(session, "worker_running", false);
         const auto binding = returnBinding(state);
         const bool canReturn = !busy && !stringValue(session, "id").empty();
+        const auto forfeit = forfeitBinding(state);
+        const bool forfeitActivity = canForfeitActivity(scope, state);
+        // Once the observed activity or binding is lost, require a new entry
+        // click even if the same identifiers later return.
+        if (confirmingForfeit_ && (!forfeitActivity || forfeit != confirmation_ || returnPending))
+            confirmingForfeit_ = false;
         out.title = scope.surface == NativeMenuSurface::Results ? "Match complete" : "My Career paused";
         const auto error = bounded(stringValue(state, "error"), 320);
         if (returnPending) {
@@ -46,6 +53,18 @@ public:
                      {"expected_fixture_id", stringValue(session, "fixture_id")}});
             add(out, "match.quit", "Quit My Career", boolValue(session, "can_exit", !busy),
                 CareerLayoutEffectKind::Dispatch, "quit_game");
+            return out;
+        }
+        if (confirmingForfeit_ && forfeitActivity && forfeit == confirmation_) {
+            out.title = "Forfeit this match?";
+            out.body = "This permanently saves a forfeited loss and advances your season. "
+                "This cannot be undone. After saving, you will return to My Career.";
+            if (!error.empty()) out.body += "\n\nCould not finish: " + error;
+            auto confirmed = forfeit;
+            confirmed["confirm"] = true;
+            add(out, "match.confirm_forfeit", "Forfeit Match", !busy, CareerLayoutEffectKind::Dispatch,
+                "forfeit_match", confirmed);
+            add(out, "match.cancel_forfeit", "Back", true, CareerLayoutEffectKind::Navigate);
             return out;
         }
         if (confirming_ && binding == confirmation_) {
@@ -72,6 +91,9 @@ public:
             add(out, "pause.return", "Return to My Career", canReturn,
                 pending ? CareerLayoutEffectKind::Navigate : CareerLayoutEffectKind::Dispatch,
                 pending ? "" : "return_hub", binding);
+            if (forfeitActivity)
+                add(out, "pause.forfeit", "Forfeit Match", !busy, CareerLayoutEffectKind::Navigate,
+                    "", forfeit);
         } else {
             const auto result = objectValue(state, "latest_result");
             const bool saved = phase == "Career Ready" &&
@@ -100,7 +122,7 @@ public:
     CareerLayoutEffect choose(const CareerLayoutChoice& shown, const CareerLayoutScope& scope,
                               const Json& state, bool consumed, bool returnPending = false, bool returnHold = false) {
         CareerLayoutEffect effect;
-        if (!current(scope, state)) return effect;
+        if (!current(scope, state)) { confirmingForfeit_ = false; return effect; }
         const auto now = view(scope, state, returnPending, returnHold);
         for (const auto& choice : now.choices) {
             if (choice.id != shown.id || choice.revision != shown.revision || !choice.enabled ||
@@ -115,10 +137,9 @@ public:
             effect.payload = choice.payload;
             effect.originalConsumptionRequired = choice.kind == CareerLayoutEffectKind::Dispatch;
             effect.originalConsumptionSatisfied = consumed;
-            if (choice.id == "pause.return" && choice.kind == CareerLayoutEffectKind::Navigate) {
-                confirming_ = true;
-                confirmation_ = choice.payload;
-            } else confirming_ = false;
+            confirming_ = choice.id == "pause.return" && choice.kind == CareerLayoutEffectKind::Navigate;
+            confirmingForfeit_ = choice.id == "pause.forfeit" && choice.kind == CareerLayoutEffectKind::Navigate;
+            if (confirming_ || confirmingForfeit_) confirmation_ = choice.payload;
             return effect;
         }
         return effect;
@@ -150,6 +171,22 @@ private:
             {"expected_fixture_id", stringValue(session, "fixture_id")},
             {"abandon", !pending.empty()}};
     }
+    static Json forfeitBinding(const Json& state) {
+        const auto session = objectValue(state, "session");
+        return {{"expected_session_id", stringValue(session, "id")},
+            {"expected_fixture_id", stringValue(session, "fixture_id")}};
+    }
+    static bool canForfeitActivity(const CareerLayoutScope& scope, const Json& state) {
+        const auto session = objectValue(state, "session");
+        const auto pending = objectValue(objectValue(state, "career"), "pending_session");
+        const auto activity = stringValue(session, "id");
+        const auto fixture = stringValue(session, "fixture_id");
+        return scope.surface == NativeMenuSurface::Pause && scope.matchInProgress &&
+            stringValue(session, "kind") == "career" &&
+            stringValue(session, "state") == "Playing" && boolValue(session, "worker_running", false) &&
+            !activity.empty() && !fixture.empty() && stringValue(pending, "session_id") == activity &&
+            stringValue(pending, "fixture_id") == fixture;
+    }
     void add(CareerLayoutView& out, const char* id, const char* label, bool enabled,
              CareerLayoutEffectKind kind, const char* action = "", Json payload = Json::object(),
              StockRoute stock = StockRoute::None) const {
@@ -175,5 +212,6 @@ private:
     std::uint64_t revision_ = 0;
     bool opened_ = false;
     bool confirming_ = false;
+    bool confirmingForfeit_ = false;
 };
 }

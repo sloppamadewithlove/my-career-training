@@ -1,10 +1,12 @@
 package menus
 {
     import com.adobe.serialization.json.JSON;
+    import flash.display.DisplayObject;
     import flash.events.Event;
     import flash.events.IOErrorEvent;
     import flash.events.SecurityErrorEvent;
     import flash.events.TimerEvent;
+    import flash.geom.ColorTransform;
     import flash.net.URLLoader;
     import flash.net.URLRequest;
     import flash.text.TextField;
@@ -13,6 +15,7 @@ package menus
     import flash.utils.Timer;
     import flash.utils.getTimer;
     import projectx.core.UIMenu;
+    import projectx.controls.StateTweenButton;
     import projectx.core.UIScreen;
     import scaleform.clik.constants.NavigationCode;
     import scaleform.clik.constants.InputValue;
@@ -263,8 +266,9 @@ package menus
                     enabled:item.enabled === true && !(navigationIssued && item.return_commit === true) &&
                     ((item.stock === "resume" || item.stock === "options") ? !returnLocked() : (!busy && !(returnLocked() && item.return_commit === true)))}, choose, [item]);
                 made.validateNow();
+                if (item.id === "pause.forfeit" || item.id === "match.confirm_forfeit") styleForfeit(made);
                 if (item.stock === "resume") resumeButton = made;
-                if (item.id === "match.cancel_return") cancelButton = made;
+                if (item.id === "match.cancel_return" || item.id === "match.cancel_forfeit") cancelButton = made;
             }
             if (focusName != "")
             {
@@ -300,6 +304,46 @@ package menus
                     return;
                 }
             }
+        }
+
+        private function styleForfeit(button:Button) : void
+        {
+            var nativeButton:StateTweenButton = button as StateTweenButton;
+            if (nativeButton == null)
+            {
+                DevUtil.Log("MCT_NATIVE_RETURN_DIAG", "pause:forfeit_style_unavailable");
+                return;
+            }
+            // Preserve each native state clip's fade alpha and a little of its
+            // shading; only the destructive controls receive this palette.
+            var tones:Object = {up:[115, 16, 16], out:[115, 16, 16],
+                over:[190, 30, 30], release:[190, 30, 30], selecting:[190, 30, 30],
+                down:[150, 20, 20], kb_down:[150, 20, 20], selected:[190, 30, 30],
+                kb_selecting:[190, 30, 30], kb_release:[115, 16, 16],
+                toggle:[115, 16, 16], disabled:[70, 40, 40]};
+            var background:Object = {};
+            var styledClips:int = 0;
+            for (var state:String in tones)
+            {
+                var clip:DisplayObject = nativeButton.getChildByName(state + "MovieClip");
+                if (clip == null) continue;
+                styledClips++;
+                var tone:Array = tones[state] as Array;
+                background[state] = new ColorTransform(0.1, 0.1, 0.1, clip.alpha,
+                    tone[0], tone[1], tone[2], 0);
+            }
+            if (styledClips == 0)
+                DevUtil.Log("MCT_NATIVE_RETURN_DIAG", "pause:forfeit_style_unavailable");
+            var white:ColorTransform = new ColorTransform(0, 0, 0, 1, 255, 255, 255, 0);
+            var muted:ColorTransform = new ColorTransform(0, 0, 0, 1, 211, 201, 203, 0);
+            try
+            {
+                nativeButton.SetStateToBackgroundColorTransformHash(background);
+                nativeButton.SetStateToTextColorTransformHash({up:white, out:white,
+                    over:white, down:white, selected:white, selecting:white,
+                    kb_selecting:white, toggle:white, disabled:muted});
+            }
+            catch (error:Error) { DevUtil.Log("MCT_NATIVE_RETURN_DIAG", "pause:forfeit_style_unavailable"); }
         }
 
         private function choose(item:Object) : void

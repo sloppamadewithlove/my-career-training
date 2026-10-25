@@ -16,6 +16,21 @@ ids. Return uses the fixed typed `Shell.ExitToMainMenu` only after the service's
 durable acknowledgement and a two-stage native authorization exchange. No raw
 restart or console navigation command is accepted.
 
+Career pause also offers a separate red Forfeit Match action while a fresh owned
+server reports a match in progress and the live career session matches its pending
+fixture. Training, calibration and results do not offer it. Opening confirmation
+has no service effect; Back is the default. Confirm dispatches `forfeit_match`
+with exactly `expected_session_id`, `expected_fixture_id` and `confirm:true`.
+The host binds its own Return intent before dispatching to the service. Only the
+confirmed dispatch has `return_commit:true`, reusing the bounded hold and durable
+save/Return pipeline. Ordinary Return still requeues the unfinished match.
+
+Both Forfeit buttons tint the existing native state clips red, preserve their
+fade alpha and geometry, and use readable white/muted text. A fixed private
+diagnostic marks an unavailable native style. The exact compiled button states,
+controller confirmation and saved forfeited-loss lifecycle require live checks;
+these UI changes do not manufacture a score or certify the service save.
+
 The host first publishes `navigation` with `phase:"authorize"`, a one-shot
 `intent`, and the accepted activity and fixture. The current front movie records
 that generation locally and sends `return_navigation_consumed`. This log call
