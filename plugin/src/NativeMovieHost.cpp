@@ -19,6 +19,7 @@
 #include "NativeMovieProtocol.h"
 #include "NativeMovieSession.h"
 #include "NativeReturnGate.h"
+#include "NativeContinuationGate.h"
 #include "NativeResultsHold.h"
 #include "bakkesmod/wrappers/Engine/ActorWrapper.h"
 #include "bakkesmod/wrappers/GameEvent/ServerWrapper.h"
@@ -138,6 +139,7 @@ struct NativeMovieHost::State {
     NativeMovieProtocol protocol;
     NativeMovieSession session;
     NativeReturnGate returnGate;
+    NativeContinuationGate continuationGate;
     NativeResultsHold resultsHold;
     Json resultsHoldObservation = nullptr;
     Json matchTimerObservation = nullptr;
@@ -187,6 +189,8 @@ struct NativeMovieHost::State {
     void apply(CareerLayoutEffect effect, const CareerLayoutScope& scope);
     NativeWorkshopContext workshopNow() const;
     NativeReturnContext returnContext() const;
+    void pollReturn(const NativeReturnContext& context, const Json& state);
+    void startContinuation(const CareerLayoutScope& scope);
 #endif
 };
 
@@ -245,6 +249,51 @@ NativeReturnContext NativeMovieHost::State::returnContext() const {
     context.matchAvailable = context.inGame && bool(game->GetGameEventAsServer());
     context.paused = context.inGame && game->IsPaused();
     return context;
+}
+
+// Caller holds the state mutex. Observe this sequence's pending state before
+// arrival clears Return, so a historical arrival cannot launch a new fixture.
+void NativeMovieHost::State::pollReturn(const NativeReturnContext& context, const Json& state) {
+    continuationGate.poll(context, state, returnGate.pending(), returnGate.arrived());
+    returnGate.poll(context, state);
+    continuationGate.poll(context, state, returnGate.pending(), returnGate.arrived());
+}
+
+void NativeMovieHost::State::startContinuation(const CareerLayoutScope& scope) {
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (stopped || !continuationGate.pending() || !returnGate.arrived()) return;
+    }
+    std::string currentNonce;
+    Json latest;
+    const char* why = "continuation_scope_unavailable";
+    if (!preconditions(currentNonce, latest, why, false) || currentNonce != scope.nonce ||
+        !liveNow(scope.nonce)) return;
+    auto context = returnContext();
+    auto stack = game->GetMenuStack();
+    context.frontendRoot = !context.inGame && stack && stack.GetTopMenu() == "RootMenuMovie";
+    Json payload;
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (stopped) return;
+        context.frontendReady = scopeLive && surface == NativeMenuSurface::Frontend &&
+            scopeGeneration == scope.generation && session.nonce() == scope.nonce &&
+            session.ready(monotonicSeconds()) && !frontendHello.empty() &&
+            protocol.readyMessage(frontendHello, scope, true);
+        continuationGate.poll(context, latest, returnGate.pending(), returnGate.arrived());
+        // Taking the payload consumes the attempt even if IPC later fails.
+        // An uncertain send is never automatically replayed.
+        payload = continuationGate.takeStart(context, latest, returnGate.arrived());
+    }
+    if (!payload.is_object() || payload.empty()) return;
+    bool sent = false;
+    try { sent = bridge && bridge->send("start_prepared_match", payload); }
+    catch (...) { sent = false; }
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        continuationGate.noteSendResult(sent);
+    }
+    count(sent, sent ? "continuation_start_sent" : "continuation_start_not_sent");
 }
 
 bool NativeMovieHost::State::preconditions(std::string& sessionId, Json& bridgeState, const char*& why, bool requireSurface) {
@@ -315,6 +364,7 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
     Json wire;
     try {
         Json navigation;
+        Json presentation;
         bool pending = false;
         bool durable = false;
         bool holdAllowed = false;
@@ -327,8 +377,9 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
             durable = returnGate.ready();
             holdAllowed = returnGate.holdAllowed(monotonic);
             navigation = returnGate.authorization(session.ready(monotonic), nativeSurfaceName(scope.surface));
+            presentation = continuationGate.presentationState(state);
         }
-        wire = protocol.publish(scope, state, wall, cosmeticContext ? cosmeticContext() : NativeCosmeticContext{},
+        wire = protocol.publish(scope, presentation, wall, cosmeticContext ? cosmeticContext() : NativeCosmeticContext{},
             workshopNow(), pending, navigation, durable, holdAllowed);
         LocalBridge::atomicWrite(bridge->directory() / kViewName, wire.dump());
     } catch (...) {
@@ -447,7 +498,7 @@ void NativeMovieHost::State::onLog(std::uintptr_t caller, void* params) {
             if (stopped || !scopeLive || session.nonce() != nonce || !session.ready(monotonicSeconds())) {
                 ++rejected; return;
             }
-            returnGate.poll(context, latest);
+            pollReturn(context, latest);
             const auto surfaceName = nativeSurfaceName(surface);
             const bool acceptedEvent = kind == "return_navigation_consumed"
                 ? protocol.navigationConsumedMessage(*decoded, scope) &&
@@ -484,7 +535,7 @@ void NativeMovieHost::State::apply(CareerLayoutEffect effect, const CareerLayout
     }
     {
         std::lock_guard<std::mutex> guard(mutex);
-        if (returnGate.pending() && ((effect.kind == CareerLayoutEffectKind::Dispatch &&
+        if ((returnGate.pending() || continuationGate.pending()) && ((effect.kind == CareerLayoutEffectKind::Dispatch &&
             !NativeReturnGate::permitsAction(effect.action)) || effect.kind == CareerLayoutEffectKind::LocalWorkshop)) {
             ++rejected;
             reason = "return_pending";
@@ -492,17 +543,36 @@ void NativeMovieHost::State::apply(CareerLayoutEffect effect, const CareerLayout
         }
     }
     if (effect.kind == CareerLayoutEffectKind::Dispatch) {
-        const bool returning = effect.action == "return_hub" || effect.action == "forfeit_match";
+        const bool preparing = effect.action == "prepare_next_match";
+        const bool returning = effect.action == "return_hub" || effect.action == "forfeit_match" || preparing;
         const auto intent = returning ? returnIntent() : std::string{};
+        if (preparing && (!effect.payload.is_object() || effect.payload.size() != 4 ||
+            effect.payload.contains("continuation_intent"))) {
+            count(false, "continuation_invalid_request");
+            return;
+        }
         if (effect.action == "forfeit_match" && effect.payload.is_object())
             effect.payload["return_intent"] = intent;
+        if (preparing) effect.payload["continuation_intent"] = intent;
+        bool finishedResults = !preparing;
+        if (preparing && scope.surface == NativeMenuSurface::Results && game && game->IsInGame()) {
+            auto server = game->GetGameEventAsServer();
+            finishedResults = server && server.GetbMatchEnded() && observedSurface() == NativeMenuSurface::Results;
+        }
         const bool allowed = liveNow(scope.nonce) && NativeCareerLayout::supportedAction(effect.action) &&
             (!returning || NativeReturnGate::validRequest(effect.action, effect.payload, intent)) &&
             (effect.action != "forfeit_match" || (scope.surface == NativeMenuSurface::Pause && matchInProgress())) &&
+            finishedResults &&
             effect.payload.is_object() && bridge && bridge->send(effect.action, effect.payload);
         if (allowed && returning) {
             std::lock_guard<std::mutex> guard(mutex);
             returnGate.arm(scope.nonce, effect.payload, intent, monotonicSeconds(), effect.action);
+            if (preparing) {
+                continuationGate.arm(scope.nonce, effect.payload, intent);
+            }
+        } else if (allowed && effect.action == "quit_game") {
+            std::lock_guard<std::mutex> guard(mutex);
+            continuationGate.clear();
         }
         count(allowed, allowed ? "command_accepted" : "dispatch_not_sent");
         return;
@@ -538,7 +608,8 @@ bool NativeMovieHost::State::drain(const CareerLayoutScope& scope, double monoto
         std::lock_guard<std::mutex> guard(mutex);
         if (!scopeLive) return false;
         batch = session.drain(monotonic, [this, &scope](const std::string& body, const std::string&) {
-            return protocol.readyMessage(body, scope, returnGate.pending() && scope.surface == NativeMenuSurface::Frontend);
+            return protocol.readyMessage(body, scope,
+                (returnGate.pending() || continuationGate.pending()) && scope.surface == NativeMenuSurface::Frontend);
         });
     }
     for (const auto& decision : batch) {
@@ -592,7 +663,11 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 resultsHold.clear();
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+                if (!sameText(why, "stale_bridge") ||
+                    (!returnGate.matchesNonce(sessionId) && !continuationGate.matchesNonce(sessionId))) {
+                    returnGate.clear();
+                    continuationGate.clear();
+                }
             }
             suspend(why, sessionId);
             return;
@@ -608,6 +683,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
                 returnGate.clear();
+                continuationGate.clear();
                 resultsHold.clear();
             }
             removeHook();
@@ -621,6 +697,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
                 returnGate.clear();
+                continuationGate.clear();
                 resultsHold.clear();
             }
             removeHook();
@@ -633,7 +710,11 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 resultsHold.clear();
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+                if (!sameText(why, "stale_bridge") ||
+                    (!returnGate.matchesNonce(sessionId) && !continuationGate.matchesNonce(sessionId))) {
+                    returnGate.clear();
+                    continuationGate.clear();
+                }
             }
             suspend(why, sessionId);
             return;
@@ -751,7 +832,7 @@ void NativeMovieHost::State::tick() {
         auto context = returnContext();
         {
             std::lock_guard<std::mutex> guard(mutex);
-            returnGate.poll(context, bridge->state());
+            pollReturn(context, bridge->state());
         }
         if (observedSurface() == NativeMenuSurface::None) {
             suspend("in_game", sessionId);
@@ -849,8 +930,9 @@ void NativeMovieHost::State::tick() {
             std::lock_guard<std::mutex> guard(mutex);
             context.frontendReady = surface == NativeMenuSurface::Frontend && session.ready(monotonic) &&
                 !frontendHello.empty() && protocol.readyMessage(frontendHello, scope, true);
-            returnGate.poll(context, bridge->state());
+            pollReturn(context, bridge->state());
         }
+        startContinuation(scope);
         bool due = false;
         {
             std::lock_guard<std::mutex> guard(mutex);
@@ -896,6 +978,7 @@ void NativeMovieHost::State::stop() {
         matchTimerObservedAt = 0;
         verifiedBuildObservedAt = 0;
         returnGate.clear();
+        continuationGate.clear();
         scopeLive = false;
         movieReady = false;
         movieCallbackSeen = false;
@@ -1014,6 +1097,9 @@ Json NativeMovieHost::status() const {
         result["return_navigation_issued"] = state_->returnGate.issued();
         result["return_execute_offered"] = state_->returnGate.executeOffered();
         result["return_arrived"] = state_->returnGate.arrived();
+        result["continuation_pending"] = state_->continuationGate.pending();
+        result["continuation_ready"] = state_->continuationGate.ready();
+        result["continuation_start_attempted"] = state_->continuationGate.attempted();
         result["return_needs_user_pause"] = state_->returnGate.pending() && !state_->returnGate.executeOffered() &&
             state_->surface == NativeMenuSurface::None;
         result["menu_top"] = state_->menuTop;
