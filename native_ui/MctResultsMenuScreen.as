@@ -4,6 +4,8 @@ package
     import flash.display.DisplayObjectContainer;
     import flash.display.InteractiveObject;
     import flash.events.Event;
+    import menus.MctResultsMenu;
+    import tagame.api.DevUtil;
     import scaleform.clik.core.UIComponent;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
@@ -11,9 +13,23 @@ package
     // Document subclass. Scoreboard ownership and screen lifecycle stay on EndGameMenuScreen.
     public class MctResultsMenuScreen extends EndGameMenuScreen
     {
+        private var lastReturnHeld:Boolean = false;
+
         public function MctResultsMenuScreen()
         {
             super();
+        }
+
+        override public function close(fadeTime:Number = -1) : void
+        {
+            var authored:MctResultsMenu = m_endGameMenu as MctResultsMenu;
+            if (authored != null && authored.shouldHoldScreenClose())
+            {
+                DevUtil.Log("MCT_NATIVE_RETURN_DIAG", "results:document_close_blocked");
+                return;
+            }
+            DevUtil.Log("MCT_NATIVE_RETURN_DIAG", "results:document_close_allowed");
+            super.close(fadeTime);
         }
 
         override protected function handleAddedToStage(event:Event) : void
@@ -26,6 +42,11 @@ package
         override protected function handleRemovedFromStage(event:Event) : void
         {
             removeEventListener(Event.ENTER_FRAME, keepMatchChrome);
+            // Observation only: manager/native removal can bypass close().
+            // Never suppress stock removal cleanup or claim this is arrival.
+            DevUtil.Log("MCT_NATIVE_RETURN_DIAG", lastReturnHeld ?
+                "results:document_removed_after_held_frame" : "results:document_removed");
+            lastReturnHeld = false;
             super.handleRemovedFromStage(event);
         }
 
@@ -39,6 +60,8 @@ package
 
         private function keepMatchChrome(event:Event = null) : void
         {
+            var authored:MctResultsMenu = m_endGameMenu as MctResultsMenu;
+            lastReturnHeld = authored != null && authored.shouldHoldScreenClose();
             var shell:ITAGameShell = TAGameShellInstance.get();
             if (shell == null) return;
             if (shell.matchmakingView != null && shell.matchmakingView.visible) shell.hideMatchmakingView();

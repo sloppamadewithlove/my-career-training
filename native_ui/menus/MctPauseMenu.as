@@ -98,11 +98,18 @@ package menus
             super.handleRemovedFromStage(event);
         }
 
+        // The document can close without entering this menu's close method.
+        // Expose only the existing bounded decision, never a second authority.
+        public function shouldHoldScreenClose() : Boolean
+        {
+            return !navigationIssued && isFrontMenu() && returnLocked();
+        }
+
         override public function close(transition:Boolean = true) : void
         {
             // Keep the current movie available while an accepted Return drains.
             // The fixed typed exit is allowed to perform its stock cleanup.
-            if (!navigationIssued && isFrontMenu() && returnLocked()) return;
+            if (shouldHoldScreenClose()) return;
             super.close(transition);
         }
 

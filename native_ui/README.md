@@ -37,6 +37,13 @@ normal recovery input; the pending intent remains owned by the host. The
 navigation-issued latch prevents another typed exit but does not disable the
 host's recovery Quit or ordinary Resume/Options after release.
 
+The authored document screens also consult the current menu's bounded hold
+before their own `close(Number)` calls reach stock release/unpause cleanup.
+Typed exit and released recovery still use stock teardown. Direct manager or
+native removal can bypass that virtual method; fixed diagnostic messages record
+whether document close was blocked or the screen disappeared after a held frame.
+Removal cleanup is never suppressed, and those messages are not arrival proof.
+
 Rebuilt controls synchronize focus only for the validated front menu, retaining
 an enabled matching control and defaulting destructive confirmation to Back.
 During a committed hold, pending-only Quit receives no automatic focus. A fresh
