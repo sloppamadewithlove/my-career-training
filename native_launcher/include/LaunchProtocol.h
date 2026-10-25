@@ -35,14 +35,14 @@ inline constexpr DWORD kMctOfflineCreationFlags =
     CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_DEFAULT_ERROR_MODE | CREATE_NEW_PROCESS_GROUP;
 
 inline constexpr const wchar_t* kMctOfflineArguments[] = {
-    L"-noeac",
     L"-rlbot",
     L"RLBot_ControllerURL=127.0.0.1:23233",
     L"RLBot_PacketSendRate=240",
     L"-nomovie",
 };
 
-static_assert(sizeof(kMctOfflineArguments) / sizeof(kMctOfflineArguments[0]) == 5, "offline argument vector");
+inline constexpr std::size_t kMctOfflineArgumentCount = sizeof(kMctOfflineArguments) / sizeof(kMctOfflineArguments[0]);
+static_assert(kMctOfflineArgumentCount == 4, "offline argument vector");
 static_assert(sizeof(kMctSourceExeSha256) == 65, "executable sha256");
 static_assert(sizeof(kMctSourcePackageSha256) == 65, "menu package sha256");
 static_assert((kMctHoldShare & (FILE_SHARE_WRITE | FILE_SHARE_DELETE)) == 0, "hold must deny write and delete");

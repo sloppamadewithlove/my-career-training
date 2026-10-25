@@ -119,16 +119,17 @@ def test_verify_owned_offline_uses_shared_launch_tokens_and_rejects_bad_clocks(m
     monkeypatch.setattr(psutil, "Process", lambda _pid: FakeProcess())
     identity = ProcessIdentity(pid=73, created=123.0, executable=expected)
 
-    seen.update(live=123.0, args=["RocketLeague.exe", "-noeac", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233"])
+    seen.update(live=123.0, args=["RocketLeague.exe", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233"])
     assert bootstrap.verify_owned_offline(identity) is True
 
-    seen["args"] = ["RocketLeague.exe", "-noeac", "-rlbot", "-eac"]
-    assert bootstrap.verify_owned_offline(identity) is False
+    for conflict in ("-eac", "-noeac", "-NOEAC"):
+        seen["args"] = ["RocketLeague.exe", "-rlbot", conflict]
+        assert bootstrap.verify_owned_offline(identity) is False
 
     for created, live in ((math.nan, 123.0), (math.inf, 123.0), (0, 123.0), (-5, 123.0),
                           (True, 123.0), (123.0, math.nan), (123.0, 0), (123.0, -1)):
         identity = ProcessIdentity(pid=73, created=created, executable=expected)
-        seen.update(live=live, args=["RocketLeague.exe", "-noeac", "-rlbot"])
+        seen.update(live=live, args=["RocketLeague.exe", "-rlbot"])
         assert bootstrap.verify_owned_offline(identity) is False
 
 
@@ -153,7 +154,8 @@ def test_failed_launch_restores_the_journal_and_does_not_touch_steam(tmp_path, m
     assert layout.steam_sentinel.read_bytes() == b"steam-sentinel"
     args, kwargs = observed[0]
     assert args[0] == str(layout.executable)
-    assert "-noeac" in args and "-rlbot" in args
+    assert args[1:] == ["-rlbot", "RLBot_ControllerURL=127.0.0.1:23233",
+                       "RLBot_PacketSendRate=240", "-nomovie"]
     assert kwargs["shell"] is False
     assert all("localconfig" not in str(part).lower() for part in args)
     assert not (layout.root / "cfg" / "plugins.cfg.mct-backup").exists()

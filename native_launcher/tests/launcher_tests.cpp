@@ -425,7 +425,7 @@ int main(int argc, char** argv) {
     std::wstring command;
     Expect(MctBuildOfflineCommandLine(L"C:\\Games\\Binaries\\Win64\\RocketLeague.exe", &command, &error),
            "command line builds");
-    Expect(command == L"\"C:\\Games\\Binaries\\Win64\\RocketLeague.exe\" \"-noeac\" \"-rlbot\" "
+    Expect(command == L"\"C:\\Games\\Binaries\\Win64\\RocketLeague.exe\" \"-rlbot\" "
                       L"\"RLBot_ControllerURL=127.0.0.1:23233\" \"RLBot_PacketSendRate=240\" \"-nomovie\"",
            "command line is the fixed offline vector");
     Expect(command.find(kSession) == std::wstring::npos, "command line does not carry the session");
@@ -515,6 +515,9 @@ int main(int argc, char** argv) {
     MctResolvedLaunch mutated = resolved;
     mutated.commandLine += L" \"-eac\"";
     Expect(!MctCreatePreconditionsHold(mutated, &error), "extra launch argument is rejected at the create gate");
+    mutated = resolved;
+    mutated.commandLine += L" \"-noeac\"";
+    Expect(!MctCreatePreconditionsHold(mutated, &error), "conflicting noeac mode is rejected at the create gate");
     mutated = resolved;
     mutated.inheritHandles = TRUE;
     Expect(!MctCreatePreconditionsHold(mutated, &error), "handle inheritance is rejected at the create gate");

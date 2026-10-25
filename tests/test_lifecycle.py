@@ -365,10 +365,10 @@ def test_owned_game_identity_ignores_preexisting_or_unmarked_processes(monkeypat
         def exe(self):
             return "/games/RocketLeague.exe"
 
-    old = FakeProcess(41, 98.9, ["RocketLeague.exe", "-rlbot", "-noeac"])
+    old = FakeProcess(41, 98.9, ["RocketLeague.exe", "-rlbot"])
     unrelated = FakeProcess(42, 101.0, ["RocketLeague.exe"])
-    owned = FakeProcess(43, 102.0, ["RocketLeague.exe", "-rlbot", "-noeac"])
-    unsafe = FakeProcess(44, 102.0, ["RocketLeague.exe", "-rlbot"])
+    owned = FakeProcess(43, 102.0, ["RocketLeague.exe", "-rlbot"])
+    unsafe = FakeProcess(44, 102.0, ["RocketLeague.exe", "-rlbot", "-noeac"])
     monkeypatch.setattr(platforms, "game_processes", lambda: [old, unrelated, owned, unsafe])
 
     identity = platforms.owned_game_since(100.0, "/games/RocketLeague.exe")

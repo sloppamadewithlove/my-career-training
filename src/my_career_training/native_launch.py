@@ -48,7 +48,6 @@ SOURCE_PACKAGE_SHA256 = "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef
 SOURCE_PACKAGE_SIZE = 3418271
 
 OFFLINE_ARGUMENTS = (
-    "-noeac",
     "-rlbot",
     "RLBot_ControllerURL=127.0.0.1:23233",
     "RLBot_PacketSendRate=240",

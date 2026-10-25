@@ -86,10 +86,10 @@ bool MctCreatePreconditionsHold(const MctResolvedLaunch& resolved, std::wstring*
         return Fail(error, L"the launch command was rejected");
     }
     std::vector<std::wstring> args;
-    if (!SplitCommand(resolved.commandLine, &args) || args.size() != 6 || args[0] != resolved.exePath) {
+    if (!SplitCommand(resolved.commandLine, &args) || args.size() != kMctOfflineArgumentCount + 1 || args[0] != resolved.exePath) {
         return Fail(error, L"the launch command was rejected");
     }
-    for (std::size_t i = 0; i < 5; ++i) {
+    for (std::size_t i = 0; i < kMctOfflineArgumentCount; ++i) {
         if (args[i + 1] != kMctOfflineArguments[i]) {
             return Fail(error, L"the launch command was rejected");
         }
