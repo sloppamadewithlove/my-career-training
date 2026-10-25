@@ -9,7 +9,9 @@ Latest live source candidate: `d95f4cc`. Native Forfeit cancel/confirm, durable
 loss, visible hub arrival, schedule advance and next native Play passed. A real
 1–19 result saved once; plain results retention passed beyond 80 seconds.
 The stock `OptionsEndGameMenuMovie` submenu then lost retention and travelled
-to team selection. Fix its exact stack classification, retest submenu and
+to team selection. Source fix `351afcd` recognizes that exact submenu only with
+the results movie still in the SDK stack and adds bounded stack diagnostics.
+Its two focused native suites passed. Build and retest the submenu and
 Settings/Back, then use the actual saved-results Return button. That button,
 restart persistence and exact frozen gameplay acceptance remain open. The d95
 installer inventory passed but the artifact is held. Physical DS4 testing is
@@ -161,6 +163,10 @@ guard recognized only `OptionsMenuMovie`, so it revoked retention and the game
 travelled to `TeamSelectMenuMovie` after the remaining countdown. Saved data was
 preserved. The actual saved-results Return button remains unverified. A narrowly
 scoped classification fix and a repeated live Options/Return check are required.
+
+`351afcd` implements that classifier correction with negative route tests. It
+does not change save, event, READY or ownership requirements. Actual stack
+contents and the corrected route still need live verification.
 
 The exact `d95f4cc` Windows pipeline passed. Independent Luna verification matched
 all 4,470 bundle files, nine source archives and the 178,249,099-byte Setup against
