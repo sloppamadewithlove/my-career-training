@@ -45,6 +45,9 @@ int main() {
         c.secondsRemaining = 30;
         c.matchEnded = false;
         require(!gate.observe(c, state, 20), "Saved receipt changed a live match timer");
+        c.matchEnded = true;
+        require(!gate.observe(c, state, 20), "Reused object address restored an expired result binding");
+        gate = tracked();
         c.matchEnded = true; c.resultsReady = false;
         require(!gate.observe(c, state, 20), "Missing native results READY retained a timer");
         c.resultsReady = true;

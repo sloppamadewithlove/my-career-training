@@ -35,6 +35,11 @@ public:
         const auto fixture = stringValue(session, "fixture_id");
         if (activity.empty() || activity.size() > 128 || fixture.empty() || fixture.size() > 128 ||
             stringValue(session, "kind") != "career") { clear(); return false; }
+        // An engine object address can be reused. Leaving the ended state also
+        // retires this binding, even if a replacement map gets the same address.
+        if (event_ && (event_ != context.gameEvent || (endedSeen_ && !context.matchEnded))) {
+            clear(); return false;
+        }
         if (nonce_ != c.nonce || activity_ != activity || fixture_ != fixture || event_ != context.gameEvent) {
             clear();
             const auto pending = objectValue(objectValue(state, "career"), "pending_session");
@@ -44,6 +49,7 @@ public:
             nonce_ = c.nonce; activity_ = activity; fixture_ = fixture; event_ = context.gameEvent;
             return false;
         }
+        endedSeen_ = endedSeen_ || context.matchEnded;
         active_ = context.matchEnded && context.resultsReady && savedForTrackedActivity(state);
         return active_ && context.secondsRemaining > 0 && context.secondsRemaining <= 30 &&
             now >= nextAttempt_;
@@ -69,7 +75,7 @@ public:
     void suspend() { active_ = false; }
     void clear() {
         nonce_.clear(); activity_.clear(); fixture_.clear(); event_ = 0;
-        active_ = false; attempts_ = 0; nextAttempt_ = 0;
+        active_ = endedSeen_ = false; attempts_ = 0; nextAttempt_ = 0;
     }
     bool active() const { return active_; }
     unsigned attempts() const { return attempts_; }
@@ -78,6 +84,7 @@ private:
     std::string nonce_, activity_, fixture_;
     std::uintptr_t event_ = 0;
     bool active_ = false;
+    bool endedSeen_ = false;
     unsigned attempts_ = 0;
     double nextAttempt_ = 0;
 };
