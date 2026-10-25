@@ -39,7 +39,7 @@ static NativeReturnGate forfeiting() {
 static Json forfeitedState() {
     auto state = readyState();
     state["latest_result"] = {{"session_id", "activity-1"}, {"fixture_id", "fixture-1"},
-        {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"},
+        {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"}, {"simulated", false},
         {"home", "human"}, {"away", "opponent"}, {"winner", "opponent"},
         {"home_score", 4}, {"away_score", 1}};
     return state;
@@ -64,13 +64,15 @@ static void forfeitTests() {
     auto gate = forfeiting();
     require(!gate.poll(c, readyState()) && gate.pending(), "Idle ACK without saved Forfeit authorized exit");
     const auto saved = forfeitedState();
-    for (const auto& field : {"session_id", "fixture_id", "provenance", "outcome", "forfeited_by", "winner", "home", "away"}) {
+    for (const auto& field : {"session_id", "fixture_id", "provenance", "outcome", "forfeited_by", "winner", "home", "away", "simulated"}) {
         auto missing = saved; missing["latest_result"].erase(field);
         auto waiting = forfeiting();
         require(!waiting.poll(c, missing) && waiting.pending(), "Incomplete saved Forfeit authorized exit");
     }
     auto wrongWinner = saved; wrongWinner["latest_result"]["winner"] = "human";
     require(!gate.poll(c, wrongWinner), "Forfeit counted as a human win");
+    auto simulated = saved; simulated["latest_result"]["simulated"] = true;
+    require(!gate.poll(c, simulated), "Simulated result authorized human Forfeit navigation");
     require(gate.poll(c, saved), "Saved Forfeit loss while ahead refused exact ACK");
     require(gate.markConsumed(c, saved, "pause", "2") && gate.noteExecutePublished("pause", "2") &&
         gate.markIssued(c, saved, "pause", "2"), "Forfeit did not use the typed Return handshake");

@@ -189,6 +189,7 @@ private:
         const auto winner = stringValue(result, "winner");
         return stringValue(result, "session_id") == activity_ && stringValue(result, "fixture_id") == fixture_ &&
             stringValue(result, "provenance") == "forfeit" && stringValue(result, "outcome") == "forfeited" &&
+            explicitFalse(result, "simulated") &&
             stringValue(result, "forfeited_by") == "human" && !winner.empty() && winner != "human" &&
             ((home == "human" && away == winner) || (away == "human" && home == winner));
     }

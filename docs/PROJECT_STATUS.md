@@ -109,6 +109,19 @@ Return. Ordinary unfinished Return keeps its restart behavior. Domain/service,
 menu, native-host and actual-game evidence remain separate; Forfeit and results
 retention are not yet live-verified or published.
 
+The integrated source suite passed 1,004 tests with 15 skipped before the later
+team-index correction; its focused adapter/Forfeit checks also passed. Independent
+review caught and corrected a telemetry team-order assumption, a timer binding
+that could survive a stale observation gap, and a missing final READY check before
+the timer setter. The native Forfeit handshake also accepted an actual service
+snapshot produced with a fake worker; that is a contract check, not gameplay.
+
+A separate normal Steam launch, with the test-owned injector closed and no
+offline launch arguments, visibly reached Rocket League's original root menu
+and was closed normally. Original My Career and checked plugin/configuration
+files were restored. Ordinary game save changes are preserved. An online match
+and full anti-cheat behavior remain unverified.
+
 The current training input display uses logical game actions and configured
 button labels; its right stick and D-pad are placeholders. A USB DualShock 4
 player test reported insufficient visible button feedback. Community controller

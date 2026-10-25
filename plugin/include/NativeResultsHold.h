@@ -24,8 +24,9 @@ public:
     bool observe(const NativeResultsContext& context, const Json& state, double now) {
         active_ = false;
         const auto& c = context.scope;
-        if (!c.fresh && c.owned && c.offline && !c.online && !c.replay && c.buildVerified && c.nonce == nonce_)
-            return false;
+        // A stale interval can conceal map travel and object-address reuse.
+        // Release this timer lease; accepted Return intent is a separate gate.
+        if (!c.fresh) { clear(); return false; }
         if (!c.owned || !c.fresh || !c.offline || c.online || c.replay || !c.buildVerified ||
             !c.inGame || !context.gameEvent || c.nonce.empty() || !state.is_object() ||
             stringValue(state, "bridge_session") != c.nonce ||

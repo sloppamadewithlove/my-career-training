@@ -211,6 +211,10 @@ After earning fresh results READY, the timer-only permission also covers
 underneath it. Unknown screens do not receive timer writes and revoke that
 modal permission; a loading gap performs no writes. Returning to results must
 earn fresh READY again. This permission never authorizes shell navigation.
+A stale bridge or unavailable game event discards the timer binding because the
+gap could hide a map transition and object-address reuse. Accepted Return intent
+is still retained separately. The host checks the current results generation and
+READY again immediately before a results-screen timer write.
 
 These are the repair's acceptance requirements. Exact source, compiled movies,
 and live-game evidence must be recorded separately before release.

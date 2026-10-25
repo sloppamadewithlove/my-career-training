@@ -599,9 +599,8 @@ void NativeMovieHost::State::tick() {
         if (!preconditions(sessionId, bridgeState, why, false)) {
             {
                 std::lock_guard<std::mutex> guard(mutex);
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) {
-                    returnGate.clear(); resultsHold.clear();
-                }
+                resultsHold.clear();
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
             }
             suspend(why, sessionId);
             return;
@@ -641,9 +640,8 @@ void NativeMovieHost::State::tick() {
         if (!preconditions(sessionId, bridgeState, why, false)) {
             {
                 std::lock_guard<std::mutex> guard(mutex);
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) {
-                    returnGate.clear(); resultsHold.clear();
-                }
+                resultsHold.clear();
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
             }
             suspend(why, sessionId);
             return;
@@ -662,9 +660,12 @@ void NativeMovieHost::State::tick() {
                 resultContext.matchEnded = server.GetbMatchEnded() != 0;
                 resultContext.secondsRemaining = server.GetGameStateTimeRemaining();
                 resultContext.screen = resultsScreen();
+                std::uint64_t resultsGeneration = 0;
                 {
                     std::lock_guard<std::mutex> guard(mutex);
-                    resultContext.resultsReady = surface == NativeMenuSurface::Results && session.ready(monotonicSeconds());
+                    resultsGeneration = scopeGeneration;
+                    resultContext.resultsReady = scopeLive && surface == NativeMenuSurface::Results &&
+                        session.nonce() == sessionId && session.ready(monotonicSeconds());
                 }
                 resultContext.resultsReady = resultContext.resultsReady && resultContext.screen == NativeResultsScreen::Results;
                 const auto holdNow = monotonicSeconds();
@@ -689,9 +690,12 @@ void NativeMovieHost::State::tick() {
                         {
                             std::lock_guard<std::mutex> guard(mutex);
                             if (stopped) return;
-                            resultsHold.noteAttempt(holdNow);
+                            refreshResults = resultContext.screen == NativeResultsScreen::OptionsOverResults ||
+                                (scopeLive && surface == NativeMenuSurface::Results && scopeGeneration == resultsGeneration &&
+                                 session.nonce() == sessionId && session.ready(monotonicSeconds()));
+                            if (refreshResults) resultsHold.noteAttempt(holdNow);
                         }
-                        current.SetGameStateTimeRemaining2(60, 0);
+                        if (refreshResults) current.SetGameStateTimeRemaining2(60, 0);
                     }
                 }
                 {
@@ -702,6 +706,9 @@ void NativeMovieHost::State::tick() {
                     {"game_state_time_remaining", server.GetGameStateTimeRemaining()},
                     {"replicated_game_state_time_remaining", server.GetReplicatedGameStateTimeRemaining()},
                     {"match_ended", server.GetbMatchEnded() != 0}};
+            } else {
+                std::lock_guard<std::mutex> guard(mutex);
+                resultsHold.clear();
             }
         } else {
             std::lock_guard<std::mutex> guard(mutex);

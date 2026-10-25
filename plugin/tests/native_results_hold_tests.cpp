@@ -80,8 +80,11 @@ int main() {
         g = tracked(); require(!g.observe(c, idle, 20), "Completed cleanup retained obsolete timer authority");
         g = tracked(); c.scope.fresh = false;
         require(!g.observe(c, state, 20), "Stale heartbeat retained timer");
+        c.matchEnded = false;
+        require(!g.observe(c, state, 20), "Stale native map transition retained timer");
+        c.matchEnded = true;
         c.scope.fresh = true;
-        require(g.observe(c, state, 21), "Short heartbeat delay forgot the same observed event");
+        require(!g.observe(c, state, 21), "Stale map transition and reused pointer restored old timer authority");
         c.scope.online = true;
         require(!g.observe(c, state, 22), "Online context retained timer");
         c.scope.online = false;
