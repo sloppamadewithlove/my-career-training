@@ -94,6 +94,21 @@ readers receive a cache that expires after one second. Independent Luna review
 found no issues; these diagnostics do not change match timing or scores and
 still require coherent compilation and live observation.
 
+Source `e5dec4c` subsequently completed a real fixture with its actual 0–24 result
+saved once, pending fixture cleared and durable receipt acknowledged. The new
+observations showed `GetbMatchEnded` true, a finished-state countdown from 60 to
+1 while `EndGameMenuMovie` had fresh READY, then automatic travel to team
+selection. `IsFinished()` stayed false throughout. No results Return click was
+completed. A scoped saved-results countdown retention change is now implemented
+for independent review and live testing; it does not change goals or match time.
+
+The requested red Forfeit Match flow is also being integrated. It confirms a
+permanent forfeited loss, preserves the score observed at that decision, clears
+the pending fixture and advances the season before worker cleanup and typed
+Return. Ordinary unfinished Return keeps its restart behavior. Domain/service,
+menu, native-host and actual-game evidence remain separate; Forfeit and results
+retention are not yet live-verified or published.
+
 The current training input display uses logical game actions and configured
 button labels; its right stick and D-pad are placeholders. A USB DualShock 4
 player test reported insufficient visible button feedback. Community controller

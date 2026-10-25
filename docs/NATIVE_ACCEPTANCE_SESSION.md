@@ -80,6 +80,17 @@ Keep the previous installer on hold even if its CI pipeline passed.
 7. Check mouse, keyboard and a real controller separately. Software key events
    are not physical-controller evidence. Verify the offline menus have no
    actionable matchmaking, tournaments or store routes.
+8. In a real unfinished career fixture, check the red Forfeit Match button and
+   its Back-first confirmation. Cancel must preserve the active fixture. Confirm
+   must save an explicitly labelled forfeited loss once, clear the pending
+   fixture, advance the schedule and reach the visible native hub through the
+   exact acknowledgement. Restart and verify the forfeit remains. Domain tests
+   separately cover tied/leading/away scores, save failure and late natural
+   receipts; do not manufacture such game scores for a live test.
+9. After a natural completed fixture, leave the actual results screen open past
+   the previous 60-second expiry. Observe the finished-state countdown refresh,
+   retained results READY and unchanged saved score, then use the actual Return
+   button. Timer setter dispatch alone is not a successful retention test.
 
 ## Restoration and normal launch
 

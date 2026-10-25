@@ -19,6 +19,7 @@
 #include "NativeMovieProtocol.h"
 #include "NativeMovieSession.h"
 #include "NativeReturnGate.h"
+#include "NativeResultsHold.h"
 #include "bakkesmod/wrappers/Engine/ActorWrapper.h"
 #include "bakkesmod/wrappers/GameEvent/ServerWrapper.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
@@ -137,6 +138,8 @@ struct NativeMovieHost::State {
     NativeMovieProtocol protocol;
     NativeMovieSession session;
     NativeReturnGate returnGate;
+    NativeResultsHold resultsHold;
+    Json resultsHoldObservation = nullptr;
     Json matchTimerObservation = nullptr;
     double matchTimerObservedAt = 0;
     double verifiedBuildObservedAt = 0;
@@ -177,6 +180,7 @@ struct NativeMovieHost::State {
     void publish(const CareerLayoutScope& scope, const Json& state, double wall, double monotonic);
     bool preconditions(std::string& sessionId, Json& state, const char*& why, bool requireSurface = true);
     bool liveNow(const std::string& sessionId) const;
+    bool matchInProgress() const;
     NativeMenuSurface observedSurface() const;
     bool drain(const CareerLayoutScope& scope, double monotonic);
     void apply(CareerLayoutEffect effect, const CareerLayoutScope& scope);
@@ -186,6 +190,12 @@ struct NativeMovieHost::State {
 };
 
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+bool NativeMovieHost::State::matchInProgress() const {
+    if (!game || !game->IsInGame() || game->IsInOnlineGame() || game->IsInReplay()) return false;
+    auto server = game->GetGameEventAsServer();
+    return server && !server.GetbMatchEnded();
+}
+
 NativeMenuSurface NativeMovieHost::State::observedSurface() const {
     if (!game || game->IsInOnlineGame() || game->IsInReplay()) return NativeMenuSurface::None;
     if (!game->IsInGame()) return NativeMenuSurface::Frontend;
@@ -474,13 +484,17 @@ void NativeMovieHost::State::apply(CareerLayoutEffect effect, const CareerLayout
         }
     }
     if (effect.kind == CareerLayoutEffectKind::Dispatch) {
-        const auto intent = effect.action == "return_hub" ? returnIntent() : std::string{};
+        const bool returning = effect.action == "return_hub" || effect.action == "forfeit_match";
+        const auto intent = returning ? returnIntent() : std::string{};
+        if (effect.action == "forfeit_match" && effect.payload.is_object())
+            effect.payload["return_intent"] = intent;
         const bool allowed = liveNow(scope.nonce) && NativeCareerLayout::supportedAction(effect.action) &&
-            (effect.action != "return_hub" || !intent.empty()) &&
+            (!returning || NativeReturnGate::validRequest(effect.action, effect.payload, intent)) &&
+            (effect.action != "forfeit_match" || (scope.surface == NativeMenuSurface::Pause && matchInProgress())) &&
             effect.payload.is_object() && bridge && bridge->send(effect.action, effect.payload);
-        if (allowed && effect.action == "return_hub") {
+        if (allowed && returning) {
             std::lock_guard<std::mutex> guard(mutex);
-            returnGate.arm(scope.nonce, effect.payload, intent, monotonicSeconds());
+            returnGate.arm(scope.nonce, effect.payload, intent, monotonicSeconds(), effect.action);
         }
         count(allowed, allowed ? "command_accepted" : "dispatch_not_sent");
         return;
@@ -556,6 +570,8 @@ void NativeMovieHost::State::tick() {
     {
         std::lock_guard<std::mutex> guard(mutex);
         matchTimerObservation = nullptr;
+        resultsHoldObservation = nullptr;
+        resultsHold.suspend();
         matchTimerObservedAt = 0;
         verifiedBuildObservedAt = 0;
         if (stopped || buildRefused) return;
@@ -567,7 +583,9 @@ void NativeMovieHost::State::tick() {
         if (!preconditions(sessionId, bridgeState, why, false)) {
             {
                 std::lock_guard<std::mutex> guard(mutex);
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) {
+                    returnGate.clear(); resultsHold.clear();
+                }
             }
             suspend(why, sessionId);
             return;
@@ -583,6 +601,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
                 returnGate.clear();
+                resultsHold.clear();
             }
             removeHook();
             suspend(hashWhy, sessionId);
@@ -595,6 +614,7 @@ void NativeMovieHost::State::tick() {
                 std::lock_guard<std::mutex> guard(mutex);
                 buildRefused = true;
                 returnGate.clear();
+                resultsHold.clear();
             }
             removeHook();
             suspend(version != kBakkesVersion ? "bakkesmod_version_mismatch" : "build_mismatch", sessionId);
@@ -605,7 +625,9 @@ void NativeMovieHost::State::tick() {
         if (!preconditions(sessionId, bridgeState, why, false)) {
             {
                 std::lock_guard<std::mutex> guard(mutex);
-                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) returnGate.clear();
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId)) {
+                    returnGate.clear(); resultsHold.clear();
+                }
             }
             suspend(why, sessionId);
             return;
@@ -614,19 +636,63 @@ void NativeMovieHost::State::tick() {
         // ownership, offline scope, executable hash and SDK build are verified.
         // A missing menu does not make a valid owned match unavailable.
         Json timerObservation = nullptr;
+        Json holdObservation = nullptr;
         if (game->IsInGame()) {
             auto server = game->GetGameEventAsServer();
             if (server) {
+                NativeResultsContext resultContext;
+                resultContext.scope = returnContext();
+                resultContext.gameEvent = server.memory_address;
+                resultContext.matchEnded = server.GetbMatchEnded() != 0;
+                resultContext.secondsRemaining = server.GetGameStateTimeRemaining();
+                {
+                    std::lock_guard<std::mutex> guard(mutex);
+                    resultContext.resultsReady = surface == NativeMenuSurface::Results && session.ready(monotonicSeconds());
+                }
+                resultContext.resultsReady = resultContext.resultsReady && observedSurface() == NativeMenuSurface::Results;
+                const auto holdNow = monotonicSeconds();
+                bool refreshResults = false;
+                {
+                    std::lock_guard<std::mutex> guard(mutex);
+                    if (!stopped) refreshResults = resultsHold.observe(resultContext, bridgeState, holdNow);
+                }
+                if (refreshResults && liveNow(sessionId) && observedSurface() == NativeMenuSurface::Results) {
+                    const auto latest = bridge->state();
+                    {
+                        std::lock_guard<std::mutex> guard(mutex);
+                        refreshResults = !stopped && resultsHold.savedForTrackedActivity(latest);
+                    }
+                    auto current = game->GetGameEventAsServer();
+                    if (refreshResults && current && current.memory_address == server.memory_address && current.GetbMatchEnded() &&
+                        current.GetGameStateTimeRemaining() > 0 && current.GetGameStateTimeRemaining() <= 30) {
+                        // This is the observed post-match state timer, not the
+                        // Soccar play clock. Never revive an expired timer.
+                        {
+                            std::lock_guard<std::mutex> guard(mutex);
+                            if (stopped) return;
+                            resultsHold.noteAttempt(holdNow);
+                        }
+                        current.SetGameStateTimeRemaining2(60, 0);
+                    }
+                }
+                {
+                    std::lock_guard<std::mutex> guard(mutex);
+                    holdObservation = {{"active", resultsHold.active()}, {"refresh_attempts", resultsHold.attempts()}};
+                }
                 timerObservation = {{"is_finished", server.IsFinished()},
                     {"game_state_time_remaining", server.GetGameStateTimeRemaining()},
                     {"replicated_game_state_time_remaining", server.GetReplicatedGameStateTimeRemaining()},
                     {"match_ended", server.GetbMatchEnded() != 0}};
             }
+        } else {
+            std::lock_guard<std::mutex> guard(mutex);
+            resultsHold.clear();
         }
         {
             std::lock_guard<std::mutex> guard(mutex);
             verifiedBuildObservedAt = monotonicSeconds();
             matchTimerObservation = std::move(timerObservation);
+            resultsHoldObservation = std::move(holdObservation);
             if (!matchTimerObservation.is_null()) matchTimerObservedAt = verifiedBuildObservedAt;
         }
         // Persistence and worker shutdown finish asynchronously. This survives
@@ -704,6 +770,7 @@ void NativeMovieHost::State::tick() {
         scope.nonce = sessionId;
         scope.generation = scopeGeneration;
         scope.surface = surface;
+        scope.matchInProgress = matchInProgress();
         if (!opened) {
             opened = protocol.open(scope, bridgeState,
                 cosmeticContext ? cosmeticContext() : NativeCosmeticContext{}, workshopNow());
@@ -757,6 +824,8 @@ void NativeMovieHost::State::tick() {
         {
             std::lock_guard<std::mutex> guard(mutex);
             matchTimerObservation = nullptr;
+            resultsHoldObservation = nullptr;
+            resultsHold.clear();
             matchTimerObservedAt = 0;
             verifiedBuildObservedAt = 0;
         }
@@ -777,6 +846,8 @@ void NativeMovieHost::State::stop() {
         if (stopped) return;
         stopped = true;
         matchTimerObservation = nullptr;
+        resultsHoldObservation = nullptr;
+        resultsHold.clear();
         matchTimerObservedAt = 0;
         verifiedBuildObservedAt = 0;
         returnGate.clear();
@@ -879,7 +950,7 @@ Json NativeMovieHost::status() const {
     Json result = {{"trial_enabled", MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0}, {"view_published", false},
         {"movie_callback_seen", false}, {"commands_accepted", 0}, {"commands_rejected", 0},
         {"parameter_abi_verified", false}, {"runtime_verified", false}, {"production_ready", false},
-        {"movie_ready", false}, {"match_timer", nullptr},
+        {"movie_ready", false}, {"match_timer", nullptr}, {"results_hold", nullptr},
         {"reason", MCT_ENABLE_NATIVE_MOVIE_TRIAL ? "waiting_for_session" : "trial_compiled_out"}};
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     if (state_) {
@@ -909,6 +980,7 @@ Json NativeMovieHost::status() const {
         if (!state_->stopped && !state_->matchTimerObservation.is_null() && timerAge >= 0 && timerAge <= 1) {
             result["match_timer"] = state_->matchTimerObservation;
             result["match_timer"]["age_ms"] = static_cast<int>(timerAge * 1000);
+            result["results_hold"] = state_->resultsHoldObservation;
         }
         const auto buildAge = now - state_->verifiedBuildObservedAt;
         if (!state_->stopped && state_->verifiedBuildObservedAt > 0 && buildAge >= 0 && buildAge <= 1) {

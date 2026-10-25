@@ -157,7 +157,7 @@ movie; the host no longer calls it. An externally unloaded pause retains intent
 and reports that the player must reopen pause with Escape or Start.
 
 The view binds `return_pending` and `return_hold` into its generation. Each
-control has a `return_commit` boolean, true only for actual Return dispatch,
+control has a `return_commit` boolean, true only for actual Return or confirmed Forfeit dispatch,
 not for opening an unfinished-match confirmation. The movie covers the initial
 click-to-host gap for at most two seconds. A fresh accepted hold then retains
 the menu, disables Resume/Options, and consumes closing input while displaying
@@ -168,6 +168,44 @@ discard the intent or permit a second exit. Existing safe Quit and save-retry
 dispatch remain available when their service gates permit them. Quit must not
 receive automatic focus from the preceding confirmation. The permanent
 navigation-issued latch guards the exit call, not all recovery controls.
+
+Career pause also offers a red Forfeit Match action, with a separate confirmation
+whose default selection is Back. It requires a current owned unfinished career
+match and exact session/fixture binding; training, calibration and finished results
+cannot forfeit. The movie effect carries
+`forfeit_match {expected_session_id,expected_fixture_id,confirm:true}`. The trusted
+host adds a fresh 32-character lowercase hexadecimal `return_intent`; the service
+accepts exactly those four fields. The host rechecks the actual server's
+`GetbMatchEnded` immediately before dispatch.
+
+The service drains already received natural results before choosing a forfeit.
+An already saved natural finish wins that race. Otherwise `forfeit_fixture`
+atomically records `provenance:forfeit`, `outcome:forfeited`,
+`forfeited_by:human`, and the opponent as winner, retaining the observed goals.
+Ties and human leads still count as losses; table points, progression and brackets
+follow the explicit winner. No goals are invented. The pending fixture clears
+and the schedule advances once. A late matching natural result receipt cannot
+overwrite or award the saved forfeit again.
+
+Only after that durable save does worker cleanup begin. Navigation still requires
+the exact `native_return_ready` acknowledgement and the existing typed Return
+handshake; the host additionally checks the matching saved forfeit. A failed
+precommit attempt publishes `native_forfeit_rejected {session_id,fixture_id,intent}`.
+Only an exact matching rejection releases that host intent for another attempt;
+generic errors and old rejection records cannot do so. A postcommit cleanup
+failure must not publish a rejection. Regular unfinished Return still requeues
+the fixture without recording a loss.
+
+The native results host separately retains a saved natural result against the
+observed automatic next-map countdown. It must have tracked the exact game event
+while its bound career fixture was Playing. Refreshing the finished-state timer
+requires that same event, an ended match, actual EndGameMenuMovie with fresh
+authored results READY, matching persisted result, cleared pending fixture and
+fresh owned offline scope. It refreshes only a positive countdown at 30 seconds
+or below to 60 seconds, with at least five seconds between attempts. It never
+revives an expired timer or writes the Soccar match clock. The typed SDK setter
+still needs live acceptance. `IsFinished()` is not used as evidence: the observed
+build returned false even while the real results screen counted down.
 
 These are the repair's acceptance requirements. Exact source, compiled movies,
 and live-game evidence must be recorded separately before release.

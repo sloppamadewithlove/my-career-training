@@ -27,6 +27,74 @@ static NativeReturnGate armed() {
     require(gate.arm(context().nonce, payload(), kIntent), "Could not arm native return");
     return gate;
 }
+static Json forfeitPayload() {
+    return {{"expected_session_id", "activity-1"}, {"expected_fixture_id", "fixture-1"},
+        {"confirm", true}, {"return_intent", kIntent}};
+}
+static NativeReturnGate forfeiting() {
+    NativeReturnGate gate;
+    require(gate.arm(context().nonce, forfeitPayload(), kIntent, 0, "forfeit_match"), "Could not arm confirmed Forfeit");
+    return gate;
+}
+static Json forfeitedState() {
+    auto state = readyState();
+    state["latest_result"] = {{"session_id", "activity-1"}, {"fixture_id", "fixture-1"},
+        {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"},
+        {"home", "human"}, {"away", "opponent"}, {"winner", "opponent"},
+        {"home_score", 4}, {"away_score", 1}};
+    return state;
+}
+static void forfeitTests() {
+    auto c = context();
+    auto valid = forfeitPayload();
+    require(NativeReturnGate::validRequest("forfeit_match", valid, kIntent), "Valid Forfeit request rejected");
+    require(!NativeReturnGate::validRequest("return_hub", valid, kIntent), "Forfeit became ordinary Return");
+    for (const auto& field : {"confirm", "expected_fixture_id", "return_intent"}) {
+        auto bad = valid; bad.erase(field);
+        require(!NativeReturnGate::validRequest("forfeit_match", bad, kIntent), "Incomplete Forfeit accepted");
+    }
+    auto bad = valid; bad["confirm"] = false;
+    require(!NativeReturnGate::validRequest("forfeit_match", bad, kIntent), "Unconfirmed Forfeit accepted");
+    bad = valid; bad["expected_fixture_id"] = "";
+    require(!NativeReturnGate::validRequest("forfeit_match", bad, kIntent), "Training Forfeit accepted");
+    bad = valid; bad["return_intent"] = "fedcba9876543210fedcba9876543210";
+    require(!NativeReturnGate::validRequest("forfeit_match", bad, kIntent), "Other Forfeit intent accepted");
+    bad = valid; bad["extra"] = true;
+    require(!NativeReturnGate::validRequest("forfeit_match", bad, kIntent), "Extra Forfeit fields accepted");
+    auto gate = forfeiting();
+    require(!gate.poll(c, readyState()) && gate.pending(), "Idle ACK without saved Forfeit authorized exit");
+    const auto saved = forfeitedState();
+    for (const auto& field : {"session_id", "fixture_id", "provenance", "outcome", "forfeited_by", "winner", "home", "away"}) {
+        auto missing = saved; missing["latest_result"].erase(field);
+        auto waiting = forfeiting();
+        require(!waiting.poll(c, missing) && waiting.pending(), "Incomplete saved Forfeit authorized exit");
+    }
+    auto wrongWinner = saved; wrongWinner["latest_result"]["winner"] = "human";
+    require(!gate.poll(c, wrongWinner), "Forfeit counted as a human win");
+    require(gate.poll(c, saved), "Saved Forfeit loss while ahead refused exact ACK");
+    require(gate.markConsumed(c, saved, "pause", "2") && gate.noteExecutePublished("pause", "2") &&
+        gate.markIssued(c, saved, "pause", "2"), "Forfeit did not use the typed Return handshake");
+    require(!gate.poll(c, saved), "Forfeit navigated twice");
+    c.inGame = false; c.frontendReady = true;
+    require(!gate.poll(c, saved) && gate.pending(), "Forfeit title screen counted as arrival");
+    c.frontendRoot = true;
+    require(!gate.poll(c, saved) && gate.arrived() && !gate.pending(), "Forfeit did not reach fresh native hub");
+    c = context();
+    auto rejected = saved;
+    rejected.erase("latest_result");
+    rejected["session"] = {{"id", "activity-1"}, {"fixture_id", "fixture-1"}, {"state", "Playing"}};
+    rejected["error"] = "Save failed";
+    rejected["native_forfeit_rejected"] = {{"session_id", "activity-1"}, {"fixture_id", "fixture-1"}, {"intent", kIntent}};
+    auto retryable = forfeiting();
+    auto generic = rejected; generic.erase("native_forfeit_rejected");
+    require(!retryable.poll(c, generic) && retryable.pending(), "Generic error forgot accepted Forfeit intent");
+    auto stale = rejected; stale["native_forfeit_rejected"]["intent"] = "fedcba9876543210fedcba9876543210";
+    require(!retryable.poll(c, stale) && retryable.pending(), "Old rejection cancelled a new Forfeit");
+    require(!retryable.poll(c, rejected) && !retryable.pending() && !retryable.arrived(), "Exact save rejection did not release pause controls");
+    require(retryable.arm(c.nonce, valid, kIntent, 0, "forfeit_match"), "Rejected Forfeit could not retry");
+    rejected["latest_result"] = saved["latest_result"];
+    require(!retryable.poll(c, rejected) && retryable.pending(), "Rejection erased a durably committed Forfeit");
+}
 int main(int argc, char** argv) {
     try {
         if (argc == 2) {
@@ -36,7 +104,7 @@ int main(int argc, char** argv) {
             const auto fixture = Json::parse(input);
             auto c = context(); c.nonce = stringValue(fixture.at("state"), "bridge_session");
             NativeReturnGate gate;
-            require(gate.arm(c.nonce, fixture.at("payload"), kIntent), "Actual service fixture did not arm");
+            require(gate.arm(c.nonce, fixture.at("payload"), kIntent, 0, fixture.value("action", "return_hub")), "Actual service fixture did not arm");
             require(gate.poll(c, fixture.at("state")), "Actual Backend.state refused navigation");
             require(gate.markConsumed(c, fixture.at("state"), "pause", "2"), "Actual service fixture consumption refused");
             require(gate.noteExecutePublished("pause", "2"), "Actual service fixture execute publication refused");
@@ -45,6 +113,7 @@ int main(int argc, char** argv) {
             std::cout << "Actual service return fixture passed\n";
             return 0;
         }
+        forfeitTests();
         auto c = context(); auto state = readyState();
         require(!NativeReturnGate::permitsAction("play_match") && !NativeReturnGate::permitsAction("start_lesson") &&
             !NativeReturnGate::permitsAction("retry_lesson") && !NativeReturnGate::permitsAction("return_hub"),

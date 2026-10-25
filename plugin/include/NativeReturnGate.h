@@ -23,21 +23,33 @@ struct NativeReturnContext {
 // it. Service JSON confirms persistence; it never supplies engine commands.
 class NativeReturnGate {
 public:
-    bool arm(const std::string& nonce, const Json& payload, const std::string& intent, double now = 0) {
-        if (nonce.empty() || !payload.is_object() || payload.size() != 3 ||
+    static bool validRequest(const std::string& action, const Json& payload, const std::string& intent) {
+        if (!payload.is_object() ||
             !payload.contains("expected_session_id") || !payload["expected_session_id"].is_string() ||
-            !payload.contains("expected_fixture_id") || !payload["expected_fixture_id"].is_string() ||
-            !payload.contains("abandon") || !payload["abandon"].is_boolean()) return false;
+            !payload.contains("expected_fixture_id") || !payload["expected_fixture_id"].is_string()) return false;
         const auto activity = payload["expected_session_id"].get<std::string>();
         const auto fixture = payload["expected_fixture_id"].get<std::string>();
         if (activity.empty() || activity.size() > 128 || fixture.size() > 128 || !validIntent(intent)) return false;
+        if (action == "return_hub")
+            return payload.size() == 3 && payload.contains("abandon") && payload["abandon"].is_boolean();
+        return action == "forfeit_match" && !fixture.empty() && payload.size() == 4 &&
+            payload.contains("confirm") && payload["confirm"].is_boolean() && payload["confirm"].get<bool>() &&
+            stringValue(payload, "return_intent") == intent;
+    }
+
+    bool arm(const std::string& nonce, const Json& payload, const std::string& intent, double now = 0,
+             const std::string& action = "return_hub") {
+        if (nonce.empty() || !validRequest(action, payload, intent)) return false;
+        const auto activity = payload["expected_session_id"].get<std::string>();
+        const auto fixture = payload["expected_fixture_id"].get<std::string>();
         // Repeated clicks cannot re-arm an already issued return for this activity.
-        if (nonce == nonce_ && activity == activity_ && fixture == fixture_) return true;
+        if (nonce == nonce_ && activity == activity_ && fixture == fixture_) return action == action_;
         if (pending()) return false;
         nonce_ = nonce;
         activity_ = activity;
         fixture_ = fixture;
         intent_ = intent;
+        action_ = action;
         ready_ = false;
         issued_ = false;
         executeOffered_ = false;
@@ -69,13 +81,23 @@ public:
         if (!activeId.empty() && (activeId != activity_ || stringValue(session, "fixture_id") != fixture_)) {
             clear(); return false;
         }
+        // A failed atomic save may restore ordinary pause controls, but only
+        // this exact host-generated request's explicit rejection can do so.
+        // Generic errors and stale pre-dispatch snapshots cannot cancel intent.
+        const auto rejected = objectValue(state, "native_forfeit_rejected");
+        if (action_ == "forfeit_match" && !executeOffered_ && !issued_ && !forfeitCommitted(state) &&
+            activeId == activity_ && stringValue(session, "fixture_id") == fixture_ &&
+            rejected.size() == 3 && stringValue(rejected, "session_id") == activity_ &&
+            stringValue(rejected, "fixture_id") == fixture_ && stringValue(rejected, "intent") == intent_) {
+            clear(); return false;
+        }
         ready_ = durable(state);
         if (!ready_) { suspendExecution(); return false; }
         // A title screen and map transition are both outside the match. Only a
         // current authored hub handshake plus the stock root stack completes it.
         if (!context.inGame) {
             if (context.frontendReady && context.frontendRoot) {
-                nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear();
+                nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear(); action_.clear();
                 ready_ = false; consumedGeneration_.clear(); consumedSurface_.clear();
                 arrived_ = true;
             }
@@ -147,7 +169,7 @@ public:
     }
 
     void clear() {
-        nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear();
+        nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear(); action_.clear();
         ready_ = false; issued_ = false; executeOffered_ = false;
         consumedGeneration_.clear(); consumedSurface_.clear();
     }
@@ -160,6 +182,16 @@ public:
     bool matchesNonce(const std::string& nonce) const { return !pending() || nonce == nonce_; }
 
 private:
+    bool forfeitCommitted(const Json& state) const {
+        const auto result = objectValue(state, "latest_result");
+        const auto home = stringValue(result, "home");
+        const auto away = stringValue(result, "away");
+        const auto winner = stringValue(result, "winner");
+        return stringValue(result, "session_id") == activity_ && stringValue(result, "fixture_id") == fixture_ &&
+            stringValue(result, "provenance") == "forfeit" && stringValue(result, "outcome") == "forfeited" &&
+            stringValue(result, "forfeited_by") == "human" && !winner.empty() && winner != "human" &&
+            ((home == "human" && away == winner) || (away == "human" && home == winner));
+    }
     bool safe(const NativeReturnContext& context) const {
         return context.owned && context.fresh && context.offline && !context.online && !context.replay &&
             context.buildVerified && context.nonce == nonce_ && context.inGame && context.matchAvailable;
@@ -188,6 +220,7 @@ private:
         if (!state.contains("career") || (!state["career"].is_null() && !state["career"].is_object())) return false;
         const auto career = objectValue(state, "career");
         if (state["career"].is_object() && (!career.contains("pending_session") || !career["pending_session"].is_null())) return false;
+        if (action_ == "forfeit_match" && !forfeitCommitted(state)) return false;
         return true;
     }
     static bool validIntent(const std::string& value) {
@@ -202,6 +235,7 @@ private:
     std::string activity_;
     std::string fixture_;
     std::string intent_;
+    std::string action_;
     bool ready_ = false;
     bool issued_ = false;
     bool arrived_ = false;
