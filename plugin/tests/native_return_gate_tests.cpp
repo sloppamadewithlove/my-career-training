@@ -3,6 +3,7 @@
 #include <fstream>
 #include <stdexcept>
 using namespace mct;
+static constexpr const char* kIntent = "0123456789abcdef0123456789abcdef";
 static void require(bool value, const char* reason) { if (!value) throw std::runtime_error(reason); }
 static NativeReturnContext context() {
     NativeReturnContext c;
@@ -23,7 +24,7 @@ static Json readyState(const std::string& fixture = "fixture-1") {
 }
 static NativeReturnGate armed() {
     NativeReturnGate gate;
-    require(gate.arm(context().nonce, payload()), "Could not arm native return");
+    require(gate.arm(context().nonce, payload(), kIntent), "Could not arm native return");
     return gate;
 }
 int main(int argc, char** argv) {
@@ -35,8 +36,10 @@ int main(int argc, char** argv) {
             const auto fixture = Json::parse(input);
             auto c = context(); c.nonce = stringValue(fixture.at("state"), "bridge_session");
             NativeReturnGate gate;
-            require(gate.arm(c.nonce, fixture.at("payload")), "Actual service fixture did not arm");
+            require(gate.arm(c.nonce, fixture.at("payload"), kIntent), "Actual service fixture did not arm");
             require(gate.poll(c, fixture.at("state")), "Actual Backend.state refused navigation");
+            require(gate.markConsumed(c, fixture.at("state"), "pause", "2"), "Actual service fixture consumption refused");
+            require(gate.markIssued(c, fixture.at("state"), "pause", "2"), "Actual service fixture attempt refused");
             require(!gate.poll(c, fixture.at("state")), "Actual Backend.state navigated twice");
             std::cout << "Actual service return fixture passed\n";
             return 0;
@@ -46,29 +49,73 @@ int main(int argc, char** argv) {
         require(!none.poll(c, state), "Service receipt granted navigation without accepted native return");
         auto emptyString = state; emptyString["session"]["id"] = "";
         auto emptyStringGate = armed();
-        require(emptyStringGate.poll(c, emptyString), "Explicit empty-string activity id refused");
+        require(!emptyStringGate.poll(c, emptyString), "Empty-string activity id bypassed the null ACK contract");
         auto gate = armed();
         auto waiting = state; waiting.erase("native_return_ready");
         waiting["session"] = {{"state", "Waiting for Worker"}, {"worker_running", true},
             {"busy", true}, {"id", "activity-1"}, {"fixture_id", "fixture-1"}};
         require(!gate.poll(c, waiting) && gate.pending(), "Worker stop wait lost return intent");
-        // There is deliberately no movie-ready or pause flag in this gate.
         // The same accepted intent survives Resume and movie surface changes.
         c.matchAvailable = false;
         require(!gate.poll(c, state) && gate.pending(), "Transient missing match issued or lost intent");
         c.matchAvailable = true;
-        require(gate.poll(c, state) && gate.issued() && gate.pending(), "Saved stopped activity did not navigate");
+        require(gate.poll(c, state) && gate.ready() && !gate.issued() && gate.pending(), "ACK did not authorize without claiming an attempt");
+        require(gate.authorization(false, "pause").empty(), "Movie without READY received authority");
+        require(gate.authorization(true, "frontend").empty(), "Frontend received match exit authority");
+        require(gate.authorization(true, "pause").at("phase") == "authorize", "Missing consumption offer");
+        require(!gate.markIssued(c, state, "pause", "2"), "Attempt accepted without consumption");
+        require(gate.markConsumed(c, state, "pause", "2"), "Current consumption failed");
+        require(gate.markConsumed(c, state, "pause", "2"), "Identical consume retry was not idempotent");
+        require(!gate.markConsumed(c, state, "pause", "3"), "Different consumption replaced current grant");
+        require(gate.authorization(true, "pause").at("consumed_generation") == "2", "Execute not tied to consumption");
+        require(!gate.markIssued(c, state, "results", "2"), "Other surface used pause consumption");
+        require(!gate.markIssued(c, state, "pause", "3"), "Other generation used consumption");
+        require(gate.markIssued(c, state, "pause", "2") && gate.issued(), "Validated execute attempt not recorded");
+        require(!gate.markIssued(c, state, "pause", "2"), "Duplicate attempt accepted");
         require(!gate.poll(c, state), "Duplicate receipt navigated twice");
         c.fresh = false;
         require(!gate.poll(c, Json::object()) && gate.pending() && gate.issued(),
             "Cleared stale bridge cache forgot issued return");
         c.fresh = true;
         require(!gate.poll(c, state), "Freshness recovery repeated navigation");
-        require(gate.arm(c.nonce, payload()) && !gate.poll(c, state), "Repeated click rearmed issued return");
+        require(gate.arm(c.nonce, payload(), kIntent) && !gate.poll(c, state), "Repeated click rearmed issued return");
         c.inGame = false;
-        require(!gate.poll(c, state) && !gate.pending(), "Actual frontend did not complete return");
+        require(!gate.poll(c, state) && gate.pending(), "Title screen completed Return");
+        c.frontendReady = true;
+        require(!gate.poll(c, state) && gate.pending(), "READY without Root completed Return");
+        c.frontendRoot = true;
+        require(!gate.poll(c, state) && !gate.pending() && gate.arrived(), "Fresh authored root did not complete return");
+        require(!gate.poll(c, state) && gate.arrived(), "Arrival evidence disappeared on next poll");
         c = context();
-        for (int variant = 0; variant < 22; ++variant) {
+
+        // Unload between consumption and execute must revoke that movie's
+        // grant while preserving the accepted durable Return intent.
+        auto unloaded = armed();
+        require(unloaded.poll(c, state) && unloaded.markConsumed(c, state, "pause", "7"), "Unload fixture could not consume");
+        unloaded.suspendExecution();
+        require(unloaded.pending() && !unloaded.consumed() && !unloaded.ready(), "Unload retained execution grant or forgot intent");
+        require(!unloaded.markIssued(c, state, "pause", "7"), "Unloaded movie executed old grant");
+        require(unloaded.poll(c, state), "Fresh pause could not recover durable intent");
+        require(unloaded.authorization(true, "pause").at("phase") == "authorize", "New movie inherited execute phase");
+        require(unloaded.markConsumed(c, state, "pause", "9"), "Fresh pause could not consume");
+        auto stale = c; stale.fresh = false;
+        require(!unloaded.poll(stale, Json::object()) && unloaded.pending() && !unloaded.consumed(), "Stale bridge retained grant or lost intent");
+        require(unloaded.poll(c, state) && unloaded.markConsumed(c, state, "pause", "11"), "Fresh bridge did not recover intent");
+        auto noAck = state; noAck.erase("native_return_ready");
+        require(!unloaded.markIssued(c, noAck, "pause", "11"), "Removed ACK permitted execution");
+        // A dropped issued diagnostic is not allowed to hide actual arrival.
+        auto arrivedWithoutLog = c; arrivedWithoutLog.inGame = false;
+        arrivedWithoutLog.frontendReady = arrivedWithoutLog.frontendRoot = true;
+        require(!unloaded.poll(arrivedWithoutLog, state) && unloaded.arrived() && !unloaded.issued(),
+            "Actual root arrival required or fabricated a possibly dropped issued log");
+
+        auto reopen = armed();
+        require(!reopen.takeReopenAttempt(c), "Pause reopened before durable ACK");
+        require(reopen.poll(c, state), "Reopen fixture ACK missing");
+        auto paused = c; paused.paused = true;
+        require(!reopen.takeReopenAttempt(paused), "Pause reopened while already paused");
+        require(reopen.takeReopenAttempt(c) && !reopen.takeReopenAttempt(c), "Pause opener was not bounded to one attempt");
+        for (int variant = 0; variant < 24; ++variant) {
             auto bad = state;
             switch (variant) {
             case 0: bad["session"]["worker_running"] = true; break;
@@ -93,6 +140,8 @@ int main(int argc, char** argv) {
             case 19: bad["session"].erase("fixture_id"); break;
             case 20: bad["session"]["fixture_id"] = "stale-fixture"; break;
             case 21: bad["session"]["fixture_id"] = 1; break;
+            case 22: bad["career"].erase("pending_session"); break;
+            case 23: bad["session"]["id"] = ""; break;
             }
             auto refused = armed();
             require(!refused.poll(c, bad) && !refused.issued(), "Unsafe or incomplete save state navigated");
@@ -121,7 +170,7 @@ int main(int argc, char** argv) {
         gate = armed();
         require(!gate.poll(c, changed) && !gate.pending(), "Changed fixture retained old return");
         NativeReturnGate training;
-        require(training.arm(c.nonce, payload("")) && training.poll(c, readyState("")),
+        require(training.arm(c.nonce, payload(""), kIntent) && training.poll(c, readyState("")),
             "Training return incorrectly required a career fixture");
         std::cout << "Native return gate tests passed\n";
         return 0;

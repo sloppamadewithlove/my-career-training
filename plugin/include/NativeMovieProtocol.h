@@ -30,7 +30,7 @@ public:
 
     Json publish(const CareerLayoutScope& scope, const Json& state, double now,
                  const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {},
-                 bool returnPending = false, const Json& navigation = Json::object()) {
+                 bool returnPending = false, const Json& navigation = Json::object(), bool returnReady = false) {
         Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"surface", nativeSurfaceName(scope.surface)}, {"published_at", now},
             {"active", false}, {"runtime_verified", kRuntimeVerified}, {"production_ready", kProductionReady},
             {"controls", Json::array()}};
@@ -48,12 +48,22 @@ public:
         }
         for (auto& choice : view.choices) {
             if (returnPending && ((choice.kind == CareerLayoutEffectKind::Dispatch &&
-                !NativeReturnGate::permitsAction(choice.action)) || choice.kind == CareerLayoutEffectKind::LocalWorkshop)) {
+                !NativeReturnGate::permitsAction(choice.action)) || choice.kind == CareerLayoutEffectKind::LocalWorkshop ||
+                choice.id == "pause.return" || choice.id == "match.confirm_return")) {
                 choice.enabled = false;
                 choice.reason = "Wait until My Career has returned to the hub.";
             }
         }
-        const auto authorized = validNavigation(navigation) &&
+        if (returnPending) {
+            view.title = "Returning to My Career";
+            view.body = !stringValue(state, "error").empty()
+                ? "Could not finish saving. Retry saving before returning."
+                : returnReady ? "Progress saved. Opening My Career..."
+                : scope.surface == NativeMenuSurface::Pause
+                    ? "Saving progress and stopping bot control. You can resume or open Game options while you wait."
+                    : "Saving progress and stopping bot control. You can open Game options while you wait.";
+        }
+        const auto authorized = returnPending && validNavigation(navigation) &&
             (scope.surface == NativeMenuSurface::Pause || scope.surface == NativeMenuSurface::Results)
             ? navigation : Json::object();
         Json signature = {{"title", view.title}, {"body", view.body}, {"choices", Json::array()}};
@@ -130,26 +140,40 @@ public:
         navigation_ = Json::object();
     }
 
+    bool navigationConsumedMessage(const std::string& message, const CareerLayoutScope& live) const {
+        return navigationMessage(message, live, false);
+    }
+
     bool navigationIssuedMessage(const std::string& message, const CareerLayoutScope& live) const {
+        return navigationMessage(message, live, true);
+    }
+
+    bool navigationMessage(const std::string& message, const CareerLayoutScope& live, bool issued) const {
+        const auto phase = stringValue(navigation_, "phase");
         if (!published_ || navigation_.empty() || message.size() > kMaxCommandBytes ||
             live.surface != surface_ || live.nonce != nonce_ || live.generation != scopeGeneration_ ||
-            !live.owned || !live.offline || !live.fresh || live.online) return false;
+            !live.owned || !live.offline || !live.fresh || live.online ||
+            (issued ? phase != "execute" : phase != "authorize" && phase != "execute")) return false;
+        const auto expectedGeneration = !issued && phase == "execute"
+            ? stringValue(navigation_, "consumed_generation") : std::to_string(generation_);
         try {
             const auto event = Json::parse(message);
-            return event.is_object() && event.size() == 8 && event.contains("protocol") &&
+            return event.is_object() && event.size() == (issued ? 9 : 8) && event.contains("protocol") &&
                 event["protocol"].is_number_integer() && event["protocol"] == 1 &&
-                stringValue(event, "event") == "return_navigation_issued" &&
+                stringValue(event, "event") == (issued ? "return_navigation_issued" : "return_navigation_consumed") &&
                 stringValue(event, "session") == nonce_ &&
                 stringValue(event, "surface") == nativeSurfaceName(surface_) &&
-                stringValue(event, "generation") == std::to_string(generation_) &&
+                stringValue(event, "generation") == expectedGeneration &&
                 stringValue(event, "intent") == stringValue(navigation_, "intent") &&
                 stringValue(event, "activity") == stringValue(navigation_, "activity") &&
                 event.contains("fixture") && event["fixture"].is_string() &&
-                event["fixture"] == navigation_["fixture"];
+                event["fixture"] == navigation_["fixture"] &&
+                (!issued || (event.contains("consumed_generation") && event["consumed_generation"].is_string() &&
+                    event["consumed_generation"] == navigation_["consumed_generation"]));
         } catch (const Json::exception&) { return false; }
     }
 
-    bool readyMessage(const std::string& message, const CareerLayoutScope& live) const {
+    bool readyMessage(const std::string& message, const CareerLayoutScope& live, bool requireGeneration = false) const {
         if (!published_ || live.surface != surface_ || live.nonce != nonce_ ||
             live.generation != scopeGeneration_ || !live.owned ||
             !live.offline || !live.fresh || live.online) return false;
@@ -158,7 +182,7 @@ public:
             if (!command.is_object() || !command.contains("protocol") || !command["protocol"].is_number_integer() ||
                 command["protocol"] != 1 || stringValue(command, "session") != nonce_ ||
                 stringValue(command, "event") != "ready") return false;
-            if (surface_ == NativeMenuSurface::Frontend && command.size() == 3) return true;
+            if (!requireGeneration && surface_ == NativeMenuSurface::Frontend && command.size() == 3) return true;
             return command.size() == 5 && stringValue(command, "surface") == nativeSurfaceName(surface_) &&
                 stringValue(command, "generation") == std::to_string(generation_);
         } catch (const Json::exception&) { return false; }
@@ -166,8 +190,16 @@ public:
 
 private:
     static bool validNavigation(const Json& value) {
-        if (!value.is_object() || value.size() != 3 || !value.contains("fixture") ||
+        const auto phase = stringValue(value, "phase");
+        if (!value.is_object() || (phase != "authorize" && phase != "execute") ||
+            value.size() != (phase == "execute" ? 5 : 4) || !value.contains("fixture") ||
             !value["fixture"].is_string()) return false;
+        if (phase == "execute") {
+            const auto generation = stringValue(value, "consumed_generation");
+            if (generation.empty() || generation.size() > 20 || generation.front() == '0' ||
+                (generation.size() == 20 && generation > "18446744073709551615")) return false;
+            for (const auto c : generation) if (c < '0' || c > '9') return false;
+        }
         const auto intent = stringValue(value, "intent");
         const auto activity = stringValue(value, "activity");
         if (intent.size() != 32 || activity.empty() || activity.size() > 128 ||

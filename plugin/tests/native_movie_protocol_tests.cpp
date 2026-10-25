@@ -40,8 +40,82 @@ static void requireMovieWire(const Json& view) {
     }
 }
 
+static void returnNavigationContract() {
+    NativeMovieProtocol host;
+    auto live = scope();
+    live.surface = NativeMenuSurface::Pause;
+    auto data = state();
+    data["session"] = {{"state", "Idle"}, {"id", nullptr}, {"fixture_id", nullptr},
+        {"kind", "hub"}, {"worker_running", false}, {"busy", false}};
+    data["error"] = "";
+    data["career"] = {{"pending_session", nullptr}};
+    const Json authorize = {{"phase", "authorize"}, {"intent", "0123456789abcdef0123456789abcdef"},
+        {"activity", "activity-1"}, {"fixture", "fixture-1"}};
+    require(host.open(live, data), "Return pause did not open");
+    const auto waiting = host.publish(live, data, 500, {}, {}, true);
+    const auto offered = host.publish(live, data, 501, {}, {}, true, authorize);
+    require(offered.at("navigation") == authorize, "Fixed Return authorization missing");
+    require(waiting.at("generation") != offered.at("generation"), "Authorization kept an old generation");
+    require(host.publish(live, data, 502, {}, {}, true, authorize).at("generation") == offered.at("generation"),
+        "Unchanged authorization changed focus generation");
+    Json consumed = {{"protocol", 1}, {"event", "return_navigation_consumed"}, {"session", live.nonce},
+        {"surface", "pause"}, {"generation", offered.at("generation")}, {"intent", authorize.at("intent")},
+        {"activity", "activity-1"}, {"fixture", "fixture-1"}};
+    require(host.navigationConsumedMessage(consumed.dump(), live), "Matching Return consumption refused");
+    for (const auto* field : {"session", "surface", "generation", "intent", "activity", "fixture"}) {
+        auto wrong = consumed;
+        wrong[field] = "different";
+        require(!host.navigationConsumedMessage(wrong.dump(), live), "Mismatched Return consumption accepted");
+    }
+    auto extra = consumed; extra["command"] = "exit";
+    require(!host.navigationConsumedMessage(extra.dump(), live), "Caller supplied navigation accepted");
+    auto numericGeneration = consumed; numericGeneration["generation"] = 1;
+    require(!host.navigationConsumedMessage(numericGeneration.dump(), live), "Numeric generation accepted");
+    auto unsafe = live; unsafe.fresh = false;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Stale consumption accepted");
+    unsafe = live; unsafe.online = true;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Online consumption accepted");
+    unsafe = live; ++unsafe.generation;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Old movie instance consumed Return");
+
+    auto execute = authorize;
+    execute["phase"] = "execute";
+    execute["consumed_generation"] = offered.at("generation");
+    const auto confirmed = host.publish(live, data, 503, {}, {}, true, execute);
+    require(confirmed.at("navigation") == execute, "Validated consumption did not reach execute view");
+    require(confirmed.at("generation") != offered.at("generation"), "Execute reused authorization generation");
+    require(host.navigationConsumedMessage(consumed.dump(), live), "Identical consumption retry lost its execute acknowledgement");
+    auto issued = consumed;
+    issued["event"] = "return_navigation_issued";
+    issued["generation"] = confirmed.at("generation");
+    issued["consumed_generation"] = offered.at("generation");
+    require(host.navigationIssuedMessage(issued.dump(), live), "Matching execute attempt refused");
+    auto wrongIssued = issued; wrongIssued["consumed_generation"] = "0";
+    require(!host.navigationIssuedMessage(wrongIssued.dump(), live), "Execute used another consumption");
+    wrongIssued = issued; wrongIssued.erase("consumed_generation");
+    require(!host.navigationIssuedMessage(wrongIssued.dump(), live), "Unbound execute attempt accepted");
+    host.invalidate(); // Pause unloads between consumption and execution.
+    require(!host.navigationIssuedMessage(issued.dump(), live), "Unloaded movie retained execute authority");
+    ++live.generation;
+    require(host.open(live, data), "Fresh pause did not reopen");
+    const auto reauthorized = host.publish(live, data, 504, {}, {}, true, authorize);
+    require(reauthorized.at("generation") != offered.at("generation"), "Reopen reused consumed generation");
+    require(!host.navigationConsumedMessage(consumed.dump(), live), "Old consumption survived pause unload");
+
+    live.surface = NativeMenuSurface::Frontend; ++live.generation;
+    require(host.open(live, data), "Return frontend did not open");
+    const auto frontend = host.publish(live, data, 505, {}, {}, true, execute);
+    require(!frontend.contains("navigation"), "Frontend received match-exit authority");
+    Json strongReady = {{"protocol", 1}, {"event", "ready"}, {"session", live.nonce},
+        {"surface", "frontend"}, {"generation", frontend.at("generation")}};
+    require(host.readyMessage(strongReady.dump(), live), "Current generation frontend READY refused");
+    strongReady["generation"] = offered.at("generation");
+    require(!host.readyMessage(strongReady.dump(), live), "Old generation acknowledged new frontend");
+}
+
 int main() {
     try {
+        returnNavigationContract();
         NativeMovieProtocol protocol;
         auto live = scope();
         auto data = state();
