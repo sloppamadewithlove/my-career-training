@@ -23,7 +23,7 @@ struct NativeReturnContext {
 // it. Service JSON confirms persistence; it never supplies engine commands.
 class NativeReturnGate {
 public:
-    bool arm(const std::string& nonce, const Json& payload, const std::string& intent) {
+    bool arm(const std::string& nonce, const Json& payload, const std::string& intent, double now = 0) {
         if (nonce.empty() || !payload.is_object() || payload.size() != 3 ||
             !payload.contains("expected_session_id") || !payload["expected_session_id"].is_string() ||
             !payload.contains("expected_fixture_id") || !payload["expected_fixture_id"].is_string() ||
@@ -44,7 +44,7 @@ public:
         arrived_ = false;
         consumedGeneration_.clear();
         consumedSurface_.clear();
-        reopenAttempted_ = false;
+        holdStarted_ = now;
         return true;
     }
 
@@ -135,11 +135,11 @@ public:
         consumedSurface_.clear();
     }
 
-    bool takeReopenAttempt(const NativeReturnContext& context) {
-        if (!safe(context) || !ready_ || issued_ || executeOffered_ || reopenAttempted_ || !context.inGame || context.paused ||
-            !context.matchAvailable) return false;
-        reopenAttempted_ = true; // Before the void SDK call, including exceptions.
-        return true;
+    bool holdAllowed(double now) const {
+        const auto elapsed = now - holdStarted_;
+        // Keep a live but stuck service or failed Shell attempt from trapping
+        // the player. Expiry releases controls, never the accepted Return intent.
+        return pending() && elapsed >= 0 && elapsed < 15 && (!executeOffered_ || consumed());
     }
 
     static bool permitsAction(const std::string& action) {
@@ -148,7 +148,7 @@ public:
 
     void clear() {
         nonce_.clear(); activity_.clear(); fixture_.clear(); intent_.clear();
-        ready_ = false; issued_ = false; executeOffered_ = false; reopenAttempted_ = false;
+        ready_ = false; issued_ = false; executeOffered_ = false;
         consumedGeneration_.clear(); consumedSurface_.clear();
     }
     bool pending() const { return !activity_.empty(); }
@@ -157,7 +157,6 @@ public:
     bool consumed() const { return !consumedGeneration_.empty(); }
     bool arrived() const { return arrived_; }
     bool executeOffered() const { return executeOffered_; }
-    bool reopenAttempted() const { return reopenAttempted_; }
     bool matchesNonce(const std::string& nonce) const { return !pending() || nonce == nonce_; }
 
 private:
@@ -207,7 +206,7 @@ private:
     bool issued_ = false;
     bool arrived_ = false;
     bool executeOffered_ = false;
-    bool reopenAttempted_ = false;
+    double holdStarted_ = 0;
     std::string consumedGeneration_;
     std::string consumedSurface_;
 };

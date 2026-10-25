@@ -30,7 +30,7 @@ static void requireMovieWire(const Json& view) {
         !view.contains("cosmetic_draft") && !view.contains("cl_itemmod_code"), "Trusted field was published");
     require(view.dump().find("cl_itemmod") == std::string::npos, "Item-mod cvar was published");
     for (const auto& control : view.at("controls")) {
-        require(control.size() == 6, "Control gained a trusted field");
+        require(control.size() == 7 && control.at("return_commit").is_boolean(), "Control contract changed");
         require(control.contains("id") && control.contains("label") && control.contains("enabled") &&
             control.contains("reason") && control.contains("stock") && control.contains("revision"),
             "Control keys changed");

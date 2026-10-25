@@ -18,7 +18,8 @@ public:
         return true;
     }
 
-    CareerLayoutView view(const CareerLayoutScope& scope, const Json& state) const {
+    CareerLayoutView view(const CareerLayoutScope& scope, const Json& state,
+                          bool returnPending = false, bool returnHold = false) const {
         CareerLayoutView out;
         if (!current(scope, state)) return out;
         out.offersReplacement = true;
@@ -31,6 +32,22 @@ public:
         const bool canReturn = !busy && !stringValue(session, "id").empty();
         out.title = scope.surface == NativeMenuSurface::Results ? "Match complete" : "My Career paused";
         const auto error = bounded(stringValue(state, "error"), 320);
+        if (returnPending) {
+            if (scope.surface == NativeMenuSurface::Pause)
+                add(out, "pause.resume", "Resume", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
+                    "", Json::object(), StockRoute::Resume);
+            add(out, scope.surface == NativeMenuSurface::Pause ? "pause.options" : "results.options",
+                "Game options", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
+                "", Json::object(), StockRoute::Options);
+            if (!error.empty() && kind == "career")
+                add(out, "results.retry_save", "Retry saving", canReturn,
+                    CareerLayoutEffectKind::Dispatch, "retry_result_save",
+                    {{"expected_session_id", stringValue(session, "id")},
+                     {"expected_fixture_id", stringValue(session, "fixture_id")}});
+            add(out, "match.quit", "Quit My Career", boolValue(session, "can_exit", !busy),
+                CareerLayoutEffectKind::Dispatch, "quit_game");
+            return out;
+        }
         if (confirming_ && binding == confirmation_) {
             out.title = "Leave this unfinished match?";
             out.body += "This match will restart from kickoff. No score or rewards will be added. Your completed progress stays saved.";
@@ -81,10 +98,10 @@ public:
     }
 
     CareerLayoutEffect choose(const CareerLayoutChoice& shown, const CareerLayoutScope& scope,
-                              const Json& state, bool consumed) {
+                              const Json& state, bool consumed, bool returnPending = false, bool returnHold = false) {
         CareerLayoutEffect effect;
         if (!current(scope, state)) return effect;
-        const auto now = view(scope, state);
+        const auto now = view(scope, state, returnPending, returnHold);
         for (const auto& choice : now.choices) {
             if (choice.id != shown.id || choice.revision != shown.revision || !choice.enabled ||
                 choice.kind != shown.kind || choice.action != shown.action || choice.payload != shown.payload ||

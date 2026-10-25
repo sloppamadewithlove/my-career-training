@@ -25,6 +25,8 @@ int main() {
         NativeMovieProtocol host;
         require(host.open(scope, state), "Pause did not open");
         auto view = host.publish(scope, state, 100);
+        require(view["return_pending"] == false && view["return_hold"] == false &&
+            control(view, "pause.return")["return_commit"] == false, "Unfinished confirmation held the menu");
         require(view["surface"] == "pause" && view["active"], "Wrong surface published");
         require(control(view, "pause.resume")["stock"] == "resume", "Resume lost its typed stock route");
         require(host.readyMessage(ready(view), scope), "Current pause hello refused");
@@ -41,12 +43,37 @@ int main() {
         require(result.accepted && result.kind == CareerLayoutEffectKind::Navigate && result.action.empty(),
             "Unfinished return skipped confirmation");
         auto confirm = host.publish(scope, state, 101);
+        require(control(confirm, "match.confirm_return")["return_commit"] == true &&
+            control(confirm, "match.cancel_return")["return_commit"] == false, "Commit hint did not distinguish confirmation from Back");
         auto changed = state; changed["session"]["id"] = "different-activity";
         require(!host.select(command(confirm, "match.confirm_return"), scope, changed, true).accepted,
             "Old confirmation abandoned a changed activity");
         result = host.select(command(confirm, "match.confirm_return"), scope, state, true);
         require(result.accepted && result.action == "return_hub" && result.payload["abandon"] == true &&
             result.payload["expected_session_id"] == "activity-1", "Confirmed return lost bound identity");
+        state["session"]["can_exit"] = false;
+        auto held = host.publish(scope, state, 101.1, {}, {}, true);
+        require(held["return_pending"] == true && held["return_hold"] == true &&
+            control(held, "pause.resume")["enabled"] == false && control(held, "pause.options")["enabled"] == false,
+            "Committed Return did not hold stock closing routes");
+        require(!host.select(command(held, "pause.resume"), scope, state, true).accepted &&
+            !host.select(command(held, "match.quit"), scope, state, true).accepted,
+            "Held route or unsafe Quit dispatched");
+        auto released = host.publish(scope, state, 101.2, {}, {}, true, Json::object(), false, false);
+        require(released["return_hold"] == false && released["return_pending"] == true &&
+            released["generation"] != held["generation"] && control(released, "pause.resume")["enabled"] == true,
+            "Uncertain outcome did not release hold without losing pending intent");
+        require(!host.select(command(held, "pause.resume"), scope, state, true).accepted,
+            "Old held generation replayed after release");
+        state["error"] = "Save unavailable";
+        state["session"]["can_exit"] = true;
+        auto recovery = host.publish(scope, state, 101.3, {}, {}, true);
+        require(recovery["return_hold"] == false && control(recovery, "results.retry_save")["enabled"] == true &&
+            control(recovery, "match.quit")["return_commit"] == false, "Save error trapped recovery controls");
+        result = host.select(command(recovery, "match.quit"), scope, state, true);
+        require(result.accepted && result.action == "quit_game" && result.payload.empty(),
+            "Recovery Quit did not use the fixed safe dispatch");
+        state["error"] = "";
         auto staleScope = scope; staleScope.surface = NativeMenuSurface::Results;
         require(!host.readyMessage(ready(confirm), staleScope), "Pause readiness leaked into results");
         scope = staleScope; ++scope.generation;
@@ -74,6 +101,7 @@ int main() {
         require(control(mismatch, "results.return")["enabled"] == false, "Other fixture unlocked results");
         state["latest_result"]["fixture_id"] = state["session"]["fixture_id"];
         auto saved = host.publish(scope, state, 104);
+        require(control(saved, "results.return")["return_commit"] == true, "Saved Return lacked immediate commit hint");
         require(control(saved, "results.return")["enabled"] == true, "Saved result did not unlock return");
         require(!host.readyMessage(ready(unsaved), scope), "Old result view acknowledged saved controls");
         result = host.select(command(saved, "results.return"), scope, state, true);

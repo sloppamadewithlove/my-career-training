@@ -128,18 +128,24 @@ int main(int argc, char** argv) {
         require(offered.authorization(true, "results").empty(), "Other movie reused an offered execute");
         offered.suspendExecution(); // Unload or READY expiry; the issued log may have been lost.
         require(offered.poll(c, state) && offered.pending() && offered.executeOffered(), "Lost issue diagnostic forgot offered execute");
-        require(offered.authorization(true, "pause").empty() && !offered.takeReopenAttempt(c),
-            "Uncertain execute delivery permitted another Shell grant or pause reopen");
+        require(offered.authorization(true, "pause").empty() && !offered.holdAllowed(1),
+            "Uncertain execute delivery permitted another Shell grant or trapped the menu");
         require(!offered.markConsumed(c, state, "pause", "15"), "Uncertain delivery rearmed a new consumption");
         require(!offered.poll(arrivedWithoutLog, state) && offered.arrived() && !offered.issued(),
             "Actual arrival with missing issued diagnostic did not complete offered execute");
 
-        auto reopen = armed();
-        require(!reopen.takeReopenAttempt(c), "Pause reopened before durable ACK");
-        require(reopen.poll(c, state), "Reopen fixture ACK missing");
-        auto paused = c; paused.paused = true;
-        require(!reopen.takeReopenAttempt(paused), "Pause reopened while already paused");
-        require(reopen.takeReopenAttempt(c) && !reopen.takeReopenAttempt(c), "Pause opener was not bounded to one attempt");
+        NativeReturnGate held;
+        require(held.arm(c.nonce, payload(), kIntent, 100) && held.holdAllowed(100) && held.holdAllowed(114.99),
+            "Accepted Return did not hold for a bounded interval");
+        require(!held.holdAllowed(99) && !held.holdAllowed(115) && held.pending(),
+            "Clock reversal or hold expiry trapped the menu or discarded Return");
+        require(held.arm(c.nonce, payload(), kIntent, 114) && !held.holdAllowed(115),
+            "Repeated Return restarted the hold deadline");
+        require(held.poll(c, state) && held.markConsumed(c, state, "pause", "17") && !held.holdAllowed(116),
+            "Fresh service or consumption reset the hold cap");
+        held.suspendExecution();
+        require(held.poll(c, state) && !held.holdAllowed(117) && held.pending(),
+            "Reauthorization reset the hold cap or forgot pending Return");
         for (int variant = 0; variant < 24; ++variant) {
             auto bad = state;
             switch (variant) {

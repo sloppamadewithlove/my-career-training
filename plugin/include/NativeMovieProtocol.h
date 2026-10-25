@@ -30,18 +30,20 @@ public:
 
     Json publish(const CareerLayoutScope& scope, const Json& state, double now,
                  const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {},
-                 bool returnPending = false, const Json& navigation = Json::object(), bool returnReady = false) {
+                 bool returnPending = false, const Json& navigation = Json::object(), bool returnReady = false,
+                 bool returnHoldAllowed = true) {
         Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"surface", nativeSurfaceName(scope.surface)}, {"published_at", now},
             {"active", false}, {"runtime_verified", kRuntimeVerified}, {"production_ready", kProductionReady},
-            {"controls", Json::array()}};
+            {"controls", Json::array()}, {"return_pending", false}, {"return_hold", false}};
         if (!std::isfinite(now) || now <= 0) {
             wire["published_at"] = 0;
             invalidate();
             return wire;
         }
+        const bool returnHold = returnPending && returnHoldAllowed && stringValue(state, "error").empty();
         auto view = scope.surface != surface_ ? CareerLayoutView{} :
             surface_ == NativeMenuSurface::Frontend ? layout_.view(scope, state, cosmetics, workshop) :
-            matchLayout_.view(scope, state);
+            matchLayout_.view(scope, state, returnPending, returnHold);
         if (!view.offersReplacement) {
             invalidate();
             return wire;
@@ -55,19 +57,20 @@ public:
             }
         }
         if (returnPending) {
-            view.title = "Returning to My Career";
+            view.title = returnHold ? "Leaving..." : "Return needs attention";
             view.body = !stringValue(state, "error").empty()
-                ? "Could not finish saving. Retry saving before returning."
+                ? "Could not finish saving. Retry saving before returning, or choose Quit My Career."
+                : !returnHold ? "Return has not been confirmed. If the menu closes, press Escape or Start to reopen it. You can also choose Quit My Career."
                 : returnReady ? "Progress saved. Opening My Career..."
-                : scope.surface == NativeMenuSurface::Pause
-                    ? "Saving progress and stopping bot control. You can resume or open Game options while you wait."
-                    : "Saving progress and stopping bot control. You can open Game options while you wait.";
+                : "Saving progress and stopping bot control. Please wait.";
         }
         const auto authorized = returnPending && validNavigation(navigation) &&
             (scope.surface == NativeMenuSurface::Pause || scope.surface == NativeMenuSurface::Results)
             ? navigation : Json::object();
         Json signature = {{"title", view.title}, {"body", view.body}, {"choices", Json::array()}};
         signature["navigation"] = authorized;
+        signature["return_pending"] = returnPending;
+        signature["return_hold"] = returnHold;
         for (const auto& choice : view.choices) {
             // Include the full binding, even when its visible label is unchanged.
             // Cosmetic fields stay in this retained signature. They are not copied
@@ -85,6 +88,8 @@ public:
         wire["generation"] = std::to_string(generation_);
         wire["title"] = view.title;
         wire["body"] = view.body;
+        wire["return_pending"] = returnPending_ = returnPending;
+        wire["return_hold"] = returnHold_ = returnHold;
         navigation_ = authorized;
         if (!navigation_.empty()) wire["navigation"] = navigation_;
         for (const auto& choice : shown_) {
@@ -92,7 +97,8 @@ public:
                 {"enabled", choice.enabled}, {"reason", choice.reason},
                 {"stock", choice.stock == StockRoute::Garage ? "garage" :
                     choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" : ""},
-                {"revision", std::to_string(choice.revision)}});
+                {"revision", std::to_string(choice.revision)},
+                {"return_commit", choice.kind == CareerLayoutEffectKind::Dispatch && choice.action == "return_hub"}});
         }
         nonce_ = scope.nonce;
         scopeGeneration_ = scope.generation;
@@ -123,7 +129,7 @@ public:
                 // stock click to replay after this callback returns.
                 auto effect = surface_ == NativeMenuSurface::Frontend ?
                     layout_.choose(choice, live, state, true, cosmetics, workshop) :
-                    matchLayout_.choose(choice, live, state, true);
+                    matchLayout_.choose(choice, live, state, true, returnPending_, returnHold_);
                 if (effect.accepted) invalidate();
                 return effect;
             }
@@ -257,5 +263,7 @@ private:
     std::uint64_t generation_ = 0;
     std::uint64_t scopeGeneration_ = 0;
     bool published_ = false;
+    bool returnPending_ = false;
+    bool returnHold_ = false;
 };
 }
