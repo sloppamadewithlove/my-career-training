@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import deque
 import hashlib
+import importlib
 import json
 import logging
 import math
@@ -802,6 +803,11 @@ class Worker:
 
 def main():
     logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+    if sys.platform == "win32":
+        # NumPy's first Windows import can deadlock against a concurrent pipe
+        # read (numpy/numpy#24290). Initialize only in this worker, before ready
+        # and the stdin loop; model construction can then stay on its thread.
+        importlib.import_module("numpy")
     return Worker().run()
 
 
