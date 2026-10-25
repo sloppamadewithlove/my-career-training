@@ -232,7 +232,7 @@ package menus
             if (!current())
             {
                 addChoice({id:"waiting", label:"MY CAREER", reason:"Waiting for the offline career service", enabled:false});
-                var exitButton:UIComponent = createControl({name:"mct.exit", label:"EXIT", descLabel:"Close Rocket League"}, Shell.ExitGame);
+                var exitButton:UIComponent = createControl({name:"mct.exit", label:"QUIT MY CAREER", descLabel:"Close Rocket League"}, Shell.ExitGame);
                 if (exitButton != null) exitButton.validateNow();
                 setDetails("My Career", "Connecting to your offline career. Your saved progress stays on this computer.");
                 return;
