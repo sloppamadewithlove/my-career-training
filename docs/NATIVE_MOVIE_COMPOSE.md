@@ -1,5 +1,27 @@
 # Native movie composition
 
+## Additional match scenes
+
+`compose_match_movie(scene, original_gfx, mod_abc, session=..., view_url=...)`
+accepts only `midgame` and `endgame`. Their fixed profiles and
+`native_ui/compiled/match-manifest.json` pin the original package, movie,
+original ABC, authored ABC, source hashes, and symbol bindings. The frontend
+entry and its compiled ABC remain unchanged.
+
+| Package id | View surface | Root symbol | Document replacement | Authored ABC |
+| --- | --- | --- | --- | --- |
+| `midgame` | `pause` | 6, `MidGameMenuMovie` | `MctPauseMenuScreen` | `MctPauseMenu.abc` |
+| `endgame` | `results` | 23, `EndGameMenuMovie` | `MctResultsMenuScreen` | `MctResultsMenu.abc` |
+
+Both scenes use the same original-name rename and later compiled wrapper
+definition as the frontend. They never reparent the original class. Apart from
+that one string and document character 0, original ABC bytes, symbols, and other
+tags stay unchanged. Each authored ABC contains three project classes and the
+seven pinned public JSON codec classes. Scene ids, hashes, byte lengths, and
+document/root bindings are validated before composition.
+
+The remainder of this document describes the unchanged frontend profile.
+
 `scripts/native_movie_compose.py` builds one development movie in memory. `compose_movie` accepts the pinned `MainMenu.gfx` bytes and the compiled ABC that contains the three project classes `menus.MctRootMenu`, `MctMainMenuScreen`, and `MctRootMenuMovie` plus the seven vendored `com.adobe.serialization.json` classes, plus a session nonce and a local view URL. It returns `{"data": bytes, "metadata": dict}`. It does not write a file, launch Rocket League, or install a package.
 
 The public entry accepts only two hashes. The movie SHA-256 is `57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0`. The class ABC SHA-256 is `d4924678b0e84a689b67de71f600034430f735447361105a453b2424134cbfaa`, the current `native_ui/compiled/MctRootMenu.abc` (17595 bytes, ABC 46.16, 93 method bodies, three project classes and seven library classes, no linked game classes). A mismatch is rejected before the placeholder strings are bound. The manifest records source SHA-256 `bcd0373aaa1d9ef4524521ab9d1b268c01d14c21b30a22b6534e13c4c420a496` for `native_ui/menus/MctRootMenu.as`, `d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd` for `native_ui/MctMainMenuScreen.as`, and `9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432` for `native_ui/MctRootMenuMovie.as`. The composer stores those values and does not read the ActionScript files. The manifest `classes` list is the parsed definition order. `authored_classes` and `library_classes` keep the project classes separate from as3corelib. The receipt pin named `classes` stays the three project classes.

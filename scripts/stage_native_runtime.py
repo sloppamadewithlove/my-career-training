@@ -56,6 +56,11 @@ SCREEN_RELATIVE = "native_ui/MctMainMenuScreen.as"
 ROOT_MOVIE_RELATIVE = "native_ui/MctRootMenuMovie.as"
 ABC_RELATIVE = "native_ui/compiled/MctRootMenu.abc"
 MANIFEST_RELATIVE = "native_ui/compiled/manifest.json"
+MATCH_MANIFEST_RELATIVE = "native_ui/compiled/match-manifest.json"
+MATCH_SCENE_IDS = ("midgame", "endgame")
+# Match preparation calls this symbol. native_package_rewrite.py does not
+# define it until the package-relocation commit is copied into this worktree.
+MATCH_REWRITE_SYMBOL = "replace_movie"
 READER_RELATIVE = "scripts/native_package_reader.py"
 REWRITE_RELATIVE = "scripts/native_package_rewrite.py"
 COMPOSE_RELATIVE = "scripts/native_movie_compose.py"
@@ -100,9 +105,88 @@ PAYLOAD_NAMES = (
     "native_movie_compose.py",
     "MctRootMenu.abc",
     "manifest.json",
+    "MctPauseMenu.abc",
+    "MctResultsMenu.abc",
+    "match-manifest.json",
     "decoder_config.bin",
     "UEViewer-LICENSE.txt",
 )
+MATCH_SCENES = {
+    "midgame": {
+        "surface": "pause",
+        "package_id": "midgame",
+        "package_relative": "TAGame/CookedPCConsole/GFX_MidGameMenu_SF.upk",
+        "package_sha256": "25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50",
+        "export_name": "MidgameMenu",
+        "movie_sha256": "fa1aea999d6fff856c8c522c3a5844fdfd532fac0a23bf70369a2274e38a35b7",
+        "movie_bytes": 940852,
+        "original_abc_sha256": "71e96360863604a12bb5b53b32f5014beec0ab9fc614b6e03f27c150abe0bba7",
+        "abc_file": "MctPauseMenu.abc",
+        "abc_sha256": "b7b2fe7610392d56275eea73039c1bc1fe038ab7304d171f5c5e9368e1ad1e94",
+        "abc_bytes": 15624,
+        "source": "native_ui/menus/MctPauseMenu.as",
+        "source_sha256": "bb5d2fe5fa704910402aa42d887b857c9aba85f4fcd56727930c1a60b257637a",
+        "screen_source": "native_ui/MctPauseMenuScreen.as",
+        "screen_source_sha256": "046514620ab38fe925537fae7e9c7298b9a47b9595cf7e9f791c261ac50f5af2",
+        "root_movie_source": "native_ui/MctPauseMenuMovie.as",
+        "root_movie_source_sha256": "e83e7c63db253503c677bd2c149d7acf989a682bb0653e2d0895b235cad28653",
+        "menu_class": "MctPauseMenu",
+        "screen_class": "MctPauseMenuScreen",
+        "wrapper_class": "MctPauseMenuMovie",
+        "superclass": "menus::MidGameMenu",
+        "original_root_name": "MidGameMenuMovie",
+        "renamed_original_root": "MctOriginalMidGameMenuMovie",
+        "document_character": 0,
+        "document_source_name": "MidGameMenuScreen",
+        "document_target_name": "MctPauseMenuScreen",
+        "symbol_character": 6,
+        "symbol_name": "MidGameMenuMovie",
+        "method_bodies": 81,
+        "class_flags": [9, 8, 9, 11, 9, 9, 11, 9, 11, 9],
+        "authored_classes": [
+            "menus::MctPauseMenu",
+            "MctPauseMenuMovie",
+            "MctPauseMenuScreen",
+        ],
+    },
+    "endgame": {
+        "surface": "results",
+        "package_id": "endgame",
+        "package_relative": "TAGame/CookedPCConsole/GFX_EndGameMenu_SF.upk",
+        "package_sha256": "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc",
+        "export_name": "EndGameMenu",
+        "movie_sha256": "94830737b9ee356d5039ecd8f401f0d0734885c22be70e6139b44008e1733b3c",
+        "movie_bytes": 1133247,
+        "original_abc_sha256": "47c04e221622bf21ecf98b1905ed786b8682f35886e93a9d3b3fb0d4b698c52d",
+        "abc_file": "MctResultsMenu.abc",
+        "abc_sha256": "c6bb39c475c7ac7b99115b92770b571e7c6dcb2012d1731e4f62d2e59878c93f",
+        "abc_bytes": 15393,
+        "source": "native_ui/menus/MctResultsMenu.as",
+        "source_sha256": "236b5580b0c89105db60f788666f9a091258dd7652150809266e1be09028a8c7",
+        "screen_source": "native_ui/MctResultsMenuScreen.as",
+        "screen_source_sha256": "c8e79c3710c4be566e7f0caf248a9f8cd6153fd74c294dce808dde2d911c0397",
+        "root_movie_source": "native_ui/MctResultsMenuMovie.as",
+        "root_movie_source_sha256": "15083968df55fc13d0c468336566d080376c8464a70b1a06a464f086db4e792c",
+        "menu_class": "MctResultsMenu",
+        "screen_class": "MctResultsMenuScreen",
+        "wrapper_class": "MctResultsMenuMovie",
+        "superclass": "menus::EndGameMenu",
+        "original_root_name": "EndGameMenuMovie",
+        "renamed_original_root": "MctOriginalEndGameMenuMovie",
+        "document_character": 0,
+        "document_source_name": "EndGameMenuScreen",
+        "document_target_name": "MctResultsMenuScreen",
+        "symbol_character": 23,
+        "symbol_name": "EndGameMenuMovie",
+        "method_bodies": 83,
+        "class_flags": [9, 8, 9, 11, 9, 9, 11, 9, 11, 9],
+        "authored_classes": [
+            "menus::MctResultsMenu",
+            "MctResultsMenuMovie",
+            "MctResultsMenuScreen",
+        ],
+    },
+}
 RECEIPT_NAME = "receipt.json"
 STAGED_NAMES = frozenset(PAYLOAD_NAMES) | {RECEIPT_NAME}
 FORBIDDEN_SUFFIXES = (".upk", ".gfx", ".swf", ".swc", ".exe", ".dll")
@@ -342,15 +426,21 @@ def _repo_payload(repo: Path) -> dict[str, bytes]:
     reader = _repo_file(repo, READER_RELATIVE, _MAX_HELPER)
     rewrite = _repo_file(repo, REWRITE_RELATIVE, _MAX_HELPER)
     compose = _repo_file(repo, COMPOSE_RELATIVE, _MAX_HELPER)
+    match_manifest_bytes = _repo_file(repo, MATCH_MANIFEST_RELATIVE, _MAX_MANIFEST)
+    match_manifest = _match_manifest(match_manifest_bytes)
+    match_files = _require_match_sources(repo, match_manifest)
     _require_surface(repo)
-    _require_composer(repo / COMPOSE_RELATIVE, manifest)
-    return {
+    _require_composer(repo / COMPOSE_RELATIVE, manifest, match_manifest)
+    payload = {
         "native_package_reader.py": reader,
         "native_package_rewrite.py": rewrite,
         "native_movie_compose.py": compose,
         "MctRootMenu.abc": abc,
         "manifest.json": manifest_bytes,
+        "match-manifest.json": match_manifest_bytes,
     }
+    payload.update(match_files)
+    return payload
 
 
 def _require_library_files(repo: Path, manifest: dict) -> None:
@@ -409,14 +499,14 @@ def _require_surface(repo: Path) -> None:
     rewrite = _import_module(repo / REWRITE_RELATIVE, "mct_stage_rewrite")
     for module, names in (
         (reader, ("read_movie_bytes", "decrypt_aes256_ecb_cng")),
-        (rewrite, ("replace_final_movie", "encrypt_aes256_ecb_cng")),
+        (rewrite, ("replace_final_movie", MATCH_REWRITE_SYMBOL, "encrypt_aes256_ecb_cng")),
     ):
         for name in names:
             if not callable(getattr(module, name, None)):
                 raise StageNativeRuntimeError("staged helper is missing a required function")
 
 
-def _require_composer(path: Path, manifest: dict) -> None:
+def _require_composer(path: Path, manifest: dict, match_manifest: dict) -> None:
     module = _import_module(path, "mct_stage_compose")
     try:
         movie = module.MOVIE_SHA256
@@ -457,8 +547,146 @@ def _require_composer(path: Path, manifest: dict) -> None:
         raise StageNativeRuntimeError("composer library pin does not match the manifest")
     if character != 0 or target != "MctMainMenuScreen":
         raise StageNativeRuntimeError("composer document binding does not match")
-    if not callable(getattr(module, "compose_movie", None)):
+    if not callable(getattr(module, "compose_movie", None)) or not callable(getattr(module, "compose_match_movie", None)):
         raise StageNativeRuntimeError("staged helper is missing a required function")
+    _require_match_composer(module, match_manifest)
+
+
+_MATCH_TOP_KEYS = frozenset({
+    "abc_version", "compiler", "game_classes_linked", "library_classes", "library_commit",
+    "library_files", "production_ready", "runtime_verified", "scenes", "schema", "swf_version",
+})
+_MATCH_SCENE_KEYS = frozenset({
+    "abc_bytes", "abc_file", "abc_sha256", "authored_classes", "classes", "document_character",
+    "document_source_name", "document_target_name", "export_name", "menu_class", "method_bodies",
+    "movie_bytes", "movie_sha256", "original_abc_sha256", "original_root_name", "package_id",
+    "package_relative", "package_sha256", "renamed_original_root", "root_movie_source",
+    "root_movie_source_sha256", "screen_class", "screen_source", "screen_source_sha256",
+    "source", "source_sha256", "superclass", "surface", "symbol_character", "symbol_name",
+    "wrapper_class", "class_flags",
+})
+_MATCH_FILE_KEYS = (
+    "source_sha256", "screen_source_sha256", "root_movie_source_sha256", "abc_sha256", "abc_bytes",
+)
+
+
+def _match_manifest(data: bytes) -> dict:
+    try:
+        manifest = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise StageNativeRuntimeError("match manifest could not be read") from None
+    if type(manifest) is not dict or set(manifest) != _MATCH_TOP_KEYS or manifest.get("schema") != 1:
+        raise StageNativeRuntimeError("match manifest could not be read")
+    if manifest.get("compiler") != "Apache Flex 4.16.1" or manifest.get("swf_version") != 20:
+        raise StageNativeRuntimeError("match manifest compiler pin does not match")
+    if manifest.get("abc_version") != "46.16":
+        raise StageNativeRuntimeError("match manifest compiler pin does not match")
+    if manifest.get("game_classes_linked") is not False:
+        raise StageNativeRuntimeError("match manifest links game classes")
+    if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
+        raise StageNativeRuntimeError("match manifest grants runtime capability")
+    if manifest.get("library_commit") != LIBRARY_COMMIT or manifest.get("library_classes") != LIBRARY_CLASSES:
+        raise StageNativeRuntimeError("match manifest library pin does not match")
+    if manifest.get("library_files") != LIBRARY_FILES:
+        raise StageNativeRuntimeError("match manifest library pin does not match")
+    scenes = manifest.get("scenes")
+    if type(scenes) is not dict or set(scenes) != set(MATCH_SCENE_IDS):
+        raise StageNativeRuntimeError("match manifest scenes are not midgame and endgame")
+    codec = COMPILED_CLASSES[len(AUTHORED_CLASSES):]
+    for scene_id in MATCH_SCENE_IDS:
+        scene = scenes[scene_id]
+        expected = MATCH_SCENES[scene_id]
+        if type(scene) is not dict or set(scene) != _MATCH_SCENE_KEYS:
+            raise StageNativeRuntimeError("match manifest scene is not the fixed record")
+        if scene.get("package_id") != scene_id:
+            raise StageNativeRuntimeError("match manifest scene id does not match")
+        for key, value in expected.items():
+            if key in _MATCH_FILE_KEYS:
+                continue
+            if scene.get(key) != value:
+                raise StageNativeRuntimeError("match manifest scene pin does not match")
+        classes = list(expected["authored_classes"]) + list(codec)
+        if scene.get("classes") != classes or scene.get("authored_classes") != list(expected["authored_classes"]):
+            raise StageNativeRuntimeError("match manifest classes are not the authored inventory")
+        for key in ("source_sha256", "screen_source_sha256", "root_movie_source_sha256", "abc_sha256"):
+            _require_hex(scene.get(key), "match manifest source pin is malformed")
+        if type(scene.get("abc_bytes")) is not int or not 0 < scene["abc_bytes"] <= _MAX_ABC:
+            raise StageNativeRuntimeError("match manifest ABC pin is malformed")
+    return manifest
+
+
+def _require_hex(value: object, message: str) -> None:
+    if type(value) is not str or len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+        raise StageNativeRuntimeError(message)
+
+
+def _require_match_sources(repo: Path, manifest: dict) -> dict[str, bytes]:
+    files = {}
+    for scene_id in MATCH_SCENE_IDS:
+        scene = manifest["scenes"][scene_id]
+        blobs = {
+            "source_sha256": _repo_file(repo, scene["source"], _MAX_SOURCE),
+            "screen_source_sha256": _repo_file(repo, scene["screen_source"], _MAX_SOURCE),
+            "root_movie_source_sha256": _repo_file(repo, scene["root_movie_source"], _MAX_SOURCE),
+        }
+        for key, blob in blobs.items():
+            if _sha(blob) != scene[key]:
+                raise StageNativeRuntimeError("match source does not match the manifest")
+        abc = _repo_file(repo, f"native_ui/compiled/{scene['abc_file']}", _MAX_ABC)
+        if len(abc) != scene["abc_bytes"] or _sha(abc) != scene["abc_sha256"]:
+            raise StageNativeRuntimeError("match ABC does not match the manifest")
+        if scene["abc_file"] in files:
+            raise StageNativeRuntimeError("match manifest ABC file is duplicated")
+        files[scene["abc_file"]] = abc
+    if set(files) != {"MctPauseMenu.abc", "MctResultsMenu.abc"}:
+        raise StageNativeRuntimeError("match ABC files are not the pause and results menus")
+    return files
+
+
+def _require_match_composer(module, manifest: dict) -> None:
+    try:
+        profiles = module.MATCH_PROFILES
+        scene_ids = tuple(module.MATCH_SCENE_IDS)
+    except AttributeError:
+        raise StageNativeRuntimeError("composer match scenes are missing") from None
+    if scene_ids != MATCH_SCENE_IDS or type(profiles) is not dict or set(profiles) != set(MATCH_SCENE_IDS):
+        raise StageNativeRuntimeError("composer match scenes are not midgame and endgame")
+    for scene_id in MATCH_SCENE_IDS:
+        scene = manifest["scenes"][scene_id]
+        profile = profiles[scene_id]
+        pairs = (
+            ("scene_id", "package_id"),
+            ("movie_sha256", "movie_sha256"),
+            ("movie_bytes", "movie_bytes"),
+            ("abc_sha256", "original_abc_sha256"),
+            ("mod_abc_sha256", "abc_sha256"),
+            ("mod_abc_bytes", "abc_bytes"),
+            ("source_sha256", "source_sha256"),
+            ("screen_source_sha256", "screen_source_sha256"),
+            ("root_movie_source_sha256", "root_movie_source_sha256"),
+            ("package_sha256", "package_sha256"),
+            ("package_relative", "package_relative"),
+            ("export_name", "export_name"),
+            ("menu_class", "menu_class"),
+            ("screen_class", "screen_class"),
+            ("wrapper_class", "wrapper_class"),
+            ("original_root_name", "original_root_name"),
+            ("renamed_original_root", "renamed_original_root"),
+            ("document_source_name", "document_source_name"),
+            ("document_target_name", "document_target_name"),
+            ("symbol_character", "symbol_character"),
+            ("symbol_name", "symbol_name"),
+        )
+        try:
+            for attr, key in pairs:
+                if getattr(profile, attr) != scene[key]:
+                    raise StageNativeRuntimeError("composer match pin does not match the manifest")
+            if list(profile.authored_classes) != scene["authored_classes"]:
+                raise StageNativeRuntimeError("composer match classes do not match the manifest")
+            if list(profile.compiled_classes) != scene["classes"]:
+                raise StageNativeRuntimeError("composer match classes do not match the manifest")
+        except AttributeError:
+            raise StageNativeRuntimeError("composer match pin does not match the manifest") from None
 
 
 def _import_module(path: Path, prefix: str):

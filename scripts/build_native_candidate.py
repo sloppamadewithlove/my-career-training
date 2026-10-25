@@ -96,6 +96,9 @@ MENU_FILE_CAPS = {
     "native_movie_compose.py": 1024 * 1024,
     "MctRootMenu.abc": 64 * 1024,
     "manifest.json": 64 * 1024,
+    "MctPauseMenu.abc": 64 * 1024,
+    "MctResultsMenu.abc": 64 * 1024,
+    "match-manifest.json": 64 * 1024,
     "decoder_config.bin": 32,
     "UEViewer-LICENSE.txt": 8192,
 }
@@ -606,6 +609,7 @@ def _validate_menu_files(files: dict[str, bytes]) -> None:
         raise CandidateBuildError("native-menu manifest source pin does not match")
     if pins["screen_source_sha256"] != manifest.get("screen_source_sha256"):
         raise CandidateBuildError("native-menu manifest screen pin does not match")
+    _require_match_manifest(files)
 
 
 def _require_fixed_pins(pins: dict, provenance: dict) -> None:
@@ -659,6 +663,56 @@ def _require_menu_contract() -> None:
     )
     if any(left != right for left, right in pairs):
         raise CandidateBuildError("native menu pins disagree between the stage helper and the runtime module")
+    if stage_menu.MATCH_SCENE_IDS != menu_assets.MATCH_SCENE_IDS or stage_menu.MATCH_REWRITE_SYMBOL != menu_assets.MATCH_REWRITE_SYMBOL:
+        raise CandidateBuildError("native menu match scenes disagree")
+    live = menu_assets._match_pins()
+    if set(stage_menu.MATCH_SCENES) != set(live):
+        raise CandidateBuildError("native menu match scenes disagree")
+    shared = (
+        "surface", "package_relative", "package_sha256", "export_name", "movie_sha256",
+        "menu_class", "screen_class", "wrapper_class", "original_root_name",
+        "renamed_original_root", "symbol_character", "symbol_name", "authored_classes",
+        "method_bodies", "class_flags",
+    )
+    for scene_id, expected in stage_menu.MATCH_SCENES.items():
+        pin = live[scene_id]
+        for key in shared:
+            left = expected[key]
+            right = pin[key]
+            if list(left) != list(right) if isinstance(left, (list, tuple)) else left != right:
+                raise CandidateBuildError("native menu match pins disagree")
+
+
+def _require_match_manifest(files: dict[str, bytes]) -> None:
+    manifest = _load_manifest(files["match-manifest.json"])
+    if manifest.get("runtime_verified") is not False or manifest.get("production_ready") is not False:
+        raise CandidateBuildError("native-menu match manifest grants runtime capability")
+    if manifest.get("game_classes_linked") is not False or manifest.get("library_commit") != menu_assets.LIBRARY_COMMIT:
+        raise CandidateBuildError("native-menu match manifest library pin does not match")
+    if manifest.get("library_classes") != list(menu_assets.LIBRARY_CLASSES) or manifest.get("library_files") != menu_assets.LIBRARY_FILES:
+        raise CandidateBuildError("native-menu match manifest library pin does not match")
+    scenes = manifest.get("scenes")
+    pins = menu_assets._match_pins()
+    if type(scenes) is not dict or set(scenes) != set(menu_assets.MATCH_SCENE_IDS):
+        raise CandidateBuildError("native-menu match manifest scenes are not midgame and endgame")
+    for scene_id in menu_assets.MATCH_SCENE_IDS:
+        scene = scenes[scene_id]
+        pin = pins[scene_id]
+        if type(scene) is not dict or scene.get("package_id") != scene_id or scene.get("surface") != pin["surface"]:
+            raise CandidateBuildError("native-menu match manifest scene pin does not match")
+        if scene.get("movie_sha256") != pin["movie_sha256"] or scene.get("package_sha256") != pin["package_sha256"]:
+            raise CandidateBuildError("native-menu match manifest scene pin does not match")
+        if scene.get("package_relative") != pin["package_relative"] or scene.get("export_name") != pin["export_name"]:
+            raise CandidateBuildError("native-menu match manifest scene pin does not match")
+        if scene.get("authored_classes") != list(pin["authored_classes"]) or scene.get("classes") != list(pin["compiled_classes"]):
+            raise CandidateBuildError("native-menu match manifest classes are not the authored classes")
+        if scene.get("method_bodies") != pin["method_bodies"] or tuple(scene.get("class_flags") or ()) != pin["class_flags"]:
+            raise CandidateBuildError("native-menu match manifest classes are not the authored classes")
+        if scene.get("abc_file") != pin["abc_name"]:
+            raise CandidateBuildError("native-menu match manifest ABC pin does not match")
+        blob = files[pin["abc_name"]]
+        if scene.get("abc_bytes") != len(blob) or scene.get("abc_sha256") != _sha(blob):
+            raise CandidateBuildError("native-menu match ABC does not match the manifest")
 
 
 def _menu_receipt(files: dict[str, bytes]) -> dict:

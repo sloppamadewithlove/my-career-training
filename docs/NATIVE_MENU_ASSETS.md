@@ -2,11 +2,33 @@
 
 `scripts/stage_native_runtime.py` builds a private runtime directory.
 `native_menu_assets.prepare_native_menu` reads one pinned Rocket League
-install and writes a private package under a per-session directory. Neither
+install and writes three private packages under a per-session directory. Neither
 step installs that package, launches the game, or queries BakkesMod.
 
 `runtime_verified` and `production_ready` stay false. A prepared file is not
 evidence that Scaleform initialized the menu or that a match can start.
+
+## Frontend, pause, and results
+
+Preparation now requires the pinned MainMenu, MidGameMenu, and EndGameMenu
+packages. It creates all three before publishing `prepare-receipt.json`.
+An interrupted publication removes only files created by that call, preserving
+unrelated files. Installed packages are read only and checked again afterward.
+
+`PreparedNativeMenu.private_package` remains the frontend path.
+`additional_packages` contains exactly `midgame` and `endgame`. Each record has
+`private_package`, `private_package_sha256`, `source_package_relative`,
+`source_package_sha256`, and `source_movie_sha256`. The launch caller passes only
+the first two fields; the launcher supplies its own fixed source identities.
+All three movies receive the same session and canonical view URL.
+
+The runtime allowlist adds `MctPauseMenu.abc`, `MctResultsMenu.abc`, and
+`match-manifest.json`. The match manifest pins the six authored sources, both
+compiled class inventories, original package/movie identities, and the existing
+licensed JSON library. No private SDK, game class definition, or game asset is
+part of this distribution. MainMenu still uses `replace_final_movie`; the match
+packages use `replace_movie` to append the selected serial to the last chunk
+without moving another export. See `NATIVE_PACKAGE_REWRITE.md` for that boundary.
 
 ## What the end-user install does not need
 

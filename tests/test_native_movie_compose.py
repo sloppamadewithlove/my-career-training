@@ -266,6 +266,48 @@ def test_production_profile_pins_the_measured_layout():
     assert compose.MAX_MOD_ABC_BYTES == 64 * 1024
 
 
+@pytest.mark.parametrize("scene_id", ["midgame", "endgame"])
+def test_match_composition_preserves_stock_abc_and_other_symbol_bindings(monkeypatch, scene_id):
+    measured = compose.MATCH_PROFILES[scene_id]
+    names = ["menus", "BaseMenu", measured.original_root_name, measured.document_source_name, "Other"]
+    abc, super_offset, code_offset = _original_abc(names)
+    mod = _mod([measured.menu_class, "__MCT_VIEW_URL__", "__MCT_SESSION__",
+                measured.screen_class, measured.wrapper_class])
+    symbols = [(0, measured.document_source_name), (measured.symbol_character, measured.symbol_name), (99, "Other")]
+    movie = _movie(abc, symbols=symbols)
+    profile = replace(measured, movie_sha256=hashlib.sha256(movie).hexdigest(), movie_bytes=len(movie),
+                      abc_sha256=hashlib.sha256(abc).hexdigest(), mod_abc_sha256=hashlib.sha256(mod).hexdigest(),
+                      mod_abc_bytes=len(mod), super_offset=super_offset, super_bytes=SUPER_BYTES,
+                      old_multiname_index=OLD_MULTINAME,
+                      code_offset=code_offset, code_length=len(SCRIPT_CODE),
+                      code_sha256=hashlib.sha256(SCRIPT_CODE).hexdigest(), doabc_index=1)
+    monkeypatch.setitem(compose.MATCH_PROFILES, scene_id, profile)
+    result = compose.compose_match_movie(scene_id, movie, mod, session=SESSION, view_url=UNICODE_URL)
+    output_tags = _tags(result["data"])
+    originals = _tags(movie)
+    assert [raw for code, raw, _ in output_tags if code not in (82, 76)] == [
+        raw for code, raw, _ in originals if code not in (82, 76)]
+    bound_symbols = _symbol_names(next(payload for code, _, payload in output_tags if code == 76))
+    assert bound_symbols == [(0, measured.document_target_name), *symbols[1:]]
+    payloads = _doabc_payloads(result["data"])
+    old = _u30(len(measured.original_root_name)) + measured.original_root_name.encode()
+    new = _u30(len(measured.renamed_original_root)) + measured.renamed_original_root.encode()
+    assert payloads[0][5:] == abc.replace(old, new)
+    assert len(payloads) == 2
+    assert UNICODE_URL.encode() in payloads[1] and SESSION.encode() in payloads[1]
+    assert measured.wrapper_class.encode() not in payloads[1]
+    with pytest.raises(compose.ComposeRejected, match="movie hash mismatch"):
+        compose.compose_match_movie(scene_id, movie + b"x", mod, session=SESSION, view_url=VIEW_URL)
+    with pytest.raises(compose.ComposeRejected, match="abc hash mismatch"):
+        compose.compose_match_movie(scene_id, movie, mod + b"x", session=SESSION, view_url=VIEW_URL)
+
+
+@pytest.mark.parametrize("scene", ["pause", "results", "frontend", "../midgame", None])
+def test_match_entry_refuses_other_scene_identifiers(scene):
+    with pytest.raises(compose.ComposeRejected, match="scene"):
+        compose.compose_match_movie(scene, b"", b"", session=SESSION, view_url=VIEW_URL)
+
+
 def test_root_rename_preserves_superclass_and_script_bytes():
     movie, mod, profile, abc = _ready()
     original_tags = _tags(movie)

@@ -1,7 +1,7 @@
 # Native package rewrite
 
-Development-only in-memory transform for one menu package. It lives in
-`scripts/native_package_rewrite.py` and is not imported by the application.
+Pinned in-memory transform for one menu package. It lives in
+`scripts/native_package_rewrite.py` and is staged for private menu preparation.
 It does not launch a game, open an installed package, write a file, or fetch
 a key. Tests build synthetic packages with `struct`. They do not inspect a
 retail asset.
@@ -45,6 +45,19 @@ for, or downloads a key. Parser fixtures can use any pure callback. They do
 not need CNG.
 
 ## What is rewritten
+
+`replace_movie` has the same arguments and result as `replace_final_movie`.
+It supports a selected export that is not the entire last chunk: the updated
+serial is appended to the last logical chunk, and only that export's offset
+and size plus the last chunk sizes are changed. Every other export keeps its
+offset, size, and bytes. Earlier compressed chunks and the existing prefix of
+the final logical chunk remain unchanged. The old selected serial is retained
+as unreferenced bytes. Overlapping exports, unsupported framing, trailing
+physical bytes, and size-limit violations are rejected. This is the path used
+for the pinned MidgameMenu and EndGameMenu exports.
+
+The stricter `replace_final_movie` API remains unchanged for MainMenu. Its
+requirements follow.
 
 The source must pass the reader's summary, table, frame, export, and RawData
 checks. This rewrite then requires all of the following:

@@ -1,5 +1,14 @@
 # Native menu candidate
 
+The native-menu payload now includes separate authored pause and results ABCs
+and `match-manifest.json`, in addition to the unchanged frontend artifact.
+Staging and candidate verification require exactly those three additional files
+and validate their class inventories, package/movie identities, and content
+hashes. Startup preparation creates three private packages; its
+`additional_packages` records are keyed `midgame` and `endgame`. The launch
+integration must forward those fixed mappings before pause/results live testing.
+Shipping prepared files does not itself establish runtime acceptance.
+
 This is a separate developer bundle. See [current status](PROJECT_STATUS.md):
 the published 24 October ZIP failed live startup. A separate test-installer
 recipe now wraps the candidate; it is not the stable release or evidence that
