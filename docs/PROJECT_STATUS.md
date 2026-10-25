@@ -61,6 +61,16 @@ review, exact authored-binary rebuilds, 109 focused asset checks (one skipped),
 and four focused native suites passed. This follow-up still needs a coherent
 build and live source/frozen acceptance.
 
+Integrated `714f3c2` passed the coherent 40-test native build, reopened the copied
+saved 0–32 career, and visually removed Party/Friends from pause. Mouse Options,
+Back and Resume worked. Its delayed-cleanup test still let Escape unload the
+pause screen, bypassing the child-menu guard. Manual Escape recovery again
+reached fresh READY and `RootMenuMovie`. A follow-up now guards the typed
+document-screen close path and records fixed removal diagnostics. Direct
+screen-manager/native removal may bypass that method too; this boundary remains
+unverified until the next controlled live test. The superseded installers remain
+on hold.
+
 Another real fixture on `374c85d`, started through native Play after practice,
 saved its actual 0–32 score once, cleared its pending fixture, and acknowledged
 the durable receipt. This mostly unattended score is not a skill assessment.
