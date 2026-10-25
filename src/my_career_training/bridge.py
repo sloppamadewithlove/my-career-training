@@ -76,6 +76,10 @@ class Backend(QObject):
         self.pending_launch = None
         self.native_return_ready = None
         self.native_forfeit_rejected = None
+        self.native_next_ready = None
+        self.native_next_rejected = None
+        self._prepared_next = None
+        self._last_next = None
         self._forfeit_score_observation = None
         self._native_return_request = None
         self.close_deadline = None
@@ -141,13 +145,15 @@ class Backend(QObject):
                 "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
                 "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
                 "worker_running": self._worker_active(),
-                "can_exit": not self.lifecycle.frozen and self.session_state not in
-                    ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
+                "can_exit": not self.lifecycle.frozen and (self._prepared_next is not None or
+                    self.session_state not in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker")),
                 "id": self.session_id,
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
             "native_return_ready": copy.deepcopy(self.native_return_ready),
             "native_forfeit_rejected": copy.deepcopy(self.native_forfeit_rejected),
+            "native_next_ready": copy.deepcopy(self.native_next_ready),
+            "native_next_rejected": copy.deepcopy(self.native_next_rejected),
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
@@ -280,6 +286,10 @@ class Backend(QObject):
             self.error = ""
             if self.in_game and action.startswith("online_"):
                 raise ValueError("My Career runs offline. Online features are not part of this mode.")
+            if self._prepared_next and action not in {
+                    "prepare_next_match", "start_prepared_match", "quit_game", "retry_result_save",
+                    "navigate", "diagnostics", "open_data", "community_cancel"}:
+                raise ValueError("The next match is being prepared. Wait for it to start, or choose Quit My Career.")
             if action == "navigate":
                 self.page = payload["page"]
                 if self.page in ("community", "workshop"):
@@ -319,6 +329,13 @@ class Backend(QObject):
                     self.community_state["message"] = "Cancelling the plugin request…"
             elif action == "forfeit_match":
                 self._forfeit_match(payload)
+            elif action == "prepare_next_match":
+                self._prepare_next_match(payload)
+            elif action == "start_prepared_match":
+                self._start_prepared_match(payload)
+            elif action == "quit_game" and self._prepared_next:
+                self._cancel_prepared_next()
+                self._begin_stop("exit")
             else:
                 self._require_editable(allow_community_pending=action in {"quit_game", "stop_session", "return_hub"})
                 self._action(action, payload)
@@ -330,7 +347,149 @@ class Backend(QObject):
                     # A generic error must never revoke a committed navigation.
                     # The host compares all three fields with its current intent.
                     self.native_forfeit_rejected = identity
+            elif action == "prepare_next_match":
+                identity = self._next_identity(payload, preparing=True)
+                if identity:
+                    rejection_keys = ("session_id", "fixture_id", "intent")
+                    if self._prepared_next and all(self._prepared_next["identity"][key] == identity[key]
+                                                   for key in rejection_keys):
+                        if self._prepared_next["payload"] == payload:
+                            self._prepared_next["error"] = str(exc)
+                    elif not self._last_next or any(self._next_identity(
+                            self._last_next["prepare"], preparing=True)[key] != identity[key] for key in rejection_keys):
+                        self.native_next_rejected = {key: identity[key] for key in
+                            ("session_id", "fixture_id", "intent")}
         self.stateChanged.emit()
+
+    @staticmethod
+    def _next_identity(payload, *, preparing=False):
+        keys = {"expected_session_id", "expected_fixture_id", "expected_next_fixture_id", "continuation_intent"}
+        if preparing:
+            keys.add("lineup_ids")
+        if not isinstance(payload, dict) or set(payload) != keys:
+            return None
+        values = [payload.get(key) for key in
+                  ("expected_session_id", "expected_fixture_id", "expected_next_fixture_id")]
+        intent = payload.get("continuation_intent")
+        if (not all(isinstance(value, str) and 0 < len(value) <= 128 for value in values)
+                or not isinstance(intent, str) or len(intent) != 32
+                or any(character not in "0123456789abcdef" for character in intent)):
+            return None
+        return dict(zip(("session_id", "fixture_id", "next_fixture_id", "intent"), [*values, intent]))
+
+    def _next_transition_clear(self):
+        if (self.pending_launch is not None or self.stop_reason or self.stopping_worker
+                or self.start_deadline is not None or self.lifecycle.frozen or self.lifecycle.confirming
+                or self.lifecycle.state != "Idle"):
+            raise ValueError("Wait for the current game transition to finish before continuing.")
+
+    def _next_owned_game(self, expected=None):
+        from .bootstrap import verify_owned_offline
+        if (not self.in_game or not self.owned_game
+                or (expected is not None and self.owned_game.as_dict() != expected)
+                or not verify_owned_offline(self.owned_game)):
+            raise ValueError("The same offline game is no longer available. Relaunch My Career.")
+        return self.owned_game.as_dict()
+
+    def _next_saved_result(self, identity):
+        career = self.document.get("career")
+        if not career or career.get("pending_session"):
+            raise ValueError("Save the finished match before continuing.")
+        fixture = next((item for item in domain._all_fixtures(career)
+                        if item["id"] == identity["fixture_id"]), None)
+        result = fixture and fixture.get("result")
+        if (not fixture or fixture["status"] != "completed" or "human" not in (fixture["home"], fixture["away"])
+                or not result or result.get("session_id") != identity["session_id"]
+                or result.get("simulated") is not False or result.get("provenance") not in {"game", "forfeit"}):
+            raise ValueError("The saved result does not match this finished match.")
+        next_fixture = domain.next_fixture(career)
+        if (not next_fixture or next_fixture["id"] != identity["next_fixture_id"]
+                or next_fixture["status"] != "scheduled"):
+            raise ValueError("The next fixture changed. Return to My Career to review the schedule.")
+        return result
+
+    def _prepare_next_match(self, payload):
+        identity = self._next_identity(payload, preparing=True)
+        if not identity:
+            raise ValueError("Choose Play Next Match and confirm the current lineup again.")
+        if self._prepared_next:
+            if self._prepared_next["payload"] != payload:
+                raise ValueError("Another next-match request is already being prepared.")
+            if self._prepared_next.get("error"):
+                raise ValueError(self._prepared_next["error"])
+            return
+        if self._last_next and self._last_next["prepare"] == payload:
+            if self._last_next.get("error"):
+                raise ValueError(self._last_next["error"])
+            return
+        self._next_transition_clear()
+        self._require_editable()
+        request = self.request or {}
+        if (self.session_state != "Career Ready" or self.session_id != identity["session_id"]
+                or request.get("fixture", {}).get("id") != identity["fixture_id"]
+                or any(request.get(key) for key in ("lesson_id", "workshop", "calibration"))):
+            raise ValueError("This is not the current finished career match.")
+        owned = self._next_owned_game()
+        result = copy.deepcopy(self._next_saved_result(identity))
+        state = copy.deepcopy(self.document)
+        state["career"] = domain.set_lineup(state["career"], payload["lineup_ids"])
+        # One durable preference commit; no pending fixture, worker launch or
+        # result award is created by preparation.
+        self._commit(state)
+        self._prepared_next = {"payload": copy.deepcopy(payload), "identity": identity,
+            "owned": owned, "career_id": state["career"]["id"], "result": result}
+        self.native_next_ready = None
+        self.native_next_rejected = None
+        self._action("return_hub", {"expected_session_id": identity["session_id"],
+            "expected_fixture_id": identity["fixture_id"], "abandon": False})
+
+    def _cancel_prepared_next(self):
+        prepared = self._prepared_next
+        if prepared:
+            self._last_next = {"prepare": prepared["payload"], "start": {
+                key: value for key, value in prepared["payload"].items() if key != "lineup_ids"},
+                "error": "The next match was cancelled. Open Career to start a match manually."}
+        self._prepared_next = None
+        self.native_next_ready = None
+        self.native_next_rejected = None
+        self.native_return_ready = None
+        self._native_return_request = None
+
+    def _start_prepared_match(self, payload):
+        identity = self._next_identity(payload)
+        if not identity:
+            raise ValueError("The prepared match request is invalid.")
+        if self._last_next and self._last_next["start"] == payload:
+            if self._last_next.get("error"):
+                raise ValueError(self._last_next["error"])
+            return
+        prepared = self._prepared_next
+        if not prepared or prepared["identity"] != identity:
+            raise ValueError("This next-match request is no longer prepared.")
+        self._next_transition_clear()
+        self._require_editable()
+        if (self._worker_active() or self.session_id is not None or self.request is not None
+                or self.session_state != "Idle" or self.native_next_ready != identity
+                or self.native_return_ready != {key: identity[key] for key in ("session_id", "fixture_id")}):
+            raise ValueError("The finished activity has not completed cleanup yet.")
+        self._next_owned_game(prepared["owned"])
+        result = self._next_saved_result(identity)
+        career = self.document["career"]
+        if (career["id"] != prepared["career_id"] or result != prepared["result"]
+                or career["lineup"] != prepared["payload"]["lineup_ids"]):
+            raise ValueError("The confirmed career or lineup changed. Return to Career to choose again.")
+        # Consume before any provider/save/launch side effect. Even if launch
+        # fails or its reply is lost, this token cannot reserve a second fixture.
+        self._last_next = {"prepare": prepared["payload"], "start": copy.deepcopy(payload)}
+        self._prepared_next = None
+        self.native_next_ready = None
+        self.native_next_rejected = None
+        try:
+            self._prepare_launch("play_match", {"expected_career_id": prepared["career_id"],
+                "expected_fixture_id": identity["next_fixture_id"]})
+        except Exception as exc:
+            self._last_next["error"] = f"The next match could not start: {exc}. Open Career to review the saved fixture."
+            raise ValueError(self._last_next["error"]) from exc
 
     @staticmethod
     def _forfeit_identity(payload):
@@ -1076,6 +1235,10 @@ class Backend(QObject):
         if (self.in_game and self.session_id and not self.pending_launch
                 and self._native_return_request == expected):
             self.native_return_ready = dict(expected)
+            prepared = self._prepared_next
+            if prepared and all(prepared["identity"][key] == value for key, value in expected.items()):
+                prepared.pop("error", None)
+                self.native_next_ready = dict(prepared["identity"])
             self.error = ""
         self._native_return_request = None
 
