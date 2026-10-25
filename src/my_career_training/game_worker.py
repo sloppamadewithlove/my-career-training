@@ -219,6 +219,8 @@ class GameSession:
         self.emit = emit
         self.events = SessionInbox()
         self.cancel_start = threading.Event()
+        self.core_lock = threading.Lock()
+        self.cleanup_complete = False
         self.core = None
         self.manager = None
         self.relays = {}
@@ -264,13 +266,55 @@ class GameSession:
 
     def command(self, command):
         if command.get("type", command.get("command")) in {"stop", "shutdown"}:
-            self.stop_id = command.get("id")
-            self.cancel_start.set()
+            with self.core_lock:
+                self.stop_id = command.get("id")
+                self.cancel_start.set()
         self.events.put(("command", command))
 
     def check_cancel(self):
         if self.cancel_start.is_set():
             raise SessionCancelled()
+
+    def spawn_core(self, runtime, port):
+        # Cancellation and the only core creation share one lock. A stop that
+        # wins this lock cannot be followed by a late Popen from the loader.
+        with self.core_lock:
+            self.check_cancel()
+            if time.monotonic() - self.started_monotonic > 120:
+                raise RuntimeError("Rocket League did not connect within two minutes. Check launcher setup and retry.")
+            preflight(self.owned)
+            executable = core_path()  # Recheck the pinned file after model loading.
+            self.core = subprocess.Popen([str(executable), str(port)], cwd=runtime, shell=False,
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return executable
+
+    def stop_owned_core(self):
+        with self.core_lock:
+            if self.core is None or self.core.poll() is not None:
+                return
+            try:
+                self.core.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.core.terminate()  # Only the exact Popen handle we created.
+                try:
+                    self.core.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.core.kill()
+                    self.core.wait(timeout=2)
+
+    def exit_blocked_pre_core_worker(self):
+        # There cannot be a result writer before a core ever starts. Hold the
+        # spawn lock until this worker exits so a returning loader cannot race
+        # the confirmed stop. Never use this path after core creation.
+        with self.core_lock:
+            if self.core is not None or self.result_sent:
+                return False
+            self.cancel_start.set()
+            try:
+                self.event("stopped", id=self.stop_id)
+            finally:
+                os._exit(2)
 
     def connect(self, connector, relay, port, predictions=False):
         # b56's connector retries internally; short slices keep Stop responsive.
@@ -353,7 +397,7 @@ class GameSession:
             from .map_guard import MapGuard
             self.map_guard = MapGuard(self.request["data_dir"])
             self.map_guard.recover()
-        executable = core_path()
+        core_path()
         config, descriptors, self.human_index = adapter.match_config(self.request)
         self.human_team = config.player_configurations[self.human_index].team
         self.descriptors = descriptors
@@ -371,16 +415,18 @@ class GameSession:
         if self.request.get("recording") is not None:
             validate_recording(self.request["recording"])
             self.recording = self.request["recording"]
+        self.event("session", state="starting", message="Loading the selected offline bots.")
+        for index, descriptor in descriptors.items():
+            self.check_cancel()
+            self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
+                descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
+            self.check_cancel()
         runtime = Path(self.request["data_dir"]).resolve() / "runtime" / self.session_id
         runtime.mkdir(parents=True, exist_ok=True)
         port = free_port()
         # Recheck just before the core launches: the Epic launch route may close
         # game processes globally, so attaching to a preexisting game is forbidden.
-        self.check_cancel()
-        preflight(self.owned)
-        self.core = subprocess.Popen([str(executable), str(port)], cwd=runtime, shell=False,
-                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        executable = self.spawn_core(runtime, port)
         self.event("session", state="starting", message="Connecting to the offline bot service.")
         self.manager = MatchManager(executable)
         self.manager.rlbot_interface = isolated_relay(self.manager.rlbot_interface)
@@ -396,10 +442,6 @@ class GameSession:
         self.renderer._current_renders = []
         self.event("session", state="starting", message="Asking Rocket League to open the offline match.")
         self.start_acknowledged_match(config)
-        self.event("session", state="starting", message="Loading the selected offline bots.")
-        for index, descriptor in descriptors.items():
-            self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"), descriptor.get("role", "all-rounder"),
-                descriptor["level"], descriptor["difficulty"], descriptor["seed"])
         for team in sorted({value["team"] for value in descriptors.values()}):
             relay = isolated_relay(SocketRelay(f"my-career-training/team-{team}", connection_timeout=8))
             relay.controllable_team_info_handlers.append(
@@ -670,16 +712,7 @@ class GameSession:
                 self.manager.rlbot_interface.stop_match(shutdown_server=True)
             except (OSError, AssertionError):
                 pass
-        if self.core:
-            try:
-                self.core.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self.core.terminate()  # only the exact Popen handle we created
-                try:
-                    self.core.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    self.core.kill()
-                    self.core.wait(timeout=2)
+        self.stop_owned_core()
         relays = list(self.relays.values())
         if self.manager:
             relays.append(self.manager.rlbot_interface)
@@ -696,6 +729,7 @@ class GameSession:
             thread.join(timeout=.2)
         if self.map_guard:
             self.map_guard.recover()
+        self.cleanup_complete = True
 
     def run(self):
         self.event("session", state="starting", message="Checking the game installation and offline runtime.")
@@ -729,14 +763,17 @@ class GameSession:
         except SessionCancelled:
             pass
         except Exception as error:
-            self.event("error", message=str(error))
-            self.event("session", state="error", message="The offline session could not continue.")
+            if not self.cancel_start.is_set():
+                self.event("error", message=str(error))
+                self.event("session", state="error", message="The offline session could not continue.")
         finally:
             try:
                 self.teardown()
             except Exception:
                 logging.exception("Owned core cleanup failed")
-            self.event("stopped", id=self.stop_id)
+                self.event("error", message="The offline helper did not confirm cleanup. Keep the app open and retry stopping.")
+            else:
+                self.event("stopped", id=self.stop_id)
 
 
 class Worker:
@@ -768,11 +805,26 @@ class Worker:
             self.session = self.session_factory(command, self.emit)
             self.session.thread.start()
         elif kind in {"stop", "shutdown"}:
+            if command.get("session_id") not in (None, sid):
+                raise ValueError("The command refers to a different session.")
             if self.session and self.session.thread.is_alive():
                 self.session.command(command)
                 if kind == "shutdown":
                     self.session.thread.join(timeout=28)
+                    self.session.stop_owned_core()
+                    if self.session.thread.is_alive():
+                        self.session.exit_blocked_pre_core_worker()
+                        # A post-core thread may still be persisting a real
+                        # result. Keep it alive rather than cut off that write.
+                        self.emit({"type": "error", "session_id": sid,
+                            "message": "The worker is still finishing cleanup or saving a result. Keep the app open."})
+                        return
+                    if not self.session.cleanup_complete:
+                        self.session.teardown()
+                        self.emit({"type": "stopped", "id": command.get("id"), "session_id": sid})
             else:
+                if self.session and not self.session.cleanup_complete:
+                    self.session.teardown()
                 self.emit({"type": "stopped", "id": command.get("id"), "session_id": sid})
             self.closed = kind == "shutdown"
         elif self.session and self.session.thread.is_alive():
@@ -790,15 +842,36 @@ class Worker:
                 if len(line) > MAX_COMMAND:
                     raise ValueError("The worker command exceeds its size limit.")
                 self.command(json.loads(line))
-            except (ValueError, RuntimeError, KeyError, TypeError) as error:
+            except (ValueError, RuntimeError, KeyError, TypeError, OSError, subprocess.TimeoutExpired) as error:
                 self.emit({"type": "error", "session_id": self.session.session_id if self.session else None,
                            "message": str(error)})
             if self.closed:
                 break
-        if self.session and self.session.thread.is_alive() and not self.closed:
-            self.session.command({"type": "stop"})
-            self.session.thread.join(timeout=28)
+        if self.session and not self.closed:
+            self.finish_after_eof()
         return 0
+
+    def finish_after_eof(self):
+        # The host cannot retry commands after EOF. Retain ownership until the
+        # exact core is gone and any final receipt writer/cleanup has finished.
+        # Do not emit acknowledgments onto a pipe the host may already close.
+        self.session.command({"type": "shutdown"})
+        self.session.thread.join(timeout=28)
+        reported = False
+        while not self.closed:
+            try:
+                self.session.stop_owned_core()
+                if self.session.thread.is_alive():
+                    self.session.exit_blocked_pre_core_worker()
+                    self.session.thread.join()
+                if not self.session.cleanup_complete:
+                    self.session.teardown()
+                self.closed = True
+            except Exception:
+                if not reported:
+                    logging.exception("Waiting for owned worker cleanup after the host closed")
+                    reported = True
+                time.sleep(1)
 
 
 def main():

@@ -329,8 +329,10 @@ def handshake_config(arena="Stadium_P"):
     return NS(game_map_upk=arena, player_configurations=[NS(team=1, variety=CustomBot()), NS(team=0, variety=Human())])
 
 
-def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch):
+@pytest.mark.parametrize("cancel_during_model", [False, True])
+def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch, cancel_during_model):
     import threading
+    from my_career_training.bots import providers
     configuration = handshake_config()
     order = []
     acknowledged = threading.Event()
@@ -365,16 +367,28 @@ def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch)
     monkeypatch.setitem(sys.modules, "rlbot.managers.rendering", NS(Renderer=lambda relay: NS()))
     monkeypatch.setattr(worker, "preflight", lambda owned=None: None)
     monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
-    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: NS(poll=lambda: None))
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: order.append("core") or NS(poll=lambda: None))
+    def model(*args):
+        order.append("model")
+        if cancel_during_model:
+            instance.command({"type": "shutdown"})
+        return object()
+    monkeypatch.setattr(providers, "create_controller", model)
     monkeypatch.setattr(adapter, "match_config", lambda req: (configuration,
         {0: {"team": 1, "level": 1, "difficulty": .5, "seed": 1}}, 1))
     instance = worker.GameSession(request(tmp_path), lambda event: None)
     monkeypatch.setattr(instance, "_relay_thread", lambda relay: None)
+    if cancel_during_model:
+        with pytest.raises(worker.SessionCancelled):
+            instance.setup()
+        assert order == ["model"]
+        assert not (tmp_path / "runtime").exists()
+        return
     instance.setup()
-    assert order == ["manager-connect", "start", "ack", "team-connect"]
+    assert order == ["model", "core", "manager-connect", "start", "ack", "team-connect"]
     order.append("mapping")
     instance.map_team(1, NS(team=1, controllables=[NS(index=0)]))
-    assert order == ["manager-connect", "start", "ack", "team-connect", "mapping", "init"]
+    assert order == ["model", "core", "manager-connect", "start", "ack", "team-connect", "mapping", "init"]
 
 
 def test_match_handshake_rejects_wrong_configuration_and_times_out(tmp_path):
@@ -400,3 +414,145 @@ def test_stop_cancels_match_handshake_before_team_connections(tmp_path):
     with pytest.raises(worker.SessionCancelled):
         instance.start_acknowledged_match(handshake_config())
     assert master.match_config_handlers == []
+
+
+def test_cancelled_or_expired_start_never_creates_core(tmp_path, monkeypatch):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    calls = []
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: calls.append("spawn"))
+    instance.command({"type": "shutdown"})
+    with pytest.raises(worker.SessionCancelled):
+        instance.spawn_core(tmp_path, 12345)
+    instance.cancel_start.clear()
+    instance.started_monotonic -= 121
+    with pytest.raises(RuntimeError, match="two minutes"):
+        instance.spawn_core(tmp_path, 12345)
+    assert calls == []
+
+
+def test_spawn_wins_race_then_stop_uses_only_created_handle(tmp_path, monkeypatch):
+    import threading
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    entered, release = threading.Event(), threading.Event()
+    actions = []
+    core = NS(poll=lambda: None, wait=lambda timeout: actions.append("wait"))
+    def spawn(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        return core
+    monkeypatch.setattr(worker, "preflight", lambda owned: None)
+    monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
+    monkeypatch.setattr(worker.subprocess, "Popen", spawn)
+    loader = threading.Thread(target=instance.spawn_core, args=(tmp_path, 12345))
+    stopper = threading.Thread(target=instance.command, args=({"type": "shutdown"},))
+    loader.start()
+    assert entered.wait(2)
+    stopper.start()
+    release.set()
+    loader.join(2)
+    stopper.join(2)
+    assert not loader.is_alive() and not stopper.is_alive()
+    assert instance.cancel_start.is_set() and instance.core is core
+    instance.stop_owned_core()
+    assert actions == ["wait"]
+
+
+def test_blocked_pre_core_worker_exits_under_spawn_lock(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.stop_id = "timeout-stop"
+    def exit_worker(code):
+        assert code == 2 and instance.cancel_start.is_set()
+        assert instance.core_lock.locked()
+        raise SystemExit(code)
+    monkeypatch.setattr(worker.os, "_exit", exit_worker)
+    with pytest.raises(SystemExit):
+        instance.exit_blocked_pre_core_worker()
+    assert events == [{"type": "stopped", "session_id": instance.session_id, "id": "timeout-stop"}]
+    instance.core = object()
+    assert instance.exit_blocked_pre_core_worker() is False
+    instance.core = None
+    instance.result_sent = True
+    assert instance.exit_blocked_pre_core_worker() is False
+
+
+def test_cleanup_failure_does_not_report_stopped(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    def cancelled():
+        raise worker.SessionCancelled()
+    def cleanup_failure():
+        raise OSError("synthetic cleanup failure")
+    monkeypatch.setattr(instance, "setup", cancelled)
+    monkeypatch.setattr(instance, "teardown", cleanup_failure)
+    instance.run()
+    assert not any(event["type"] == "stopped" for event in events)
+    assert events[-1]["type"] == "error"
+
+
+def test_dead_session_cleanup_failure_cannot_acknowledge_shutdown(tmp_path, monkeypatch):
+    output = io.StringIO()
+    instance = worker.Worker(output)
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    session.thread = NS(is_alive=lambda: False)
+    session.core = NS(poll=lambda: 0)
+    session.map_guard = NS(recover=lambda: (_ for _ in ()).throw(OSError("synthetic journal busy")))
+    instance.session = session
+    with pytest.raises(OSError, match="journal busy"):
+        instance.command({"type": "shutdown"})
+    assert not session.cleanup_complete and not instance.closed
+    assert output.getvalue() == ""
+    monkeypatch.setattr(session.map_guard, "recover", lambda: None)
+    instance.command({"type": "shutdown"})
+    assert session.cleanup_complete and instance.closed
+    assert json.loads(output.getvalue())["type"] == "stopped"
+
+
+def test_shutdown_preserves_post_core_writer_and_rejects_stale_session(tmp_path, monkeypatch):
+    output = io.StringIO()
+    instance = worker.Worker(output)
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    calls = []
+    session.core = NS(poll=lambda: None, wait=lambda timeout: calls.append("core-stop"))
+    session.thread = NS(is_alive=lambda: True, join=lambda timeout=None: calls.append(("join", timeout)))
+    instance.session = session
+    with pytest.raises(ValueError, match="different session"):
+        instance.command({"type": "shutdown", "session_id": str(uuid.uuid4())})
+    assert calls == [] and not session.cancel_start.is_set()
+    instance.command({"type": "shutdown", "session_id": session.session_id})
+    assert calls == [("join", 28), "core-stop"]
+    assert instance.closed is False
+    assert "still finishing" in json.loads(output.getvalue())["message"]
+
+
+def test_eof_waits_for_post_core_receipt_writer(tmp_path):
+    instance = worker.Worker(io.StringIO())
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    joins = []
+    session.core = NS(poll=lambda: 0)
+    session.thread = NS(is_alive=lambda: True, join=lambda timeout=None: joins.append(timeout))
+    instance.session = session
+    assert instance.run(io.StringIO("")) == 0
+    assert joins == [28, None]
+
+
+def test_eof_retries_failed_cleanup_even_after_session_thread_exited(tmp_path, monkeypatch):
+    instance = worker.Worker(io.StringIO())
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    calls = []
+    session.thread = NS(is_alive=lambda: False, join=lambda timeout: calls.append("join"))
+    session.core = NS(poll=lambda: None, wait=lambda timeout: calls.append("core-stop"))
+    original = session.teardown
+    def teardown():
+        calls.append("cleanup")
+        if calls.count("cleanup") == 1:
+            raise OSError("synthetic cleanup busy")
+        original()
+    monkeypatch.setattr(session, "teardown", teardown)
+    monkeypatch.setattr(worker.time, "sleep", lambda delay: calls.append(("retry", delay)))
+    instance.session = session
+    assert instance.run(io.StringIO("")) == 0
+    assert instance.closed and session.cleanup_complete
+    assert calls.count("cleanup") == 2 and ("retry", 1) in calls
+    assert calls.count("core-stop") >= 1
+    assert not any(json.loads(line)["type"] == "stopped" for line in instance.output.getvalue().splitlines())

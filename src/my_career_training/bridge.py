@@ -61,7 +61,7 @@ class Backend(QObject):
             self.document = default_state()
             self.error = str(exc)
         self.page = "hub" if self.document["career"] else "home"
-        self.notice = "Testing preview: Steam/Epic gameplay and expert demonstrations still need validation."
+        self.notice = ""
         self.selected_id = "speed-flip"
         self.latest_attempt = None
         self.latest_result = None
@@ -78,6 +78,9 @@ class Backend(QObject):
         self._native_return_request = None
         self.close_deadline = None
         self.start_deadline = None
+        self.startup_cancelled_session = None
+        self.startup_stop_acknowledged = False
+        self.worker_ready = False
         self.stopping_worker = False
         self.diagnostics_info = {}
         self.installations = detect_installations()
@@ -686,6 +689,9 @@ class Backend(QObject):
             self._launch(request)
 
     def _launch(self, request):
+        self.startup_cancelled_session = None
+        self.startup_stop_acknowledged = False
+        self.worker_ready = False
         self.native_return_ready = None
         self._native_return_request = None
         self.lifecycle.state = "Idle"
@@ -715,11 +721,14 @@ class Backend(QObject):
         self.process.start(program, arguments)
 
     def _process_error(self, _):
+        if self.startup_cancelled_session == self.session_id and self.session_id:
+            return  # Killing a timed-out, not-yet-ready worker is expected.
         self.error = "The game worker could not start. Open Diagnostics and check the installed package."
         self.session_state = "Error/Recovery"
         self.stateChanged.emit()
 
     def _process_finished(self, exit_code, _):
+        self.start_deadline = None
         self._read_worker()
         if not self.stopping_worker and self.session_state not in ("Idle", "Career Ready"):
             self.error = "The game connection closed. Completed results are safe; an unfinished fixture can restart."
@@ -747,7 +756,11 @@ class Backend(QObject):
 
     def _event(self, event):
         kind = event.get("type")
+        cancelled = bool(self.session_id and self.startup_cancelled_session == self.session_id)
         if kind == "ready":
+            if cancelled:
+                return  # No start can be sent after pre-ready cancellation.
+            self.worker_ready = True
             self._send("start", **self.request)
             return
         if event.get("session_id") not in (None, self.session_id):
@@ -755,13 +768,19 @@ class Backend(QObject):
         if kind == "owned_game":
             self.owned_game = ProcessIdentity(**event["identity"])
         elif kind == "session":
+            if cancelled:
+                return  # Only an actually saved result can leave recovery.
             worker_state = event.get("state")
+            if self.session_state == "Career Ready" and worker_state in ("starting", "running", "training"):
+                return
             self.session_state = {"starting": "Starting Career", "running": "Playing", "training": "training",
                 "completed": "Career Ready", "error": "Error/Recovery"}.get(worker_state, worker_state)
             self.session_message = event.get("message", "")
             if self.session_state != "Starting Career":
                 self.start_deadline = None
         elif kind == "telemetry":
+            if cancelled:
+                return
             self.telemetry = {key: value for key, value in event.items() if key not in ("type", "session_id")}
             self.start_deadline = None
             if self.session_state != "Career Ready" and (not self.latest_result or self.latest_result.get("session_id") != self.session_id):
@@ -775,6 +794,8 @@ class Backend(QObject):
                 self._commit_result(event)
             self.session_state = "Career Ready"
             self.session_message = "Match complete. Your result is saved. Continue when you are ready."
+            if cancelled:
+                self.error = ""
             self.page = "hub"
         elif kind == "attempt":
             self.latest_attempt = event["summary"]
@@ -790,6 +811,12 @@ class Backend(QObject):
                 self.lifecycle.worker_stopped()
             elif self.stop_reason:
                 self._close_after_stop()
+            elif cancelled and not self.startup_stop_acknowledged:
+                self.startup_stop_acknowledged = True
+                # A receipt writer may have outlived the worker's bounded join.
+                # Once it confirms cleanup, let the waiting stdin loop exit.
+                if self._worker_active():
+                    self._send("shutdown", session_id=self.session_id)
 
     def _commit_result(self, event, note=None):
         state = copy.deepcopy(self.document)
@@ -866,6 +893,7 @@ class Backend(QObject):
         return values
 
     def _stop_for_online(self):
+        self.start_deadline = None
         self.stop_reason = "online"
         self.stopping_worker = True
         if self._worker_active():
@@ -875,6 +903,7 @@ class Backend(QObject):
 
     def _begin_stop(self, reason):
         self._save_current()
+        self.start_deadline = None
         self.stop_reason = reason
         self.stopping_worker = True
         self.session_state = "Stopping Career"
@@ -929,8 +958,19 @@ class Backend(QObject):
             self.stateChanged.emit()
         if self.start_deadline and time.monotonic() > self.start_deadline:
             self.start_deadline = None
-            self.error = "No live game telemetry arrived. Close the game and retry; your fixture remains unfinished."
+            self.startup_cancelled_session = self.session_id
+            self.stopping_worker = True
+            self.pending_launch = None
+            self.error = "Starting the offline session took too long. This attempt is stopping; unfinished progress is kept."
             self.session_state = "Error/Recovery"
+            if self._worker_active():
+                if self.worker_ready:
+                    self._send("shutdown", session_id=self.session_id)
+                else:
+                    # We have never sent start, so this worker cannot own a
+                    # core or a game. In particular, native imports before
+                    # ready may be blocked and unable to read shutdown.
+                    self.process.kill()
             self.stateChanged.emit()
         if self.stop_reason and self.stop_reason != "online":
             if self.session_state == "Waiting for Worker" and not self._worker_active():

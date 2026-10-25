@@ -48,6 +48,11 @@ class FakeProcess:
     def __init__(self, state=QProcess.Running):
         self.current_state = state
         self.writes = []
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+        self.current_state = QProcess.NotRunning
 
     def state(self):
         return self.current_state
@@ -204,12 +209,17 @@ def test_import_recording_uses_real_dialog_action_and_preserves_fixture_provenan
     assert stored["outcome"] == "unfinished"
 
 
-def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, monkeypatch, tmp_path):
+@pytest.mark.parametrize("cancelled_start", [False, True])
+def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, monkeypatch, tmp_path, cancelled_start):
     instance, _, _ = backend
     started = career.new_career("Receipt Test", seed=841)
     fixture = career.next_fixture(started)
     session_id = str(uuid.uuid4())
     instance.session_id = session_id
+    if cancelled_start:
+        instance.startup_cancelled_session = session_id
+        instance.session_state = "Error/Recovery"
+        instance.error = "Starting took too long."
     instance.request = {"lesson_id": None}
     state = dict(instance.document)
     state["career"] = career.start_fixture(started, session_id)
@@ -416,9 +426,13 @@ def test_source_worker_ready_ping_and_shutdown_protocol():
             self.session_id = command["session_id"]
             self.thread = FakeThread()
             self.commands = []
+            self.cleanup_complete = True
 
         def command(self, command):
             self.commands.append(command)
+
+        def stop_owned_core(self):
+            pass
 
     session_id = str(uuid.uuid4())
     output = io.StringIO()
@@ -439,6 +453,97 @@ def test_source_worker_ready_ping_and_shutdown_protocol():
     assert events[1] == {"type": "pong", "id": "bridge-probe", "session_id": session_id}
     assert process.closed is True
     assert process.session.commands == [{"type": "shutdown", "id": "shutdown-2"}]
+
+
+@pytest.mark.parametrize("ready", [False, True])
+def test_start_deadline_cancels_worker_without_abandoning_fixture(backend, monkeypatch, ready):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    before = instance.store.load()
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = payload["expected_session_id"]
+    instance.request = {"fixture": {"id": payload["expected_fixture_id"]}}
+    instance.worker_ready = ready
+    instance.start_deadline = bridge.time.monotonic() - 1
+    instance.session_state = "Starting Career"
+    closed_games = []
+    monkeypatch.setattr(bridge, "graceful_close", closed_games.append)
+    instance._tick()
+    assert instance.session_state == "Error/Recovery"
+    assert instance.startup_cancelled_session == instance.session_id
+    assert instance.stop_reason is None and instance.stopping_worker
+    assert process.killed is not ready
+    sent = [json.loads(value) for value in process.writes]
+    assert ([value["type"] for value in sent] == ["shutdown"]) is ready
+    if ready:
+        assert sent[0]["session_id"] == instance.session_id
+    for event in ({"type": "ready"}, {"type": "session", "state": "running"},
+                  {"type": "session", "state": "starting"}, {"type": "telemetry", "time": 2}):
+        instance._event(dict(event, session_id=instance.session_id))
+    assert instance.session_state == "Error/Recovery" and instance.telemetry == {}
+    assert process.writes == [json.dumps(value).encode() + b"\n" for value in sent]
+    process.current_state = QProcess.NotRunning
+    instance._process_error(None)
+    instance._process_finished(2, None)
+    assert "took too long" in instance.error
+    assert instance.store.load() == before and instance.document == before
+    assert not closed_games
+
+
+@pytest.mark.parametrize("via_receipt", [False, True])
+def test_cancelled_start_still_saves_matching_result_once(backend, tmp_path, via_receipt):
+    instance, _, _ = backend
+    session_id = str(uuid.uuid4())
+    started = career.new_career("Timeout receipt test", seed=43)
+    fixture = career.next_fixture(started)
+    state = dict(instance.document)
+    state["career"] = career.start_fixture(started, session_id)
+    instance._commit(state)
+    instance.session_id = instance.startup_cancelled_session = session_id
+    instance.request = {"fixture": fixture}
+    instance.session_state = "Error/Recovery"
+    instance.error = "Starting took too long."
+    result = {"type": "result", "session_id": session_id, "fixture_id": fixture["id"],
+              "home_score": 3, "away_score": 2, "provenance": "game"}
+    receipt = game_worker.persist_result(tmp_path, result)
+    if via_receipt:
+        instance._recover_outbox()
+    else:
+        instance._event(result)
+    instance._event(result)
+    instance._event({"type": "session", "state": "running", "session_id": session_id})
+    assert instance.session_state == "Career Ready" and not instance.error
+    assert instance.document["career"]["pending_session"] is None and not receipt.exists()
+    awards = [item for item in instance.document["career"]["rewards"] if item["type"] == "match_experience"]
+    assert len(awards) == 1
+
+
+def test_timed_out_writer_can_finish_and_close_worker_without_game_exit(backend, monkeypatch):
+    instance, _, _ = backend
+    instance.process = FakeProcess()
+    instance.session_id = instance.startup_cancelled_session = str(uuid.uuid4())
+    instance.session_state = "Error/Recovery"
+    closed_games = []
+    monkeypatch.setattr(bridge, "graceful_close", closed_games.append)
+    for _ in range(2):
+        instance._event({"type": "stopped", "session_id": instance.session_id})
+    sent = [json.loads(value) for value in instance.process.writes]
+    assert len(sent) == 1 and sent[0]["type"] == "shutdown"
+    assert sent[0]["session_id"] == instance.session_id
+    assert not instance.process.killed and not closed_games
+    assert instance.session_state == "Error/Recovery"
+
+
+def test_explicit_return_after_start_timeout_keeps_transition_priority(backend):
+    instance, _, _ = backend
+    instance.process = FakeProcess()
+    instance.in_game = True
+    instance.session_id = instance.startup_cancelled_session = str(uuid.uuid4())
+    instance.stop_reason = "return_hub"
+    instance._event({"type": "stopped", "session_id": instance.session_id})
+    assert instance.session_state == "Waiting for Worker"
+    assert not instance.startup_stop_acknowledged
 
 
 def _load_main_window(instance, qt_app):
