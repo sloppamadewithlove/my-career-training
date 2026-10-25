@@ -445,6 +445,13 @@ def _write_menu(directory: Path) -> None:
         "native_package_reader.py": b"def read_movie_bytes():\n    raise RuntimeError('not used')\n",
         "native_package_rewrite.py": b"def replace_final_movie():\n    raise RuntimeError('not used')\n",
     }
+    match_manifest = json.loads((REPO / "native_ui" / "compiled" / "match-manifest.json").read_text(encoding="utf-8"))
+    for scene in match_manifest["scenes"].values():
+        payload = ("synthetic authored " + scene["surface"]).encode("ascii")
+        files[scene["abc_file"]] = payload
+        scene["abc_bytes"] = len(payload)
+        scene["abc_sha256"] = hashlib.sha256(payload).hexdigest()
+    files["match-manifest.json"] = json.dumps(match_manifest).encode("utf-8")
     listed = {name: {"bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest()} for name, blob in files.items()}
     receipt = {
         "files": listed,

@@ -75,10 +75,19 @@ class NativeOfflineSession:
                 or Path(executable).resolve() != self.executable):
             raise RuntimeError("Prepare this native menu session before launching it.")
         try:
+            additions = getattr(self.prepared, "additional_packages", {})
+            launch_options = {}
+            if additions:
+                launch_options["additional_packages"] = {
+                    name: {"private_package": record["private_package"],
+                           "private_package_sha256": record["private_package_sha256"]}
+                    for name, record in additions.items()
+                }
             self.owner = launch_native_offline(
                 self.executable.parent.parent.parent, self.prepared.private_package,
                 self.prepared.private_package_sha256, self.session,
                 runtime_directory=runtime_directory("native"),
+                **launch_options,
             )
         except NativeLaunchUncertain as exc:
             self.uncertain = exc

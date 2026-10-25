@@ -93,3 +93,17 @@ The plugin protocol's focused executable covers navigation, duplicate and
 stale choices, unrelated callbacks, caller payload refusal, reconnects,
 heartbeat focus stability, offline scope and the fixed Exit dispatch. It does
 not start a game.
+
+## Results save recovery
+
+Results offers Retry saving after a career save error. The host binds this
+control to the current activity and fixture. The service reads only that
+activity's bounded durable receipt, checks both identities again, and uses the
+normal result commit. Failure retains the receipt and pending fixture; success
+unlocks Return to My Career. Repeating the command cannot score the fixture
+twice. Automatic receipt recovery after a worker exit also updates the current
+results state, unless a stop transition already owns the session.
+
+The results explanation and leave-match confirmation appear before bounded
+error details. Synthetic checks cover failed and repeated saves, old identities,
+and worker-exit recovery; they do not establish live movie compatibility.

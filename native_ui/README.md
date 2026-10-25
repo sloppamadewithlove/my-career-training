@@ -1,5 +1,32 @@
 # Native My Career movie
 
+## Pause and results movies
+
+`menus/MctPauseMenu.as` and `menus/MctResultsMenu.as` each have an authored
+dynamic movie wrapper and document subclass. Their two compiled ABC files and
+`compiled/match-manifest.json` are separate from the unchanged frontend artifact.
+The pause document keeps stock pause, resume, and input release behavior while
+hiding Friends and matchmaking controls. Results keeps the stock scoreboard
+and replaces menu actions. Resume and Options use typed stock callbacks only
+for the current validated front menu. Career commands use opaque host control
+ids; these classes do not call raw restart or exit-to-main-menu commands.
+
+The two surfaces validate `surface`, session, generation, revisions, and control
+types. READY includes the currently validated generation, and continues while
+stock Options owns focus. Title/body text explains confirmation, saving, and
+error states; bodies are capped at 1536 UTF-8 bytes and wrapped into bounded
+native text fields. Real game acceptance must still check text visibility,
+scoreboard placement, controller focus, and lifecycle transitions.
+
+Compile each scene with its matching private MidGameMenu or EndGameMenu SDK
+plus the MainMenu SDK, all as external libraries. Stage only its three authored
+files and the pinned `vendor/as3corelib/src/com` tree into one owned source root.
+Use the frontend compiler flags below, substituting the scene's menu entry,
+screen and wrapper names. Extract only the resulting DoABC, then verify exactly
+three project classes plus seven codec classes, a dynamic wrapper, no linked
+game/support classes, no debug paths, and the manifest source/artifact hashes.
+The private SDKs and compiler output containers must never be committed.
+
 `menus/MctRootMenu.as`, `MctMainMenuScreen.as`, and `MctRootMenuMovie.as` are original code.
 `vendor/as3corelib/` is the unchanged JSON closure from as3corelib commit
 `24c6c16aecbf0d8fcc043ae671e689b0d4b4c559`, not project code.

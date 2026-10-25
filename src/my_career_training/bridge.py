@@ -74,6 +74,8 @@ class Backend(QObject):
         self.session_message = ""
         self.stop_reason = None
         self.pending_launch = None
+        self.native_return_ready = None
+        self._native_return_request = None
         self.close_deadline = None
         self.start_deadline = None
         self.stopping_worker = False
@@ -137,6 +139,7 @@ class Backend(QObject):
                 "id": self.session_id,
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
+            "native_return_ready": copy.deepcopy(self.native_return_ready),
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
@@ -314,15 +317,49 @@ class Backend(QObject):
         self.stateChanged.emit()
 
     def _action(self, action, p):
-        if action == "return_hub":
+        if action == "retry_result_save":
+            fixture_id = (self.request or {}).get("fixture", {}).get("id")
+            if (set(p) != {"expected_session_id", "expected_fixture_id"}
+                    or not self.session_id or not fixture_id
+                    or p["expected_session_id"] != self.session_id
+                    or p["expected_fixture_id"] != fixture_id):
+                raise ValueError("The match changed. Open its results menu again before retrying the save.")
+            canonical = str(uuid.UUID(self.session_id))
+            path = self.store.directory / "outbox" / f"{canonical}.json"
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+                raise ValueError("The final score is not ready to save. Wait for the match to finish.")
+            event = json.loads(path.read_text())
+            if (not isinstance(event, dict) or event.get("type") != "result"
+                    or event.get("session_id") != self.session_id
+                    or event.get("fixture_id") != fixture_id or event.get("calibration")):
+                raise ValueError("The saved score does not belong to this match.")
+            self._event(event)
+        elif action == "return_hub":
+            if "expected_session_id" in p or "expected_fixture_id" in p:
+                if (set(p) != {"expected_session_id", "expected_fixture_id", "abandon"}
+                        or type(p["abandon"]) is not bool
+                        or not self.session_id or p["expected_session_id"] != self.session_id
+                        or p["expected_fixture_id"] != (self.request or {}).get("fixture", {}).get("id", "")):
+                    raise ValueError("The activity changed. Open its menu again before returning to My Career.")
             pending = self.document["career"] and self.document["career"]["pending_session"]
             if pending and not p.get("abandon"):
                 raise ValueError("This match is unfinished. Confirm leaving it; it will restart from kickoff.")
+            self._native_return_request = ({"session_id": self.session_id,
+                "fixture_id": (self.request or {}).get("fixture", {}).get("id", "")}
+                if self.in_game and self.session_id else None)
             self.page = "hub"
             if self._worker_active():
                 self._begin_stop("abandon" if pending else "return_hub")
-            elif pending:
-                self._career_change(domain.abandon_fixture)
+            else:
+                self._drain_activity_results()
+                if self.document["career"] and self.document["career"]["pending_session"]:
+                    self._career_change(domain.abandon_fixture)
+                self._finish_native_return()
+                self.request = None
+                self.session_id = None
+                self.telemetry = {}
+                self.session_state = "Idle"
+                self.session_message = "Career hub ready. Progress saved."
         elif action == "quit_game":
             self._begin_stop("exit")
         elif action == "refresh_workshop":
@@ -499,6 +536,10 @@ class Backend(QObject):
         elif action in ("play_match", "start_lesson", "calibration"):
             self._prepare_launch(action, p)
         elif action == "retry_lesson":
+            if p and (set(p) != {"expected_session_id"} or p["expected_session_id"] != self.session_id):
+                raise ValueError("The lesson changed. Open its menu again before retrying.")
+            if not self._worker_active() or not (self.request or {}).get("lesson_id"):
+                raise ValueError("Start a lesson before retrying it.")
             self._send("retry")
         elif action == "stop_session":
             self._begin_stop("stop")
@@ -515,11 +556,16 @@ class Backend(QObject):
             if self._worker_active():
                 self._begin_stop("abandon")
             else:
-                self._career_change(domain.abandon_fixture)
+                self._drain_activity_results()
+                restarted = bool(self.document["career"] and self.document["career"]["pending_session"])
+                if restarted:
+                    self._career_change(domain.abandon_fixture)
                 self.request = None
+                self.session_id = None
                 self.session_state = "Idle"
                 self.session_message = ""
-                self.notice = "The unfinished match is ready to restart from kickoff. No result was added."
+                self.notice = ("The unfinished match is ready to restart from kickoff. No result was added." if restarted
+                               else "The completed match result is saved. Your next match is ready.")
         elif action == "recover_result":
             if self._worker_active() or game_processes():
                 raise ValueError("Close the game before entering a manual recovery result.")
@@ -640,6 +686,8 @@ class Backend(QObject):
             self._launch(request)
 
     def _launch(self, request):
+        self.native_return_ready = None
+        self._native_return_request = None
         self.lifecycle.state = "Idle"
         self.lifecycle.last_error = ""
         if self.in_game:
@@ -775,6 +823,13 @@ class Backend(QObject):
                     continue
                 self._commit_result(event)
                 self.notice = "Recovered a completed match from the game worker's durable result receipt."
+                if (self.session_id and event.get("session_id") == self.session_id
+                        and event.get("fixture_id") == (self.request or {}).get("fixture", {}).get("id")
+                        and not self.stop_reason):
+                    self.session_state = "Career Ready"
+                    self.session_message = "Match complete. Your result is saved. Continue when you are ready."
+                    self.error = ""
+                    self.page = "hub"
             except Exception as exc:
                 self.error = "A saved result receipt needs recovery: " + str(exc)
 
@@ -840,6 +895,30 @@ class Backend(QObject):
         self.session_state = "Waiting for Game Exit"
         self.close_deadline = time.monotonic() + 30
 
+    def _drain_activity_results(self):
+        """Keep a stopped worker's final score ahead of an abandonment."""
+        self._read_worker()
+        self._recover_outbox()
+        pending = (self.document.get("career") or {}).get("pending_session") or {}
+        for identity in (self.session_id, pending.get("session_id")):
+            try:
+                canonical = str(uuid.UUID(identity))
+            except (ValueError, TypeError, AttributeError):
+                continue
+            if (self.store.directory / "outbox" / f"{canonical}.json").exists():
+                raise ValueError("The final score still needs recovery. Retry saving before leaving this activity.")
+        self._save_current()
+
+    def _finish_native_return(self):
+        """Authorize game navigation only after the stopped activity is saved."""
+        expected = {"session_id": self.session_id,
+                    "fixture_id": (self.request or {}).get("fixture", {}).get("id", "")}
+        if (self.in_game and self.session_id and not self.pending_launch
+                and self._native_return_request == expected):
+            self.native_return_ready = dict(expected)
+            self.error = ""
+        self._native_return_request = None
+
     def _tick(self):
         self._poll_community()
         before = (self.lifecycle.state, self.lifecycle.message)
@@ -855,23 +934,53 @@ class Backend(QObject):
             self.stateChanged.emit()
         if self.stop_reason and self.stop_reason != "online":
             if self.session_state == "Waiting for Worker" and not self._worker_active():
-                reason, self.stop_reason = self.stop_reason, None
+                # QProcess can stop before its final readyRead/finished signal is
+                # handled. Commit any late score before clearing the activity or
+                # abandoning its still-unfinished fixture.
+                reason = self.stop_reason
+                try:
+                    self._drain_activity_results()
+                    if reason == "abandon" and self.document["career"] and self.document["career"]["pending_session"]:
+                        self._career_change(domain.abandon_fixture)
+                except Exception as exc:
+                    self.error = str(exc)
+                    self.session_state = "Error/Recovery"
+                    self.stop_reason = None
+                    self.stateChanged.emit()
+                    return
+                self.stop_reason = None
                 self.session_state = "Idle"
                 self.telemetry = {}
                 self.session_message = "Career hub ready. Progress saved."
-                if reason == "abandon":
-                    self._career_change(domain.abandon_fixture)
+                self._finish_native_return()
+                self.request = None
+                self.session_id = None
+                self.stopping_worker = False
                 if self.pending_launch:
                     request, self.pending_launch = self.pending_launch, None
                     self._launch(request)
                 self.stateChanged.emit()
             elif self.session_state == "Waiting for Game Exit" and not is_alive(self.owned_game) and not self._worker_active():
-                reason, self.stop_reason = self.stop_reason, None
+                reason = self.stop_reason
+                try:
+                    self._drain_activity_results()
+                    if reason == "abandon" and self.document["career"] and self.document["career"]["pending_session"]:
+                        self._career_change(domain.abandon_fixture)
+                except Exception as exc:
+                    self.error = str(exc)
+                    self.session_state = "Error/Recovery"
+                    self.stop_reason = None
+                    self.stateChanged.emit()
+                    return
+                self.stop_reason = None
                 self.owned_game = None
+                self.native_return_ready = None
+                self._native_return_request = None
+                self.request = None
+                self.session_id = None
+                self.stopping_worker = False
                 self.session_state = "Idle"
                 self.session_message = "Game session closed. Progress is saved."
-                if reason == "abandon":
-                    self._career_change(domain.abandon_fixture)
                 if reason == "exit":
                     self.exitRequested.emit()
                 if self.pending_launch:

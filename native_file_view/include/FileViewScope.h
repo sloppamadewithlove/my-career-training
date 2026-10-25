@@ -44,3 +44,40 @@ struct MctFileViewScopeV1 {
 static_assert(sizeof(MctFileViewScopeV1) == 16 + (kMctFileViewPathChars * sizeof(wchar_t) * 2),
               "file-view scope must stay a fixed payload");
 static_assert(std::is_standard_layout_v<MctFileViewScopeV1>, "file-view scope must be standard layout");
+
+// Fixed three-slot scope. Slot identity is numeric and closed: main, midgame, endgame.
+// Unused slots and every reserved field stay zero. This is not a generic path map.
+inline constexpr std::uint32_t kMctFileViewMagicV2 = 0x32564654u; // 'TFV2'
+inline constexpr std::uint32_t kMctFileViewVersionV2 = 2u;
+inline constexpr std::uint32_t kMctFileViewMappingSlots = 3u;
+inline constexpr std::uint32_t kMctFileViewIdMain = 1u;
+inline constexpr std::uint32_t kMctFileViewIdMidgame = 2u;
+inline constexpr std::uint32_t kMctFileViewIdEndgame = 3u;
+
+inline constexpr wchar_t kMctApprovedMainSuffix[] = L"\\TAGame\\CookedPCConsole\\GFX_MainMenu_SF.upk";
+inline constexpr wchar_t kMctApprovedMidgameSuffix[] = L"\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk";
+inline constexpr wchar_t kMctApprovedEndgameSuffix[] = L"\\TAGame\\CookedPCConsole\\GFX_EndGameMenu_SF.upk";
+
+#pragma pack(push, 1)
+struct MctFileViewMappingV2 {
+    std::uint32_t id;
+    std::uint32_t reserved;
+    wchar_t original_path[kMctFileViewPathChars];
+    wchar_t private_path[kMctFileViewPathChars];
+};
+
+struct MctFileViewScopeV2 {
+    std::uint32_t magic;
+    std::uint32_t version;
+    std::uint32_t size;
+    std::uint32_t count;
+    std::uint32_t reserved;
+    MctFileViewMappingV2 mappings[kMctFileViewMappingSlots];
+};
+#pragma pack(pop)
+
+static_assert(sizeof(MctFileViewScopeV2) == 20 + (sizeof(MctFileViewMappingV2) * kMctFileViewMappingSlots),
+              "file-view V2 scope must stay a fixed payload");
+static_assert(sizeof(MctFileViewScopeV2) != sizeof(MctFileViewScopeV1), "V1 and V2 payloads are distinguished by size");
+static_assert(std::is_standard_layout_v<MctFileViewScopeV2>, "file-view V2 scope must be standard layout");
+static_assert(std::is_standard_layout_v<MctFileViewMappingV2>, "file-view V2 mapping must be standard layout");

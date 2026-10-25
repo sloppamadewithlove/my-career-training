@@ -134,6 +134,8 @@ int wmain(int argc, wchar_t** argv) {
     std::wstring mixedCase;
     std::wstring extra;
     std::wstring scratch;
+    std::wstring probe2;
+    std::wstring probe3;
     DWORD holdMs = 0;
     bool sawHold = false;
 
@@ -155,7 +157,9 @@ int wmain(int argc, wchar_t** argv) {
             !TakeFlag(argc, argv, &index, L"--relative", &relativePath) &&
             !TakeFlag(argc, argv, &index, L"--mixed", &mixedCase) &&
             !TakeFlag(argc, argv, &index, L"--extra", &extra) &&
-            !TakeFlag(argc, argv, &index, L"--scratch", &scratch)) {
+            !TakeFlag(argc, argv, &index, L"--scratch", &scratch) &&
+            !TakeFlag(argc, argv, &index, L"--probe2", &probe2) &&
+            !TakeFlag(argc, argv, &index, L"--probe3", &probe3)) {
             return 2;
         }
     }
@@ -225,6 +229,22 @@ int wmain(int argc, wchar_t** argv) {
     AppendField(&receipt, "openalways_err", openAlwaysError);
     AppendField(&receipt, "scratch_err", scratchProbe.error);
     AppendField(&receipt, "scratch_hex", scratchProbe.hex);
+    if (!probe2.empty()) {
+        const ReadProbe probe = ReadExisting(probe2);
+        AppendField(&receipt, "probe2_err", probe.error);
+        AppendField(&receipt, "probe2_preopen_err", probe.preopenError);
+        AppendField(&receipt, "probe2_preopen_size", std::to_string(probe.preopenSize));
+        AppendField(&receipt, "probe2_hex", probe.hex);
+        AppendField(&receipt, "probe2_path_size", std::to_string(probe.pathSize));
+    }
+    if (!probe3.empty()) {
+        const ReadProbe probe = ReadExisting(probe3);
+        AppendField(&receipt, "probe3_err", probe.error);
+        AppendField(&receipt, "probe3_preopen_err", probe.preopenError);
+        AppendField(&receipt, "probe3_preopen_size", std::to_string(probe.preopenSize));
+        AppendField(&receipt, "probe3_hex", probe.hex);
+        AppendField(&receipt, "probe3_path_size", std::to_string(probe.pathSize));
+    }
     receipt.push_back('\n');
 
     const HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);

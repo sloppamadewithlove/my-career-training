@@ -109,6 +109,28 @@ def test_native_cli_flag_cannot_change_worker_or_test_modes(monkeypatch):
         assert error.value.code == 2
 
 
+def test_match_packages_pass_only_the_private_launch_pair(tmp_path, monkeypatch):
+    data, executable, plugin, prepared, _ = layout(tmp_path, monkeypatch)
+    prepared.additional_packages = {
+        name: {"private_package": str(data / f"{name}.upk"), "private_package_sha256": "e" * 64,
+               "source_package_relative": "fixed-source-metadata", "source_movie_sha256": "a" * 64}
+        for name in ("midgame", "endgame")
+    }
+    calls = []
+    identity = ProcessIdentity(739, 100.5, str(executable))
+    fake = SimpleNamespace(
+        launch_native_offline=lambda *args, **kwargs: calls.append(kwargs) or SimpleNamespace(identity=identity),
+        NativeLaunchUncertain=type("Uncertain", (RuntimeError,), {}))
+    monkeypatch.setitem(sys.modules, "my_career_training.native_launch", fake)
+    session = native_offline.NativeOfflineSession(data, SESSION)
+    session.prepare(executable, plugin)
+    assert session.launch(executable) is identity
+    assert calls[0]["additional_packages"] == {
+        name: {"private_package": str(data / f"{name}.upk"), "private_package_sha256": "e" * 64}
+        for name in ("midgame", "endgame")
+    }
+
+
 def test_uncertain_launch_is_retained_and_cannot_start_another_helper(tmp_path, monkeypatch):
     data, executable, plugin, _, _ = layout(tmp_path, monkeypatch)
     stopped = [False]

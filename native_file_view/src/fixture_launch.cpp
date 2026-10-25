@@ -234,7 +234,47 @@ void DrainPipe(HANDLE pipe, std::string* output) {
     }
 }
 
+bool CopyScopePayloadV2(HANDLE process, const MctLaunchSpec& spec, std::wstring* error) {
+    if (!MctFileViewScopeV2Accept(spec.scope_v2)) {
+        *error = L"payload header is not the fixed scope";
+        return false;
+    }
+    const wchar_t* seen[kMctFileViewMappingSlots * 2]{};
+    int seenCount = 0;
+    for (std::uint32_t index = 0; index < spec.scope_v2.count; ++index) {
+        const MctFileViewMappingV2& slot = spec.scope_v2.mappings[index];
+        if (!RejectAssetPath(slot.original_path, false, error) || !RejectAssetPath(slot.private_path, true, error)) {
+            return false;
+        }
+        const wchar_t* pair[] = {slot.original_path, slot.private_path};
+        for (const wchar_t* path : pair) {
+            for (int previous = 0; previous < seenCount; ++previous) {
+                if (MctStoredPathsOverlap(seen[previous], path) || SameFileIdentity(seen[previous], path)) {
+                    *error = L"original and private paths alias the same file";
+                    return false;
+                }
+            }
+            seen[seenCount++] = path;
+        }
+    }
+    MctFileViewScopeV2 payload = spec.scope_v2;
+    DWORD size = sizeof(payload);
+    if (spec.fault == MctPayloadFault::BadMagic) {
+        payload.magic = 0xdeadbeefu;
+    } else if (spec.fault == MctPayloadFault::Truncated) {
+        size = 8;
+    }
+    if (!DetourCopyPayloadToProcess(process, kMctFileViewPayloadGuid, &payload, size)) {
+        *error = L"DetourCopyPayloadToProcess failed";
+        return false;
+    }
+    return true;
+}
+
 bool CopyScopePayload(HANDLE process, const MctLaunchSpec& spec, std::wstring* error) {
+    if (spec.payload_v2) {
+        return CopyScopePayloadV2(process, spec, error);
+    }
     if (!MctIsStoredCanonical(spec.scope.original_path) || !MctIsStoredCanonical(spec.scope.private_path) ||
         MctPathsEqual(spec.scope.original_path, spec.scope.private_path)) {
         *error = L"payload paths are not a distinct canonical pair";
@@ -329,9 +369,10 @@ bool MctLaunchFixture(const MctLaunchSpec& spec, MctLaunchOutcome* outcome) {
 
     const std::wstring* arguments[] = {&fixture,           &spec.target,     &spec.unrelated, &spec.sibling,
                                        &spec.relative_path, &spec.mixed_case, &spec.extra,     &spec.scratch,
-                                       &spec.working_directory};
+                                       &spec.working_directory, &spec.probe2, &spec.probe3};
     for (const std::wstring* argument : arguments) {
-        if (argument->empty() || HasUnsafeCommandText(*argument)) {
+        const bool optionalProbe = argument == &spec.probe2 || argument == &spec.probe3;
+        if ((argument->empty() && !optionalProbe) || HasUnsafeCommandText(*argument)) {
             outcome->detail = L"a fixture argument is empty or contains a quote";
             return false;
         }
@@ -357,6 +398,14 @@ bool MctLaunchFixture(const MctLaunchSpec& spec, MctLaunchOutcome* outcome) {
     AppendQuoted(&command, spec.extra);
     AppendQuoted(&command, L"--scratch");
     AppendQuoted(&command, spec.scratch);
+    if (!spec.probe2.empty()) {
+        AppendQuoted(&command, L"--probe2");
+        AppendQuoted(&command, spec.probe2);
+    }
+    if (!spec.probe3.empty()) {
+        AppendQuoted(&command, L"--probe3");
+        AppendQuoted(&command, spec.probe3);
+    }
 
     SECURITY_ATTRIBUTES inherit{};
     inherit.nLength = sizeof(inherit);

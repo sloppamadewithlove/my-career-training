@@ -125,13 +125,24 @@ MctLaunchHooks MctProductionHooks(MctHoldSet& holds) {
         *createTime = unixTime;
         return true;
     };
-    hooks.copyPayload = [](HANDLE process, const MctFileViewScopeV1& scope, std::wstring* error) {
-        if (scope.magic != kMctFileViewMagic || scope.version != kMctFileViewVersion || scope.size != sizeof(scope) ||
-            scope.reserved != 0 || !MctIsStoredCanonical(scope.original_path) || !MctIsStoredCanonical(scope.private_path) ||
-            MctPathsEqual(scope.original_path, scope.private_path)) {
+    hooks.copyPayload = [](HANDLE process, const MctResolvedLaunch& resolved, std::wstring* error) {
+        if (!resolved.scopeIsV2) {
+            const MctFileViewScopeV1& scope = resolved.scope;
+            if (scope.magic != kMctFileViewMagic || scope.version != kMctFileViewVersion || scope.size != sizeof(scope) ||
+                scope.reserved != 0 || !MctIsStoredCanonical(scope.original_path) ||
+                !MctIsStoredCanonical(scope.private_path) || MctPathsEqual(scope.original_path, scope.private_path)) {
+                return Fail(error, L"file-view payload is not the fixed scope");
+            }
+            MctFileViewScopeV1 payload = scope;
+            if (!DetourCopyPayloadToProcess(process, kMctFileViewPayloadGuid, &payload, static_cast<DWORD>(sizeof(payload)))) {
+                return Fail(error, L"the file-view payload was not copied");
+            }
+            return true;
+        }
+        if (!MctFileViewScopeV2Accept(resolved.scopeV2)) {
             return Fail(error, L"file-view payload is not the fixed scope");
         }
-        MctFileViewScopeV1 payload = scope;
+        MctFileViewScopeV2 payload = resolved.scopeV2;
         if (!DetourCopyPayloadToProcess(process, kMctFileViewPayloadGuid, &payload, static_cast<DWORD>(sizeof(payload)))) {
             return Fail(error, L"the file-view payload was not copied");
         }

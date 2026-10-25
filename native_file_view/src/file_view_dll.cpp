@@ -18,7 +18,15 @@ CreateFileWFn TrueCreateFileW = CreateFileW;
 decltype(&GetFileAttributesExW) TrueGetFileAttributesExW = GetFileAttributesExW;
 decltype(&FindFirstFileExW) TrueFindFirstFileExW = FindFirstFileExW;
 decltype(&FindNextFileW) TrueFindNextFileW = FindNextFileW;
-MctFileViewScopeV1 g_scope{};
+
+struct ActiveMap {
+    wchar_t original[kMctFileViewPathChars];
+    wchar_t private_path[kMctFileViewPathChars];
+};
+
+ActiveMap g_maps[kMctFileViewMappingSlots]{};
+int g_map_count = 0;
+wchar_t g_trace_private[kMctFileViewPathChars]{};
 volatile LONG g_scope_ready = 0;
 DWORD g_reentry_slot = TLS_OUT_OF_INDEXES;
 bool g_trace_enabled = false;
@@ -30,7 +38,8 @@ bool TargetBasename(const wchar_t* path) {
     for (const wchar_t* cursor = path; *cursor; ++cursor) {
         if (*cursor == L'\\' || *cursor == L'/') base = cursor + 1;
     }
-    return _wcsicmp(base, L"GFX_MainMenu_SF.upk") == 0;
+    return _wcsicmp(base, L"GFX_MainMenu_SF.upk") == 0 || _wcsicmp(base, L"GFX_MidGameMenu_SF.upk") == 0 ||
+           _wcsicmp(base, L"GFX_EndGameMenu_SF.upk") == 0;
 }
 
 // Opt-in developer diagnostics: numeric fields only, no player data or paths.
@@ -40,7 +49,7 @@ void Trace(const char* operation, bool matched, DWORD flags, DWORD access,
     if (!g_trace_enabled) return;
     const DWORD saved = GetLastError();
     wchar_t path[kMctFileViewPathChars + 8];
-    if (swprintf_s(path, L"%s.trace", g_scope.private_path) > 0) {
+    if (g_trace_private[0] != 0 && swprintf_s(path, L"%s.trace", g_trace_private) > 0) {
         char line[320];
         const int length = sprintf_s(line,
             "{\"op\":\"%s\",\"matched\":%d,\"flags\":%lu,\"access\":%lu,"
@@ -70,20 +79,28 @@ bool TraceGuard() {
     return g_trace_enabled && ScopeGuard();
 }
 
-bool MatchedPath(const wchar_t* path) {
+const ActiveMap* MatchOriginal(const wchar_t* path) {
     wchar_t canonical[kMctFileViewPathChars];
-    return MctCanonicalizePath(path, canonical, kMctFileViewPathChars) &&
-           MctPathsEqual(canonical, g_scope.original_path);
+    if (!MctCanonicalizePath(path, canonical, kMctFileViewPathChars)) {
+        return nullptr;
+    }
+    for (int index = 0; index < g_map_count; ++index) {
+        if (MctPathsEqual(canonical, g_maps[index].original)) {
+            return &g_maps[index];
+        }
+    }
+    return nullptr;
 }
 
 BOOL WINAPI HookGetFileAttributesExW(LPCWSTR path, GET_FILEEX_INFO_LEVELS level, LPVOID data) {
     const DWORD incoming = GetLastError();
     const bool guarded = ScopeGuard();
-    const bool matched = guarded && MatchedPath(path);
+    const ActiveMap* mapping = guarded ? MatchOriginal(path) : nullptr;
     SetLastError(incoming);
     // The game sizes its asynchronous read from this path query before opening
-    // the redirected handle. Both operations must describe the same file.
-    const BOOL result = TrueGetFileAttributesExW(matched ? g_scope.private_path : path, level, data);
+    // the redirected handle. Both operations must describe the same private file.
+    // A failed private query is the result; the original path is not opened.
+    const BOOL result = TrueGetFileAttributesExW(mapping != nullptr ? mapping->private_path : path, level, data);
     const DWORD error = GetLastError();
     if (guarded) {
         if (TargetBasename(path)) {
@@ -92,7 +109,7 @@ BOOL WINAPI HookGetFileAttributesExW(LPCWSTR path, GET_FILEEX_INFO_LEVELS level,
                 auto info = static_cast<WIN32_FILE_ATTRIBUTE_DATA*>(data);
                 size = (static_cast<unsigned long long>(info->nFileSizeHigh) << 32) | info->nFileSizeLow;
             }
-            Trace("attributes", matched, 0, 0, size, error, result != FALSE);
+            Trace("attributes", mapping != nullptr, 0, 0, size, error, result != FALSE);
         }
         TlsSetValue(g_reentry_slot, nullptr);
     }
@@ -111,7 +128,7 @@ HANDLE WINAPI HookFindFirstFileExW(LPCWSTR path, FINDEX_INFO_LEVELS level, LPVOI
         auto info = static_cast<WIN32_FIND_DATAW*>(data);
         if (result != INVALID_HANDLE_VALUE && info && TargetBasename(info->cFileName)) {
             const auto size = (static_cast<unsigned long long>(info->nFileSizeHigh) << 32) | info->nFileSizeLow;
-            Trace("find_first", MatchedPath(path), flags, 0, size, error, true);
+            Trace("find_first", MatchOriginal(path) != nullptr, flags, 0, size, error, true);
         }
         TlsSetValue(g_reentry_slot, nullptr);
     }
@@ -145,10 +162,18 @@ bool TerminatedPath(const wchar_t* text) {
     return false;
 }
 
-bool PublishScope(const void* bytes, DWORD size) {
-    if (bytes == nullptr || size != sizeof(MctFileViewScopeV1)) {
+bool CopyActive(ActiveMap* slot, const wchar_t* original, const wchar_t* privatePath) {
+    const std::size_t originalLength = wcslen(original);
+    const std::size_t privateLength = wcslen(privatePath);
+    if (originalLength + 1 > kMctFileViewPathChars || privateLength + 1 > kMctFileViewPathChars) {
         return false;
     }
+    std::wmemcpy(slot->original, original, originalLength + 1);
+    std::wmemcpy(slot->private_path, privatePath, privateLength + 1);
+    return true;
+}
+
+bool PublishV1(const void* bytes) {
     MctFileViewScopeV1 local{};
     std::memcpy(&local, bytes, sizeof(local));
     if (local.magic != kMctFileViewMagic || local.version != kMctFileViewVersion ||
@@ -164,8 +189,47 @@ bool PublishScope(const void* bytes, DWORD size) {
     if (MctPathsEqual(local.original_path, local.private_path)) {
         return false;
     }
-    g_scope = local;
+    ActiveMap map{};
+    if (!CopyActive(&map, local.original_path, local.private_path)) {
+        return false;
+    }
+    g_maps[0] = map;
+    g_map_count = 1;
+    std::wmemcpy(g_trace_private, map.private_path, wcslen(map.private_path) + 1);
     return true;
+}
+
+bool PublishV2(const void* bytes) {
+    MctFileViewScopeV2 local{};
+    std::memcpy(&local, bytes, sizeof(local));
+    if (!MctFileViewScopeV2Accept(local)) {
+        return false;
+    }
+    ActiveMap maps[kMctFileViewMappingSlots]{};
+    for (std::uint32_t index = 0; index < local.count; ++index) {
+        if (!CopyActive(&maps[index], local.mappings[index].original_path, local.mappings[index].private_path)) {
+            return false;
+        }
+    }
+    for (std::uint32_t index = 0; index < local.count; ++index) {
+        g_maps[index] = maps[index];
+    }
+    g_map_count = static_cast<int>(local.count);
+    std::wmemcpy(g_trace_private, maps[0].private_path, wcslen(maps[0].private_path) + 1);
+    return true;
+}
+
+bool PublishScope(const void* bytes, DWORD size) {
+    if (bytes == nullptr) {
+        return false;
+    }
+    if (size == sizeof(MctFileViewScopeV1)) {
+        return PublishV1(bytes);
+    }
+    if (size == sizeof(MctFileViewScopeV2)) {
+        return PublishV2(bytes);
+    }
+    return false;
 }
 
 HANDLE WINAPI HookCreateFileW(LPCWSTR path, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security,
@@ -178,25 +242,23 @@ HANDLE WINAPI HookCreateFileW(LPCWSTR path, DWORD access, DWORD share, LPSECURIT
     }
     TlsSetValue(g_reentry_slot, reinterpret_cast<void*>(static_cast<std::uintptr_t>(1)));
 
-    wchar_t canonical[kMctFileViewPathChars];
-    const bool matched = MctCanonicalizePath(path, canonical, kMctFileViewPathChars) &&
-                         MctPathsEqual(canonical, g_scope.original_path);
+    const ActiveMap* mapping = MatchOriginal(path);
     HANDLE opened = INVALID_HANDLE_VALUE;
-    if (!matched) {
+    if (mapping == nullptr) {
         opened = TrueCreateFileW(path, access, share, security, disposition, flags, templateFile);
     } else if (!MctReadOnlyCreateFileRequest(access, disposition, flags)) {
         SetLastError(ERROR_ACCESS_DENIED);
         opened = INVALID_HANDLE_VALUE;
     } else {
         // A failed private open is the result. Do not open the original path.
-        opened = TrueCreateFileW(g_scope.private_path, access, share, security, OPEN_EXISTING, flags, templateFile);
+        opened = TrueCreateFileW(mapping->private_path, access, share, security, OPEN_EXISTING, flags, templateFile);
     }
 
     const DWORD openError = GetLastError();
     if (g_trace_enabled && TargetBasename(path)) {
         LARGE_INTEGER size{};
         const bool sized = opened != INVALID_HANDLE_VALUE && GetFileSizeEx(opened, &size);
-        Trace("open", matched, flags, access, sized ? size.QuadPart : 0, openError,
+        Trace("open", mapping != nullptr, flags, access, sized ? size.QuadPart : 0, openError,
               opened != INVALID_HANDLE_VALUE);
     }
     TlsSetValue(g_reentry_slot, nullptr);

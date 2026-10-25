@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NativeCareerLayout.h"
+#include "NativeMatchLayout.h"
 #include <cmath>
 
 namespace mct {
@@ -21,12 +22,14 @@ public:
               const NativeWorkshopContext& workshop = {}) {
         invalidate();
         lastSignature_.clear();
-        return layout_.open(scope, state, cosmetics, workshop);
+        surface_ = scope.surface;
+        return surface_ == NativeMenuSurface::Frontend ? layout_.open(scope, state, cosmetics, workshop) :
+            matchLayout_.open(scope, state);
     }
 
     Json publish(const CareerLayoutScope& scope, const Json& state, double now,
                  const NativeCosmeticContext& cosmetics = {}, const NativeWorkshopContext& workshop = {}) {
-        Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"published_at", now},
+        Json wire = {{"protocol", 1}, {"session", scope.nonce}, {"surface", nativeSurfaceName(scope.surface)}, {"published_at", now},
             {"active", false}, {"runtime_verified", kRuntimeVerified}, {"production_ready", kProductionReady},
             {"controls", Json::array()}};
         if (!std::isfinite(now) || now <= 0) {
@@ -34,7 +37,9 @@ public:
             invalidate();
             return wire;
         }
-        auto view = layout_.view(scope, state, cosmetics, workshop);
+        auto view = scope.surface != surface_ ? CareerLayoutView{} :
+            surface_ == NativeMenuSurface::Frontend ? layout_.view(scope, state, cosmetics, workshop) :
+            matchLayout_.view(scope, state);
         if (!view.offersReplacement) {
             invalidate();
             return wire;
@@ -61,10 +66,11 @@ public:
             wire["controls"].push_back({{"id", choice.id}, {"label", choice.label},
                 {"enabled", choice.enabled}, {"reason", choice.reason},
                 {"stock", choice.stock == StockRoute::Garage ? "garage" :
-                    choice.stock == StockRoute::Options ? "options" : ""},
+                    choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" : ""},
                 {"revision", std::to_string(choice.revision)}});
         }
         nonce_ = scope.nonce;
+        scopeGeneration_ = scope.generation;
         return wire;
     }
 
@@ -77,7 +83,10 @@ public:
         if (!customMovieCallback || !published_ || message.size() > kMaxCommandBytes) return refused;
         try {
             const auto command = Json::parse(message);
-            if (!command.is_object() || command.size() != 5 ||
+            const bool legacy = surface_ == NativeMenuSurface::Frontend && !command.contains("surface");
+            if (!command.is_object() || command.size() != (legacy ? 5 : 6) || live.surface != surface_ ||
+                live.generation != scopeGeneration_ ||
+                (!legacy && stringValue(command, "surface") != nativeSurfaceName(surface_)) ||
                 !command.contains("protocol") || !command["protocol"].is_number_integer() ||
                 command["protocol"] != 1 || stringValue(command, "session") != nonce_ ||
                 stringValue(command, "generation") != std::to_string(generation_)) return refused;
@@ -87,7 +96,9 @@ public:
                 if (choice.id != id || std::to_string(choice.revision) != revision) continue;
                 // The authored movie calls only its own dispatcher. It has no
                 // stock click to replay after this callback returns.
-                auto effect = layout_.choose(choice, live, state, true, cosmetics, workshop);
+                auto effect = surface_ == NativeMenuSurface::Frontend ?
+                    layout_.choose(choice, live, state, true, cosmetics, workshop) :
+                    matchLayout_.choose(choice, live, state, true);
                 if (effect.accepted) invalidate();
                 return effect;
             }
@@ -101,6 +112,21 @@ public:
         published_ = false;
         shown_.clear();
         nonce_.clear();
+    }
+
+    bool readyMessage(const std::string& message, const CareerLayoutScope& live) const {
+        if (!published_ || live.surface != surface_ || live.nonce != nonce_ ||
+            live.generation != scopeGeneration_ || !live.owned ||
+            !live.offline || !live.fresh || live.online) return false;
+        try {
+            const auto command = Json::parse(message);
+            if (!command.is_object() || !command.contains("protocol") || !command["protocol"].is_number_integer() ||
+                command["protocol"] != 1 || stringValue(command, "session") != nonce_ ||
+                stringValue(command, "event") != "ready") return false;
+            if (surface_ == NativeMenuSurface::Frontend && command.size() == 3) return true;
+            return command.size() == 5 && stringValue(command, "surface") == nativeSurfaceName(surface_) &&
+                stringValue(command, "generation") == std::to_string(generation_);
+        } catch (const Json::exception&) { return false; }
     }
 
 private:
@@ -145,10 +171,13 @@ private:
         return true;
     }
     NativeCareerLayout layout_;
+    NativeMatchLayout matchLayout_;
+    NativeMenuSurface surface_ = NativeMenuSurface::None;
     std::vector<CareerLayoutChoice> shown_;
     std::string nonce_;
     std::string lastSignature_;
     std::uint64_t generation_ = 0;
+    std::uint64_t scopeGeneration_ = 0;
     bool published_ = false;
 };
 }

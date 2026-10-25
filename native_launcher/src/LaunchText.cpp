@@ -11,7 +11,9 @@
 
 namespace {
 
-const char* kAllowedKeys[] = {"protocol", "session", "game_root", "private_package", "private_package_sha256"};
+const char* kRequiredKeys[] = {"protocol", "session", "game_root", "private_package", "private_package_sha256"};
+const char* kMidgameKeys[] = {"private_midgame_package", "private_midgame_package_sha256"};
+const char* kEndgameKeys[] = {"private_endgame_package", "private_endgame_package_sha256"};
 
 bool Fail(std::wstring* error, const wchar_t* message) {
     *error = message;
@@ -19,12 +21,53 @@ bool Fail(std::wstring* error, const wchar_t* message) {
 }
 
 bool AllowedKey(const std::string& key) {
-    for (const char* allowed : kAllowedKeys) {
+    for (const char* allowed : kRequiredKeys) {
+        if (key == allowed) {
+            return true;
+        }
+    }
+    for (const char* allowed : kMidgameKeys) {
+        if (key == allowed) {
+            return true;
+        }
+    }
+    for (const char* allowed : kEndgameKeys) {
         if (key == allowed) {
             return true;
         }
     }
     return false;
+}
+
+bool Utf8ToWide(const std::string& text, std::wstring* wide, std::wstring* error);
+
+bool PairPresent(const std::map<std::string, std::string>& strings, const char* pathKey, const char* hashKey) {
+    const bool path = strings.find(pathKey) != strings.end();
+    const bool hash = strings.find(hashKey) != strings.end();
+    return path == hash;
+}
+
+bool LoadOptionalPrivate(const std::map<std::string, std::string>& strings, const char* pathKey, const char* hashKey,
+                         MctOptionalPrivate* out, std::wstring* error) {
+    out->present = false;
+    out->path.clear();
+    out->sha256.clear();
+    if (strings.find(pathKey) == strings.end()) {
+        return true;
+    }
+    if (!Utf8ToWide(strings.at(pathKey), &out->path, error) || !Utf8ToWide(strings.at(hashKey), &out->sha256, error)) {
+        return false;
+    }
+    if (!MctIsLowerHex(out->sha256, 64) || out->path.size() > kMctLaunchPathMaxChars) {
+        return Fail(error, out->path.size() > kMctLaunchPathMaxChars ? L"path is too long" : L"malformed plan");
+    }
+    for (wchar_t character : out->path) {
+        if (character < 0x20 || character == L'"') {
+            return Fail(error, L"malformed plan");
+        }
+    }
+    out->present = true;
+    return true;
 }
 
 bool Utf8ToWide(const std::string& text, std::wstring* wide, std::wstring* error) {
@@ -213,7 +256,7 @@ bool MctParseLaunchPlan(const std::string& bytes, MctLaunchPlan* plan, std::wstr
     if (!sax.protocolOk) {
         return Fail(error, L"malformed plan");
     }
-    for (const char* required : kAllowedKeys) {
+    for (const char* required : kRequiredKeys) {
         if (std::strcmp(required, "protocol") == 0) {
             continue;
         }
@@ -221,13 +264,22 @@ bool MctParseLaunchPlan(const std::string& bytes, MctLaunchPlan* plan, std::wstr
             return Fail(error, L"malformed plan");
         }
     }
-    if (sax.strings.size() != 4 || sax.keys.size() != 5) {
+    if (!PairPresent(sax.strings, kMidgameKeys[0], kMidgameKeys[1]) ||
+        !PairPresent(sax.strings, kEndgameKeys[0], kEndgameKeys[1])) {
+        return Fail(error, L"malformed plan");
+    }
+    const bool midgame = sax.strings.find(kMidgameKeys[0]) != sax.strings.end();
+    const bool endgame = sax.strings.find(kEndgameKeys[0]) != sax.strings.end();
+    const std::size_t extraKeys = (midgame ? 2u : 0u) + (endgame ? 2u : 0u);
+    if (sax.strings.size() != 4 + extraKeys || sax.keys.size() != 5 + extraKeys) {
         return Fail(error, L"malformed plan");
     }
     if (!Utf8ToWide(sax.strings["session"], &plan->session, error) ||
         !Utf8ToWide(sax.strings["game_root"], &plan->gameRoot, error) ||
         !Utf8ToWide(sax.strings["private_package"], &plan->privatePackage, error) ||
-        !Utf8ToWide(sax.strings["private_package_sha256"], &plan->privatePackageSha256, error)) {
+        !Utf8ToWide(sax.strings["private_package_sha256"], &plan->privatePackageSha256, error) ||
+        !LoadOptionalPrivate(sax.strings, kMidgameKeys[0], kMidgameKeys[1], &plan->midgame, error) ||
+        !LoadOptionalPrivate(sax.strings, kEndgameKeys[0], kEndgameKeys[1], &plan->endgame, error)) {
         return false;
     }
     if (!MctIsCanonicalUuid(plan->session)) {
@@ -365,6 +417,27 @@ std::string MctLaunchReceiptJson(const MctResolvedLaunch& resolved, const MctOwn
     document["source_executable_sha256"] = resolved.sourceExecutableSha256;
     document["private_package_sha256"] = resolved.privatePackageSha256;
     document["private_package"] = privatePath;
+    auto appendExtra = [&](const MctExtraBinding& extra, const char* pathKey, const char* hashKey, const char* sourceKey,
+                           const char* pinnedSource) -> bool {
+        if (!extra.requested) {
+            return true;
+        }
+        const std::string extraPath = MctWideToUtf8(extra.privatePath);
+        if (extraPath.empty() || extra.sourceSha256 != pinnedSource || !MctIsLowerHexUtf8(extra.privateSha256, 64) ||
+            extra.privateSha256.empty()) {
+            return false;
+        }
+        document[pathKey] = extraPath;
+        document[hashKey] = extra.privateSha256;
+        document[sourceKey] = extra.sourceSha256;
+        return true;
+    };
+    if (!appendExtra(resolved.midgame, "private_midgame_package", "private_midgame_package_sha256",
+                     "source_midgame_package_sha256", kMctSourceMidgameSha256) ||
+        !appendExtra(resolved.endgame, "private_endgame_package", "private_endgame_package_sha256",
+                     "source_endgame_package_sha256", kMctSourceEndgameSha256)) {
+        return MctErrorReceiptJson(L"launch receipt was rejected");
+    }
     const std::string line = document.dump(-1, ' ', false, nlohmann::json::error_handler_t::strict);
     if (line.size() > kMctLaunchReceiptMaxBytes || line.find('\n') != std::string::npos) {
         return MctErrorReceiptJson(L"launch receipt was rejected");

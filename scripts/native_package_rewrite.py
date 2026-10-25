@@ -3,7 +3,9 @@
 ``replace_final_movie`` returns new package bytes. It does not open a path,
 write a file, fetch a key, launch a game, or install anything. The edit is a
 container change of the selected ``SwfMovie`` RawData when that export is the
-entire final chunk. SWF tags, ABC, and menu behavior are not validated.
+entire final chunk. ``replace_movie`` instead appends a relocated serial to
+that chunk, preserving every existing logical byte and other export offset.
+SWF tags, ABC, and menu behavior are not validated.
 Runtime compatibility is unproven.
 
 Parsing is delegated to ``native_package_reader``. This module calls that
@@ -123,6 +125,42 @@ def replace_final_movie(
         raise PackageRewriteError(str(exc)) from exc
 
 
+def replace_movie(
+    package_bytes,
+    replacement_movie,
+    *,
+    expected_package_sha256,
+    expected_movie_sha256,
+    export_name,
+    decrypt_header=None,
+    encrypt_header=None,
+) -> RewrittenPackage:
+    """Relocate one SwfMovie serial to the end of the final chunk.
+
+    The hash, version, header and inline RawData requirements are the same
+    as ``replace_final_movie``. The selected serial need not fill a chunk.
+    Its old bytes remain unreachable; every other export and earlier frame
+    stays in place. The enlarged final chunk must fit the existing 16 MiB
+    cap. No trailing native bulk data is accepted after the property list.
+    This verifies container structure, not runtime relocation semantics.
+    """
+    try:
+        return _replace_final_movie(
+            package_bytes,
+            replacement_movie,
+            expected_package_sha256=expected_package_sha256,
+            expected_movie_sha256=expected_movie_sha256,
+            export_name=export_name,
+            decrypt_header=decrypt_header,
+            encrypt_header=encrypt_header,
+            relocate=True,
+        )
+    except PackageRewriteError:
+        raise
+    except reader.PackageReadError as exc:
+        raise PackageRewriteError(str(exc)) from exc
+
+
 def encrypt_aes256_ecb_cng(plaintext: bytes, key: bytes) -> bytes:
     """Encrypt one AES-256-ECB buffer with Windows CNG and an explicit key.
 
@@ -156,6 +194,7 @@ def _replace_final_movie(
     export_name,
     decrypt_header,
     encrypt_header,
+    relocate=False,
 ) -> RewrittenPackage:
     package_digest = _require_sha256(expected_package_sha256, "package SHA-256")
     movie_digest = _require_sha256(expected_movie_sha256, "movie SHA-256")
@@ -186,7 +225,7 @@ def _replace_final_movie(
         raise PackageRewriteError("rewrite compresses 131072-byte blocks")
 
     export = reader._select_export(package, export_name)
-    last = _require_last_chunk(package, export)
+    last = _require_final_chunk(package) if relocate else _require_last_chunk(package, export)
     _reject_logical_overlap(package.exports, export)
     serials = _export_serials(package, export["index"])
     serial = serials[export["index"]]
@@ -199,23 +238,40 @@ def _replace_final_movie(
     new_serial = _splice_rawdata(serial, span, replacement)
     if len(new_serial) > reader.MAX_EXPORT_BYTES or len(new_serial) > reader.MAX_CHUNK_BYTES:
         raise PackageRewriteError("export serial size exceeds 16 MiB")
-    _require_logical_fit(last.uncompressed_offset, len(new_serial))
+    serial_offset = export["serial_offset"]
+    chunk_size = len(new_serial)
+    if relocate:
+        serial_offset = last.uncompressed_offset + last.uncompressed_size
+        chunk_size += last.uncompressed_size
+        if chunk_size > reader.MAX_CHUNK_BYTES:
+            raise PackageRewriteError("relocated final chunk size exceeds 16 MiB")
+    _require_logical_fit(last.uncompressed_offset, chunk_size)
     probe = {
         "name": export["name"],
         "class": export["class"],
-        "serial_offset": export["serial_offset"],
+        "serial_offset": serial_offset,
         "serial_size": len(new_serial),
     }
     rewritten = reader._parse_swf_movie(new_serial, probe, package.names)
     if rewritten.data != replacement:
         raise PackageRewriteError("rewritten serial did not contain the replacement movie")
 
-    framed = _frame_serial(new_serial)
+    new_chunk = new_serial
+    if relocate:
+        old_chunk = reader._extract_serial(package, {
+            "serial_offset": last.uncompressed_offset,
+            "serial_size": last.uncompressed_size,
+        })
+        new_chunk = old_chunk + new_serial
+    framed = _frame_serial(new_chunk)
     if last.compressed_offset > reader.MAX_FILE_BYTES or len(framed) > reader.MAX_FILE_BYTES - last.compressed_offset:
         raise PackageRewriteError("package exceeds the 64 MiB cap")
 
     plain_header = bytearray(package.header)
-    fields = _patch_sizes(plain_header, summary, package, export, len(new_serial), len(framed))
+    fields = _patch_sizes(
+        plain_header, summary, package, export, len(new_serial), len(framed),
+        chunk_size=chunk_size, serial_offset=serial_offset if relocate else None,
+    )
     _reject_header_overlap(package.exports, export["index"], summary.depends_offset, fields)
     _only_these_bytes_changed(bytes(package.header), bytes(plain_header), fields)
 
@@ -230,7 +286,7 @@ def _replace_final_movie(
     output = bytes(produced)
     _assert_reparsed(
         source, output, summary, package, export, serials, replacement, new_serial, framed,
-        bytes(plain_header), decrypt_header,
+        bytes(plain_header), decrypt_header, serial_offset=serial_offset, new_chunk=new_chunk,
     )
     metadata = _metadata(export_name, source, output, parsed.data, replacement, serial, new_serial)
     return RewrittenPackage(output, metadata)
@@ -283,6 +339,11 @@ def _require_last_chunk(package, export):
     )
     if not same_span:
         raise PackageRewriteError("selected export must occupy the entire last chunk")
+    return _require_final_chunk(package)
+
+
+def _require_final_chunk(package):
+    last = package.chunks[-1]
     ends_at_eof = last.compressed_offset + last.compressed_size == package.file_size
     if not ends_at_eof or last.compressed_offset < package.header_size:
         raise PackageRewriteError("last chunk must end at EOF")
@@ -443,7 +504,10 @@ def _frame_serial(plain: bytes) -> bytes:
     return framed
 
 
-def _patch_sizes(header: bytearray, summary, package, export, serial_size: int, compressed_size: int):
+def _patch_sizes(
+    header: bytearray, summary, package, export, serial_size: int, compressed_size: int,
+    *, chunk_size=None, serial_offset=None,
+):
     serial_at, found_size, found_offset = _serial_size_at(header, summary, package.names, export["index"])
     if found_size != export["serial_size"] or found_offset != export["serial_offset"]:
         raise PackageRewriteError("export serial size field does not match the parsed export")
@@ -452,12 +516,17 @@ def _patch_sizes(header: bytearray, summary, package, export, serial_size: int, 
         raise PackageRewriteError("chunk size field does not match the parsed chunk")
     limit = reader._aligned_end(summary.name_offset, summary.header_size)
     fields = (serial_at, usize_at, csize_at)
+    if serial_offset is not None:
+        # The export table stores its offset as a little-endian uint64.
+        fields += (serial_at + 4, serial_at + 8)
     for field in fields:
         if field < summary.name_offset or field + 4 > limit:
             raise PackageRewriteError("rewritten field is outside the aligned header")
     struct.pack_into("<i", header, serial_at, serial_size)
-    struct.pack_into("<i", header, usize_at, serial_size)
+    struct.pack_into("<i", header, usize_at, serial_size if chunk_size is None else chunk_size)
     struct.pack_into("<i", header, csize_at, compressed_size)
+    if serial_offset is not None:
+        struct.pack_into("<Q", header, serial_at + 4, serial_offset)
     return fields
 
 
@@ -558,13 +627,14 @@ def _call_encrypt(encrypt_header, region: bytes) -> bytes:
 
 def _assert_reparsed(
     source, output, summary, package, export, serials, replacement, new_serial, framed,
-    plain_header, decrypt_header,
+    plain_header, decrypt_header, *, serial_offset=None, new_chunk=None,
 ) -> None:
     try:
         summary2, package2 = _load_package(output, decrypt_header if package.header_decrypted else None)
         _compare_reparse(
             source, output, summary, summary2, package, package2, export, serials,
             replacement, new_serial, framed, plain_header,
+            serial_offset=serial_offset, new_chunk=new_chunk,
         )
     except reader.PackageReadError as exc:
         raise PackageRewriteError("rewritten package failed reader validation") from exc
@@ -572,7 +642,7 @@ def _assert_reparsed(
 
 def _compare_reparse(
     source, output, summary, summary2, package, package2, export, serials,
-    replacement, new_serial, framed, plain_header,
+    replacement, new_serial, framed, plain_header, *, serial_offset=None, new_chunk=None,
 ) -> None:
     if summary2.version != summary.version or summary2.licensee != summary.licensee:
         raise PackageRewriteError("rewritten package failed reader validation")
@@ -598,8 +668,15 @@ def _compare_reparse(
         raise PackageRewriteError("rewritten package failed reader validation")
     if last2.uncompressed_offset != last.uncompressed_offset or last2.compressed_offset != last.compressed_offset:
         raise PackageRewriteError("rewritten package failed reader validation")
-    if last2.uncompressed_size != len(new_serial) or last2.compressed_size != len(framed):
+    expected_chunk = new_serial if new_chunk is None else new_chunk
+    if last2.uncompressed_size != len(expected_chunk) or last2.compressed_size != len(framed):
         raise PackageRewriteError("rewritten package failed reader validation")
+    actual_chunk = reader._extract_serial(package2, {
+        "serial_offset": last2.uncompressed_offset,
+        "serial_size": last2.uncompressed_size,
+    })
+    if actual_chunk != expected_chunk:
+        raise PackageRewriteError("rewritten final chunk changed preserved bytes")
     if last2.compressed_offset + last2.compressed_size != len(output):
         raise PackageRewriteError("rewritten package failed reader validation")
     for old, new in zip(package.chunks[:-1], package2.chunks[:-1], strict=True):
@@ -613,7 +690,8 @@ def _compare_reparse(
             raise PackageRewriteError("a non-final chunk changed")
 
     selected = reader._select_export(package2, export["name"])
-    if selected["serial_offset"] != export["serial_offset"] or selected["serial_size"] != len(new_serial):
+    expected_offset = export["serial_offset"] if serial_offset is None else serial_offset
+    if selected["serial_offset"] != expected_offset or selected["serial_size"] != len(new_serial):
         raise PackageRewriteError("rewritten package failed reader validation")
     movie = reader._parse_swf_movie(reader._extract_serial(package2, selected), selected, package2.names)
     if movie.data != replacement or movie.metadata["sha256"] != hashlib.sha256(replacement).hexdigest():

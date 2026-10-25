@@ -78,7 +78,9 @@ bool MctCreatePreconditionsHold(const MctResolvedLaunch& resolved, std::wstring*
         return Fail(error, L"the launch command was rejected");
     }
     if (MctPathEqualsOrInside(resolved.gameRoot, resolved.dllPath) ||
-        MctPathEqualsOrInside(resolved.gameRoot, resolved.privatePackagePath)) {
+        MctPathEqualsOrInside(resolved.gameRoot, resolved.privatePackagePath) ||
+        (resolved.midgame.requested && MctPathEqualsOrInside(resolved.gameRoot, resolved.midgame.privatePath)) ||
+        (resolved.endgame.requested && MctPathEqualsOrInside(resolved.gameRoot, resolved.endgame.privatePath))) {
         return Fail(error, L"the launch command was rejected");
     }
     std::wstring expectedCommand;
@@ -101,14 +103,55 @@ bool MctCreatePreconditionsHold(const MctResolvedLaunch& resolved, std::wstring*
         !MctEnvironmentHasExactEntry(resolved.environment, kMctSessionVariable, session)) {
         return Fail(error, L"session nonce is not usable");
     }
-    if (resolved.scope.magic != kMctFileViewMagic || resolved.scope.version != kMctFileViewVersion ||
-        resolved.scope.size != sizeof(resolved.scope) || resolved.scope.reserved != 0 ||
-        !MctPathsEqual(resolved.scope.original_path, resolved.sourcePackagePath.c_str()) ||
-        !MctPathsEqual(resolved.scope.private_path, resolved.privatePackagePath.c_str())) {
+    if (!resolved.scopeIsV2) {
+        if (resolved.midgame.requested || resolved.endgame.requested || resolved.scope.magic != kMctFileViewMagic ||
+            resolved.scope.version != kMctFileViewVersion || resolved.scope.size != sizeof(resolved.scope) ||
+            resolved.scope.reserved != 0 ||
+            !MctPathsEqual(resolved.scope.original_path, resolved.sourcePackagePath.c_str()) ||
+            !MctPathsEqual(resolved.scope.private_path, resolved.privatePackagePath.c_str())) {
+            return Fail(error, L"file-view payload is not the fixed scope");
+        }
+    } else if (!resolved.midgame.requested && !resolved.endgame.requested) {
         return Fail(error, L"file-view payload is not the fixed scope");
+    } else if (!MctFileViewScopeV2Accept(resolved.scopeV2)) {
+        return Fail(error, L"file-view payload is not the fixed scope");
+    } else {
+        const MctFileViewScopeV2& scope = resolved.scopeV2;
+        std::uint32_t index = 0;
+        if (scope.mappings[index].id != kMctFileViewIdMain ||
+            !MctPathsEqual(scope.mappings[index].original_path, resolved.sourcePackagePath.c_str()) ||
+            !MctPathsEqual(scope.mappings[index].private_path, resolved.privatePackagePath.c_str())) {
+            return Fail(error, L"file-view payload is not the fixed scope");
+        }
+        ++index;
+        if (resolved.midgame.requested) {
+            if (index >= scope.count || scope.mappings[index].id != kMctFileViewIdMidgame ||
+                resolved.midgame.sourceSha256 != kMctSourceMidgameSha256 ||
+                !MctPathsEqual(scope.mappings[index].original_path, resolved.midgame.sourcePath.c_str()) ||
+                !MctPathsEqual(scope.mappings[index].private_path, resolved.midgame.privatePath.c_str())) {
+                return Fail(error, L"file-view payload is not the fixed scope");
+            }
+            ++index;
+        }
+        if (resolved.endgame.requested) {
+            if (index >= scope.count || scope.mappings[index].id != kMctFileViewIdEndgame ||
+                resolved.endgame.sourceSha256 != kMctSourceEndgameSha256 ||
+                !MctPathsEqual(scope.mappings[index].original_path, resolved.endgame.sourcePath.c_str()) ||
+                !MctPathsEqual(scope.mappings[index].private_path, resolved.endgame.privatePath.c_str())) {
+                return Fail(error, L"file-view payload is not the fixed scope");
+            }
+            ++index;
+        }
+        if (index != scope.count) {
+            return Fail(error, L"file-view payload is not the fixed scope");
+        }
     }
     if (resolved.sourceExecutableSha256 != kMctSourceExeSha256 || resolved.sourcePackageSha256 != kMctSourcePackageSha256 ||
-        !MctIsLowerHexUtf8(resolved.privatePackageSha256, 64) || resolved.ansiDll.empty()) {
+        !MctIsLowerHexUtf8(resolved.privatePackageSha256, 64) || resolved.ansiDll.empty() ||
+        (resolved.midgame.requested && (!MctIsLowerHexUtf8(resolved.midgame.privateSha256, 64) ||
+                                        resolved.midgame.sourceSha256 != kMctSourceMidgameSha256)) ||
+        (resolved.endgame.requested && (!MctIsLowerHexUtf8(resolved.endgame.privateSha256, 64) ||
+                                        resolved.endgame.sourceSha256 != kMctSourceEndgameSha256))) {
         return Fail(error, L"the launch command was rejected");
     }
     if (resolved.workingDirectory.empty() || resolved.exePath.find(resolved.workingDirectory + L"\\") != 0) {
@@ -186,7 +229,7 @@ bool MctCommitOwnedLaunch(const MctResolvedLaunch& resolved, const MctLaunchHook
     if (!hooks.queryChild(process, thread, pid, resolved, &createTime, &childError)) {
         return retainIfAlive(childError.empty() ? L"owned process failed validation" : childError);
     }
-    if (!hooks.copyPayload(process, resolved.scope, &childError)) {
+    if (!hooks.copyPayload(process, resolved, &childError)) {
         return retainIfAlive(childError.empty() ? L"the file-view payload was not copied" : childError);
     }
     const MctGamePresence beforeResume = hooks.gamePresence(pid);
