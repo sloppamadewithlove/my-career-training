@@ -621,8 +621,9 @@ class GameSession:
             if now - self.last_render >= 1 / 30:
                 self.render(frame)
                 self.last_render = now
+        observed_scores = adapter.observed_score(packet)
         if not self.engine and not self.request.get("workshop"):
-            self.review.update(frame, {team.team_index: team.score for team in packet.teams})
+            self.review.update(frame, observed_scores)
             scores = adapter.final_score(packet, self.seen_active)
             if scores is not None and not self.result_sent:
                 result = {"type": "result", "session_id": self.session_id,
@@ -640,7 +641,7 @@ class GameSession:
         if now - self.last_telemetry >= 1 / 30:
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
-                       scores=[team.score for team in packet.teams], ghost=self.coach_snapshot,
+                       scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
                        coaching=(self.engine.summary().get("coaching", {}) if self.engine and not self.cancel_start.is_set() and not self.stopping else {}))
             self.last_telemetry = now
 

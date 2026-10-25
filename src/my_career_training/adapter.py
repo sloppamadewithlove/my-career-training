@@ -121,11 +121,26 @@ def desired_state(state, human_index):
         match_info=None)
 
 
+def observed_score(packet):
+    """Return home/away goals by explicit team index, never array position."""
+    teams = getattr(packet, "teams", None)
+    if not isinstance(teams, (list, tuple)) or len(teams) != 2:
+        return None
+    scores = {}
+    for team in teams:
+        index, score = getattr(team, "team_index", None), getattr(team, "score", None)
+        if (type(index) is not int or index not in (0, 1) or index in scores
+                or type(score) is not int or not 0 <= score <= 999):
+            return None
+        scores[index] = score
+    return scores[0], scores[1]
+
+
 def final_score(packet, seen_active):
     f = flat_module()
     if not seen_active or packet.match_info.match_phase != f.MatchPhase.Ended:
         return None
-    scores = {t.team_index: t.score for t in packet.teams}
-    if set(scores) != {0, 1} or scores[0] == scores[1]:
+    scores = observed_score(packet)
+    if scores is None or scores[0] == scores[1]:
         return None
-    return scores[0], scores[1]
+    return scores

@@ -97,7 +97,8 @@ def test_ordinary_unfinished_return_survives_late_telemetry_after_stop_ack(backe
     assert fixture["result"] is None and fixture["status"] == "scheduled"
 
 
-@pytest.mark.parametrize("change", ["fixture", "session", "lesson", "calibration", "workshop", "score", "ended"])
+@pytest.mark.parametrize("change", ["fixture", "session", "lesson", "calibration", "workshop", "score",
+                                   "score_empty", "score_missing", "ended"])
 def test_forfeit_rejection_keeps_pending_and_reports_exact_intent(backend, change):
     instance, _, _ = backend
     payload = running(instance)
@@ -105,9 +106,10 @@ def test_forfeit_rejection_keeps_pending_and_reports_exact_intent(backend, chang
         payload[f"expected_{change}_id"] = "other"
     elif change in {"lesson", "calibration", "workshop"}:
         instance.request[{"lesson": "lesson_id"}.get(change, change)] = True
-    elif change == "score":
+    elif change in {"score", "score_empty", "score_missing"}:
         instance._event({"type": "telemetry", "session_id": instance.session_id,
-                         "scores": [True, 0], "phase": "MatchPhase.Active"})
+                         "scores": {"score": [True, 0], "score_empty": [], "score_missing": None}[change],
+                         "phase": "MatchPhase.Active"})
     else:
         instance._event({"type": "telemetry", "session_id": instance.session_id,
                          "scores": [2, 1], "phase": "MatchPhase.Ended"})

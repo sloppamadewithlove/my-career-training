@@ -63,6 +63,39 @@ def test_no_result_without_observed_active_match(tmp_path, monkeypatch):
     assert not Path(tmp_path, "outbox").exists()
 
 
+def test_reversed_team_array_keeps_canonical_telemetry_and_final_score(tmp_path, monkeypatch):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    packet.teams.reverse()
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    telemetry = next(event for event in events if event["type"] == "telemetry")
+    assert telemetry["scores"] == [4, 3]
+    packet.match_info.match_phase = 7
+    instance.process_packet(packet)
+    result = next(event for event in events if event["type"] == "result")
+    assert (result["home_score"], result["away_score"]) == (4, 3)
+
+
+@pytest.mark.parametrize("teams", [[], [NS(team_index=0, score=4)],
+    [NS(team_index=0, score=4), NS(team_index=0, score=3)],
+    [NS(team_index=0, score=4), NS(team_index=2, score=3)],
+    [NS(team_index=0, score=4), NS(team_index=True, score=3)],
+    [NS(team_index=0, score=4), NS(score=3)],
+    [NS(team_index=0, score=4), NS(team_index=1, score=True)]])
+def test_invalid_team_mapping_never_fabricates_observed_or_final_goals(tmp_path, monkeypatch, teams):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    packet.teams = teams
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    assert next(event for event in events if event["type"] == "telemetry")["scores"] == []
+    packet.match_info.match_phase = 7
+    instance.process_packet(packet)
+    assert not any(event["type"] == "result" for event in events)
+    assert not Path(tmp_path, "outbox").exists()
+
+
 def simulated_session(tmp_path, monkeypatch, events):
     flat = NS(MatchPhase=NS(Active=3, Ended=7), ControllerState=lambda **kw: kw,
               PlayerInput=lambda index, state: (index, state))
