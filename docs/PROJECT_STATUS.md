@@ -71,13 +71,38 @@ the overall raw formatting, not which individual option the game misreads.
 The same unquoted control connected within half a second when its core started
 45 seconds after the game, and reconnected within half a second after the owned
 core restarted. Core-first startup and a persistent core are therefore not
-required by this evidence. The native formatting repair must still pass a real
-My Career session; neither these controls nor model startup certify the mod's
-complete gameplay. `6381456` aligns the native command with the passing control:
+required by this evidence. Neither these controls nor model startup by themselves
+certify the mod's complete gameplay. `6381456` aligns the native command with the passing control:
 the validated executable path stays quoted, the same four fixed options do
 not, and the launch guard still requires the exact canonical command. The
 independent launcher suite passed 162 checks; raw extra arguments, old quoting,
 newlines and stray quotes remain rejected.
+
+Integrated source `68448b7` then completed a real offline 1v1 in a copied Unicode
+profile. Necto loaded and played; the actual 0–54 score persisted once with
+`provenance: game`, the pending fixture cleared, and the durable receipt was
+acknowledged. This mostly unattended test used a private bridge command to
+start the match and ordinary replay-skip clicks near the end. Its score is not
+a player-skill assessment. Actual Escape opened the authored pause menu;
+Options/Back, Resume, and canceling the unfinished-return confirmation worked.
+The authored results screen reached READY and displayed the saved-result state.
+
+The actual results Return click exposed another failure: the SDK `disconnect`
+left the match at `StartMenuMovie`, before the authored frontend. The legacy
+fullscreen overlay then covered that title screen while native READY was false.
+Service Idle, saved progress, and leaving the match did not establish a successful
+return. The download remains held while this navigation and input-ownership
+transition is repaired. No synthetic result or raw console return substitutes
+for that missing native-menu acceptance.
+
+The exact [`68448b7` Windows pipeline](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40153114788)
+passed source/native checks, frozen smoke, and installer lifecycle. Independent
+Luna verification matched all 4,470 downloaded bundle files to the same run's
+smoke inventory and verified nine corresponding source archives. Its Setup is
+178,305,803 bytes, SHA-256
+`bf8c047f2bc6d15144cd83fe101ff613cfff3c62d61329e6076d64a328844bf4`.
+It has not passed frozen game acceptance and contains the observed Return bug;
+it is not a replacement player release.
 
 ## Current integration
 
@@ -123,8 +148,8 @@ Agent participation is not gameplay evidence.
 
 1. Build/freeze one clean integrated revision with matching runtime receipts.
 2. Open the player executable: one game, no worker console, readable menus.
-3. Complete a real 1v1 career fixture, save it once, return home and start the
-   next activity without a second game process.
+3. In that exact frozen revision, complete a real 1v1 career fixture, save it
+   once, return home and start the next activity without a second game process.
 4. Test practice/retry, native pause/options/resume, unfinished-match
    confirmation, results saving/return, and keyboard/controller controls.
    Replacement menus must not expose online routes.
