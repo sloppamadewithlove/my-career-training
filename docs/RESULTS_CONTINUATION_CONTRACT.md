@@ -56,6 +56,8 @@ The native host creates a fresh 32-character lower-case hexadecimal intent.
 }
 ```
 
+Before preparation, reject an existing `pending_launch`, active stop or lifecycle
+transition; another queued launch must not cross the continuation barrier.
 The service validates its current finished career activity, stored result,
 current next fixture and the complete lineup before stopping anything. Persist
 the valid lineup preference atomically without rewriting the completed result.
@@ -68,6 +70,9 @@ Keep this preparation separate from `pending_launch`: do not call
 cleanup can automatically run `pending_launch`, so it is not this feature's queue.
 Retain the exact confirmed lineup in the prepared token and revalidate it at
 start; an intervening edit must not silently substitute another lineup.
+While prepared continuation is armed, block competing launches and career edits,
+including the short Idle/root interval before automatic start. Quit stays usable
+and cancels the unstarted token and next-match ACK before shutdown begins.
 
 After durable cleanup, retain the existing exact `native_return_ready` ACK and
 publish `native_next_ready` with exactly `session_id`, `fixture_id`,
@@ -91,6 +96,7 @@ prepared token, the saved result, no active worker/pending fixture, and current
 target fixture. Reverify in-game mode and the same still-running owned game
 identity captured at preparation before any launch/save side effect. If that
 game closed, reject without reserving a fixture or launching a replacement.
+Reject an active stop, lifecycle transition or existing `pending_launch` too.
 Then use the existing `play_match` launch path. Keep token
 consumption idempotent, including a duplicate during startup. Failures must
 leave an understandable recovery route without automatically replaying a launch.
