@@ -1,0 +1,4 @@
+interface:
+  display_name: "My Career Training Testing"
+  short_description: "Reach and verify owned Rocket League test states"
+  default_prompt: "Use $my-career-training-testing to reach the next required game state and record evidence for the current candidate."

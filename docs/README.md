@@ -10,6 +10,7 @@ documents' claims about publication, implementation and untested behavior.
 | Understand the requested product | [BUILD_SPEC.md](BUILD_SPEC.md) |
 | Change shared data or lifecycle behavior | [INTEGRATION_CONTRACT.md](INTEGRATION_CONTRACT.md) |
 | Test the real game | [NATIVE_ACCEPTANCE_SESSION.md](NATIVE_ACCEPTANCE_SESSION.md) |
+| Reach game states and coordinate agents | [Testing skill](../skills/my-career-training-testing/SKILL.md), [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) |
 | Protect private information | [REPOSITORY_PRIVACY.md](REPOSITORY_PRIVACY.md) |
 | Follow startup and recovery | [NATIVE_OFFLINE_STARTUP.md](NATIVE_OFFLINE_STARTUP.md), [ONLINE_HANDOFF.md](ONLINE_HANDOFF.md) |
 | Follow menu callbacks | [NATIVE_MOVIE_COMPOSE.md](NATIVE_MOVIE_COMPOSE.md), [NATIVE_MOVIE_HOST.md](NATIVE_MOVIE_HOST.md), [NATIVE_MOVIE_PROTOCOL.md](NATIVE_MOVIE_PROTOCOL.md) |

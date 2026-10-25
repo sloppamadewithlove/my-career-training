@@ -109,8 +109,11 @@ Return. Ordinary unfinished Return keeps its restart behavior. Domain/service,
 menu, native-host and actual-game evidence remain separate; Forfeit and results
 retention are not yet live-verified or published.
 
-The integrated source suite passed 1,004 tests with 15 skipped before the later
-team-index correction; its focused adapter/Forfeit checks also passed. Independent
+Integrated source `9d1d433` passed 1,016 tests with 15 skipped and Ruff. Its
+coherent native candidate passed 28 plugin and 13 launcher/file-view checks.
+These checks include the team-index, historical-receipt, timer scope and shared
+fixture corrections; live Forfeit/results retention and exact frozen acceptance
+remain open. Independent
 review caught and corrected a telemetry team-order assumption, a timer binding
 that could survive a stale observation gap, and a missing final READY check before
 the timer setter. The native Forfeit handshake also accepted an actual service
@@ -129,6 +132,12 @@ display reuse is being investigated separately. Official plugin 707's current
 archive has been inventoried, but physical-controller behavior, matching source
 and redistribution permission are not established. No new community DLL has
 been loaded or bundled.
+
+The reusable [game-state skill](../skills/my-career-training-testing/SKILL.md)
+and [development workflow](DEVELOPMENT_WORKFLOW.md) now preserve tested routes,
+one input owner, explicit model/fallback choices and eight tracked speed
+improvements. Their documentation does not imply that proposed short fixtures,
+active state notifications or automatic input ownership are implemented.
 
 ## Verified observations
 

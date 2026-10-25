@@ -7,3 +7,5 @@ Keep real-game evidence distinct from contract tests. Never fabricate game resul
 Python 3.12, PySide6/QML, isolated worker. All mutable data is per-user AppData. Frozen worker must use the executable's explicit --worker mode. Tests run with `uv run pytest`; packaging is Windows only. Read docs/INTEGRATION_CONTRACT.md before editing shared boundaries. Parallel workers own distinct files and must preserve each other's work.
 
 Players open one MyCareerTraining executable or shortcut. Helpers belong in _internal and must not present a terminal. Never commit private logs, saves, user paths, account IDs, environment files, credentials or game assets. Read docs/REPOSITORY_PRIVACY.md before publishing evidence.
+
+For implementation/test coordination read docs/DEVELOPMENT_WORKFLOW.md. For owned Windows game-state navigation use skills/my-career-training-testing/SKILL.md. Keep one game-input owner; recorded source, native, frozen, installer and gameplay evidence are separate. Check current status before reusing a historical route.

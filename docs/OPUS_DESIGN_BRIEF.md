@@ -4,6 +4,39 @@
 Training iteration. This file is a handoff prompt; it does not mean Opus has
 reviewed the project or that the live game integration has passed.
 
+## Current assignment update — 25 October 2026
+
+Use Claude Opus 5.5 **high** through Cursor CLI for new design assignments and
+verify the actual model/reasoning output. Earlier ExtraHigh work is historical.
+On quota exhaustion stop the designer role; retain unfinished work here instead
+of silently substituting a model. See [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md).
+
+The historical report below explains the original player failures. Current
+implementation and live evidence are in [PROJECT_STATUS.md](PROJECT_STATUS.md),
+which takes precedence. Authored root/pause/results now exist. Red Forfeit Match,
+Back-first confirmation, root focus handling and explicit Forfeit loss history
+are integrated through `9d1d433`, with source/native checks and live acceptance
+still pending. Do not redesign those from scratch.
+
+Remaining design work, to assign in separate scopes:
+
+- Inspect the rebuilt Forfeit menu in the actual game: red styling, text fit,
+  safe default Back, mouse/keyboard focus, physical DS4 navigation and readable
+  saved-loss labels. Main/tester owns game input; designer reviews evidence.
+- Improve training input feedback for a USB DualShock 4. Current display uses
+  logical actions and placeholder D-pad/right stick. Compare an authorized
+  community trial before deciding reuse versus custom rendering; do not claim
+  plugin 707 redistribution rights or physical accuracy yet.
+- Make lesson instructions and genuine recorded demonstrations understandable;
+  do not present placeholders or synthetic movements as expert demonstrations.
+- Validate compact Garage, Workshop and Community availability/error states
+  against working capabilities, with consistent focus and Back behavior.
+- Update the existing Vercel site's Setup instructions and screenshots only
+  after exact player-release acceptance. Keep its current repair notice honest.
+
+Each design delivery includes changed files/assets, exact labels, focus/default
+states, visual evidence or explicit visual-test limits, and remaining backlog.
+
 **Product status:** The owner reports that the downloaded Windows preview is
 currently unusable on their PC. The initial test has already happened: Career
 fixtures and Start Practice failed, the menu repeatedly reopened over Rocket
