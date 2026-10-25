@@ -9,9 +9,10 @@ import pytest
 from PySide6.QtCore import QProcess
 
 from my_career_training import bridge, career
-from test_bridge import FakeProcess
+from test_bridge import FakeProcess, backend as backend_fixture, qt_app as qt_app_fixture
 
-pytest_plugins = ["test_bridge"]
+backend = backend_fixture
+qt_app = qt_app_fixture
 
 
 def running(instance, scores=(0, 0)):
