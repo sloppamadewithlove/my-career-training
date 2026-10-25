@@ -121,8 +121,8 @@ The older `packaging/my-career-training.spec`, `installer.iss` and
 the native candidate. The registered `.github/workflows/windows.yml` workflow
 is the entrypoint wrapper for the reusable
 `.github/workflows/native-candidate.yml` workflow. Only tested Actions
-artifacts and evidence are retained. The stable/finished release hold remains,
-and no GitHub Release publishing is authorized.
+artifacts and evidence are retained. These workflows do not publish a GitHub
+Release. Publication remains gated on exact-build live acceptance.
 
 ## Dependency licensing
 
