@@ -5,7 +5,34 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
-Latest live source candidate: `5fbe0c6`, incorporating the exact results Options
+Current coherent source candidate: `ff3ee52`. Its full source suite passed
+1,057 tests with 15 skipped, and its native build passed 42 checks. The actual
+home menu visibly says **Quit My Career**. Native Play, pause, Game options/Back,
+Resume and cancellation of unfinished Return were exercised in a copied career.
+Confirmed unfinished Return reached a visible authored hub with fresh frontend
+READY and actual `RootMenuMovie` in the same process. The fixture remained
+scheduled with no result and no pending session. Clicking the actual home
+**Quit My Career** button closed the game and service normally. Original career,
+checked game/BakkesMod configuration, plugin and installed game/package hashes
+matched the baseline after cleanup; ordinary game-save changes were preserved.
+
+Both exact `ff3ee52` CI runs passed. Independent Luna/max verification checked
+all 4,470 bundle files and nine source archives against the same-run receipts.
+The Setup is 178,272,563 bytes. This establishes artifact integrity, not frozen
+gameplay acceptance; the package has not been published or executed locally.
+
+The normal source fixture was deliberately left unfinished through its native
+confirmation after repeated goal/replay delays. Its transient score was not
+saved or awarded. A private, explicitly labelled one-goal development harness
+now has ten focused checks and has launched a separate copied-career source
+app. Its actual shortened fixture, save and results flow remain unverified.
+Automated input is paused pending clarification of unexpected menu navigation.
+Normal timed frozen acceptance remains required, and physical DS4 testing stays
+deferred at the owner's request.
+
+### Earlier results evidence and current implementation
+
+Earlier live source candidate: `5fbe0c6`, incorporating the exact results Options
 stack correction in `351afcd`. Its coherent build passed 41 native checks.
 A real 0–21 result saved once; the corrected Options submenu retained the ended
 match beyond 60 seconds. A later read-only recording shows results Return
@@ -31,8 +58,9 @@ are now integrated under
 suite passed 1,057 tests with 15 skipped and Ruff; 109 asset checks passed with
 one skipped. Focused native checks and SDK compilation passed separately. An
 independent synthetic Backend/FileBridge fixture passed the native Return/root/
-one-shot-start contract. Coherent candidate compilation and actual new-menu
-gameplay remain required; none of this is live acceptance of the new controls.
+one-shot-start contract. Coherent candidate compilation is now complete at
+`ff3ee52`; actual new-menu gameplay remains required. None of these source and
+artifact checks is live acceptance of the five new results controls.
 Physical DS4 testing remains deferred at the owner's request.
 
 ## Download and source
