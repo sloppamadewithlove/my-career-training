@@ -74,6 +74,8 @@ class Backend(QObject):
         self.session_message = ""
         self.stop_reason = None
         self.pending_launch = None
+        self.native_return_ready = None
+        self._native_return_request = None
         self.close_deadline = None
         self.start_deadline = None
         self.stopping_worker = False
@@ -137,6 +139,7 @@ class Backend(QObject):
                 "id": self.session_id,
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
+            "native_return_ready": copy.deepcopy(self.native_return_ready),
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
@@ -341,15 +344,20 @@ class Backend(QObject):
             pending = self.document["career"] and self.document["career"]["pending_session"]
             if pending and not p.get("abandon"):
                 raise ValueError("This match is unfinished. Confirm leaving it; it will restart from kickoff.")
+            self._native_return_request = ({"session_id": self.session_id,
+                "fixture_id": (self.request or {}).get("fixture", {}).get("id", "")}
+                if self.in_game and self.session_id else None)
             self.page = "hub"
             if self._worker_active():
                 self._begin_stop("abandon" if pending else "return_hub")
-            elif pending:
+            else:
                 self._drain_activity_results()
-                if self.document["career"]["pending_session"]:
+                if self.document["career"] and self.document["career"]["pending_session"]:
                     self._career_change(domain.abandon_fixture)
+                self._finish_native_return()
                 self.request = None
                 self.session_id = None
+                self.telemetry = {}
                 self.session_state = "Idle"
                 self.session_message = "Career hub ready. Progress saved."
         elif action == "quit_game":
@@ -678,6 +686,8 @@ class Backend(QObject):
             self._launch(request)
 
     def _launch(self, request):
+        self.native_return_ready = None
+        self._native_return_request = None
         self.lifecycle.state = "Idle"
         self.lifecycle.last_error = ""
         if self.in_game:
@@ -899,6 +909,16 @@ class Backend(QObject):
                 raise ValueError("The final score still needs recovery. Retry saving before leaving this activity.")
         self._save_current()
 
+    def _finish_native_return(self):
+        """Authorize game navigation only after the stopped activity is saved."""
+        expected = {"session_id": self.session_id,
+                    "fixture_id": (self.request or {}).get("fixture", {}).get("id", "")}
+        if (self.in_game and self.session_id and not self.pending_launch
+                and self._native_return_request == expected):
+            self.native_return_ready = dict(expected)
+            self.error = ""
+        self._native_return_request = None
+
     def _tick(self):
         self._poll_community()
         before = (self.lifecycle.state, self.lifecycle.message)
@@ -932,6 +952,7 @@ class Backend(QObject):
                 self.session_state = "Idle"
                 self.telemetry = {}
                 self.session_message = "Career hub ready. Progress saved."
+                self._finish_native_return()
                 self.request = None
                 self.session_id = None
                 self.stopping_worker = False
@@ -953,6 +974,8 @@ class Backend(QObject):
                     return
                 self.stop_reason = None
                 self.owned_game = None
+                self.native_return_ready = None
+                self._native_return_request = None
                 self.request = None
                 self.session_id = None
                 self.stopping_worker = False

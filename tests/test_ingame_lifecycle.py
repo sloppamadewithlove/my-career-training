@@ -245,6 +245,7 @@ def test_native_return_drains_final_score_and_clears_old_activity(in_game_backen
     sid = instance.session_id
     fid = instance.request["fixture"]["id"]
     instance.dispatch("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": True})
+    assert instance.state["native_return_ready"] is None
     result = {"type": "result", "session_id": sid, "fixture_id": fid,
               "home_score": 3, "away_score": 1, "provenance": "game"}
     receipt = game_worker.persist_result(instance.store.directory, result)
@@ -258,6 +259,7 @@ def test_native_return_drains_final_score_and_clears_old_activity(in_game_backen
     assert instance.request is None and instance.session_id is None
     assert instance.state["session"]["kind"] == "hub"
     assert instance.owned_game == identity
+    assert instance.state["native_return_ready"] == {"session_id": sid, "fixture_id": fid}
     assert instance.document["career"]["pending_session"] is None
     completed = next(f for f in career._all_fixtures(instance.document["career"]) if f["id"] == fid)
     assert completed["status"] == "completed" and completed["result"]["home_score"] == 3
@@ -287,6 +289,7 @@ def test_native_return_preserves_uncommitted_result_receipt(in_game_backend, mon
     assert instance.request["fixture"]["id"] == fid
     assert instance.document["career"]["pending_session"]["session_id"] == sid
     assert receipt.exists()
+    assert instance.state["native_return_ready"] is None
     for action, payload in (("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": True}),
                             ("abandon_fixture", {"expected_session_id": sid, "expected_fixture_id": fid,
                                                  "expected_career_id": instance.document["career"]["id"]})):
@@ -370,6 +373,14 @@ def test_worker_exit_receipt_recovery_unlocks_current_results(in_game_backend):
     assert instance.session_state == "Career Ready"
     assert instance.latest_result["session_id"] == sid
     assert instance.document["career"]["pending_session"] is None
+    assert instance.state["native_return_ready"] is None
+    instance.dispatch("return_hub", {"expected_session_id": sid, "expected_fixture_id": fid, "abandon": False})
+    assert not instance.error
+    assert instance.session_state == "Idle" and instance.session_id is None
+    assert instance.state["native_return_ready"] == {"session_id": sid, "fixture_id": fid}
+    instance.dispatch("play_match", {})
+    assert not instance.error
+    assert instance.state["native_return_ready"] is None
 
 
 @pytest.mark.parametrize("phase", ["Waiting for Worker", "Waiting for Game Exit"])
