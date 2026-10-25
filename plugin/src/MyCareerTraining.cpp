@@ -132,12 +132,14 @@ void MyCareerTraining::onLoad() {
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
             closeNativeMenu();
             menuOpen_ = !menuOpen_.load();
             if (menuOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Toggle the offline My Career interface", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_training", [this](std::vector<std::string>) {
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
             closeNativeMenu();
             page_ = 4; menuOpen_ = true;
@@ -199,6 +201,7 @@ bool MyCareerTraining::ownedOfflineNow() const {
 }
 
 void MyCareerTraining::acquireMenuBind() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
     if (bindAttempted_ || !ownedOfflineNow()) return;
     bindAttempted_ = true;
     for (const char* key : {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}) {
@@ -219,6 +222,7 @@ void MyCareerTraining::releaseMenuBind() {
 }
 
 void MyCareerTraining::pollMenuShortcut() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
     if (!toggleVirtualKey_) return; // Existing user mct_menu bindings use the notifier.
     const auto binding = cvarManager->getBindStringForKey(toggleKey_);
     if (!binding.empty()) { releaseMenuBind(); return; }
@@ -769,10 +773,11 @@ void MyCareerTraining::tick() {
             }
             enforceCareer(state, next);
             const auto change = menuLifecycle_.observe({true, next.inGame,
-                nativePause, next.matchEnded, nonce, phase});
+                nativePause, next.matchEnded, nonce, phase, MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0});
             // Observe the pause edge even while resuming, so a slow native
             // close cannot repeatedly reclaim input after the player resumes.
-            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active() && !nativeDialogActive_)
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) menuOpen_ = false;
+            else if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active() && !nativeDialogActive_)
                 menuOpen_ = true;
             else if (change == mct::MenuChange::Hide) menuOpen_ = false;
             auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
@@ -788,7 +793,8 @@ void MyCareerTraining::tick() {
             next.probeMessage = probeMessage_;
             // One request per transition; OnClose stays closed until a new
             // transition or explicit menu key. The same host renders the HUD.
-            if (change != mct::MenuChange::None && !windowOpen_)
+            if (change != mct::MenuChange::None && !windowOpen_ &&
+                (!MCT_ENABLE_NATIVE_MOVIE_TRIAL || (next.inGame && !nativePause && !next.matchEnded)))
                 cvarManager->executeCommand("openmenu mycareertraining", false);
             if (mct::unixTime() - lastStatus_ >= 0.5) {
                 Json status = {{"version", "0.3.0"}, {"sdk_api", 95}, {"online", next.online},
@@ -798,7 +804,9 @@ void MyCareerTraining::tick() {
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"cosmetic_restoration_pending", cosmeticOverride_.restorationPending()},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
-                    {"menu_mode", nativeMovieReady_ ? "authored native movie development trial" : "full-screen custom PluginWindow with input capture"},
+                    {"menu_mode", MCT_ENABLE_NATIVE_MOVIE_TRIAL ?
+                        (nativeMovieReady_ ? "authored native movie development trial" : "authored native movie awaiting handshake") :
+                        "full-screen custom PluginWindow with input capture"},
                     {"in_replay", next.replay},
                     {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
@@ -1139,29 +1147,34 @@ void MyCareerTraining::updateNavigationFlags(bool active) {
     ImGui::SetCurrentContext(previous);
 }
 bool MyCareerTraining::ShouldBlockInput() {
-    return !nativeMovieReady_ && mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
+    return !nativeMovieReady_ && mct::MenuLifecycle::blocksInput(
+        offlineReady_, menuOpen_, windowOpen_, MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0);
 }
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
-void MyCareerTraining::OnOpen() { windowOpen_ = true; }
+void MyCareerTraining::OnOpen() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) menuOpen_ = false;
+    windowOpen_ = true;
+}
 void MyCareerTraining::OnClose() {
     windowOpen_ = false; menuOpen_ = false;
     updateNavigationFlags(false);
 }
 
 void MyCareerTraining::Render() {
-    updateNavigationFlags(hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
+    updateNavigationFlags(!MCT_ENABLE_NATIVE_MOVIE_TRIAL && hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
         bridge_ && bridge_->fresh() && !nativeDialogActive_ && !nativeMovieReady_);
-    // The replacement only takes over after its own validated ready message.
-    // Gameplay clears readiness, so the existing training HUD remains usable.
+    // Native candidates own all menu surfaces even before a ready message.
+    // Their existing gameplay HUD remains nonblocking between those surfaces.
     if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_ || nativeMovieReady_) return;
     std::lock_guard<std::recursive_mutex> preferenceGuard(preferencesMutex_);
     try {
         const auto state = bridge_->state();
         const auto runtime = runtimeSnapshot();
         if (runtime.online) return;
+        if (MCT_ENABLE_NATIVE_MOVIE_TRIAL && (!runtime.inGame || runtime.paused || runtime.matchEnded)) return;
         if (runtime.probeActive && !menuOpen_) return;
         beginStyle();
-        if (menuOpen_) renderMenu(state, runtime);
+        if (!MCT_ENABLE_NATIVE_MOVIE_TRIAL && menuOpen_) renderMenu(state, runtime);
         else renderTrainingHud(state, runtime);
         endStyle();
     } catch (const std::exception& error) {

@@ -79,7 +79,7 @@ private:
     void communityExecute(const std::string& command);
 #endif
     std::atomic<bool> nativeMovieReady_{false};
-    std::atomic<bool> menuOpen_{true};
+    std::atomic<bool> menuOpen_{!MCT_ENABLE_NATIVE_MOVIE_TRIAL};
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};

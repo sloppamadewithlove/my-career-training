@@ -16,6 +16,18 @@ that a controller worked.
 `stop` do not hash, hook, publish, or call the SDK. `movieReady` stays false
 and `status().reason` is `trial_compiled_out`.
 
+In the native candidate (`MCT_ENABLE_NATIVE_MOVIE_TRIAL=1`), the authored
+menus own navigation even while their handshake is absent or being renewed.
+The legacy fullscreen PluginWindow does not open, draw, bind its shortcut,
+or capture input at the title screen, frontend, pause screen or results.
+Its nonblocking training HUD remains available during gameplay. The ordinary
+overlay build retains its existing menu behavior.
+
+This ownership rule matters when returning from a match: `!IsInGame()` can
+describe the title screen before the authored root has loaded. A published
+frontend view without a fresh movie handshake does not establish arrival at
+the career menu, and must not enable the legacy fullscreen fallback.
+
 When the macro is 1, a host still does nothing until every live check passes:
 
 - `MCT_NATIVE_MOVIE_SESSION` is a canonical lowercase UUID.

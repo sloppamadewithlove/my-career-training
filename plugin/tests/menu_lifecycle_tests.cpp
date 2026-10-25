@@ -46,6 +46,38 @@ int main() {
         require(!MenuLifecycle::blocksInput(false, true, true), "Unsafe session captured input");
         require(!MenuLifecycle::blocksInput(true, false, true), "HUD captured gameplay input");
         require(MenuLifecycle::blocksInput(true, true, true), "Visible owned menu did not capture input");
+        MenuLifecycle nativePolicy;
+        MenuContext native{true, false, false, false, "native-session", "Idle", true};
+        require(nativePolicy.observe(native) == MenuChange::Hide, "Native title screen opened legacy menu");
+        require(nativePolicy.observe(native) == MenuChange::None, "Waiting for native hello reopened host");
+        native.phase = "StartingCareer";
+        require(nativePolicy.observe(native) == MenuChange::None, "Native loading opened legacy menu");
+        native.inGame = true;
+        require(nativePolicy.observe(native) == MenuChange::Hide, "Gameplay did not expose nonblocking HUD host");
+        native.phase = "Playing";
+        require(nativePolicy.observe(native) == MenuChange::Hide, "Native playing captured menu input");
+        native.paused = true;
+        require(nativePolicy.observe(native) == MenuChange::None, "Native pause opened legacy menu before hello");
+        native.paused = false;
+        nativePolicy.observe(native);
+        native.matchEnded = true;
+        require(nativePolicy.observe(native) == MenuChange::None, "Native results opened legacy menu before hello");
+        native.phase = "Idle";
+        native.inGame = false;
+        require(nativePolicy.observe(native) == MenuChange::Hide, "Return to title reclaimed legacy menu input");
+        for (int tick = 0; tick < 120; ++tick)
+            require(nativePolicy.observe(native) == MenuChange::None, "Absent native hello reopened legacy menu");
+        native.phase = "Error/Recovery";
+        require(nativePolicy.observe(native) == MenuChange::None, "Native error enabled legacy fallback");
+        native.ready = false;
+        require(nativePolicy.observe(native) == MenuChange::Hide, "Native stale scope did not release menu");
+        native.ready = true;
+        require(nativePolicy.observe(native) == MenuChange::None, "Native reconnect opened legacy menu");
+        for (bool ready : {false, true})
+            for (bool visible : {false, true})
+                for (bool hostOpen : {false, true})
+                    require(!MenuLifecycle::blocksInput(ready, visible, hostOpen, true),
+                        "Native candidate captured input through legacy host");
         std::cout << "Menu transitions, dismissal, reconnect and input capture passed.\n";
         return 0;
     } catch (const std::exception& error) {

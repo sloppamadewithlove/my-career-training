@@ -816,7 +816,10 @@ void MyCareerTraining::renderTrainingHud(const Json& state, const MctRuntime& ru
         ImGui::SetCursorScreenPos(ImVec2(start.x + 280 * scale, start.y));
         drawController(objectValue(ghost, "coach_actions"), ImVec2(start.x + 280 * scale, start.y), scale, "RECORDED GHOST", bindings);
     }
-    ImGui::TextColored(ice, "%s  GHOST / WATCH / RETRY / SETTINGS", runtime.toggleKey.c_str());
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL)
+        ImGui::TextColored(ice, "Esc / Start: pause menu");
+    else
+        ImGui::TextColored(ice, "%s  GHOST / WATCH / RETRY / SETTINGS", runtime.toggleKey.c_str());
     if (!boolValue(ghost, "available")) detail("Coach demo unavailable - record a successful attempt.");
     ImGui::End();
 }
