@@ -949,7 +949,17 @@ class Backend(QObject):
         if note:
             state.setdefault("recovery_notes", []).append({"fixture_id": event["fixture_id"], "note": str(note)[:1000]})
         self._commit(state)
-        self.latest_result = dict(fixture["result"], home=fixture["home"], away=fixture["away"])
+        returning = self._native_return_request or self.native_return_ready
+        presented = self.latest_result or {}
+        keep_return_proof = (returning
+            and presented.get("session_id") == returning["session_id"]
+            and presented.get("fixture_id") == returning["fixture_id"]
+            and (event["session_id"], event["fixture_id"]) !=
+                (returning["session_id"], returning["fixture_id"]))
+        # An older valid duplicate may be acknowledged, but cannot hide the
+        # current activity's durable result while its native Return is pending.
+        if not keep_return_proof:
+            self.latest_result = dict(fixture["result"], home=fixture["home"], away=fixture["away"])
         self._ack_outbox(event["session_id"])
 
     def _ack_outbox(self, session_id):

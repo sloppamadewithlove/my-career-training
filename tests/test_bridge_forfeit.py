@@ -200,6 +200,39 @@ def test_late_exact_receipt_is_acknowledged_without_replacing_forfeit_or_blockin
     assert instance.native_return_ready is not None
 
 
+@pytest.mark.parametrize("after_cleanup", [False, True])
+def test_old_completed_receipt_cannot_hide_current_forfeit_navigation_proof(backend, after_cleanup):
+    instance, _, _ = backend
+    previous = running(instance)
+    previous_result = natural(previous)
+    instance._event(previous_result)
+    current_session = str(uuid.uuid4())
+    state = copy.deepcopy(instance.document)
+    state["career"] = career.start_fixture(state["career"], current_session)
+    instance._commit(state)
+    fixture = career.next_fixture(state["career"])
+    instance.session_id = current_session
+    instance.request = {"session_id": current_session, "fixture": fixture}
+    instance.session_state = "Playing"
+    instance._event({"type": "telemetry", "session_id": current_session,
+                     "scores": [3, 0], "phase": "MatchPhase.Active"})
+    instance.dispatch("forfeit_match", {"expected_session_id": current_session,
+        "expected_fixture_id": fixture["id"], "confirm": True, "return_intent": "c" * 32})
+    assert not instance.error
+    if after_cleanup:
+        instance._event({"type": "stopped", "session_id": current_session})
+        instance.process.current_state = QProcess.NotRunning
+        instance._tick()
+        assert instance.native_return_ready is not None
+    saved = instance.store.load()
+    old_receipt = receipt(instance, previous_result)
+    instance._recover_outbox()
+    assert not old_receipt.exists()
+    assert instance.store.load() == saved
+    assert instance.latest_result["session_id"] == current_session
+    assert instance.latest_result["outcome"] == "forfeited"
+
+
 def test_forfeit_restart_consumes_only_exact_late_receipt(backend):
     instance, _, _ = backend
     payload = running(instance)
