@@ -883,7 +883,8 @@ class Backend(QObject):
                     "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
                     "scores": list(scores), "ended": "Ended" in str(event.get("phase", ""))}
             self.start_deadline = None
-            if self.session_state != "Career Ready" and (not self.latest_result or self.latest_result.get("session_id") != self.session_id):
+            if (not self.stop_reason and self.session_state != "Career Ready"
+                    and (not self.latest_result or self.latest_result.get("session_id") != self.session_id)):
                 self.session_state = "training" if self.request.get("lesson_id") else "Playing"
         elif kind == "result":
             if self.request.get("calibration"):

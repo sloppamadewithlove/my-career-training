@@ -77,6 +77,24 @@ def test_forfeit_duplicate_does_not_advance_or_stop_twice(backend):
     assert instance.store.load() == saved and len(instance.process.writes) == 1
 
 
+def test_ordinary_unfinished_return_survives_late_telemetry_after_stop_ack(backend):
+    instance, _, _ = backend
+    payload = running(instance, (3, 1))
+    instance.dispatch("return_hub", {"expected_session_id": payload["expected_session_id"],
+        "expected_fixture_id": payload["expected_fixture_id"], "abandon": True})
+    instance._event({"type": "stopped", "session_id": instance.session_id})
+    assert instance.session_state == "Waiting for Worker"
+    instance._event({"type": "telemetry", "session_id": instance.session_id,
+                     "scores": [3, 1], "phase": "MatchPhase.Active"})
+    assert instance.session_state == "Waiting for Worker"
+    instance.process.current_state = QProcess.NotRunning
+    instance._tick()
+    assert instance.session_state == "Idle" and instance.native_return_ready is not None
+    fixture = career.next_fixture(instance.store.load()["career"])
+    assert fixture["id"] == payload["expected_fixture_id"]
+    assert fixture["result"] is None and fixture["status"] == "scheduled"
+
+
 @pytest.mark.parametrize("change", ["fixture", "session", "lesson", "calibration", "workshop", "score", "ended"])
 def test_forfeit_rejection_keeps_pending_and_reports_exact_intent(backend, change):
     instance, _, _ = backend
