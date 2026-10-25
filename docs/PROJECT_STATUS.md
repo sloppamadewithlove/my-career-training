@@ -60,10 +60,20 @@ Repair commits and CI artifacts are not published player releases.
   These passes do not resolve the live worker hang or certify match navigation.
 
 The repaired source worker subsequently passed bot loading in the actual app,
-but that run never passed the start screen while Windows was locked. No
-game-to-core connection was observed and it timed out. Test again after reaching
-the main menu; the existing-game launch order is not yet a confirmed cause.
-Do not infer complete gameplay from the model-startup repair.
+but no game-to-core connection was observed and it timed out. A controlled
+comparison then isolated another launcher problem: the native helper wraps all
+four fixed options in quotes. With the same installed game, Steam identity,
+official options, no injector and a ready core, the ordinary unquoted options
+connected after 31 seconds; quoting every option produced no connection for
+90 seconds. Both tests ran with Windows locked. This establishes the effect of
+the overall raw formatting, not which individual option the game misreads.
+
+The same unquoted control connected within half a second when its core started
+45 seconds after the game, and reconnected within half a second after the owned
+core restarted. Core-first startup and a persistent core are therefore not
+required by this evidence. The native formatting repair must still pass a real
+My Career session; neither these controls nor model startup certify the mod's
+complete gameplay.
 
 ## Current integration
 

@@ -102,6 +102,6 @@ jobs:
           # Only this clean, smoke-inventoried build folder is included. Some
           # runtime libraries use dot-prefixed files which must be retained.
           include-hidden-files: true
-          compression-level: 0
+          compression-level: 6
           if-no-files-found: error
           retention-days: 14
