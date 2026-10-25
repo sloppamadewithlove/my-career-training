@@ -41,7 +41,43 @@ test: missing READY could resume an old execute grant after the movie discarded
 it, and a lost issued log could permit a second exit. The host now revokes a
 withdrawn consumption grant and separately latches successful execute publication.
 Once delivery is uncertain, it retains Return without issuing another exit.
-The final focused tests passed; these fixes still need the combined live check.
+The final focused tests passed. Source `374c85d` then passed actual native Play,
+Escape, keyboard Options/Back/Resume, unfinished Return confirmation cancellation,
+and confirmed unfinished Return to a visible authored hub with fresh READY and
+`RootMenuMovie`. A practice lesson started afterward in the same game process;
+native Retry was accepted. The source tree passed 970 Python tests (15 skipped),
+and its coherent native build passed 27 plugin and 13 launcher/file-view tests.
+Its [installer pipeline](https://github.com/sloppamadewithlove/my-career-training/actions/runs/40214761643)
+also passed, but that superseded artifact has not been downloaded or published.
+
+A bounded delayed-cleanup test exposed a separate failure: Resume unloaded the
+pause movie, and one SDK `OnOpenPauseMenu` call did not reopen it. Intent remained
+pending. Ordinary Escape reopened pause and completed the typed Return to a
+fresh native hub. The integrated follow-up removes that ineffective call and
+retains the committed Leaving screen with bounded recovery controls. It also
+deactivates the stock Party/Friends taskbar in pause/results, fixes confirmation
+focus, and keeps recovery usable after an uncertain exit. Independent source
+review, exact authored-binary rebuilds, 109 focused asset checks (one skipped),
+and four focused native suites passed. This follow-up still needs a coherent
+build and live source/frozen acceptance.
+
+Another real fixture on `374c85d`, started through native Play after practice,
+saved its actual 0–32 score once, cleared its pending fixture, and acknowledged
+the durable receipt. This mostly unattended score is not a skill assessment.
+The later visual inspection found `TeamSelectMenuMovie`, not the authored
+results screen. The intervening transition was not recorded; saved-results
+Return therefore remains unverified. The next test must observe the complete
+end-of-match screen transition. Normal game closure restored the temporary
+plugin/configuration files and preserved the original My Career files; ordinary
+Rocket League save data changed and was not overwritten with the snapshot.
+
+The current training input display uses logical game actions and configured
+button labels; its right stick and D-pad are placeholders. A USB DualShock 4
+player test reported insufficient visible button feedback. Community controller
+display reuse is being investigated separately. Official plugin 707's current
+archive has been inventoried, but physical-controller behavior, matching source
+and redistribution permission are not established. No new community DLL has
+been loaded or bundled.
 
 ## Verified observations
 

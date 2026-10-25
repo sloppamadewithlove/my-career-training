@@ -106,7 +106,7 @@ The required exchange is:
 The repair must revoke a consumed grant when its movie unloads while preserving
 the accepted Return intent. Scope or activity replacement revokes the intent.
 Transient stale reads cannot authorize effects. See `INTEGRATION_CONTRACT.md`
-for the cleanup and bounded pause-reopen requirements, and
+for bounded committed-Return retention and external-unload recovery, and
 `NATIVE_ACCEPTANCE_SESSION.md` for the separate source/frozen game checks.
 
 ## Build evidence and distribution boundary

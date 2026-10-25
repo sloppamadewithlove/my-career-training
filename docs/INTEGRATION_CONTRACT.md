@@ -152,8 +152,22 @@ offline scope revokes the intent. New native activities remain blocked while
 Return is pending. Completion requires a new authored frontend READY after the
 surface transition and the fresh SDK menu stack reporting `RootMenuMovie` in
 the same owned offline game. Idle, a title screen, and stale readiness are not
-completion. One bounded `OnOpenPauseMenu` call may be tested after cleanup if
-the player resumed; its void return is not proof that a pause movie opened.
+completion. A bounded live test of `OnOpenPauseMenu` did not open the pause
+movie; the host no longer calls it. An externally unloaded pause retains intent
+and reports that the player must reopen pause with Escape or Start.
+
+The view binds `return_pending` and `return_hold` into its generation. Each
+control has a `return_commit` boolean, true only for actual Return dispatch,
+not for opening an unfinished-match confirmation. The movie covers the initial
+click-to-host gap for at most two seconds. A fresh accepted hold then retains
+the menu, disables Resume/Options, and consumes closing input while displaying
+Leaving. Cancel remains available before commitment. The host hold ends after
+15 monotonic seconds without resetting on heartbeat or reauthorization; errors,
+stale views and uncertain execution also release controls. Release does not
+discard the intent or permit a second exit. Existing safe Quit and save-retry
+dispatch remain available when their service gates permit them. Quit must not
+receive automatic focus from the preceding confirmation. The permanent
+navigation-issued latch guards the exit call, not all recovery controls.
 
 These are the repair's acceptance requirements. Exact source, compiled movies,
 and live-game evidence must be recorded separately before release.

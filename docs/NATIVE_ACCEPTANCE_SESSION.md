@@ -63,10 +63,14 @@ Keep the previous installer on hold even if its CI pipeline passed.
    arrival separately. Require a fresh frontend READY, `RootMenuMovie`, and a
    foreground screenshot of the authored hub. A screenshot requires a fresh
    identity and foreground check; a blocked input is not a successful test.
-4. Exercise Resume while cleanup is delayed. Confirm intent survives the pause
-   movie unloading. If `OnOpenPauseMenu` is attempted, record its single attempt
-   and whether an actual pause movie plus READY appeared. Do not infer success
-   from that SDK method's name or void return.
+4. Exercise Resume, Escape/Start and Options while cleanup is delayed. The
+   committed Leaving state must retain the menu until cleanup completes. Check
+   rejection/staleness and the 15-second hold cap restore usable recovery
+   controls without forgetting intent or permitting another exit. An external
+   movie unload must retain intent and permit ordinary pause reopening. The
+   earlier bounded `OnOpenPauseMenu` live test did not open a movie; that SDK
+   call has been removed. Confirm destructive confirmation defaults to Back
+   and pending Quit cannot receive an accidental carried Enter/A press.
 5. Complete a real career fixture. Verify its actual score saves exactly once,
    its pending fixture clears, and its durable receipt is acknowledged. Use the
    actual results Return button and repeat the hub arrival checks.
