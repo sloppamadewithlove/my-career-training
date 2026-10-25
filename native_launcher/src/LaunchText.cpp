@@ -307,9 +307,14 @@ bool MctBuildOfflineCommandLine(const std::wstring& exePath, std::wstring* comma
         return false;
     }
     for (const wchar_t* argument : kMctOfflineArguments) {
-        if (!AppendQuoted(command, argument, error)) {
-            return false;
+        const std::wstring fixed(argument);
+        if (fixed.empty() || fixed.find_first_of(L" \t\r\n\v\f\"") != std::wstring::npos) {
+            return Fail(error, L"the launch command was rejected");
         }
+        // Match the official RLBot launch formatting. Only the executable is
+        // quoted; quoting every fixed option prevented the controller connection.
+        command->push_back(L' ');
+        command->append(fixed);
     }
     return true;
 }

@@ -4,44 +4,11 @@
 
 #include <cmath>
 #include <cstring>
-#include <vector>
 
 namespace {
 
 bool Fail(std::wstring* error, const wchar_t* message) {
     *error = message;
-    return false;
-}
-
-bool SplitCommand(const std::wstring& command, std::vector<std::wstring>* args) {
-    args->clear();
-    std::size_t index = 0;
-    while (index < command.size()) {
-        if (command[index] != L'"') {
-            return false;
-        }
-        ++index;
-        std::wstring argument;
-        while (index < command.size() && command[index] != L'"') {
-            argument.push_back(command[index]);
-            ++index;
-        }
-        if (index >= command.size() || command[index] != L'"') {
-            return false;
-        }
-        ++index;
-        args->push_back(argument);
-        if (index == command.size()) {
-            return true;
-        }
-        if (command[index] != L' ') {
-            return false;
-        }
-        ++index;
-        if (index >= command.size()) {
-            return false;
-        }
-    }
     return false;
 }
 
@@ -84,17 +51,10 @@ bool MctCreatePreconditionsHold(const MctResolvedLaunch& resolved, std::wstring*
         return Fail(error, L"the launch command was rejected");
     }
     std::wstring expectedCommand;
+    // Compare the exact canonical bytes, including executable quoting and the
+    // four fixed options. Do not accept alternate quoting or caller arguments.
     if (!MctBuildOfflineCommandLine(resolved.exePath, &expectedCommand, error) || resolved.commandLine != expectedCommand) {
         return Fail(error, L"the launch command was rejected");
-    }
-    std::vector<std::wstring> args;
-    if (!SplitCommand(resolved.commandLine, &args) || args.size() != kMctOfflineArgumentCount + 1 || args[0] != resolved.exePath) {
-        return Fail(error, L"the launch command was rejected");
-    }
-    for (std::size_t i = 0; i < kMctOfflineArgumentCount; ++i) {
-        if (args[i + 1] != kMctOfflineArguments[i]) {
-            return Fail(error, L"the launch command was rejected");
-        }
     }
     const std::wstring session(resolved.session.begin(), resolved.session.end());
     if (!MctIsCanonicalUuid(session) ||

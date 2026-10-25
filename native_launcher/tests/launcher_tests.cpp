@@ -429,10 +429,15 @@ int main(int argc, char** argv) {
     std::wstring command;
     Expect(MctBuildOfflineCommandLine(L"C:\\Games\\Binaries\\Win64\\RocketLeague.exe", &command, &error),
            "command line builds");
-    Expect(command == L"\"C:\\Games\\Binaries\\Win64\\RocketLeague.exe\" \"-rlbot\" "
-                      L"\"RLBot_ControllerURL=127.0.0.1:23233\" \"RLBot_PacketSendRate=240\" \"-nomovie\"",
+    Expect(command == L"\"C:\\Games\\Binaries\\Win64\\RocketLeague.exe\" -rlbot "
+                      L"RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie",
            "command line is the fixed offline vector");
     Expect(command.find(kSession) == std::wstring::npos, "command line does not carry the session");
+    Expect(MctBuildOfflineCommandLine(L"C:\\Games\\Rocket League \u03a9\\Binaries\\Win64\\RocketLeague.exe", &command, &error),
+           "spaced Unicode executable path builds");
+    Expect(command == L"\"C:\\Games\\Rocket League \u03a9\\Binaries\\Win64\\RocketLeague.exe\" -rlbot "
+                      L"RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie",
+           "executable remains quoted while the four fixed options stay raw");
     Expect(!MctBuildOfflineCommandLine(L"C:\\Games\\Rocket\"League.exe", &command, &error), "quoted exe path is rejected");
     Expect(kMctOfflineInheritHandles == FALSE, "child handles are not inherited");
     Expect((kMctOfflineCreationFlags & CREATE_SUSPENDED) != 0, "creation leaves the process suspended");
@@ -529,6 +534,19 @@ int main(int argc, char** argv) {
     mutated = resolved;
     mutated.commandLine += L" \"-noeac\"";
     Expect(!MctCreatePreconditionsHold(mutated, &error), "conflicting noeac mode is rejected at the create gate");
+    mutated = resolved;
+    mutated.commandLine += L" -eac";
+    Expect(!MctCreatePreconditionsHold(mutated, &error), "extra raw argument is rejected at the create gate");
+    mutated = resolved;
+    mutated.commandLine = L"\"" + resolved.exePath + L"\" \"-rlbot\" "
+                          L"\"RLBot_ControllerURL=127.0.0.1:23233\" \"RLBot_PacketSendRate=240\" \"-nomovie\"";
+    Expect(!MctCreatePreconditionsHold(mutated, &error), "obsolete all-quoted command is rejected at the create gate");
+    mutated = resolved;
+    mutated.commandLine += L"\n";
+    Expect(!MctCreatePreconditionsHold(mutated, &error), "command newline is rejected at the create gate");
+    mutated = resolved;
+    mutated.commandLine += L"\"";
+    Expect(!MctCreatePreconditionsHold(mutated, &error), "extra command quote is rejected at the create gate");
     mutated = resolved;
     mutated.inheritHandles = TRUE;
     Expect(!MctCreatePreconditionsHold(mutated, &error), "handle inheritance is rejected at the create gate");

@@ -73,6 +73,21 @@ There is no executable, DLL, PID, or argument field. The helper owns the game co
 -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie
 ```
 
+The raw Windows command line quotes the validated executable path and leaves
+these four fixed, whitespace-free options unquoted, matching the official
+Python launch format. No caller-supplied command text or extra argument is
+accepted. The helper rejects a compiled option containing whitespace or a quote.
+Immediately before creation, the helper compares the entire command line with
+the canonical builder output; alternate quoting, extra options, or added control
+characters are rejected. Existing executable-path and file-identity checks remain.
+
+A controlled core-first comparison with BakkesMod absent and the same locked
+desktop connected in 31.46 seconds with unquoted options; quoting every option
+did not connect within 90 seconds. That establishes an overall quoting failure
+for the tested launch. It does not identify which option Rocket League parsed
+differently or prove that a trailing quote entered the controller URL. Native
+app acceptance still requires both core-first and normal app startup checks.
+
 The owned RLBot mode rejects extra `-noeac` or `-eac` flags. It is distinct from manually launching BakkesMod without RLBot. The child environment remains the helper's responsibility: a copy of the parent environment with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the same session value.
 
 ## Stdout receipts
