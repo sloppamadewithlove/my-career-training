@@ -69,6 +69,9 @@ static void exactSequence(NativeReturnContext c, const Json& p, const Json& s) {
     replacement["session"]["fixture_id"] = "new-fixture";
     next.poll(c, replacement, false, true);
     require(stringValue(next.presentationState(s), "error").empty(), "New activity retained an old local failure");
+    c.fresh = false; c.nonce = "replacement-nonce";
+    next.poll(c, s, false, true);
+    require(!next.attempted() && next.takeStart(c, s, true).empty(), "Stale changed nonce retained a consumed continuation");
 }
 int main(int argc, char** argv) {
     try {
@@ -139,6 +142,10 @@ int main(int argc, char** argv) {
         c = context(); g = armed(); auto foreign = s;
         foreign["session"]["id"] = "other-activity"; foreign["session"]["fixture_id"] = "other-fixture";
         g.poll(c, foreign, true, false); require(!g.pending(), "Foreign active match retained continuation");
+        g = armed(); c = context(); g.poll(c, s, true, false);
+        c.fresh = false; c.nonce = "replacement-nonce";
+        g.poll(c, s, false, true);
+        require(!g.pending() && g.takeStart(c, s, true).empty(), "Stale changed nonce retained pending continuation");
         if (argc == 2) {
             std::ifstream input(argv[1]); Json fixture; input >> fixture;
             auto actual = context(); actual.nonce = stringValue(fixture["state"], "bridge_session");

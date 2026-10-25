@@ -663,8 +663,9 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 resultsHold.clear();
-                if (!sameText(why, "stale_bridge") ||
-                    (!returnGate.matchesNonce(sessionId) && !continuationGate.matchesNonce(sessionId))) {
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId) ||
+                    ((continuationGate.pending() || continuationGate.attempted()) &&
+                     !continuationGate.matchesNonce(sessionId))) {
                     returnGate.clear();
                     continuationGate.clear();
                 }
@@ -710,8 +711,9 @@ void NativeMovieHost::State::tick() {
             {
                 std::lock_guard<std::mutex> guard(mutex);
                 resultsHold.clear();
-                if (!sameText(why, "stale_bridge") ||
-                    (!returnGate.matchesNonce(sessionId) && !continuationGate.matchesNonce(sessionId))) {
+                if (!sameText(why, "stale_bridge") || !returnGate.matchesNonce(sessionId) ||
+                    ((continuationGate.pending() || continuationGate.attempted()) &&
+                     !continuationGate.matchesNonce(sessionId))) {
                     returnGate.clear();
                     continuationGate.clear();
                 }
