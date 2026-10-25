@@ -6,8 +6,11 @@
 dynamic movie wrapper and document subclass. Their two compiled ABC files and
 `compiled/match-manifest.json` are separate from the unchanged frontend artifact.
 The pause document keeps stock pause, resume, and input release behavior while
-hiding Friends and matchmaking controls. Results keeps the stock scoreboard
-and replaces menu actions. Resume and Options use typed stock callbacks only
+hiding Friends and matchmaking controls. Both match documents deactivate and
+hide the stock party/friends taskbar, including its global input handlers, using
+the same shell APIs as the frontend. The results Menu transition reapplies this
+guard synchronously; an attached frame listener covers later data callbacks.
+Results keeps the stock scoreboard and replaces menu actions. Resume and Options use typed stock callbacks only
 for the current validated front menu. Career commands use opaque host control
 ids. Return uses the fixed typed `Shell.ExitToMainMenu` only after the service's
 durable acknowledgement and a two-stage native authorization exchange. No raw

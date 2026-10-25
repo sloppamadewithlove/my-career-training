@@ -1,10 +1,16 @@
 package
 {
+    import flash.display.DisplayObject;
+    import flash.display.DisplayObjectContainer;
+    import flash.display.InteractiveObject;
     import flash.events.Event;
+    import scaleform.clik.core.UIComponent;
+    import tagame.core.ITAGameShell;
+    import tagame.core.TAGameShellInstance;
 
     // Document subclass. Pause, unpause, and input release stay on MidGameMenuScreen.
-    // Stock setup can show Friends or expand matchmaking; this screen hides both
-    // again for as long as it is attached, including after a later data callback.
+    // Stock setup reactivates the party taskbar and online shortcuts. Keep the
+    // same offline shell boundary as the authored frontend while attached.
     public class MctPauseMenuScreen extends MidGameMenuScreen
     {
         public function MctPauseMenuScreen()
@@ -27,9 +33,43 @@ package
 
         private function keepMatchChrome(event:Event = null) : void
         {
-            if (m_shell == null) return;
-            if (m_shell.matchmakingView != null && m_shell.matchmakingView.visible) m_shell.hideMatchmakingView();
-            if (m_shell.bIsFriendsViewShown) m_shell.hideFriendsView();
+            var shell:ITAGameShell = TAGameShellInstance.get();
+            if (shell == null) return;
+            if (shell.matchmakingView != null && shell.matchmakingView.visible) shell.hideMatchmakingView();
+            if (shell.bIsFriendsViewShown) shell.hideFriendsView();
+            if (shell.taskBar != null)
+            {
+                if (event == null || shell.getIsTaskBarVisible())
+                {
+                    // Hiding alone leaves PartyView and global input listeners
+                    // active. Use the stock teardown before disabling its tree.
+                    shell.taskBar.setInactive();
+                    shell.hideTaskBar();
+                }
+                disable(shell.taskBar);
+            }
+        }
+
+        private function disable(control:DisplayObject) : void
+        {
+            if (control == null) return;
+            control.visible = false;
+            if (control is InteractiveObject)
+            {
+                InteractiveObject(control).mouseEnabled = false;
+                InteractiveObject(control).tabEnabled = false;
+            }
+            if (control is DisplayObjectContainer)
+            {
+                DisplayObjectContainer(control).mouseChildren = false;
+                DisplayObjectContainer(control).tabChildren = false;
+            }
+            if (control is UIComponent)
+            {
+                UIComponent(control).enabled = false;
+                UIComponent(control).focusable = false;
+                UIComponent(control).focusFunction = null;
+            }
         }
     }
 }
