@@ -5,7 +5,35 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
-Current coherent source candidate: `ff3ee52`. Its full source suite passed
+Current coherent source candidate: `e41ad45`. **Play Next Match now starts the
+next fixture from one results click, using the saved lineup, without a preview
+or another Start confirmation.** A controlled copied-career source test observed
+the exact save acknowledgement, typed navigation, fresh actual `RootMenuMovie`
+READY and one next-fixture start in the same game process. Two real first-to-one
+development fixtures each saved a human 0–1 result once, cleared their pending
+fixture and acknowledged the durable receipt. This is labelled development
+evidence, not normal timed or frozen gameplay acceptance.
+
+The same run verified selecting/equipping another existing local preset and
+restoring the original preset, mouse Back and keyboard Escape to results,
+actual results Exit to a visible native hub with fresh READY, and actual home
+Quit. Original career, checked game/BakkesMod configuration, plugin and installed
+game/package hashes matched the baseline after normal closure; ordinary game-save
+changes were preserved. The earlier `ff3ee52` run also retained Schedule beyond
+106 seconds and Settings beyond 175 seconds, with their actual Back routes
+returning to results. Physical DS4 checks remain deferred. No arbitrary cosmetic
+compatibility is claimed.
+
+The coherent e41 native build passed 42 checks. Independent Luna/max review
+passed the four focused direct-start/Return/protocol tests and verified both
+rebuilt menu artifacts. The requested Grok review did not complete within its
+bound; it is not an approval. Both exact e41 CI runs passed. Independent Luna/max
+verification checked all 4,470 bundle files and nine source archives against the
+same-run records. The Setup is 178,282,685 bytes, SHA-256
+`3d29d1d705827dfbf964b64acc09755534257f91cc44cfb85bac71a909940156`.
+Normal timed frozen acceptance is now the next gate. Nothing is published.
+
+Earlier `ff3ee52` evidence: its full source suite passed
 1,057 tests with 15 skipped, and its native build passed 42 checks. The actual
 home menu visibly says **Quit My Career**. Native Play, pause, Game options/Back,
 Resume and cancellation of unfinished Return were exercised in a copied career.
@@ -25,11 +53,8 @@ The normal source fixture was deliberately left unfinished through its native
 confirmation after repeated goal/replay delays. Its transient score was not
 saved or awarded. A private, explicitly labelled one-goal development harness
 now has ten focused checks and has launched a separate copied-career source
-app. The new results controls still require controlled live verification.
-The owner has since authorized resuming controlled input. The one-goal fixture
-ended and saved its real 0–1 result with the normal durable receipt acknowledgement.
-The owner then requested direct Play Next Match without the additional preview;
-that source revision and its new live check are in progress.
+app. The later e41 source checks above cover direct continuation and preset/Exit
+navigation. They do not replace the normal timed packaged-app test.
 Normal timed frozen acceptance remains required, and physical DS4 testing stays
 deferred at the owner's request.
 
@@ -42,7 +67,8 @@ match beyond 60 seconds. A later read-only recording shows results Return
 cleanup, typed navigation and fresh `RootMenuMovie` READY in the same process.
 The initiating input was not attributed and the arrival screenshot was refused
 because the game was not foreground; this is not complete visual acceptance.
-Direct Settings/Back and controlled saved-results Exit acceptance remain open.
+Direct Settings/Back and controlled saved-results Exit were subsequently checked
+on the source candidates described above.
 Restarting the copied career preserved the previous Forfeit and 1–19 results
 exactly once. The exact 5fbe CI inventory passed all 4,470 bundle files and nine
 source archives; frozen gameplay has not been run and nothing is published.
@@ -57,13 +83,14 @@ inside the finished game without a time limit. Continuation immediately uses the
 saved lineup, with no extra setup menu, and starts the next fixture only after durable
 cleanup and fresh native-root arrival. Source implementation and rebuilt movies
 are now integrated under
-[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). The source
-suite passed 1,057 tests with 15 skipped and Ruff; 109 asset checks passed with
-one skipped. Focused native checks and SDK compilation passed separately. An
+[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). The earlier
+ff3 source suite passed 1,057 tests with 15 skipped and Ruff. The menu-artifact
+revision `d8e8bf2` (integrated at e41) passed 109 asset checks with one skipped.
+Focused native checks and SDK compilation passed separately. An
 independent synthetic Backend/FileBridge fixture passed the native Return/root/
 one-shot-start contract. Coherent candidate compilation is now complete at
-`ff3ee52`; actual new-menu gameplay remains required. None of these source and
-artifact checks is live acceptance of the five new results controls.
+`e41ad45`; controlled source evidence is summarized above. These source and
+artifact checks do not establish frozen gameplay acceptance.
 Physical DS4 testing remains deferred at the owner's request.
 
 ## Download and source

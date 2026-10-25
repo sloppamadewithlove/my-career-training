@@ -1,8 +1,9 @@
 # Results menu and continuous career play
 
-Owner decisions, 25 October 2026. This is the next implementation contract;
-the controls below are not yet accepted in the game. Preserve the current
-Return acknowledgement and fresh native-root arrival requirements.
+Owner decisions, 25 October 2026. This is the implemented behavior contract;
+see PROJECT_STATUS.md for revision-specific source checks and remaining packaged
+gameplay acceptance. Preserve the current Return acknowledgement and fresh
+native-root arrival requirements.
 
 ## Player behavior
 
@@ -28,7 +29,7 @@ Play Next Match immediately begins continuation using the current saved lineup.
 There is no preview, extra setup menu or second Start confirmation. The player
 can change the lineup separately in Squad before playing. A completed season with no next fixture disables
 continuation with an explanation; it must not silently create a new season.
-Once confirmed, continue using the same owned Rocket League process. Internal
+After that single click, continue using the same owned Rocket League process. Internal
 frontend travel needed by the verified engine path is allowed; another manual
 hub/Play click and another game process are not required.
 
