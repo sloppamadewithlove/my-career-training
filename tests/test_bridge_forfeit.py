@@ -9,7 +9,9 @@ import pytest
 from PySide6.QtCore import QProcess
 
 from my_career_training import bridge, career
-from test_bridge import FakeProcess, backend, qt_app  # noqa: F401
+from test_bridge import FakeProcess
+
+pytest_plugins = ["test_bridge"]
 
 
 def running(instance, scores=(0, 0)):
