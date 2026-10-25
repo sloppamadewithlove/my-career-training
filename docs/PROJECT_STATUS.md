@@ -36,6 +36,13 @@ its four focused tests also passed. These are source/build checks only. The fina
 candidate, independent review and source/frozen gameplay sequence remain release
 requirements.
 
+Independent review found and repaired two delivery races before any new game
+test: missing READY could resume an old execute grant after the movie discarded
+it, and a lost issued log could permit a second exit. The host now revokes a
+withdrawn consumption grant and separately latches successful execute publication.
+Once delivery is uncertain, it retains Return without issuing another exit.
+The final focused tests passed; these fixes still need the combined live check.
+
 ## Verified observations
 
 - The startup crash came from querying the original menu's file size while

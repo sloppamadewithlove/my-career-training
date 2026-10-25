@@ -137,6 +137,15 @@ execute only with its matching local consumption latch. Both phases participate
 in view generation. `return_navigation_issued` records an attempt immediately
 before the typed call; it is not an arrival receipt.
 
+The host separately latches a successfully published execute grant. Publication
+is not proof of an attempted call. If readiness or the movie is lost after that
+publication, the host cannot know whether the call ran and its log was dropped;
+it must not offer another exit or reopen attempt. Preserve the pending intent
+and uncertain-delivery diagnostic until actual arrival or scope replacement.
+Loss of readiness before execute publication revokes consumption and permits a
+fresh authorization handshake. An explicit fresh view without navigation must
+never later resume its old consumed generation.
+
 Unloading the pause/results movie invalidates its consumption grant but retains
 the accepted Return intent. A changed activity, nonce, owned process, build, or
 offline scope revokes the intent. New native activities remain blocked while
