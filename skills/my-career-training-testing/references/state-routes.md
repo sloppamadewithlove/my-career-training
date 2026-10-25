@@ -19,7 +19,7 @@ labels and refreshed view/status files; coordinates depend on the window.
 | Saved-results retention | Remain on natural results and each local/Settings page for more than 60 seconds | Same ended game and saved score, fresh results READY after Back; no automatic map travel | 5fbe0c6 corrected submenu retained beyond 60 seconds. New direct Settings and local pages still need live checks; authored countdown is now hidden |
 | Saved-results Exit | Click the actual results Exit after the exact save acknowledgement | Fresh frontend READY + actual RootMenuMovie + visible authored hub; start another activity in same PID | 5fbe observer recorded Return/READY but input was unattributed and hub capture lacked foreground. Controlled visual acceptance remains open |
 | Results Schedule | Finished match → Schedule → page controls → Back, or Escape/controller Back | Read-only schedule; same game/results; no service stop or launch | New source implementation; live acceptance open |
-| Results continuation | Finished match → Play Next Match → optional lineup → Start Match | Exact cleanup ACK, fresh real hub READY, one next fixture in the same owned game; result stays saved once | Source and synthetic service/native contract passed; live acceptance open |
+| Results continuation | Finished match → Play Next Match | Immediate continuation with saved lineup, exact cleanup ACK, fresh real hub READY, one next fixture in the same owned game; result stays saved once | Direct-start revision in progress; no extra preview or confirmation. Live acceptance open |
 | Results presets/Settings | Change Preset → choose/equip local preset → Back; Settings → game Settings → Back | Correct local preset and return to current results; no automatic travel | Typed routes compiled; live and physical-controller checks open |
 | Quit | Home → Quit My Career | Normal game/service shutdown and restoration | ff3ee52 source: actual home label, mouse activation, normal game/service closure and checked restoration passed |
 | Forfeit | Active career → pause → red Forfeit Match → Back first; reopen and explicitly confirm | Cancel preserves fixture; confirm saves labelled forfeited loss once, advances schedule, then exact ACK and fresh hub; restart preserves it | d95f4cc source passed cancel, confirm, saved observed 0–1 loss, Schedule and next native fixture in same game. 5fbe copied-career restart preserved it. Frozen check remains open |
@@ -61,9 +61,9 @@ game, an unrelated worker, or a career fixture to manufacture an outcome.
   recover focus before continuing; do not screenshot another application.
 - The current HUD uses logical game actions. USB DualShock 4 physical buttons,
   D-pad/right stick and community plugin 707 still need their own real tests.
-- A private opt-in OneGoal source harness now has ten focused checks and a
-  labelled copied-career app launch. Actual shortened fixture/save verification
-  remains open. It refuses frozen/CI use and cannot replace normal timed
+- A private opt-in OneGoal source harness has ten focused checks and a labelled
+  copied-career live fixture: its real 0–1 ended and saved with durable receipt
+  acknowledgement on ff3ee52. It refuses frozen/CI use and cannot replace normal timed
   frozen-release acceptance. Do not infer acceptance from its config echo alone.
 - Results Game options first opened `OptionsEndGameMenuMovie` with Change Preset
   and Settings on d95f4cc. Do not assume it directly opens `OptionsMenuMovie`.

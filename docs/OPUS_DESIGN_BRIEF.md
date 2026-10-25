@@ -22,8 +22,9 @@ Remaining design work, to assign in separate scopes:
 
 - Implement the owner's results order: Play Next Match, Schedule, Change Preset,
   Settings, Exit. Exit returns to the hub; its close-app label is Quit My Career.
-  Schedule stays in the completed game without a time limit; continuation offers
-  a lineup preview. Use direct typed local preset/Settings controls and hide the
+  Schedule stays in the completed game without a time limit. Play Next Match
+  immediately continues with the saved lineup, with no extra setup or confirmation
+  menu; lineup changes remain in Squad. Use direct typed local preset/Settings controls and hide the
   misleading stock countdown. Follow
   [RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). This scoped
   assignment is in progress; new controls and compiled movies are not accepted yet.

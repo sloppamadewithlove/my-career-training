@@ -102,7 +102,6 @@ public:
             const auto info = finished(state);
             syncResultsPage(info);
             if (page_ == ResultsPage::Schedule) buildSchedule(out, state, info);
-            else if (page_ == ResultsPage::Preview) buildPreview(out, info);
             else {
                 const auto result = objectValue(state, "latest_result");
                 const bool forfeited = info.saved && career_management_detail::humanForfeitedResult(result,
@@ -119,8 +118,8 @@ public:
                         {{"expected_session_id", stringValue(session, "id")},
                          {"expected_fixture_id", stringValue(session, "fixture_id")}});
                 }
-                add(out, "results.next", "Play Next Match", info.ready, CareerLayoutEffectKind::Navigate,
-                    "", info.ready ? info.continuation : Json::object());
+                add(out, "results.next", "Play Next Match", info.ready, CareerLayoutEffectKind::Dispatch,
+                    "prepare_next_match", info.ready ? info.continuation : Json::object());
                 explain(out, info.reason);
                 add(out, "results.schedule", "Schedule", info.scheduleReady, CareerLayoutEffectKind::Navigate,
                     "", info.scheduleBinding);
@@ -170,7 +169,7 @@ public:
 private:
     // Local results pages. They never dispatch; each is bound to the exact
     // finished activity it was opened from and resets when that changes.
-    enum class ResultsPage { Root, Schedule, Preview };
+    enum class ResultsPage { Root, Schedule };
     static constexpr std::size_t kScheduleRows = 5;
     static constexpr std::size_t kScheduleScan = 256;
     static constexpr const char* kWait = "Wait for the current activity to finish saving.";
@@ -186,7 +185,6 @@ private:
         std::string nextLine;
         std::string reason;
         career_management_detail::Roster roster;
-        std::vector<std::vector<std::string>> lineups;
         Json scheduleBinding = Json::object();
         Json continuation = Json::object();
     };
@@ -230,10 +228,6 @@ private:
             out.reason = "Your squad is not ready. Choose Exit to review it in My Career.";
             return out;
         }
-        combinations(out.roster.squad, out.roster.format - 1, out.lineups);
-        for (auto& row : out.lineups)
-            if (sameSet(row, out.roster.lineup)) row = out.roster.lineup;
-        if (out.lineups.empty()) { out.reason = "Your squad is not ready."; return out; }
         const auto* season = currentSeason(*career);
         int round = 0;
         std::string prefix = "Match";
@@ -242,88 +236,33 @@ private:
         out.next = nextId;
         out.ready = true;
         out.continuation = {{"expected_session_id", out.session}, {"expected_fixture_id", out.fixture},
-            {"expected_next_fixture_id", nextId}};
+            {"expected_next_fixture_id", nextId}, {"lineup_ids", out.roster.lineup}};
         return out;
-    }
-
-    Json previewBinding(const Finished& info) const {
-        Json lineup = Json::array();
-        for (const auto& id : info.roster.lineup) lineup.push_back(id);
-        auto binding = info.continuation;
-        binding["career"] = stringValue(info.scheduleBinding, "career");
-        binding["format"] = info.roster.format;
-        binding["lineup"] = std::move(lineup);
-        return binding;
     }
 
     void resetResultsPage() {
         page_ = ResultsPage::Root;
         pageBinding_ = Json::object();
         schedulePage_ = 0;
-        draft_.clear();
     }
 
     void syncResultsPage(const Finished& info) {
         if (page_ == ResultsPage::Schedule && (!info.scheduleReady || info.scheduleBinding != pageBinding_))
             resetResultsPage();
-        if (page_ == ResultsPage::Preview && (!info.ready || previewBinding(info) != pageBinding_ ||
-            std::find(info.lineups.begin(), info.lineups.end(), draft_) == info.lineups.end()))
-            resetResultsPage();
     }
 
     void navigateResults(const CareerLayoutChoice& choice, const Finished& info) {
-        if (choice.id == "results.next" && info.ready) {
-            page_ = ResultsPage::Preview;
-            pageBinding_ = previewBinding(info);
-            draft_ = info.roster.lineup;
-        } else if (choice.id == "results.schedule" && info.scheduleReady) {
+        if (choice.id == "results.schedule" && info.scheduleReady) {
             page_ = ResultsPage::Schedule;
             pageBinding_ = info.scheduleBinding;
             schedulePage_ = 0;
         } else if (page_ == ResultsPage::Schedule &&
                    (choice.id == "results.schedule_prev" || choice.id == "results.schedule_next")) {
             schedulePage_ = choice.payload.value("page", std::size_t{0});
-        } else if (page_ == ResultsPage::Preview && choice.id.rfind("results.lineup.", 0) == 0) {
-            draft_ = choice.payload.value("lineup_ids", std::vector<std::string>{});
         } else {
-            // Back, or a stale/unknown navigation: discard the local draft.
+            // Back, or a stale/unknown navigation: return to the results root.
             resetResultsPage();
         }
-    }
-
-    static std::string memberNames(const career_management_detail::Roster& roster,
-                                   const std::vector<std::string>& ids) {
-        if (ids.empty()) return "you only";
-        std::string names;
-        for (std::size_t index = 0; index < ids.size(); ++index) {
-            if (index) names += ", ";
-            names += career_management_detail::memberLabel(roster, ids[index], 18);
-        }
-        return names;
-    }
-
-    void buildPreview(CareerLayoutView& out, const Finished& info) const {
-        out.title = "Next match";
-        out.body = info.nextLine + ".\n" + career_management_detail::kFormats[info.roster.format - 1] +
-            " lineup: " + memberNames(info.roster, draft_) + ".";
-        out.body += info.lineups.size() > 1
-            ? "\nPick a lineup, then Start Match. Back keeps your saved lineup."
-            : "\nStart Match to play, or Back to stay on the results.";
-        if (info.lineups.size() > 1) {
-            for (std::size_t index = 0; index < info.lineups.size(); ++index) {
-                const auto& row = info.lineups[index];
-                // The movie refuses labels over 80 characters; cap bytes on a UTF-8 boundary.
-                const auto label = bounded((row == draft_ ? std::string("Selected: ") : std::string("Lineup: ")) +
-                    memberNames(info.roster, row), 80);
-                add(out, ("results.lineup." + std::to_string(index)).c_str(), label.c_str(), true,
-                    CareerLayoutEffectKind::Navigate, "", {{"lineup_ids", row}});
-            }
-        }
-        auto payload = info.continuation;
-        payload["lineup_ids"] = draft_;
-        add(out, "results.start", "Start Match", info.ready, CareerLayoutEffectKind::Dispatch,
-            "prepare_next_match", std::move(payload));
-        add(out, "results.preview_back", "Back", true, CareerLayoutEffectKind::Navigate);
     }
 
     void buildSchedule(CareerLayoutView& out, const Json& state, const Finished& info) {
@@ -454,7 +393,6 @@ private:
     ResultsPage page_ = ResultsPage::Root;
     Json pageBinding_ = Json::object();
     std::size_t schedulePage_ = 0;
-    std::vector<std::string> draft_;
     std::uint64_t revision_ = 0;
     bool opened_ = false;
     bool confirming_ = false;

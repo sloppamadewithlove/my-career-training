@@ -19,8 +19,10 @@ The required release interface customizes Rocket League's native offline main me
 The home close-app control is **Quit My Career**. Finished career matches show,
 in order, **Play Next Match**, **Schedule**, **Change Preset**, **Settings**, and
 **Exit**. Results Exit returns to the career hub. Schedule stays inside the
-finished game without a time limit. Continuing offers a lineup preview and
-starts the next scheduled fixture in the same game after saving and cleanup.
+finished game without a time limit. Play Next Match immediately starts the next
+scheduled fixture with the saved lineup after saving and cleanup, in the same
+game process. It has no extra preview or confirmation menu; lineup changes stay
+available separately in Squad.
 Use existing local car presets and the game's Settings directly. See
 [the results contract](RESULTS_CONTINUATION_CONTRACT.md) for exact persistence
 and navigation rules; current status records what is actually tested.

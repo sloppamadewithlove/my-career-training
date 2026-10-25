@@ -77,7 +77,7 @@ not an automatic lock enforced by the helpers.
 
 | Improvement | Benefit | Status / next concrete step |
 | --- | --- | --- |
-| 1. Short real development fixtures | Reach save/results without waiting through every normal match | Private opt-in source harness implemented with ten focused checks; uses RLBot OneGoal, copied careers and explicit development-only receipts. First app launch completed; actual short fixture/save verification remains open. Frozen/CI modes are refused. Normal timed frozen acceptance remains required |
+| 1. Short real development fixtures | Reach save/results without waiting through every normal match | Private opt-in source harness has ten focused checks and a real 0–1 fixture/save/receipt acknowledgement on ff3ee52. Uses RLBot OneGoal, copied careers and explicit development-only receipts. Frozen/CI modes are refused. Normal timed frozen acceptance remains required |
 | 2. Notify on state changes | Stop missing the short results window or waiting after work finished | Private bounded milestone observer now emits one scoped signal; main forwards actionable events. Playing, returned-hub and natural-results signals observed on d95f4cc. 32 synthetic checks cover identity, freshness and transient file reads. This is a test helper, not a shipped player feature |
 | 3. Reuse a healthy game session | Avoid repeated startup, injection and focus setup | Source tests have started another activity in the same process. Group routes and use the skill; never reuse across loaded native-code changes |
 | 4. Tests selected by changed boundary | Catch errors early without rerunning unrelated suites | Focused suites already used; maintain a simple change-to-check mapping below. Full coherent source checks remain separate |

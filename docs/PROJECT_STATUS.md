@@ -25,8 +25,11 @@ The normal source fixture was deliberately left unfinished through its native
 confirmation after repeated goal/replay delays. Its transient score was not
 saved or awarded. A private, explicitly labelled one-goal development harness
 now has ten focused checks and has launched a separate copied-career source
-app. Its actual shortened fixture, save and results flow remain unverified.
-Automated input is paused pending clarification of unexpected menu navigation.
+app. The new results controls still require controlled live verification.
+The owner has since authorized resuming controlled input. The one-goal fixture
+ended and saved its real 0–1 result with the normal durable receipt acknowledgement.
+The owner then requested direct Play Next Match without the additional preview;
+that source revision and its new live check are in progress.
 Normal timed frozen acceptance remains required, and physical DS4 testing stays
 deferred at the owner's request.
 
@@ -50,8 +53,8 @@ hashes matched the baseline; ordinary Rocket League save changes were preserved.
 The owner has now specified a new results flow: **Play Next Match, Schedule,
 Change Preset, Settings, Exit**, in that order. Results Exit means return to the
 My Career hub; its close-app control becomes **Quit My Career**. Schedule stays
-inside the finished game without a time limit. Continuation offers a lineup
-preview and starts the next fixture in the same owned game only after durable
+inside the finished game without a time limit. Continuation immediately uses the
+saved lineup, with no extra setup menu, and starts the next fixture only after durable
 cleanup and fresh native-root arrival. Source implementation and rebuilt movies
 are now integrated under
 [RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). The source

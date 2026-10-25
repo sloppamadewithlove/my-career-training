@@ -223,7 +223,7 @@ static void continuationChecks() {
     require(control(root, "results.preset")["stock"] == "preset" &&
         control(root, "results.settings")["stock"] == "settings" &&
         control(root, "results.return")["return_commit"] == true &&
-        control(root, "results.next")["return_commit"] == false &&
+        control(root, "results.next")["return_commit"] == true &&
         control(root, "results.schedule")["return_commit"] == false, "Root routes or commit hints changed");
     require(contains(root, "Your result is saved.") && contains(root, "Next match: Round 2"), "Root body lost next match");
     auto preset = host.select(command(root, "results.preset"), scope, state, true);
@@ -269,73 +269,38 @@ static void continuationChecks() {
         "Schedule survived a changed activity");
     require(ids(host.publish(scope, state, ++now)) == rootIds, "Schedule resurrected without a new click");
 
-    // Preview, lineup selection, Back discard and exact Start payload.
+    // One activation dispatches the saved lineup; there is no preview or second Start.
     root = host.publish(scope, state, ++now);
-    effect = host.select(command(root, "results.next"), scope, state, true);
-    require(effect.accepted && effect.kind == CareerLayoutEffectKind::Navigate && effect.action.empty(),
-        "Play Next Match dispatched before preview");
-    auto preview = host.publish(scope, state, ++now);
-    require(preview["title"] == "Next match" && contains(preview, "Round 2: Cinder City vs Test Club") &&
-        contains(preview, "3v3 lineup: Bot shield, Bot relay"), "Preview content is wrong");
-    require(ids(preview) == std::vector<std::string>{"results.lineup.0", "results.lineup.1", "results.lineup.2",
-        "results.lineup.3", "results.lineup.4", "results.lineup.5", "results.start", "results.preview_back"},
-        "Preview controls are wrong");
-    require(control(preview, "results.lineup.3")["label"] == "Selected: Bot shield, Bot relay" &&
-        control(preview, "results.start")["return_commit"] == true &&
-        control(preview, "results.preview_back")["return_commit"] == false, "Preview selection markers are wrong");
-    effect = host.select(command(preview, "results.lineup.0"), scope, state, true);
-    require(effect.accepted && effect.kind == CareerLayoutEffectKind::Navigate && effect.action.empty(),
-        "Lineup selection dispatched");
-    auto picked = host.publish(scope, state, ++now);
-    require(control(picked, "results.lineup.0")["label"] == "Selected: Bot anchor, Bot shield" &&
-        contains(picked, "lineup: Bot anchor, Bot shield"), "Lineup selection not shown");
-    effect = host.select(command(picked, "results.preview_back"), scope, state, true);
-    require(effect.accepted && effect.kind == CareerLayoutEffectKind::Navigate && effect.action.empty() &&
-        effect.payload.empty(), "Preview Back dispatched");
-    require(!host.select(command(picked, "results.start"), scope, state, true).accepted,
-        "Discarded preview Start remained usable");
-    root = host.publish(scope, state, ++now);
-    require(ids(root) == rootIds, "Preview Back did not restore root");
-    require(host.select(command(root, "results.next"), scope, state, true).accepted, "Preview reopen refused");
-    preview = host.publish(scope, state, ++now);
-    require(control(preview, "results.lineup.3")["label"] == "Selected: Bot shield, Bot relay",
-        "Back did not discard the local lineup");
-    require(host.select(command(preview, "results.lineup.5"), scope, state, true).accepted, "Lineup refused");
-    picked = host.publish(scope, state, ++now);
-    require(!host.select(command(picked, "results.start"), scope, state, false).accepted,
-        "Unconsumed Start dispatched");
+    require(!host.select(command(root, "results.next"), scope, state, false).accepted,
+        "Unconsumed direct continuation dispatched");
     changed = state; changed["next_fixture"]["id"] = "career-1:s1:league:3:0";
-    require(!host.select(command(picked, "results.start"), scope, changed, true).accepted,
-        "Start accepted a changed next fixture");
-    require(ids(host.publish(scope, state, ++now)) == rootIds, "Changed next fixture kept the preview");
-    root = host.publish(scope, state, ++now);
-    require(host.select(command(root, "results.next"), scope, state, true).accepted, "Preview reopen refused");
-    preview = host.publish(scope, state, ++now);
-    require(host.select(command(preview, "results.lineup.5"), scope, state, true).accepted, "Lineup refused");
-    picked = host.publish(scope, state, ++now);
-    effect = host.select(command(picked, "results.start"), scope, state, true);
+    require(!host.select(command(root, "results.next"), scope, changed, true).accepted,
+        "Direct continuation accepted a changed next fixture");
+    changed = state; changed["career"]["lineup"] = Json::array({"relay", "comet"});
+    require(!host.select(command(root, "results.next"), scope, changed, true).accepted,
+        "Direct continuation accepted a changed saved lineup");
+    changed = state; changed["session"]["id"] = "finished-session-2";
+    require(!host.select(command(root, "results.next"), scope, changed, true).accepted,
+        "Direct continuation accepted a changed activity");
+    effect = host.select(command(root, "results.next"), scope, state, true);
     const Json expected = {{"expected_session_id", "finished-session"},
         {"expected_fixture_id", "career-1:s1:league:1:0"}, {"expected_next_fixture_id", "career-1:s1:league:2:0"},
-        {"lineup_ids", Json::array({"relay", "comet"})}};
+        {"lineup_ids", Json::array({"shield", "relay"})}};
     require(effect.accepted && effect.kind == CareerLayoutEffectKind::Dispatch &&
         effect.action == "prepare_next_match" && effect.payload == expected &&
         !effect.payload.contains("continuation_intent") && effect.originalConsumptionRequired,
-        "Start payload is not the exact continuation binding");
-    require(!host.select(command(picked, "results.start"), scope, state, true).accepted, "Start replay accepted");
+        "Play Next Match did not directly dispatch the exact saved lineup");
+    require(!host.select(command(root, "results.next"), scope, state, true).accepted,
+        "Direct continuation replay accepted");
+    require(ids(host.publish(scope, state, ++now)) == rootIds,
+        "Direct continuation opened an extra menu");
     auto pending = host.publish(scope, state, ++now, {}, {}, true);
-    require(!hasControl(pending, "results.start") && !hasControl(pending, "results.next"),
-        "Pending Return offered continuation");
-    changed = state; changed["session"]["id"] = "finished-session-2";
-    require(host.open(scope, state), "Results reopen failed");
-    root = host.publish(scope, state, ++now);
-    require(host.select(command(root, "results.next"), scope, state, true).accepted, "Preview reopen refused");
-    require(!hasControl(host.publish(scope, changed, ++now), "results.start"), "Preview survived activity change");
-    require(ids(host.publish(scope, state, ++now)) == rootIds, "Preview resurrected after activity change");
+    require(!hasControl(pending, "results.next"), "Pending Return offered continuation");
     auto otherNonce = scope; otherNonce.nonce = "test-owned-results-other-nonce";
     auto foreign = state; foreign["bridge_session"] = otherNonce.nonce;
     require(host.publish(otherNonce, foreign, ++now)["active"] == false, "Other nonce published results");
 
-    // No next fixture, unsaved result and 1v1 preview.
+    // No next fixture, unsaved result and all saved lineup sizes.
     auto finale = state; finale["next_fixture"] = nullptr;
     require(host.open(scope, finale), "Finale results did not open");
     auto ended = host.publish(scope, finale, ++now);
@@ -351,31 +316,26 @@ static void continuationChecks() {
         "results.preset", "results.settings", "results.return"}, "Unsaved recovery controls are wrong");
     require(control(failed, "results.retry_save")["enabled"] == true && control(failed, "results.next")["enabled"] == false &&
         control(failed, "results.return")["enabled"] == false, "Unsaved result allowed continuation or exit");
-    auto solo = state; solo["career"]["format"] = 1; solo["career"]["lineup"] = Json::array();
-    require(host.open(scope, solo), "Solo results did not open");
-    root = host.publish(scope, solo, ++now);
-    require(host.select(command(root, "results.next"), scope, solo, true).accepted, "Solo preview refused");
-    preview = host.publish(scope, solo, ++now);
-    require(ids(preview) == std::vector<std::string>{"results.start", "results.preview_back"},
-        "Solo preview offered lineup rows");
-    effect = host.select(command(preview, "results.start"), scope, solo, true);
-    require(effect.accepted && effect.payload["lineup_ids"] == Json::array() && effect.payload.size() == 4,
-        "Solo Start payload is wrong");
-
-    // Unicode 4v4 names stay inside the movie's label bound on a UTF-8 boundary.
-    auto wide = state; wide["career"]["format"] = 4;
-    wide["career"]["lineup"] = Json::array({"anchor", "shield", "relay"});
-    std::string name; for (int i = 0; i < 20; ++i) name += u8"\u754c";
-    for (const char* id : {"anchor", "shield", "relay", "comet", "orbit"}) wide["career"]["recruits"][id]["name"] = name;
-    require(host.open(scope, wide), "Unicode results did not open");
-    root = host.publish(scope, wide, ++now);
-    require(host.select(command(root, "results.next"), scope, wide, true).accepted, "Unicode preview refused");
-    preview = Json::parse(host.publish(scope, wide, ++now).dump());
-    require(ids(preview).size() == 6, "4v4 preview should offer four lineups plus Start and Back");
-    for (const auto& row : preview["controls"]) {
-        const auto label = row["label"].get<std::string>();
-        require(!label.empty() && label.size() <= 80, "Lineup label exceeded the movie bound");
+    for (int format = 1; format <= 4; ++format) {
+        auto sized = state;
+        const std::vector<std::string> squad = {"anchor", "shield", "relay", "comet"};
+        const std::vector<std::string> lineup(squad.begin(), squad.begin() + format - 1);
+        sized["career"]["format"] = format;
+        sized["career"]["lineup"] = lineup;
+        require(host.open(scope, sized), "Sized results did not open");
+        root = host.publish(scope, sized, ++now);
+        require(ids(root) == rootIds, "Sized results introduced an extra page");
+        effect = host.select(command(root, "results.next"), scope, sized, true);
+        require(effect.accepted && effect.action == "prepare_next_match" &&
+            effect.payload["lineup_ids"] == Json(lineup) && effect.payload.size() == 4,
+            "Direct continuation changed the saved lineup");
     }
+    auto invalid = state; invalid["career"]["lineup"] = Json::array({"shield", "shield"});
+    require(host.open(scope, invalid), "Invalid-roster results did not open");
+    root = host.publish(scope, invalid, ++now);
+    require(control(root, "results.next")["enabled"] == false &&
+        !host.select(command(root, "results.next"), scope, invalid, true).accepted,
+        "Invalid saved lineup allowed direct continuation");
 
     // Pending results recovery offers the game's Settings, never the old Options submenu.
     require(host.open(scope, state), "Pending results did not open");

@@ -24,9 +24,9 @@ bounded paging when needed, and returns to the same results menu. It must not
 stop the worker, navigate to the hub, alter a result or start another fixture.
 There is no player-facing time limit on the results or schedule views.
 
-Play Next Match opens an upcoming-fixture/lineup preview on that results surface.
-The player can keep or change the eligible lineup, then explicitly start, or go
-Back without changing the save. A completed season with no next fixture disables
+Play Next Match immediately begins continuation using the current saved lineup.
+There is no preview, extra setup menu or second Start confirmation. The player
+can change the lineup separately in Squad before playing. A completed season with no next fixture disables
 continuation with an explanation; it must not silently create a new season.
 Once confirmed, continue using the same owned Rocket League process. Internal
 frontend travel needed by the verified engine path is allowed; another manual
@@ -105,11 +105,12 @@ does not silently launch a match on startup.
 
 ## Native layout and retention
 
-Use local native page state for Schedule, preview and lineup selection; bind it
+Use local native page state for Schedule; bind it
 to the current finished activity. Preserve stale-generation/consumption checks,
 safe Back focus, and the exact binding represented by each visible control.
 The results root contains the five requested controls only. Secondary pages may
-contain their own Back, paging, lineup and Start controls.
+contain their own Back and paging controls. The root Play Next Match is a
+committing dispatch, so the existing immediate Return hold applies to that click.
 
 Hide the misleading stock NEXT MATCH IN countdown in the authored results view.
 Retain the proven, scoped finished-state timer refresh internally. Do not modify
@@ -121,15 +122,15 @@ verification; Change Preset and Schedule must retain the current results scope.
 
 - Source/domain: duplicate preparation/start, stale session/fixture/next fixture,
   invalid lineup, save failure before stop, late result receipts, cleanup error,
-  cancellation before confirmation, no next fixture and restart cancellation.
+  no next fixture and restart cancellation.
 - Native: exact five-button order; local Schedule/Back without dispatch;
   fresh matching continuation ACK and root arrival before one launch;
   no launch on title/Idle/stale READY; preserved intent across movie unload;
   scoped rejection and existing Return/Forfeit regressions.
 - Assets: compiled authored movie and synchronized hashes; no proprietary files.
 - Live: real saved match → Schedule for more than the old timeout → Back;
-  Change Preset/Settings/Back; confirmed next fixture with optional lineup
-  adjustment in the same game process; Exit reaches the hub; Quit My Career
+  Change Preset/Settings/Back; one Play Next Match activation starts the next
+  fixture with the saved lineup in the same game process; Exit reaches the hub; Quit My Career
   closes normally; exact frozen save/continue/exit/restart and restoration.
 
 Keep source, native, frozen, installer and actual game evidence separate. The
