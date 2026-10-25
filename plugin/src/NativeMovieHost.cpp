@@ -676,8 +676,19 @@ void NativeMovieHost::State::tick() {
                 }
                 // Options must still have this results movie underneath it;
                 // historical READY never permits an unrelated stock screen.
-                if (refreshResults && liveNow(sessionId) && resultsScreen() == resultContext.screen) {
-                    const auto latest = bridge->state();
+                // Navigation's liveNow requires an authored top-level movie;
+                // this timer-only check independently revalidates the owned
+                // scope while allowing the precisely proven stock modal stack.
+                std::string timerNonce;
+                Json latest;
+                const char* timerWhy = "timer_scope_unavailable";
+                const bool timerLive = refreshResults && preconditions(timerNonce, latest, timerWhy, false) &&
+                    timerNonce == sessionId;
+                if (refreshResults && !timerLive) {
+                    std::lock_guard<std::mutex> guard(mutex);
+                    resultsHold.clear();
+                }
+                if (timerLive && resultsScreen() == resultContext.screen) {
                     {
                         std::lock_guard<std::mutex> guard(mutex);
                         refreshResults = !stopped && resultsHold.savedForTrackedActivity(latest);
