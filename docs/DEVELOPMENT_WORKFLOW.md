@@ -52,6 +52,11 @@ not an automatic lock enforced by the helpers.
    forbidden side effects and a time budget. Default to a narrow 5–10 minute
    first pass; extend only for a specific useful next result. A deadline produces
    partial findings and limits, never an invented pass.
+   If the first pass only repeats research, retain its findings and narrow the
+   next assignment to one concrete file or behavior. Transfer implementation
+   ownership explicitly when a requested model has not produced a patch; record
+   who actually wrote it and retain the requested model for a bounded review.
+   Ask for a final conclusion from existing analysis before restarting research.
 3. Run focused checks while builders work independently. Review an immutable
    result once; re-review the fix and affected boundary instead of restarting the
    entire investigation. Broaden tests when a failure or change justifies it.

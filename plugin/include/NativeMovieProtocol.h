@@ -62,7 +62,7 @@ public:
                 ? "Could not finish saving. Retry saving before returning, or choose Quit My Career."
                 : !returnHold ? (scope.surface == NativeMenuSurface::Pause
                     ? "Return has not been confirmed. If the menu closes, press Escape or Start to reopen it. You can also choose Quit My Career."
-                    : "Return has not been confirmed. You can open Game options or choose Quit My Career.")
+                    : "Return has not been confirmed. You can open Settings or choose Quit My Career.")
                 : returnReady ? "Progress saved. Opening My Career..."
                 : "Saving progress and stopping bot control. Please wait.";
         }

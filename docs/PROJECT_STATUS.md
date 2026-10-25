@@ -16,16 +16,24 @@ Direct Settings/Back and controlled saved-results Exit acceptance remain open.
 Restarting the copied career preserved the previous Forfeit and 1–19 results
 exactly once. The exact 5fbe CI inventory passed all 4,470 bundle files and nine
 source archives; frozen gameplay has not been run and nothing is published.
+The owned 5fbe game and service subsequently closed normally. Original My Career
+files, checked game/BakkesMod configuration, plugin and installed game/package
+hashes matched the baseline; ordinary Rocket League save changes were preserved.
 
 The owner has now specified a new results flow: **Play Next Match, Schedule,
 Change Preset, Settings, Exit**, in that order. Results Exit means return to the
 My Career hub; its close-app control becomes **Quit My Career**. Schedule stays
 inside the finished game without a time limit. Continuation offers a lineup
 preview and starts the next fixture in the same owned game only after durable
-cleanup and fresh native-root arrival. Implementation is in progress under
-[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md); it has not
-passed live acceptance. Physical DS4 testing remains deferred at the owner's
-request. Keep completed evidence below separate from these new controls.
+cleanup and fresh native-root arrival. Source implementation and rebuilt movies
+are now integrated under
+[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). The source
+suite passed 1,057 tests with 15 skipped and Ruff; 109 asset checks passed with
+one skipped. Focused native checks and SDK compilation passed separately. An
+independent synthetic Backend/FileBridge fixture passed the native Return/root/
+one-shot-start contract. Coherent candidate compilation and actual new-menu
+gameplay remain required; none of this is live acceptance of the new controls.
+Physical DS4 testing remains deferred at the owner's request.
 
 ## Download and source
 

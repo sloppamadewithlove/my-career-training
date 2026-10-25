@@ -15,6 +15,15 @@ Use a local desktop application with an isolated RLBot v5 game worker connecting
 The documented bot/mod route uses the current game's supported EAC-off environment. Epic documents offline matches, training, LAN matches, and replays in that environment. Ordinary official online play uses an EAC-enabled launch. Both environments can exist on the same computer and use the same installed game; switch sessions cleanly. Do not require an old game version or a second account. [1–3]
 Use the existing Steam or Epic signed-in session. Do not collect platform passwords, invent an account-linking service, or promise an inventory API. The app remembers the selected launcher. Detect both installations and ask once if the choice is ambiguous; prefer Steam for the initial user's setup.
 The required release interface customizes Rocket League's native offline main menu: its buttons, destinations, options and settings must serve My Career. Preserve the game's visual language, native controls, animations, controller navigation and Back behavior. Remove online/store routes from the My Career session, or make them non-clickable if removal cannot be verified. A desktop window, plugin overlay or modal dialog does not satisfy native menu replacement. The normal Steam/Epic online launch must retain its original behavior and menu. Native integration is required for completion; it is not an optional enhancement. See docs/NATIVE_MENU_IMPLEMENTATION_PLAN.md and the current acceptance evidence.
+
+The home close-app control is **Quit My Career**. Finished career matches show,
+in order, **Play Next Match**, **Schedule**, **Change Preset**, **Settings**, and
+**Exit**. Results Exit returns to the career hub. Schedule stays inside the
+finished game without a time limit. Continuing offers a lineup preview and
+starts the next scheduled fixture in the same game after saving and cleanup.
+Use existing local car presets and the game's Settings directly. See
+[the results contract](RESULTS_CONTINUATION_CONTRACT.md) for exact persistence
+and navigation rules; current status records what is actually tested.
 No runtime AI subscription is needed by players. Bots, detectors, coaching rules, season management, and saves run locally. Do not make cloud accounts or internet access to a career server mandatory. Steam/Epic may have their own launch and authentication requirements; distinguish those from the app's local operation.
 Use the game's supported offline launch route and validate any native adapter against the exact installed build. Undocumented signatures or generated offsets alone do not authorize production writes. Do not hide modifications from anti-cheat, patch protected online behavior, or send career bot control into ordinary official matches.
 3. Full first-release scope
