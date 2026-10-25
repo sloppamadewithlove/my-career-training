@@ -1,6 +1,8 @@
 #include "NativeResultsHold.h"
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <vector>
 using namespace mct;
 static void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 static NativeResultsContext context() {
@@ -121,6 +123,64 @@ int main() {
         require(!options.observe(c, state, 28), "Return from Options used stale results READY");
         c.screen = NativeResultsScreen::OptionsOverResults;
         require(!options.observe(c, state, 29), "Failed results handshake retained modal permission");
+        const std::vector<std::string> endGame{"EndGameMenuMovie"};
+        const std::vector<std::string> optionsEnd{"EndGameMenuMovie", "OptionsEndGameMenuMovie"};
+        const std::vector<std::string> optionsMenu{"EndGameMenuMovie", "OptionsEndGameMenuMovie", "OptionsMenuMovie"};
+        require(classifyResultsScreen("EndGameMenuMovie", endGame) == NativeResultsScreen::Results,
+            "EndGameMenuMovie was not Results");
+        require(classifyResultsScreen("OptionsEndGameMenuMovie", optionsEnd) == NativeResultsScreen::OptionsOverResults,
+            "OptionsEndGameMenuMovie over EndGame was not OptionsOverResults");
+        require(classifyResultsScreen("OptionsMenuMovie", optionsMenu) == NativeResultsScreen::OptionsOverResults,
+            "OptionsMenuMovie over EndGame was not OptionsOverResults");
+        require(classifyResultsScreen("OptionsMenuMovie", endGame) == NativeResultsScreen::OptionsOverResults,
+            "OptionsMenuMovie with EndGame present was not OptionsOverResults");
+        require(classifyResultsScreen("OptionsEndGameMenuMovie", {"OptionsEndGameMenuMovie"}) == NativeResultsScreen::Other,
+            "OptionsEndGameMenuMovie without EndGame was accepted");
+        require(classifyResultsScreen("OptionsMenuMovie", {"OptionsMenuMovie"}) == NativeResultsScreen::Other,
+            "OptionsMenuMovie without EndGame was accepted");
+        require(classifyResultsScreen("OptionsEndGameMenuMovie", {"EndGameMenuMovie "}) == NativeResultsScreen::Other,
+            "OptionsEndGame accepted an EndGame lookalike stack entry");
+        require(classifyResultsScreen("OptionsMenuMovie", {"EndGameMenuMovieExtra"}) == NativeResultsScreen::Other,
+            "OptionsMenu accepted an EndGame lookalike stack entry");
+        for (const char* lookalike : {"OptionsEndGameMenuMovie ", "OptionsEndGameMenuMovies", "OptionsMenuMovie ",
+                "OptionsMenuMovies", "EndGameMenuMovie ", "MainMenuMovie", "MidGameMenuMovie"}) {
+            require(classifyResultsScreen(lookalike, endGame) == NativeResultsScreen::Other,
+                "Lookalike or unrelated screen over EndGame was accepted");
+        }
+        require(classifyResultsScreen("", endGame) == NativeResultsScreen::None, "Empty top was not None");
+        require(classifyResultsScreen("None", endGame) == NativeResultsScreen::None, "None top was not None");
+        c = context(); c.matchEnded = true; c.resultsReady = true; c.secondsRemaining = 30;
+        c.screen = classifyResultsScreen("EndGameMenuMovie", endGame);
+        auto authored = tracked();
+        require(authored.observe(c, state, 30) && authored.active(),
+            "Fresh results READY did not earn permission for the saved event");
+        c.resultsReady = false;
+        c.screen = classifyResultsScreen("OptionsEndGameMenuMovie", optionsEnd);
+        require(authored.observe(c, state, 31) && authored.active(),
+            "OptionsEndGameMenuMovie lost earned permission for the same saved event");
+        c.screen = classifyResultsScreen("OptionsMenuMovie", optionsMenu);
+        require(authored.observe(c, state, 32) && authored.active(),
+            "OptionsMenuMovie lost earned permission for the same saved event");
+        c.secondsRemaining = 0;
+        c.screen = classifyResultsScreen("OptionsEndGameMenuMovie", optionsEnd);
+        require(!authored.observe(c, state, 33), "Expired timer 0 refreshed under OptionsEndGameMenuMovie");
+        c.screen = classifyResultsScreen("OptionsMenuMovie", optionsMenu);
+        require(!authored.observe(c, state, 34), "Expired timer 0 refreshed under OptionsMenuMovie");
+        c.secondsRemaining = 30;
+        c.screen = classifyResultsScreen("MainMenuMovie", {"EndGameMenuMovie", "MainMenuMovie"});
+        require(!authored.observe(c, state, 35), "Unrelated screen retained the saved-event timer");
+        c.screen = classifyResultsScreen("OptionsEndGameMenuMovie", optionsEnd);
+        require(!authored.observe(c, state, 36), "Unrelated screen did not revoke OptionsEndGame permission");
+        c.screen = classifyResultsScreen("OptionsMenuMovie", optionsMenu);
+        require(!authored.observe(c, state, 37), "Unrelated screen did not revoke OptionsMenu permission");
+        c.resultsReady = false; c.secondsRemaining = 30;
+        c.screen = classifyResultsScreen("EndGameMenuMovie", endGame);
+        auto unready = tracked();
+        require(!unready.observe(c, state, 40), "Results without READY earned permission");
+        c.screen = classifyResultsScreen("OptionsEndGameMenuMovie", optionsEnd);
+        require(!unready.observe(c, state, 41), "OptionsEndGameMenuMovie earned permission without READY");
+        c.screen = classifyResultsScreen("OptionsMenuMovie", optionsMenu);
+        require(!unready.observe(c, state, 42), "OptionsMenuMovie earned permission without READY");
         std::cout << "Native saved-results timer hold tests passed\n";
         return 0;
     } catch (const std::exception& e) {

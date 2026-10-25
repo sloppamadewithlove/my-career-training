@@ -1,11 +1,24 @@
 #pragma once
 
 #include "NativeReturnGate.h"
+#include <algorithm>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace mct {
 
 enum class NativeResultsScreen { None, Results, OptionsOverResults, Other };
+
+// Exact movie names only. Options stays over results only while EndGameMenuMovie
+// is still present on the SDK stack.
+inline NativeResultsScreen classifyResultsScreen(const std::string& top, const std::vector<std::string>& stack) {
+    if (top == "EndGameMenuMovie") return NativeResultsScreen::Results;
+    if ((top == "OptionsEndGameMenuMovie" || top == "OptionsMenuMovie") &&
+        std::find(stack.begin(), stack.end(), "EndGameMenuMovie") != stack.end())
+        return NativeResultsScreen::OptionsOverResults;
+    return top.empty() || top == "None" ? NativeResultsScreen::None : NativeResultsScreen::Other;
+}
 
 struct NativeResultsContext {
     NativeReturnContext scope;

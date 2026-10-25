@@ -25,7 +25,6 @@
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 
 #include <chrono>
-#include <algorithm>
 #include <mutex>
 #include <utility>
 #endif
@@ -196,14 +195,7 @@ NativeResultsScreen NativeMovieHost::State::resultsScreen() const {
     if (!game) return NativeResultsScreen::Other;
     auto stack = game->GetMenuStack();
     if (!stack) return NativeResultsScreen::None;
-    const auto top = stack.GetTopMenu();
-    if (top == "EndGameMenuMovie") return NativeResultsScreen::Results;
-    if (top == "OptionsMenuMovie") {
-        const auto menus = stack.GetMenuStack();
-        if (std::find(menus.begin(), menus.end(), "EndGameMenuMovie") != menus.end())
-            return NativeResultsScreen::OptionsOverResults;
-    }
-    return top.empty() || top == "None" ? NativeResultsScreen::None : NativeResultsScreen::Other;
+    return classifyResultsScreen(stack.GetTopMenu(), stack.GetMenuStack());
 }
 
 bool NativeMovieHost::State::matchInProgress() const {
@@ -717,6 +709,22 @@ void NativeMovieHost::State::tick() {
                     {"game_state_time_remaining", server.GetGameStateTimeRemaining()},
                     {"replicated_game_state_time_remaining", server.GetReplicatedGameStateTimeRemaining()},
                     {"match_ended", server.GetbMatchEnded() != 0}};
+                // Private bounded diagnostics, cached on this verified game
+                // thread. Status readers never query the SDK themselves.
+                timerObservation["menu_stack"] = nullptr;
+                timerObservation["menu_stack_truncated"] = false;
+                auto menuStack = game->GetMenuStack();
+                if (menuStack) {
+                    const auto menus = menuStack.GetMenuStack();
+                    auto names = Json::array();
+                    bool truncated = menus.size() > 32;
+                    for (std::size_t i = 0; i < menus.size() && i < 32; ++i) {
+                        truncated = truncated || menus[i].size() > 128;
+                        names.push_back(menus[i].substr(0, 128));
+                    }
+                    timerObservation["menu_stack"] = std::move(names);
+                    timerObservation["menu_stack_truncated"] = truncated;
+                }
             } else {
                 std::lock_guard<std::mutex> guard(mutex);
                 resultsHold.clear();
