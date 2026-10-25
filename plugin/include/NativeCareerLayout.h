@@ -37,7 +37,7 @@ enum class CareerLayoutRefusal {
     None, NoPlan, StaleScope, StaleChoice, NotConsumed, Disabled, UnknownControl
 };
 
-enum class StockRoute { None, Garage, Options, Resume };
+enum class StockRoute { None, Garage, Options, Resume, Preset, Settings };
 
 enum class NativeMenuSurface { None, Frontend, Pause, Results };
 
@@ -206,7 +206,8 @@ public:
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
             action == "training_settings" || action == "quit_game" || action == "abandon_fixture" ||
-            action == "retry_lesson" || action == "return_hub" || action == "retry_result_save" || action == "forfeit_match";
+            action == "retry_lesson" || action == "return_hub" || action == "retry_result_save" ||
+            action == "forfeit_match" || action == "prepare_next_match";
     }
 
     // `cosmetics` is not stored. Publication and selection receive a fresh context.
@@ -934,7 +935,7 @@ private:
         navigate(view, kCommunity, "Community", CareerLayoutPage::Community);
         navigate(view, kSettings, "Settings", CareerLayoutPage::Settings);
         const bool canExit = flag(object(state, "session"), "can_exit", !busy(state));
-        dispatch(view, kExit, "Exit", canExit, kWait, "quit_game", Json::object());
+        dispatch(view, kExit, "Quit My Career", canExit, kWait, "quit_game", Json::object());
     }
 
     void buildCareer(CareerLayoutView& view, const Json& state) const {

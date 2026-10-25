@@ -98,10 +98,12 @@ public:
             wire["controls"].push_back({{"id", choice.id}, {"label", choice.label},
                 {"enabled", choice.enabled}, {"reason", choice.reason},
                 {"stock", choice.stock == StockRoute::Garage ? "garage" :
-                    choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" : ""},
+                    choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" :
+                    choice.stock == StockRoute::Preset ? "preset" : choice.stock == StockRoute::Settings ? "settings" : ""},
                 {"revision", std::to_string(choice.revision)},
                 {"return_commit", choice.kind == CareerLayoutEffectKind::Dispatch &&
-                    (choice.action == "return_hub" || choice.action == "forfeit_match")}});
+                    (choice.action == "return_hub" || choice.action == "forfeit_match" ||
+                     choice.action == "prepare_next_match")}});
         }
         nonce_ = scope.nonce;
         scopeGeneration_ = scope.generation;

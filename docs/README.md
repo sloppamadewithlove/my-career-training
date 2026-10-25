@@ -9,6 +9,7 @@ documents' claims about publication, implementation and untested behavior.
 | Build the current Windows candidate | [BUILDING.md](BUILDING.md), [NATIVE_CANDIDATE.md](NATIVE_CANDIDATE.md) |
 | Understand the requested product | [BUILD_SPEC.md](BUILD_SPEC.md) |
 | Change shared data or lifecycle behavior | [INTEGRATION_CONTRACT.md](INTEGRATION_CONTRACT.md) |
+| Implement continuous play and the five-button results menu | [RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md) |
 | Test the real game | [NATIVE_ACCEPTANCE_SESSION.md](NATIVE_ACCEPTANCE_SESSION.md) |
 | Reach game states and coordinate agents | [Testing skill](../skills/my-career-training-testing/SKILL.md), [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) |
 | Protect private information | [REPOSITORY_PRIVACY.md](REPOSITORY_PRIVACY.md) |

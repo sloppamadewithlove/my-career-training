@@ -5,17 +5,27 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
-Latest live source candidate: `d95f4cc`. Native Forfeit cancel/confirm, durable
-loss, visible hub arrival, schedule advance and next native Play passed. A real
-1–19 result saved once; plain results retention passed beyond 80 seconds.
-The stock `OptionsEndGameMenuMovie` submenu then lost retention and travelled
-to team selection. Source fix `351afcd` recognizes that exact submenu only with
-the results movie still in the SDK stack and adds bounded stack diagnostics.
-Its two focused native suites passed. Build and retest the submenu and
-Settings/Back, then use the actual saved-results Return button. That button,
-restart persistence and exact frozen gameplay acceptance remain open. The d95
-installer inventory passed but the artifact is held. Physical DS4 testing is
-deferred at the owner's request. Details and historical evidence follow.
+Latest live source candidate: `5fbe0c6`, incorporating the exact results Options
+stack correction in `351afcd`. Its coherent build passed 41 native checks.
+A real 0–21 result saved once; the corrected Options submenu retained the ended
+match beyond 60 seconds. A later read-only recording shows results Return
+cleanup, typed navigation and fresh `RootMenuMovie` READY in the same process.
+The initiating input was not attributed and the arrival screenshot was refused
+because the game was not foreground; this is not complete visual acceptance.
+Direct Settings/Back and controlled saved-results Exit acceptance remain open.
+Restarting the copied career preserved the previous Forfeit and 1–19 results
+exactly once. The exact 5fbe CI inventory passed all 4,470 bundle files and nine
+source archives; frozen gameplay has not been run and nothing is published.
+
+The owner has now specified a new results flow: **Play Next Match, Schedule,
+Change Preset, Settings, Exit**, in that order. Results Exit means return to the
+My Career hub; its close-app control becomes **Quit My Career**. Schedule stays
+inside the finished game without a time limit. Continuation offers a lineup
+preview and starts the next fixture in the same owned game only after durable
+cleanup and fresh native-root arrival. Implementation is in progress under
+[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md); it has not
+passed live acceptance. Physical DS4 testing remains deferred at the owner's
+request. Keep completed evidence below separate from these new controls.
 
 ## Download and source
 

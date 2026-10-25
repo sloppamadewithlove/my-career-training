@@ -187,7 +187,7 @@ int main() {
         require(root.choices.size() == 7, "Top menu must have seven controls");
         const char* ids[] = {NativeCareerLayout::kCareer, NativeCareerLayout::kTraining, NativeCareerLayout::kGarage,
             NativeCareerLayout::kWorkshop, NativeCareerLayout::kCommunity, NativeCareerLayout::kSettings, NativeCareerLayout::kExit};
-        const char* labels[] = {"My Career", "Training", "Garage", "Workshop", "Community", "Settings", "Exit"};
+        const char* labels[] = {"My Career", "Training", "Garage", "Workshop", "Community", "Settings", "Quit My Career"};
         for (std::size_t i = 0; i < 7; ++i) {
             require(root.choices[i].id == ids[i] && root.choices[i].label == labels[i], "Top menu order");
         }
