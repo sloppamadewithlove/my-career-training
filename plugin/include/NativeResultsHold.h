@@ -5,11 +5,14 @@
 
 namespace mct {
 
+enum class NativeResultsScreen { None, Results, OptionsOverResults, Other };
+
 struct NativeResultsContext {
     NativeReturnContext scope;
     std::uintptr_t gameEvent = 0;
     bool matchEnded = false;
     bool resultsReady = false;
+    NativeResultsScreen screen = NativeResultsScreen::None;
     int secondsRemaining = 0;
 };
 
@@ -50,7 +53,13 @@ public:
             return false;
         }
         endedSeen_ = endedSeen_ || context.matchEnded;
-        active_ = context.matchEnded && context.resultsReady && savedForTrackedActivity(state);
+        const bool saved = savedForTrackedActivity(state);
+        if (context.screen == NativeResultsScreen::Other) optionsPermission_ = false;
+        if (context.screen == NativeResultsScreen::Results)
+            optionsPermission_ = context.matchEnded && context.resultsReady && saved;
+        const bool visible = (context.screen == NativeResultsScreen::Results && context.resultsReady) ||
+            (context.screen == NativeResultsScreen::OptionsOverResults && optionsPermission_);
+        active_ = context.matchEnded && visible && saved;
         return active_ && context.secondsRemaining > 0 && context.secondsRemaining <= 30 &&
             now >= nextAttempt_;
     }
@@ -75,7 +84,7 @@ public:
     void suspend() { active_ = false; }
     void clear() {
         nonce_.clear(); activity_.clear(); fixture_.clear(); event_ = 0;
-        active_ = endedSeen_ = false; attempts_ = 0; nextAttempt_ = 0;
+        active_ = endedSeen_ = optionsPermission_ = false; attempts_ = 0; nextAttempt_ = 0;
     }
     bool active() const { return active_; }
     unsigned attempts() const { return attempts_; }
@@ -85,6 +94,7 @@ private:
     std::uintptr_t event_ = 0;
     bool active_ = false;
     bool endedSeen_ = false;
+    bool optionsPermission_ = false;
     unsigned attempts_ = 0;
     double nextAttempt_ = 0;
 };

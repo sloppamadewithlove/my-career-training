@@ -25,6 +25,7 @@
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 
 #include <chrono>
+#include <algorithm>
 #include <mutex>
 #include <utility>
 #endif
@@ -181,6 +182,7 @@ struct NativeMovieHost::State {
     bool preconditions(std::string& sessionId, Json& state, const char*& why, bool requireSurface = true);
     bool liveNow(const std::string& sessionId) const;
     bool matchInProgress() const;
+    NativeResultsScreen resultsScreen() const;
     NativeMenuSurface observedSurface() const;
     bool drain(const CareerLayoutScope& scope, double monotonic);
     void apply(CareerLayoutEffect effect, const CareerLayoutScope& scope);
@@ -190,6 +192,20 @@ struct NativeMovieHost::State {
 };
 
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+NativeResultsScreen NativeMovieHost::State::resultsScreen() const {
+    if (!game) return NativeResultsScreen::Other;
+    auto stack = game->GetMenuStack();
+    if (!stack) return NativeResultsScreen::None;
+    const auto top = stack.GetTopMenu();
+    if (top == "EndGameMenuMovie") return NativeResultsScreen::Results;
+    if (top == "OptionsMenuMovie") {
+        const auto menus = stack.GetMenuStack();
+        if (std::find(menus.begin(), menus.end(), "EndGameMenuMovie") != menus.end())
+            return NativeResultsScreen::OptionsOverResults;
+    }
+    return top.empty() || top == "None" ? NativeResultsScreen::None : NativeResultsScreen::Other;
+}
+
 bool NativeMovieHost::State::matchInProgress() const {
     if (!game || !game->IsInGame() || game->IsInOnlineGame() || game->IsInReplay()) return false;
     auto server = game->GetGameEventAsServer();
@@ -645,18 +661,21 @@ void NativeMovieHost::State::tick() {
                 resultContext.gameEvent = server.memory_address;
                 resultContext.matchEnded = server.GetbMatchEnded() != 0;
                 resultContext.secondsRemaining = server.GetGameStateTimeRemaining();
+                resultContext.screen = resultsScreen();
                 {
                     std::lock_guard<std::mutex> guard(mutex);
                     resultContext.resultsReady = surface == NativeMenuSurface::Results && session.ready(monotonicSeconds());
                 }
-                resultContext.resultsReady = resultContext.resultsReady && observedSurface() == NativeMenuSurface::Results;
+                resultContext.resultsReady = resultContext.resultsReady && resultContext.screen == NativeResultsScreen::Results;
                 const auto holdNow = monotonicSeconds();
                 bool refreshResults = false;
                 {
                     std::lock_guard<std::mutex> guard(mutex);
                     if (!stopped) refreshResults = resultsHold.observe(resultContext, bridgeState, holdNow);
                 }
-                if (refreshResults && liveNow(sessionId) && observedSurface() == NativeMenuSurface::Results) {
+                // Options must still have this results movie underneath it;
+                // historical READY never permits an unrelated stock screen.
+                if (refreshResults && liveNow(sessionId) && resultsScreen() == resultContext.screen) {
                     const auto latest = bridge->state();
                     {
                         std::lock_guard<std::mutex> guard(mutex);

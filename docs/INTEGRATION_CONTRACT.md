@@ -206,6 +206,11 @@ or below to 60 seconds, with at least five seconds between attempts. It never
 revives an expired timer or writes the Soccar match clock. The typed SDK setter
 still needs live acceptance. `IsFinished()` is not used as evidence: the observed
 build returned false even while the real results screen counted down.
+After earning fresh results READY, the timer-only permission also covers
+`OptionsMenuMovie` while the SDK stack still contains `EndGameMenuMovie`
+underneath it. Unknown screens do not receive timer writes and revoke that
+modal permission; a loading gap performs no writes. Returning to results must
+earn fresh READY again. This permission never authorizes shell navigation.
 
 These are the repair's acceptance requirements. Exact source, compiled movies,
 and live-game evidence must be recorded separately before release.

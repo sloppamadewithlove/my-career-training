@@ -31,6 +31,7 @@ static NativeResultsHold tracked() {
 int main() {
     try {
         auto c = context(); c.matchEnded = c.resultsReady = true; c.secondsRemaining = 30;
+        c.screen = NativeResultsScreen::Results;
         auto state = saved(); auto gate = tracked();
         require(gate.observe(c, state, 10) && gate.active(), "Exact saved result did not retain its results timer");
         gate.noteAttempt(10);
@@ -94,7 +95,29 @@ int main() {
         c = context(); NativeResultsHold training;
         require(!training.observe(c, lesson, 0), "Training match was tracked");
         c.matchEnded = c.resultsReady = true; c.secondsRemaining = 30;
+        c.screen = NativeResultsScreen::Results;
         require(!training.observe(c, state, 20), "Training binding adopted a career result");
+        auto options = tracked();
+        c.resultsReady = false; c.screen = NativeResultsScreen::OptionsOverResults;
+        require(!options.observe(c, state, 20), "Options without earned results READY gained timer authority");
+        c.resultsReady = true; c.screen = NativeResultsScreen::Results;
+        require(options.observe(c, state, 21), "Current results failed to earn modal permission");
+        c.resultsReady = false; c.screen = NativeResultsScreen::OptionsOverResults;
+        require(options.observe(c, state, 22), "Owned Options over earned results lost retention");
+        c.screen = NativeResultsScreen::None;
+        require(!options.observe(c, state, 23), "Loading gap refreshed a timer");
+        c.screen = NativeResultsScreen::OptionsOverResults;
+        require(options.observe(c, state, 24), "Loading gap forgot the same verified modal stack");
+        c.screen = NativeResultsScreen::Other;
+        require(!options.observe(c, state, 25), "Unrelated screen refreshed a timer");
+        c.screen = NativeResultsScreen::OptionsOverResults;
+        require(!options.observe(c, state, 26), "Unrelated screen did not revoke modal permission");
+        c.resultsReady = true; c.screen = NativeResultsScreen::Results;
+        require(options.observe(c, state, 27), "Fresh results could not re-earn modal permission");
+        c.resultsReady = false;
+        require(!options.observe(c, state, 28), "Return from Options used stale results READY");
+        c.screen = NativeResultsScreen::OptionsOverResults;
+        require(!options.observe(c, state, 29), "Failed results handshake retained modal permission");
         std::cout << "Native saved-results timer hold tests passed\n";
         return 0;
     } catch (const std::exception& e) {
