@@ -20,6 +20,7 @@ package menus
     import scaleform.gfx.TextFieldEx;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
+    import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.InputEvent;
     import scaleform.clik.managers.FocusHandler;
     import tagame.api.DevUtil;
@@ -75,10 +76,24 @@ package menus
         private var returnRequestId:String = "";
         private var returnRequestRevision:String = "";
         private var suppressHoldFocus:Boolean = false;
+        // One gesture, one action. A control callback runs only for the exact
+        // control instance that received this gesture's press. Rebuilds caused
+        // by that action wait until the dispatch has unwound, and no press can
+        // arm until then, so a release or synthesized click cannot reach a
+        // control created by the same gesture.
+        private var armedControl:Object = null;
+        private var armedController:uint = 0;
+        private var armedButton:uint = 0;
+        private var armedKeyboard:Boolean = false;
+        private var gestureSpent:Boolean = false;
+        private var refreshQueued:Boolean = false;
+        private var gestureContainer:Object = null;
+        private var openerFocus:String = "";
 
         public function MctResultsMenu()
         {
             super();
+            wireGesture();
             details = new TextField();
             details.multiline = true;
             details.wordWrap = true;
@@ -93,6 +108,8 @@ package menus
         {
             super.handleAddedToStage(event);
             attached = true;
+            wireGesture();
+            releaseGesture();
             if (timer == null)
             {
                 timer = new Timer(250);
@@ -110,6 +127,8 @@ package menus
             localBackKey = "";
             returnRequestGeneration = "";
             suppressHoldFocus = false;
+            openerFocus = "";
+            releaseGesture();
             removeEventListener(Event.RENDER, validateFocus);
             removeEventListener(Event.ENTER_FRAME, validateFocus);
             closeLoader();
@@ -119,6 +138,7 @@ package menus
 
         override protected function refreshMenu() : void
         {
+            disarm();
             super.refreshMenu();
             fitControls();
             layoutDetails();
@@ -213,7 +233,8 @@ package menus
 
         override protected function generateControls() : void
         {
-            var focusName:String = currentFocus != null ? currentFocus.name : "";
+            var focusName:String = openerFocus != "" ? openerFocus : currentFocus != null ? currentFocus.name : "";
+            openerFocus = "";
             suppressHoldFocus = false;
             var made:UIComponent = null;
             if (!current())
@@ -254,6 +275,100 @@ package menus
             if (returnLocked()) holdWithoutFocus();
             else if (safe != null) currentFocus = safe;
             else if (fallback != null) currentFocus = fallback;
+        }
+
+        private function wireGesture() : void
+        {
+            if (m_controlContainer == null || gestureContainer === m_controlContainer) return;
+            if (gestureContainer != null)
+            {
+                gestureContainer.removeEventListener(ButtonEvent.PRESS, armGesture, true);
+                gestureContainer.removeEventListener(ButtonEvent.CLICK, gateGesture, true);
+                gestureContainer.removeEventListener(ButtonEvent.RELEASE_OUTSIDE, abandonGesture, true);
+            }
+            // Capture phase on the container runs before the target-phase
+            // listener that DynamicMenu.createControl puts on each control.
+            m_controlContainer.addEventListener(ButtonEvent.PRESS, armGesture, true, 0, true);
+            m_controlContainer.addEventListener(ButtonEvent.CLICK, gateGesture, true, 0, true);
+            m_controlContainer.addEventListener(ButtonEvent.RELEASE_OUTSIDE, abandonGesture, true, 0, true);
+            gestureContainer = m_controlContainer;
+        }
+
+        private function armGesture(event:ButtonEvent) : void
+        {
+            disarm();
+            if (gestureSpent || event.isRepeat || m_controls.indexOf(event.target) < 0) return;
+            armedControl = event.target;
+            armedController = event.controllerIdx;
+            armedButton = event.buttonIdx;
+            armedKeyboard = event.isKeyboard;
+        }
+
+        private function gateGesture(event:ButtonEvent) : void
+        {
+            var control:Object = event.target;
+            if (!gestureSpent && !event.isRepeat && ownsGesture(event) &&
+                m_controls.indexOf(control) >= 0 && contains(control as UIComponent))
+            {
+                disarm();
+                gestureSpent = true;
+                addEventListener(Event.ENTER_FRAME, settleGesture, false, 0, true);
+                return;
+            }
+            event.stopImmediatePropagation();
+        }
+
+        // An accepted action asks for a rebuild here instead of destroying the
+        // controls inside the activating button's own click dispatch.
+        private function queueRefresh() : void
+        {
+            if (!gestureSpent)
+            {
+                refreshMenu();
+                return;
+            }
+            refreshQueued = true;
+        }
+
+        private function settleGesture(event:Event = null) : void
+        {
+            removeEventListener(Event.ENTER_FRAME, settleGesture);
+            var rebuild:Boolean = refreshQueued;
+            refreshQueued = false;
+            disarm();
+            gestureSpent = false;
+            if (rebuild) refreshMenu();
+        }
+
+        // Stock RELEASE_OUTSIDE carries default source fields, so it can only
+        // end a primary mouse press. A keyboard, controller, or other-device
+        // press on the same control keeps its ownership.
+        private function abandonGesture(event:ButtonEvent) : void
+        {
+            if (ownsGesture(event)) disarm();
+        }
+
+        private function ownsGesture(event:ButtonEvent) : Boolean
+        {
+            return armedControl != null && event.target === armedControl &&
+                event.controllerIdx == armedController && event.buttonIdx == armedButton &&
+                event.isKeyboard == armedKeyboard;
+        }
+
+        private function disarm() : void
+        {
+            armedControl = null;
+            armedController = 0;
+            armedButton = 0;
+            armedKeyboard = false;
+        }
+
+        private function releaseGesture() : void
+        {
+            removeEventListener(Event.ENTER_FRAME, settleGesture);
+            disarm();
+            gestureSpent = false;
+            refreshQueued = false;
         }
 
         private static function stockRoute(item:Object) : Boolean
@@ -358,7 +473,7 @@ package menus
             presetOpen = true;
             presetBinding = generation + ":" + String(item.revision);
             presetIndex = equippedIndex(presetRows());
-            refreshMenu();
+            queueRefresh();
         }
 
         private function closePresetState() : void
@@ -375,21 +490,22 @@ package menus
             if (!presetValid())
             {
                 closePresetState();
-                refreshMenu();
+                queueRefresh();
                 return;
             }
             var rows:Array = presetRows();
             if (action == "back")
             {
                 closePresetState();
-                refreshMenu();
+                openerFocus = "results.preset";
+                queueRefresh();
                 return;
             }
             // The table can change between the last draw and this activation.
             // Act only on the exact rows the player saw; otherwise redraw.
             if (signatureOf(rows) != presetSignature)
             {
-                refreshMenu();
+                queueRefresh();
                 return;
             }
             if (rows.length > 0 && action == "prev") presetIndex = (presetIndex + rows.length - 1) % rows.length;
@@ -399,7 +515,7 @@ package menus
                 var row:LoadoutSetsLoadoutSetsRow = LoadoutSetsLoadoutSetsRow(rows[presetIndex]);
                 if (!row.bEquipped) LoadoutSets.EquipPreset(row.RowIndex);
             }
-            refreshMenu();
+            queueRefresh();
         }
 
         private function openSettings() : void
@@ -505,6 +621,7 @@ package menus
                 {
                     localBackKey = event.details.navEquivalent;
                     closePresetState();
+                    openerFocus = "results.preset";
                     refreshMenu();
                 }
                 return;
@@ -577,7 +694,7 @@ package menus
             }
             DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                 surface:SURFACE, generation:generation, revision:String(item.revision), control:String(item.id)}));
-            refreshMenu();
+            queueRefresh();
         }
 
         private function poll(event:TimerEvent = null) : void

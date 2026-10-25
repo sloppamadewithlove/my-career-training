@@ -17,6 +17,7 @@ package menus
     import projectx.core.UIScreen;
     import scaleform.clik.controls.Button;
     import scaleform.clik.core.UIComponent;
+    import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.managers.FocusHandler;
     import scaleform.gfx.TextFieldEx;
     import tagame.api.DevUtil;
@@ -49,10 +50,23 @@ package menus
         private var busyStarted:int = 0;
         private var resetFocus:Boolean = false;
         private var lastHello:int = -1000;
+        // One gesture, one action. A control callback runs only for the exact
+        // control instance that received this gesture's press. Rebuilds caused
+        // by that action wait until the dispatch has unwound, and no press can
+        // arm until then, so a release or synthesized click cannot reach a
+        // control created by the same gesture.
+        private var armedControl:Object = null;
+        private var armedController:uint = 0;
+        private var armedButton:uint = 0;
+        private var armedKeyboard:Boolean = false;
+        private var gestureSpent:Boolean = false;
+        private var refreshQueued:Boolean = false;
+        private var gestureContainer:Object = null;
 
         public function MctRootMenu()
         {
             super();
+            wireGesture();
             details = new TextField();
             details.multiline = true;
             details.wordWrap = true;
@@ -77,6 +91,8 @@ package menus
         {
             super.handleAddedToStage(event);
             attached = true;
+            wireGesture();
+            releaseGesture();
             if (timer == null)
             {
                 timer = new Timer(250);
@@ -93,6 +109,7 @@ package menus
             // while retaining it in the menu stack for Back navigation.
             if (timer != null && !UIMenu.isMenuInStack(menuName)) timer.stop();
             closeLoader();
+            releaseGesture();
             super.handleRemovedFromStage(event);
         }
 
@@ -132,6 +149,7 @@ package menus
             else if (currentFocus is UIComponent && UIComponent(currentFocus).enabled && contains(currentFocus))
                 focusId = currentFocus.name;
             resetFocus = false;
+            disarm();
             clearMenuFocus();
             super.refreshMenu();
 
@@ -169,6 +187,100 @@ package menus
             // protected state and stale callback restoration before rebuilding.
             m_currentFocus = null;
             m_currentFocusCallbackData = null;
+        }
+
+        private function wireGesture() : void
+        {
+            if (m_controlContainer == null || gestureContainer === m_controlContainer) return;
+            if (gestureContainer != null)
+            {
+                gestureContainer.removeEventListener(ButtonEvent.PRESS, armGesture, true);
+                gestureContainer.removeEventListener(ButtonEvent.CLICK, gateGesture, true);
+                gestureContainer.removeEventListener(ButtonEvent.RELEASE_OUTSIDE, abandonGesture, true);
+            }
+            // Capture phase on the container runs before the target-phase
+            // listener that DynamicMenu.createControl puts on each control.
+            m_controlContainer.addEventListener(ButtonEvent.PRESS, armGesture, true, 0, true);
+            m_controlContainer.addEventListener(ButtonEvent.CLICK, gateGesture, true, 0, true);
+            m_controlContainer.addEventListener(ButtonEvent.RELEASE_OUTSIDE, abandonGesture, true, 0, true);
+            gestureContainer = m_controlContainer;
+        }
+
+        private function armGesture(event:ButtonEvent) : void
+        {
+            disarm();
+            if (gestureSpent || event.isRepeat || m_controls.indexOf(event.target) < 0) return;
+            armedControl = event.target;
+            armedController = event.controllerIdx;
+            armedButton = event.buttonIdx;
+            armedKeyboard = event.isKeyboard;
+        }
+
+        private function gateGesture(event:ButtonEvent) : void
+        {
+            var control:Object = event.target;
+            if (!gestureSpent && !event.isRepeat && ownsGesture(event) &&
+                m_controls.indexOf(control) >= 0 && contains(control as UIComponent))
+            {
+                disarm();
+                gestureSpent = true;
+                addEventListener(Event.ENTER_FRAME, settleGesture, false, 0, true);
+                return;
+            }
+            event.stopImmediatePropagation();
+        }
+
+        // An accepted action asks for a rebuild here instead of destroying the
+        // controls inside the activating button's own click dispatch.
+        private function queueRefresh() : void
+        {
+            if (!gestureSpent)
+            {
+                refreshMenu();
+                return;
+            }
+            refreshQueued = true;
+        }
+
+        private function settleGesture(event:Event = null) : void
+        {
+            removeEventListener(Event.ENTER_FRAME, settleGesture);
+            var rebuild:Boolean = refreshQueued;
+            refreshQueued = false;
+            disarm();
+            gestureSpent = false;
+            if (rebuild) refreshMenu();
+        }
+
+        // Stock RELEASE_OUTSIDE carries default source fields, so it can only
+        // end a primary mouse press. A keyboard, controller, or other-device
+        // press on the same control keeps its ownership.
+        private function abandonGesture(event:ButtonEvent) : void
+        {
+            if (ownsGesture(event)) disarm();
+        }
+
+        private function ownsGesture(event:ButtonEvent) : Boolean
+        {
+            return armedControl != null && event.target === armedControl &&
+                event.controllerIdx == armedController && event.buttonIdx == armedButton &&
+                event.isKeyboard == armedKeyboard;
+        }
+
+        private function disarm() : void
+        {
+            armedControl = null;
+            armedController = 0;
+            armedButton = 0;
+            armedKeyboard = false;
+        }
+
+        private function releaseGesture() : void
+        {
+            removeEventListener(Event.ENTER_FRAME, settleGesture);
+            disarm();
+            gestureSpent = false;
+            refreshQueued = false;
         }
 
         private function sameControlIds(left:Object, right:Object) : Boolean
@@ -273,7 +385,7 @@ package menus
             if (!isFrontMenu() || !current() || busy) return;
             page = Math.max(0, page + direction);
             resetFocus = true;
-            refreshMenu();
+            queueRefresh();
         }
 
         private function setDetails(title:String, body:String) : void
@@ -329,7 +441,7 @@ package menus
             busyStarted = getTimer();
             DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                 generation:generation, revision:String(item.revision), control:String(item.id)}));
-            refreshMenu();
+            queueRefresh();
         }
 
         private function poll(event:TimerEvent = null) : void
