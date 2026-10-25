@@ -344,7 +344,7 @@ def _match_pins() -> dict[str, dict]:
             "document_target_name": "MctResultsMenuScreen",
             "symbol_character": 23,
             "symbol_name": "EndGameMenuMovie",
-            "method_bodies": 100,
+            "method_bodies": 115,
             "class_flags": (9, 8, 9, 11, 9, 9, 11, 9, 11, 9),
             "authored_classes": results,
             "compiled_classes": results + tuple(codec),

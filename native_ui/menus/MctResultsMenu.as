@@ -23,6 +23,9 @@ package menus
     import scaleform.clik.events.InputEvent;
     import scaleform.clik.managers.FocusHandler;
     import tagame.api.DevUtil;
+    import tagame.api.LoadoutSets;
+    import tagame.api.LoadoutSetsLoadoutSets;
+    import tagame.api.LoadoutSetsLoadoutSetsRow;
     import tagame.api.Shell;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
@@ -36,6 +39,18 @@ package menus
         private static const SESSION:String = "__MCT_SESSION__";
         private static const SURFACE:String = "results";
         private static const BODY_UTF8_MAX:int = 1536;
+        private static const PRESET_ROWS_MAX:int = 64;
+        private static const PRESET_NAME_MAX:int = 40;
+        private static const CONTROL_TOP_MIN:Number = 180;
+        // Local Change Preset page. It is bound to one view generation and the
+        // shown results.preset revision, and never sends a service command.
+        private var presetOpen:Boolean = false;
+        private var presetBinding:String = "";
+        private var presetIndex:int = -1;
+        private var presetSignature:String = "";
+        // navEquivalent of a local Back press. Its repeats and release are
+        // consumed after the page changes, so the inherited handler never sees them.
+        private var localBackKey:String = "";
         private var timer:Timer;
         private var loader:URLLoader;
         private var loadStarted:int;
@@ -91,6 +106,8 @@ package menus
         {
             attached = false;
             clearConsumption();
+            closePresetState();
+            localBackKey = "";
             returnRequestGeneration = "";
             suppressHoldFocus = false;
             removeEventListener(Event.RENDER, validateFocus);
@@ -103,6 +120,7 @@ package menus
         override protected function refreshMenu() : void
         {
             super.refreshMenu();
+            fitControls();
             layoutDetails();
             syncFocus();
         }
@@ -110,7 +128,26 @@ package menus
         override protected function handleStageResized(event:Event = null) : void
         {
             super.handleStageResized(event);
+            fitControls();
             layoutDetails();
+        }
+
+        // The stock countdown advertises an online-style next match. Keep it
+        // hidden; the game timer itself is untouched.
+        override protected function onTimeToNextMatchChanged() : void
+        {
+            if (nextMatchCountdown != null) nextMatchCountdown.visible = false;
+        }
+
+        // Longer local pages (up to eight controls) must stay on screen. Move
+        // the left control column up only when its bottom would pass the stage
+        // margin; the centered scoreboard is not touched.
+        private function fitControls() : void
+        {
+            if (m_controlContainer == null || m_controls.length == 0) return;
+            var spacing:Number = m_controlSpacing > 0 ? m_controlSpacing : 33;
+            var bottom:Number = UIScreen.ContentStageHeight - 24 - m_controls.length * spacing;
+            if (m_controlContainer.y > bottom) m_controlContainer.y = Math.max(CONTROL_TOP_MIN, bottom);
         }
 
         // Live bounds: left menu column only, clear of the centered scoreboard.
@@ -153,7 +190,8 @@ package menus
                 details.y = 36;
                 details.height = limit - 36;
             }
-            showFitted(current() ? String(view.title) + "\n\n" + String(view.body) : "Results\n\nWaiting for the offline career service.");
+            showFitted(!current() ? "Results\n\nWaiting for the offline career service." :
+                presetOpen ? presetCopy() : String(view.title) + "\n\n" + String(view.body));
         }
 
         private function showFitted(copy:String) : void
@@ -183,15 +221,22 @@ package menus
                 ownControl(createControl({label:"RESULTS", enabled:false}, ignoreChoice));
                 return;
             }
-            for each (var item:Object in view.controls)
+            if (presetOpen && !presetValid()) closePresetState();
+            if (presetOpen) generatePresetControls();
+            else
             {
-                if (!usable(item)) continue;
-                made = createControl({name:String(item.id), label:String(item.label), desc:String(item.reason),
-                    enabled:item.enabled === true && !(navigationIssued && item.return_commit === true) &&
-                    (item.stock === "options" ? !returnLocked() : (!busy && !(returnLocked() && item.return_commit === true)))}, choose, [item]);
-                ownControl(made);
+                for each (var item:Object in view.controls)
+                {
+                    if (!usable(item)) continue;
+                    made = createControl({name:String(item.id), label:String(item.label), desc:String(item.reason),
+                        enabled:item.enabled === true && !(navigationIssued && item.return_commit === true) &&
+                        (stockRoute(item) ? !returnLocked() && !(item.stock === "preset" && view.return_pending === true) :
+                        (!busy && !(returnLocked() && item.return_commit === true)))}, choose, [item]);
+                    ownControl(made);
+                }
             }
             var fallback:UIComponent = null;
+            var safe:UIComponent = null;
             for each (var entry:Object in m_controls)
             {
                 var control:UIComponent = entry as UIComponent;
@@ -201,10 +246,167 @@ package menus
                     currentFocus = control;
                     return;
                 }
+                // A carried activation from Play Next Match or Change Preset
+                // must land on Back, never on Start or Equip.
+                if (control.name == "results.preview_back" || control.name == "mct.preset.back") safe = control;
                 if (fallback == null) fallback = control;
             }
             if (returnLocked()) holdWithoutFocus();
+            else if (safe != null) currentFocus = safe;
             else if (fallback != null) currentFocus = fallback;
+        }
+
+        private static function stockRoute(item:Object) : Boolean
+        {
+            return item.stock === "options" || item.stock === "settings" || item.stock === "preset";
+        }
+
+        private function generatePresetControls() : void
+        {
+            var rows:Array = presetRows();
+            presetSignature = signatureOf(rows);
+            if (presetIndex < 0 || presetIndex >= rows.length) presetIndex = equippedIndex(rows);
+            if (presetIndex < 0 && rows.length > 0) presetIndex = 0;
+            var selected:LoadoutSetsLoadoutSetsRow = presetIndex >= 0 ? rows[presetIndex] as LoadoutSetsLoadoutSetsRow : null;
+            if (rows.length > 1)
+            {
+                ownControl(createControl({name:"mct.preset.prev", label:"Previous preset", desc:"", enabled:true},
+                    choosePreset, ["prev"]));
+                ownControl(createControl({name:"mct.preset.next", label:"Next preset", desc:"", enabled:true},
+                    choosePreset, ["next"]));
+            }
+            if (selected != null)
+            {
+                var name:String = presetName(selected);
+                ownControl(createControl({name:"mct.preset.equip",
+                    label:(selected.bEquipped ? "Equipped: " : "Equip: ") + name, desc:"",
+                    enabled:!selected.bEquipped}, choosePreset, ["equip"]));
+            }
+            ownControl(createControl({name:"mct.preset.back", label:"Back", desc:"", enabled:true}, choosePreset, ["back"]));
+        }
+
+        private function presetCopy() : String
+        {
+            var rows:Array = presetRows();
+            if (rows.length == 0) return "Change Preset\n\nNo car presets are available.";
+            var equipped:int = equippedIndex(rows);
+            var index:int = presetIndex >= 0 && presetIndex < rows.length ? presetIndex : equipped;
+            var copy:String = "Change Preset\n\nCurrent: " +
+                (equipped >= 0 ? presetName(LoadoutSetsLoadoutSetsRow(rows[equipped])) : "None");
+            if (index >= 0)
+                copy += "\nSelected: " + presetName(LoadoutSetsLoadoutSetsRow(rows[index])) +
+                    " (" + String(index + 1) + " of " + String(rows.length) + ")";
+            return copy + "\n\nUses your saved local presets. Back returns to the results.";
+        }
+
+        private function presetRows() : Array
+        {
+            var all:Array = LoadoutSetsLoadoutSets.getAllRows();
+            var rows:Array = [];
+            if (all == null) return rows;
+            for each (var entry:Object in all)
+            {
+                var row:LoadoutSetsLoadoutSetsRow = entry as LoadoutSetsLoadoutSetsRow;
+                if (row != null) rows.push(row);
+                if (rows.length >= PRESET_ROWS_MAX) break;
+            }
+            return rows;
+        }
+
+        private static function equippedIndex(rows:Array) : int
+        {
+            for (var index:int = 0; index < rows.length; index++)
+                if (LoadoutSetsLoadoutSetsRow(rows[index]).bEquipped) return index;
+            return -1;
+        }
+
+        private static function signatureOf(rows:Array) : String
+        {
+            var signature:String = String(rows.length);
+            for each (var row:LoadoutSetsLoadoutSetsRow in rows)
+                signature += "|" + String(row.RowIndex) + ":" + (row.bEquipped ? "1" : "0") + ":" + presetName(row);
+            return signature;
+        }
+
+        private static function presetName(row:LoadoutSetsLoadoutSetsRow) : String
+        {
+            var name:String = row != null && row.Name != null ? String(row.Name) : "";
+            if (name.length == 0) return "Preset";
+            return name.length > PRESET_NAME_MAX ? name.substr(0, PRESET_NAME_MAX) : name;
+        }
+
+        private function presetControl() : Object
+        {
+            if (!current()) return null;
+            for each (var item:Object in view.controls)
+                if (item.id === "results.preset" && item.stock === "preset") return item;
+            return null;
+        }
+
+        // Same owned view, generation and preset binding, no Return intent.
+        private function presetValid() : Boolean
+        {
+            var item:Object = presetControl();
+            return presetOpen && item != null && item.enabled === true && view.return_pending !== true &&
+                !returnLocked() && !navigationIssued && String(view.generation) == generation &&
+                presetBinding == generation + ":" + String(item.revision);
+        }
+
+        private function openPreset(item:Object) : void
+        {
+            if (!isFrontMenu() || view.return_pending === true || returnLocked() || navigationIssued) return;
+            presetOpen = true;
+            presetBinding = generation + ":" + String(item.revision);
+            presetIndex = equippedIndex(presetRows());
+            refreshMenu();
+        }
+
+        private function closePresetState() : void
+        {
+            presetOpen = false;
+            presetBinding = "";
+            presetIndex = -1;
+            presetSignature = "";
+        }
+
+        private function choosePreset(action:String) : void
+        {
+            if (!isFrontMenu()) return;
+            if (!presetValid())
+            {
+                closePresetState();
+                refreshMenu();
+                return;
+            }
+            var rows:Array = presetRows();
+            if (action == "back")
+            {
+                closePresetState();
+                refreshMenu();
+                return;
+            }
+            // The table can change between the last draw and this activation.
+            // Act only on the exact rows the player saw; otherwise redraw.
+            if (signatureOf(rows) != presetSignature)
+            {
+                refreshMenu();
+                return;
+            }
+            if (rows.length > 0 && action == "prev") presetIndex = (presetIndex + rows.length - 1) % rows.length;
+            else if (rows.length > 0 && action == "next") presetIndex = (presetIndex + 1) % rows.length;
+            else if (action == "equip" && presetIndex >= 0 && presetIndex < rows.length)
+            {
+                var row:LoadoutSetsLoadoutSetsRow = LoadoutSetsLoadoutSetsRow(rows[presetIndex]);
+                if (!row.bEquipped) LoadoutSets.EquipPreset(row.RowIndex);
+            }
+            refreshMenu();
+        }
+
+        private function openSettings() : void
+        {
+            var shell:ITAGameShell = TAGameShellInstance.get();
+            if (shell == null || shell.modalManager == null) return;
+            shell.modalManager.openScreen("SettingsMenu");
         }
 
         override protected function getDirectionalFocus(direction:String) : InteractiveObject
@@ -245,6 +447,17 @@ package menus
 
         override protected function handleInput(event:InputEvent) : void
         {
+            if (localBackKey != "" && event != null && event.details != null &&
+                event.details.navEquivalent == localBackKey)
+            {
+                // Consume only; this never acts, so Return-lock handling below
+                // keeps its precedence for every other input.
+                if (event.details.value == InputValue.KEY_UP) localBackKey = "";
+                event.handled = true;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
             if (suppressHoldFocus && returnLocked() && isFrontMenu() &&
                 event != null && event.details != null && event.details.value == InputValue.KEY_DOWN &&
                 (event.details.navEquivalent == NavigationCode.UP || event.details.navEquivalent == NavigationCode.DOWN))
@@ -281,6 +494,46 @@ package menus
                 event.stopImmediatePropagation();
                 return;
             }
+            if (presetOpen && isFrontMenu() && event != null && event.details != null &&
+                (event.details.navEquivalent == NavigationCode.ESCAPE ||
+                 event.details.navEquivalent == NavigationCode.GAMEPAD_B))
+            {
+                event.handled = true;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if (event.details.value == InputValue.KEY_DOWN)
+                {
+                    localBackKey = event.details.navEquivalent;
+                    closePresetState();
+                    refreshMenu();
+                }
+                return;
+            }
+            if (!presetOpen && isFrontMenu() && current() && event != null && event.details != null &&
+                (event.details.navEquivalent == NavigationCode.ESCAPE ||
+                 event.details.navEquivalent == NavigationCode.GAMEPAD_B))
+            {
+                // Schedule and preview pages go Back locally; the inherited
+                // results handler must not close the completed match screen.
+                var backItem:Object = null;
+                for each (var candidate:Object in view.controls)
+                {
+                    if ((candidate.id === "results.schedule_back" || candidate.id === "results.preview_back") &&
+                        candidate.enabled === true && usable(candidate)) backItem = candidate;
+                }
+                if (backItem != null)
+                {
+                    event.handled = true;
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    if (event.details.value == InputValue.KEY_DOWN)
+                    {
+                        localBackKey = event.details.navEquivalent;
+                        choose(backItem);
+                    }
+                    return;
+                }
+            }
             if (event != null && event.details != null && event.details.navEquivalent == NavigationCode.GAMEPAD_Y)
             {
                 event.handled = true;
@@ -299,11 +552,14 @@ package menus
             var present:Boolean = false;
             for each (var candidate:Object in view.controls)
                 if (candidate === item) present = true;
-            if (!present || String(view.generation) != generation) return;
-            if (item.stock === "options")
+            if (!present || String(view.generation) != generation || presetOpen) return;
+            if (stockRoute(item))
             {
+                // Local game screens only; no service dispatch is sent.
                 if (returnLocked()) return;
-                openOptionsMenu();
+                if (item.stock === "options") openOptionsMenu();
+                else if (item.stock === "settings") openSettings();
+                else openPreset(item);
                 return;
             }
             if (item.stock != null && item.stock !== "") return;
@@ -328,6 +584,8 @@ package menus
         {
             if (!attached && !UIMenu.isMenuInStack(menuName)) return;
             if (view != null && !current()) loseConnection();
+            if (presetOpen && isFrontMenu() && (!presetValid() || signatureOf(presetRows()) != presetSignature))
+                refreshMenu();
             if (loader != null)
             {
                 if (getTimer() - loadStarted < 1500) return;
@@ -363,6 +621,7 @@ package menus
                         session:SESSION, surface:SURFACE, generation:String(incoming.generation), event:"ready"}));
                     lastHello = getTimer();
                 }
+                if (next != generation || incoming.return_pending === true) closePresetState();
                 if (!isFrontMenu())
                 {
                     view = incoming;
@@ -571,6 +830,7 @@ package menus
             generation = "";
             returnRequestGeneration = "";
             busy = false;
+            closePresetState();
             if (isFrontMenu()) refreshMenu();
             else heldBack = true;
         }
@@ -613,7 +873,7 @@ package menus
                 !(item.reason is String) || item.reason.length > 240 ||
                 !(item.revision is String) || !/^[0-9]{1,20}$/.test(String(item.revision))) return false;
             if (item.return_commit === true && item.stock != null && item.stock !== "") return false;
-            return item.stock == null || item.stock === "" || item.stock === "options";
+            return item.stock == null || item.stock === "" || stockRoute(item);
         }
 
         private function utf8Size(value:String) : int
