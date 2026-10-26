@@ -9,9 +9,14 @@ from copy import deepcopy
 import math
 import uuid
 
+from .cadence import classify_cadence
 from .catalog import assistance_preferences, configure_lesson
 from .coaching import lesson_coaching
 from .recordings import Recorder, euler_quaternion, _rotate
+
+# A pre-start attempt that never reaches "go" is bounded in game seconds so the
+# player gets one actionable interruption instead of an endless settle loop.
+SETTLE_TIMEOUT_SECONDS = 5.0
 
 
 def _length(value):
@@ -68,11 +73,19 @@ class TrainingEngine:
         simplified=False,
         max_samples=36000,
         tolerances=None,
+        strict_capture=False,
     ):
+        if not isinstance(strict_capture, bool):
+            raise ValueError("Strict capture cadence must be an explicit boolean.")
+        self.strict_capture = strict_capture
         self.lesson = configure_lesson(
             lesson_id, side=side, target_zone=target_zone, angle=angle, simplified=simplified
         )
         self.preferences = assistance_preferences(preferences)
+        if strict_capture:
+            # Reference capture is one physics step per packet and never retries
+            # itself; the worker also refuses these preferences explicitly.
+            self.preferences["auto_reset"] = False
         self.metadata = deepcopy(metadata or {})
         self.max_samples = max_samples
         self.tolerances = {
@@ -122,6 +135,7 @@ class TrainingEngine:
         self.started_at = None
         self.last_frame = None
         self.settle_start = None
+        self.settle_first_time = None
         self.reset_requested_at = None
         self.events = []
         self.observations = []
@@ -161,6 +175,20 @@ class TrainingEngine:
         else:
             self.recorder.truncated = True
         return event
+
+    def cadence(self, previous, frame):
+        """Classify cadence with the shared helper; strict capture is one step."""
+        return classify_cadence(
+            previous,
+            frame,
+            max_packet_interval=self.tolerances["max_packet_interval"],
+            strict=self.strict_capture,
+        )
+
+    def _interrupt(self, message):
+        self.state, self.outcome = "interrupted", "interrupted"
+        self.observations.append(message)
+        return [{"type": "completed", "summary": self.summary()}]
 
     def _once(self, name, frame, **kwargs):
         if name in self._emitted:
@@ -212,21 +240,22 @@ class TrainingEngine:
             flags_clean = all(
                 car.get(key) is False for key in ("has_jumped", "has_double_jumped", "has_dodged")
             )
+            cadence = self.cadence(self.last_frame, frame)
             valid = (
                 _grounded(car)
                 and flags_clean
                 and _distance(car["position"], target["position"]) < 60
                 and _length(car["velocity"]) < 25
                 and _length(car.get("angular_velocity", [0, 0, 0])) < 0.2
-                and not frame.get("packet_gap")
+                and not cadence["gap"]
             )
-            if self.last_frame and now - self.last_frame["time"] > self.tolerances["max_packet_interval"]:
-                valid = False
             if valid:
                 if self.settle_start is None:
                     self.settle_start = now
             else:
                 self.settle_start = None
+            if self.settle_first_time is None:
+                self.settle_first_time = now
             self.last_frame = deepcopy(frame)
             if self.settle_start is not None and now - self.settle_start >= 0.25:
                 self.state = "ready"
@@ -235,6 +264,17 @@ class TrainingEngine:
                     {"type": "set_state", "state": self.starting_state},
                     {"type": "ready", "message": "Ready — the next verified packet starts the drill."},
                 ]
+            if now - self.settle_first_time >= SETTLE_TIMEOUT_SECONDS:
+                # One actionable interruption instead of an endless settle loop.
+                if cadence["gap"]:
+                    return self._interrupt(
+                        "No continuous telemetry cadence was observed while preparing the drill "
+                        f"({cadence['reason']}). Check the game connection, then retry."
+                    )
+                return self._interrupt(
+                    "The car did not settle in the starting pose within "
+                    f"{SETTLE_TIMEOUT_SECONDS:.0f} game seconds. Release held controls and retry."
+                )
             return []
         if self.state == "ready":
             # Confirm the game applied the reset. No confirmation means no fictional attempt.
@@ -251,6 +291,7 @@ class TrainingEngine:
                 p + v * elapsed for p, v in zip(target["car"]["position"], target["car"]["velocity"])
             ]
             boost = car.get("boost")
+            cadence = self.cadence(self.last_frame, frame)
             applied = (
                 _distance(car["position"], expected_car) < self.tolerances["reset_position"]
                 and _rotation_distance(car["rotation"], target["car"]["rotation"])
@@ -269,16 +310,14 @@ class TrainingEngine:
                 < self.tolerances["reset_ball_position"]
                 and _distance(frame["ball"]["velocity"], expected_ball_velocity)
                 < self.tolerances["reset_velocity"]
-                and not frame.get("packet_gap")
+                and not cadence["gap"]
                 and elapsed < 2.0
             )
             if not applied:
                 if elapsed >= 2.0:
-                    self.state, self.outcome = "interrupted", "interrupted"
-                    self.observations.append(
+                    return self._interrupt(
                         "The starting state was not confirmed. Enable state setting and retry."
                     )
-                    return [{"type": "completed", "summary": self.summary()}]
                 self.last_frame = deepcopy(frame)
                 return []
             self.state, self.started_at = "active", now
@@ -291,13 +330,12 @@ class TrainingEngine:
             self.last_frame = deepcopy(frame)
             return [{"type": "go", "message": "Go", "attempt_id": self.attempt_id}]
         previous = self.last_frame
-        dt = now - previous["time"]
-        gap = bool(frame.get("packet_gap")) or dt > self.tolerances["max_packet_interval"]
-        if isinstance(frame.get("frame_num"), int) and isinstance(previous.get("frame_num"), int):
-            frame_step = (frame["frame_num"] - previous["frame_num"]) % (2**32)
-            gap = gap or frame_step != 1
+        cadence = self.cadence(previous, frame)
+        dt = cadence["dt"] if cadence["dt"] is not None else now - previous["time"]
+        gap = cadence["gap"]
         frame = deepcopy(frame)
         frame["packet_gap"] = gap
+        frame["cadence"] = cadence["reason"]
         if gap:
             self.metrics["packet_gaps"] += 1
             self.last_gap_time = now
@@ -327,6 +365,19 @@ class TrainingEngine:
             )
         return result
 
+    @staticmethod
+    def _bracket(event):
+        """Observed sample bracket [earliest, latest] for an event, in seconds."""
+        precision = event.get("precision")
+        if (
+            isinstance(precision, (list, tuple))
+            and len(precision) == 2
+            and all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+                    for x in precision)
+        ):
+            return (min(precision), max(precision))
+        return (event["time"], event["time"])
+
     def _ordered_success(self):
         if self.lesson["id"] != "speed-flip":
             return True
@@ -342,12 +393,37 @@ class TrainingEngine:
             observed[key]
             for key in ("first_jump", "diagonal_dodge", "opposing_pitch", "target_crossed", "landed")
         ]
+        # Ordering uses the actual observed sample brackets, never an invented
+        # interpolation. Touching boundaries are allowed because the earlier
+        # event's latest sample edge is the later event's earliest sample edge.
+        # Two events collapsed into one coarse packet share a bracket and cannot
+        # prove their order, so that attempt is not claimed as a valid sequence.
+        jump_bracket, dodge_bracket = self._bracket(jump), self._bracket(dodge)
+        cancel_bracket, landing_bracket = self._bracket(cancel), self._bracket(landing)
         crossing_time = crossing["details"].get("crossing_time", crossing["time"])
+        crossing_bracket = self._bracket(crossing)
+        if isinstance(crossing_time, (int, float)) and not isinstance(crossing_time, bool):
+            crossing_bracket = (min(crossing_bracket[0], crossing_time),
+                                max(crossing_bracket[1], crossing_time))
         return (
-            jump["time"] <= dodge["time"] < cancel["time"]
-            and cancel["time"] <= crossing_time
-            and cancel["time"] <= landing["time"]
+            self._precedes(jump_bracket, dodge_bracket)
+            and self._precedes(dodge_bracket, cancel_bracket)
+            and self._precedes(cancel_bracket, crossing_bracket)
+            and self._precedes(cancel_bracket, landing_bracket)
         )
+
+    @staticmethod
+    def _precedes(first, second):
+        """True only when two distinct observed brackets prove the order.
+
+        Touching boundaries are allowed: the earlier event's latest sample edge
+        may equal the later event's earliest sample edge. Two events collapsed
+        into the same observed sample share one bracket and cannot prove their
+        order, so a same-packet jump plus dodge is never claimed as valid.
+        """
+        if first == second:
+            return False
+        return first[1] <= second[0]
 
     def _actions(self, frame, previous, gap):
         car, old, actions, old_actions = frame["car"], previous["car"], frame["actions"], previous["actions"]
@@ -692,8 +768,22 @@ class TrainingEngine:
             "reference_status": self.lesson["reference_status"],
             "timing_comparison": "No validated equivalent teaching reference is installed.",
             "preferences": deepcopy(self.preferences),
-            "coaching": lesson_coaching(self.lesson, self.events, state=self.state, outcome=self.outcome),
+            "coaching": self._coaching(),
         }
+
+    def _coaching(self):
+        coaching = lesson_coaching(self.lesson, self.events, state=self.state, outcome=self.outcome)
+        if self.state == "settling":
+            # Before "go" the drill is preparing, not settling a measured attempt.
+            coaching["message"] = "Preparing the drill. Wait for READY before pressing anything."
+            coaching["label"] = "Preparing"
+        elif self.state == "interrupted":
+            # The actual interruption reason is actionable; never a generic retry.
+            reason = next((text for text in self.observations if isinstance(text, str) and text), None)
+            if reason:
+                coaching["message"] = reason
+                coaching["interruption_reason"] = reason
+        return coaching
 
     def recording(self):
         summary = self.summary()

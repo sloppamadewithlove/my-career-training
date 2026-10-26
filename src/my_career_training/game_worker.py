@@ -269,6 +269,10 @@ class GameSession:
         self.result_sent = False
         self.attempt_sent = None
         self.attempt_acked = False
+        # A pre-start failure has no samples and must not auto-retry in a busy
+        # loop; only an attempt that actually ran may be retried automatically.
+        self.attempt_retryable = False
+        self.auto_reset_at = None
         self.applied_reset = False
         self.stop_id = None
         self.stopping = False
@@ -465,7 +469,8 @@ class GameSession:
             if self.capture is not None:
                 engine_metadata.update(self.capture_metadata)
             self.engine = TrainingEngine(self.request["lesson_id"], self.request.get("preferences"),
-                                         metadata=engine_metadata, **allowed)
+                                         metadata=engine_metadata, strict_capture=self.capture is not None,
+                                         **allowed)
         from .training import GhostPlayback, GhostPractice, practice_context, practice_support
         from .training import coaching_preferences
         self.coaching_preferences = coaching_preferences(self.coaching_preferences)
@@ -584,6 +589,8 @@ class GameSession:
         self.applied_reset = True
         self.attempt_sent = None
         self.attempt_acked = False
+        self.attempt_retryable = False
+        self.auto_reset_at = None
         self.playback_origin = None
         if self.capture_controller is not None:
             # A retry restarts the candidate schedule from its beginning.
@@ -662,8 +669,12 @@ class GameSession:
         elif kind == "attempt_ack":
             if command.get("attempt_id") == self.attempt_sent:
                 self.attempt_acked = True
-                if self.engine and self.engine.preferences["auto_reset"]:
-                    self.reset()
+                if (self.engine and self.engine.preferences["auto_reset"]
+                        and self.attempt_retryable and self.auto_reset_at is None):
+                    # Keep the saved feedback visible for at least one second
+                    # before the automatic reset, instead of resetting instantly.
+                    # A repeated acknowledgement never postpones that deadline.
+                    self.auto_reset_at = time.monotonic() + 1.0
         elif kind == "preferences" and self.engine:
             preferences = command.get("preferences", {})
             if "key" in command:
@@ -929,9 +940,20 @@ class GameSession:
         # capture bot only in the development capture mode.
         actor = frame["cars"][self.training_actor_index] if self.capture is not None else human
         prior = self.last_frame
+        # The shared classifier decides cadence once for the worker and the
+        # engine. Normal human training accepts a continuous two-step (60 Hz)
+        # sample; strict reference capture requires one physics step per packet.
+        # An explicit transport gap is preserved, never reclassified.
+        from .training.cadence import classify_cadence
+        cadence = classify_cadence(
+            prior, frame,
+            max_packet_interval=(self.engine.tolerances["max_packet_interval"]
+                                 if self.engine is not None else 0.05),
+            strict=self.capture is not None)
         frame.update(car=actor, actions=actor["actions"],
                      dt=frame["time"] - prior["time"] if prior else 0,
-                     packet_gap=bool(prior and (frame["frame_num"] - prior["frame_num"]) % (2**32) != 1))
+                     packet_gap=bool(frame.get("packet_gap")) or cadence["gap"],
+                     cadence=cadence["reason"])
         self.last_frame = frame
         if self.engine and not self.cancel_start.is_set() and not self.stopping:
             if self.capture is not None and (self.capture_aborted is not None or not self.capture_ready):
@@ -1017,6 +1039,10 @@ class GameSession:
             recording = None
         self.attempt_sent = summary["id"]
         self.attempt_acked = False
+        # Only an attempt with observed samples may be retried automatically; a
+        # pre-start interruption must not spin the reset path.
+        self.attempt_retryable = bool(recording and recording.get("samples"))
+        self.auto_reset_at = None
         if self.capture is not None and recording is not None and getattr(self.engine, "finished", False):
             # Persist only a trial the engine actually completed; an unfinished
             # or imported claim never becomes a candidate.
@@ -1040,6 +1066,9 @@ class GameSession:
             return
         from rlbot import flat
         renderer, preferences = self.renderer, self.engine.preferences
+        # One summary snapshot per render keeps the HUD consistent and cheap.
+        summary = self.engine.summary()
+        coaching = summary.get("coaching") or {}
         with renderer.context("my-career-training"):
             if preferences["explanations"]:
                 renderer.draw_string_2d(self.engine.lesson["title"], .03, .05, 1.2)
@@ -1052,28 +1081,53 @@ class GameSession:
                 labels = [key.title() for key, value in frame["actions"].items() if abs(value) > .2]
                 renderer.draw_string_2d("You: " + (", ".join(labels) or "neutral"), .03, .31, 1)
             if preferences["timing"]:
-                duration = 0 if self.engine.started_at is None else max(0, frame["time"] - self.engine.started_at)
-                renderer.draw_string_2d(f"{self.engine.state.title()}  {duration:.2f}s", .03, .35, 1)
+                # A completed attempt keeps its saved duration; a live attempt
+                # uses the observed game clock. Before "go" the drill is
+                # preparing, and an interrupted pre-start attempt says so.
+                if self.engine.started_at is None:
+                    label = "Interrupted" if self.engine.state == "interrupted" else "Preparing"
+                    renderer.draw_string_2d(label, .03, .35, 1)
+                elif self.engine.finished:
+                    renderer.draw_string_2d(
+                        f"{self.engine.state.title()}  {summary['duration']:.2f}s", .03, .35, 1)
+                else:
+                    duration = max(0, frame["time"] - self.engine.started_at)
+                    renderer.draw_string_2d(f"{self.engine.state.title()}  {duration:.2f}s", .03, .35, 1)
+            message = coaching.get("message")
+            interrupted = self.engine.state == "interrupted"
+            if interrupted:
+                # The actual interruption reason is always actionable, even when
+                # step-by-step explanations are turned off.
+                message = coaching.get("interruption_reason") or summary.get("feedback") or message
+            if message and (preferences["explanations"] or interrupted):
+                renderer.draw_string_2d(str(message)[:110], .03, .40, .8)
+            stages = coaching.get("stages") or []
+            next_stage = coaching.get("next_stage")
+            if (preferences["explanations"] and isinstance(next_stage, int)
+                    and 0 <= next_stage < len(stages)):
+                stage = stages[next_stage]
+                renderer.draw_string_2d(
+                    f"Stage {next_stage + 1}/{len(stages)}: {stage.get('title', '')}", .03, .44, .8)
             practice = self.practice_snapshot or {}
             if practice.get("visible"):
                 # Render-only lines; no collision actor is created for the ghost.
                 for line in practice.get("lines", []):
                     color = renderer.yellow if line["style"] == "front" else renderer.cyan
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
-                renderer.draw_string_2d("GHOST \u00b7 " + practice.get("label", "Recorded attempt"), .03, .39, .8)
+                renderer.draw_string_2d("GHOST \u00b7 " + practice.get("label", "Recorded attempt"), .03, .49, .8)
                 self.draw_ghost_actions(practice)
             elif (self.practice is None or self.legacy_playback) and preferences["ghost"] and self.coach_snapshot.get("visible"):
                 for line in self.coach_snapshot.get("lines", []):
                     color = renderer.yellow if line["style"] == "front" else renderer.cyan
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
-                renderer.draw_string_2d(self.coach_snapshot.get("label", "Recorded attempt"), .03, .39, .8)
+                renderer.draw_string_2d(self.coach_snapshot.get("label", "Recorded attempt"), .03, .49, .8)
 
     def draw_ghost_actions(self, practice):
         """Ghost HUD from recorded logical actions; never raw DS4 axes/buttons."""
         renderer = self.renderer
         controller = practice.get("controller") or {}
         if not controller.get("observed"):
-            renderer.draw_string_2d("GHOST inputs unavailable", .03, .43, .8)
+            renderer.draw_string_2d("GHOST inputs unavailable", .03, .53, .8)
             return
         parts = []
         for item in controller.get("active_actions") or []:
@@ -1084,8 +1138,8 @@ class GameSession:
                     parts.append(f"{label} {value:+.2f}")
             elif isinstance(item, str):
                 parts.append(item)
-        renderer.draw_string_2d("GHOST inputs: " + (", ".join(parts) or "neutral"), .03, .43, .8)
-        renderer.draw_string_2d("Recorded logical actions, not raw controller capture", .03, .46, .7)
+        renderer.draw_string_2d("GHOST inputs: " + (", ".join(parts) or "neutral"), .03, .53, .8)
+        renderer.draw_string_2d("Recorded logical actions, not raw controller capture", .03, .57, .7)
 
     def draw_target(self, target):
         from rlbot import flat
@@ -1147,6 +1201,16 @@ class GameSession:
                     raise RuntimeError("The offline game runtime exited. Close the game and retry.")
                 if not self.first_packet and time.monotonic() - self.started_monotonic > 120:
                     raise RuntimeError("Rocket League did not connect within two minutes. Check launcher setup and retry.")
+                if self.auto_reset_at is not None and time.monotonic() >= self.auto_reset_at:
+                    # The saved feedback stayed visible for at least one second.
+                    self.auto_reset_at = None
+                    if (self.engine and self.engine.preferences["auto_reset"]
+                            and self.attempt_acked and self.attempt_retryable
+                            and not self.cancel_start.is_set() and not self.stopping):
+                        try:
+                            self.reset()
+                        except (ValueError, RuntimeError) as error:
+                            self.event("error", message=str(error))
                 try:
                     kind, value = self.events.get(timeout=.1)
                 except queue.Empty:

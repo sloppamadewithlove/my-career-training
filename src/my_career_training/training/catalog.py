@@ -7,7 +7,7 @@ ASSISTANCE_DEFAULTS = {
     "explanations": True,
     "actions": True,
     "timing": True,
-    "auto_reset": False,
+    "auto_reset": True,
     "playback_speed": 1.0,
 }
 
