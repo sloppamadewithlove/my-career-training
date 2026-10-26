@@ -1,184 +1,125 @@
 # Development and testing workflow
 
-Updated 26 October 2026. This is the working agreement for faster implementation
-and useful evidence. Current product/release truth remains in
-[PROJECT_STATUS.md](PROJECT_STATUS.md). The reusable
-[game-state skill](../skills/my-career-training-testing/SKILL.md) records routes,
-known failures and recovery. Install that folder in the local Codex skills
-directory; keep machine-specific helper locations in an uncommitted local map.
+Updated 26 October 2026. Universal working agreement for implementation, review
+and evidence. Product/release truth lives in [PROJECT_STATUS.md](PROJECT_STATUS.md);
+the taskboard is [NEXT_TASKS.md](NEXT_TASKS.md); the product contract is
+[BUILD_SPEC.md](BUILD_SPEC.md); the testing recipe is
+[the game-state skill](../skills/my-career-training-testing/SKILL.md). Historical
+status tables, timings and recovery detail live in the
+[archived original](archive/2026-10-26/DEVELOPMENT_WORKFLOW.md); this file states
+only current rules.
 
-The owner accepted this workflow. First priorities are state notifications,
-healthy-session reuse and focused checks. Keep useful work as the measure of
-model usage; quota exhaustion is a fallback trigger, not an objective. In the
-first resumed cycle, actual Forfeit and the next native fixture shared one game,
-and a private milestone notifier detected fresh results. The timer Options test
-then exposed a real unhandled screen; the release stayed on hold.
+## Fresh main: read order and first questions
 
-## Roles and work ownership
+1. Read `AGENTS.md`, then the short `PROJECT_STATUS.md` and `NEXT_TASKS.md`, then
+   only the relevant `BUILD_SPEC.md` section for the task at hand.
+2. Ask the user for the intended player-visible outcome and any unresolved
+   detail before starting a broad new build. Never re-ask what is already
+   confirmed, and never block independent work while waiting for an answer.
+   Resolve routine implementation details with engineering judgment; ask when a
+   choice materially changes the player's experience, scope or permissions.
 
-| Role | Requested model / route | Concrete output and boundary |
+## Roles (owner-selected, exact)
+
+| Role | Model / route | Boundary |
 | --- | --- | --- |
-| Main interviewer, reviewer and integrator | Current main agent | Clarify requirements, define contracts, independently review builder patches, return defects for correction, integrate and own acceptance |
-| Research, exploration and testing | GPT-6 Luna, max reasoning, visible Codex agents or Codex CLI | Bounded source/web research, test plans and exact-candidate evidence; game input only after an explicit handoff from main |
-| Preferred builder | DeepSeek V4.1 Flash 1017 via RunInfra, paid using the owner's private API key | Scoped implementation patches, working previews, behavior and bug fixes against an immutable base; authenticated request returned the intended model; no independent merge/publish authority |
-| Additional builders by problem depth | GPT-5.6 Sol high through Codex CLI; Grok 4.7 high through Cursor CLI | Difficult implementation, integration or fixes when main judges escalation useful; existing login access, no additional API keys |
-| Designer only | Claude Opus 5.5 high, Cursor CLI or a verified existing Anthropic authenticated session | Visual mockups, layout/appearance specifications and design reviews for game and website; no implementation/code edits, input logic, bug fixes, scripts or builds; stop designer on quota exhaustion |
+| Main | Current main agent | Interviews, defines contracts, independently reviews, integrates, accountable for correctness |
+| Preferred builder | DeepSeek V4.1 Flash 1017 via RunInfra, request ID `deepseek-v4-1-flash-1017`; multiple workers allowed | Scoped implementation patches, previews, behavior and bug fixes, including HTML/CSS/JavaScript and event handling |
+| Fallback builders by depth | GPT-5.6 Sol high via Codex CLI; Grok 4.7 high via Cursor CLI; existing login sessions | Difficult implementation, integration or fixes when main judges escalation useful |
+| Design only | Claude Opus 5.5 high | Mockups, layout/appearance specifications, design review. No HTML/CSS/JS, code, scripts, builds, input logic or behavior fixes |
+| Research, exploration, testing | GPT-6 Luna max | Bounded research, test plans, independent verification, exact-candidate evidence |
 
-These owner-selected roles supersede the earlier Grok-primary / Sol-fallback
-building arrangement. DeepSeek is preferred for most problems. The owner now
-authorizes choosing Sol or Grok by problem depth; quota exhaustion is no longer
-the only reason to use these named builders. Record the actual assignment and
-model; do not silently substitute an unapproved model or designer. The main
-agent remains accountable for correctness and sends a rejected patch back with
-specific defects and acceptance criteria. Luna verifies the corrected behavior;
-main reviews the resulting diff and evidence before integration.
+Record the actual assignment and observed model/reasoning; never silently
+substitute an unapproved model or designer. Main sends a rejected patch back with
+specific defects and acceptance criteria.
 
-Use parallel agents for independent work, as explicitly requested by the owner.
-Keep file ownership separate, make active assignments visible, and hand game
-input to only one operator. Prefer small implementation slices with a concrete
-first edit; do not spend an entire builder budget repeatedly exploring the same
-files. Main checks integration contracts while Luna tests and builders correct
-identified failures. Stop redundant testing once the relevant checks pass.
+## Credentials and private key policy
 
-**Strict owner clarification:** a working HTML preview is implementation. Opus
-provides the visual design; a builder writes its HTML/CSS/JavaScript and
-all event handling. Keyboard/controller behavior, state management, downloads,
-runtime fixes, asset compilation and native integration belong to builders.
-Afterward Opus may review screenshots and request visual adjustments; a builder
-implements those adjustments. Do not send behavioral defects back to Opus merely
-because it designed the screen. Main reviews and integrates the builders' output.
-Luna owns research and test work. This clarification
-overrides older assignments that called Opus a design engineer or asset builder.
+Only the DeepSeek builder uses an additional paid API key. Every other agent uses
+its existing login session; do not request extra keys or change global
+authentication, the main agent's provider, or Cursor/Codex sign-in settings. Keep
+the key in a private OS-protected store outside the checkout and load it only into
+the bounded builder process. Never place it in prompts, command-line arguments,
+source, tracked config, previews, raw HTTP logs, GitHub, release files or public
+evidence. Send only the source and task context the assignment needs.
 
-The owner identified RunInfra's model page. Its [official model documentation](https://runinfra.ai/inference-api/deepseek-v4-1-flash-1017)
-documents the request ID `deepseek-v4-1-flash-1017`, upstream name
-`deepseek-ai/DeepSeek-V4.1-Flash-1017`, API base `https://api.runinfra.ai/v1`,
-Chat Completions and Anthropic-compatible Messages, and tool calling. These are
-provider-documented capabilities. On 26 October a bounded authenticated request
-returned `deepseek-v4-1-flash-1017`; subsequent source jobs use the same pinned
-model through scoped file tools. The credential is protected locally outside
-the checkout and is not included in prompts or agent-readable source. Record
-requested and returned identity without claiming more than the API exposes.
-If using an agent harness through the Messages API, configure only that child
-process; it remains a DeepSeek builder, not an Opus designer. Do not change the
-main agent's provider or replace existing Cursor/Codex sign-in settings.
+## Parallel work and the review pipeline
 
-Only this builder uses an additional paid API key. Other agents use existing
-subscription/login sessions; do not request additional API keys or change global
-authentication. Keep builder credentials in a private OS-protected local store
-outside the checkout. Load them only into the bounded builder process/request;
-never place them in prompts, command-line arguments, source, tracked config,
-HTML previews, raw HTTP logs, GitHub, release files or public evidence. A chat
-paste is not repository content and must not be copied into the project. Send
-only the source/task context necessary for the assignment, excluding private
-game evidence, saves, unrelated files and credential stores. Track usage and
-actual provider-reported costs; do not claim price or speed savings without
-measurement. Set a per-job request/token bound rather than unlimited retries.
+- Parallel workers may share one goal through complementary scopes, or through
+  bounded competing approaches in separate copies. Main selects one; never merge
+  two alternatives blind. No concurrent writes to the same file.
+- Builders self-check, then an independent targeted review/testing pass (Luna or
+  the exact approved build reviewer) returns a compact acceptance receipt against
+  an immutable patch. Main reviews shared interfaces, high-risk changes, actual
+  evidence and integrated behavior. Never rubberstamp; there is no automatic
+  merge, and integration stays gated on main.
+- When the review queue grows, throttle new builder assignments; add independent
+  reviewers only if real capacity exists. Never an arbitrary worker count.
+- Respect actual concurrency slots and provider limits; bound each job's time,
+  tokens and cost; cap speculative alternatives at 2 by default.
+- Prove the hardest end-to-end integration first, then polish.
+- After two failures of the same hypothesis, log expected vs actual, evidence,
+  cause, confidence change and the next alternative (research or experiment).
+  Stop repeating; do not abandon the goal. Failure log: concise public notes in
+  the repo, private evidence kept separate.
 
-The latest designer preference is **high**. Historical ExtraHigh work is not a
-claim that the current model setting has been exercised. Verify requested model
-and reasoning in CLI/session output before accepting a task receipt; a command
-line request by itself is insufficient. Keep raw output private. If the exact
-model is unavailable, report it and follow only the user's specified fallback.
-The prior Grok-to-Sol quota rule is historical. On an Opus quota failure, disable
-that role and maintain [the design handoff](OPUS_DESIGN_BRIEF.md). Do not silently
-substitute another designer. Spend available quota on useful work; do not create
-busywork just to consume it.
+## Task card (tiny, one deliverable)
 
-These are roles, not five continuously running jobs. Respect the available
-concurrency slots and rotate roles. Separate file scopes/worktrees for builders;
-main alone integrates and pushes. A review should not block unrelated work.
-Exactly one input owner may operate the game. A handoff names the game identity,
-scenario, allowed actions and ending condition; both agents acknowledge it.
-Main does not click while the tester owns input. Observers stay read-only. User
-control suspends automation. Input ownership is currently a recorded procedure,
-not an automatic lock enforced by the helpers.
+Every assignment states: base commit, write paths, interfaces/payloads touched,
+deliverable, executable acceptance check, failure cases, time/token budget and
+dependencies. A deadline yields partial findings and limits, never an invented
+pass. Main creates and maintains the taskboard in `NEXT_TASKS.md`; the testing
+skill is the linked recipe for game routes.
 
-## One useful work cycle
+## Player-facing function contract
 
-1. Choose one acceptance result and its smallest coherent change. Define shared
-   payloads, save semantics and success/failure states before splitting files.
-2. Assign each worker an exact base revision, owned paths, deliverable, validation,
-   forbidden side effects and a time budget. Default to a narrow 5–10 minute
-   first pass; extend only for a specific useful next result. A deadline produces
-   partial findings and limits, never an invented pass.
-   If the first pass only repeats research, retain its findings and narrow the
-   next assignment to one concrete file or behavior. Transfer implementation
-   ownership explicitly when a requested model has not produced a patch; record
-   who actually wrote it and retain the requested model for a bounded review.
-   Ask for a final conclusion from existing analysis before restarting research.
-3. Run focused checks while builders work independently. Review an immutable
-   result once; re-review the fix and affected boundary instead of restarting the
-   entire investigation. Broaden tests when a failure or change justifies it.
-4. Integrate a batch and build one coherent candidate. Record its hashes and
-   evidence. Rebuild/stage changed movies together with their host. Keep all
-   production artifacts attributable to the candidate.
-5. Schedule compatible live routes in one owned game. Start the result observer
-   before a fixture, check it while the match runs, and react when results arrive.
-   Reuse the game for subsequent activities; restart for changed native code or
-   startup/persistence/restoration checks.
-6. Record passed, failed and untested behavior separately. Push reviewed source
-   and sanitized status to the repair branch/PR. Full release still requires
-   exact frozen inventory, installer lifecycle, real fixture/save/Return/restart,
-   restoration and required input routes. Update the existing website only with
-   the tested release; source checks do not authorize a player-ready claim.
+Every unique player-facing function — downloads, buttons, thumbnails, settings,
+startup, saves, garage, mods and the rest — is specified and accepted through the
+same six steps, in this order:
 
-## Eight improvements and their current status
+1. **Preconditions** — required state, environment and ownership.
+2. **Input** — the exact click, key, controller or automatic trigger.
+3. **Actual visible/state outcome** — what the player sees and what state changes.
+4. **Persist** — what is written, where, and atomically (if applicable).
+5. **Failure/recovery** — the visible error and the safe recovery route.
+6. **Acceptance proof** — the exact-candidate evidence that proves it.
 
-| Improvement | Benefit | Status / next concrete step |
-| --- | --- | --- |
-| 1. Short real development fixtures | Reach save/results without waiting through every normal match | Private opt-in source harness has ten focused checks and a real 0–1 fixture/save/receipt acknowledgement on ff3ee52. Uses RLBot OneGoal, copied careers and explicit development-only receipts. Frozen/CI modes are refused. Normal timed frozen acceptance remains required |
-| 2. Notify on state changes | Stop missing the short results window or waiting after work finished | Private bounded milestone observer now emits one scoped signal; main forwards actionable events. Playing, returned-hub and natural-results signals observed on d95f4cc. 32 synthetic checks cover identity, freshness and transient file reads. This is a test helper, not a shipped player feature |
-| 3. Reuse a healthy game session | Avoid repeated startup, injection and focus setup | Source tests have started another activity in the same process. Group routes and use the skill; never reuse across loaded native-code changes |
-| 4. Tests selected by changed boundary | Catch errors early without rerunning unrelated suites | Focused suites already used; maintain a simple change-to-check mapping below. Full coherent source checks remain separate |
-| 5. Incremental builds with verified inputs | Avoid recompiling or repackaging unchanged components | Native build tooling is incremental; measure actual cache hits. Broader artifact reuse is planned and must preserve input hashes/provenance, never relabel binaries |
-| 6. Agree feature contracts before parallel edits | Reduce UI/host/service integration rework | Existing integration contract plus explicit file ownership. Add each feature's command, acknowledgement, rejection and persistence rules before handoff |
-| 7. Bounded reviews with required artifacts | Prevent open-ended review loops and vague completion claims | Adopt this workflow: immutable scope, time budget, actual model receipt, findings, test result and unresolved limits |
-| 8. Measure waiting and rework | Spend effort on the actual bottleneck | Start private per-cycle timing now: build, test, game startup, fixture, focus recovery, review wait and rework. No benchmarked speedup claimed yet |
+Three illustrative examples, explicitly not exhaustive:
 
-## Refinements after the direct-continuation session
+| Function | Preconditions / input | Visible or state outcome | Persist | Failure / recovery | Acceptance proof |
+| --- | --- | --- | --- | --- | --- |
+| Thumbnail resolve/cache/fallback | Content present; hover or select | Correct image, no placeholder flash | Cache only | Missing asset → fallback tile, no crash | Visual check on exact candidate |
+| Lesson reset all actors | Lesson loaded; reset control | All actors return to start state | None unless lesson state is saved | Partial reset → visible error, retry | Reset, observe every actor |
+| Mods download is not activation | Mods view; start download | Download progress and cached state, still inactive | Downloaded content + manifest | Network/disk error → safe retry or clean rollback | Download, verify digest, confirm not active; installation/enable require their own verified contracts |
 
-Observed on e41: native CI took about 15 minutes; the normal packaged fixture
-took about 13.5 minutes from Play to saved result, including deliberate pause
-checks. One results click reached the next Playing state in about 26 seconds.
-The owner accepted these refinements and set a **12-second continuation target**.
-It is not achieved yet. These are individual observations, not a benchmark or
-guaranteed timings. Keep the same click-to-Playing definition and record visible
-kickoff separately; never shorten the measurement by dropping save/arrival checks.
-Manual screenshots/round trips, an artifact-transfer cancellation race, and an
-independent probe's incorrect schema assumptions also caused avoidable rework.
-The skill reduced repeated research; it is not yet an automated test driver.
+## Game session and input ownership
 
-| Refinement | Concrete next step / current status |
-| --- | --- |
-| 1. Verified menu-route driver | Build short routes that verify current process, foreground, surface and control identity before acting; stop on mismatch. Retain one input owner. Planned |
-| 2. Checkpoint screenshots | Capture initial state, meaningful arrival and failures; use fresh scoped status for routine intermediate observations. Existing observer supports this; reduce manual over-inspection |
-| 3. Immutable package reuse | Private frozen launcher now accepts an explicit full source pin while preserving manifest and complete same-run inventory checks. Documentation commits need not cause another binary build |
-| 4. Resumable artifact transfer | Add byte-progress, total deadlines and digest-verified resume/reuse. This run recovered completed archives; a general robust transfer helper remains planned |
-| 5. Exact reviewer input contract | Supply validated paths, current schemas and sample synthetic records with every assignment. Require a standard receipt separating observed evidence, inference and probe errors |
-| 6. One bounded review per changed boundary | Review once, then only changed/failing portions; an incomplete review is not approval. Keep unrelated work moving and retain partial findings |
-| 7. Two test speeds | Use the existing opt-in OneGoal source harness during iteration; run normal timed gameplay on the final coherent frozen candidate. Never label shortened development fixtures as normal acceptance |
-| 8. Per-phase measurements | Record build, first launch, continuation, game waiting, manual actions and reviewer rework separately. Profile the observed continuation delay before changing startup or cleanup safeguards |
+Reuse a healthy owned game: one input owner, copied career, exact PID, creation
+time and executable, verified foreground before each input/capture. Never replace
+loaded assets. Return requires fresh READY, actual RootMenuMovie and visible hub.
+Verify restoration after closure. A handoff names game identity, scenario, allowed actions and ending
+condition; both agents acknowledge it. Main does not click while a tester owns
+input; observers stay read-only; user control suspends automation.
 
-## Change-to-check mapping
+## Testing and evidence rules
 
-| Change | First check | Broader evidence when ready |
-| --- | --- | --- |
-| Career/domain/service | Relevant Python domain/bridge tests and Ruff | Full source integration; actual persisted gameplay for changed save semantics |
-| Native host/protocol | Affected native regression targets plus matching bridge tests | Coherent native build and real menu transitions |
-| ActionScript/layout | Compile changed authored movies, verify pins and composition/assets | Coherent host/movie candidate, visual focus/mouse/keyboard/controller routes |
-| Worker/packaging/startup | Actual redirected windowless-worker regression and build smoke | Exact frozen startup, inventory and real fixture |
-| Installer/recovery | Lifecycle and preservation checks | Owned local install/restart/restoration plus normal Steam route |
-| Documentation/skill | Links, privacy, skill validator and a realistic forward test | No automatic full product-suite rerun for wording alone |
+- Tests are boundary-focused; do not repeat a passing check without a change.
+- A UI preview is not gameplay. Source checks do not authorize a player-ready claim.
+- Binaries must trace to exact source provenance. Docs-only changes and helper
+  provenance notes do not trigger a binary rebuild.
+- Destructive fault tests use isolated copied test data only; there is no
+  requirement to kill or restart the real game merely to test saves.
+- Source scripts must select the correct project and a validated toolchain.
+- Record times for build, launch, continuation, waiting, review and rework, plus
+  actual tokens and cost from the provider-reported source. Unknown values stay
+  unknown, never guessed.
+- The 12-second click-to-Playing continuation target remains historical and not
+  achieved; its evidence and recovery detail are in the
+  [evidence-and-recovery reference](../skills/my-career-training-testing/references/evidence-and-recovery.md).
 
-## Small handoff and timing record
+## State policy and publishing
 
-Private jobs record: task, base commit, requested and observed model/reasoning,
-owned files, input owner (or no input), artifact/commit, commands and results,
-elapsed time, findings, remaining limits and next action. Public GitHub updates
-contain only sanitized outcome, revision, counts and release blockers.
-
-For timings, record start/end and category for each significant wait; separate
-active work from unattended match time. After several cycles, compare the
-slowest categories and failed retries. Optimize the largest repeated cost first.
-Do not promise a percentage improvement before measuring it.
+An incomplete review is never approval. Publish only per proven capability. Every
+claim carries one status — planned, implemented, unverified, verified or blocked —
+with exact revision, mode and date. Public updates contain sanitized outcome,
+revision, counts and release blockers only.

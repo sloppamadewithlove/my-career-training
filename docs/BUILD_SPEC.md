@@ -1,13 +1,13 @@
 my-career-training — product build specification
-Product scope updated: 24 October 2026. Recheck current game and dependency versions when building.
+Product scope updated: 26 October 2026. Requirements are targets, not implementation evidence. See PROJECT_STATUS.md and NEXT_TASKS.md for current truth.
 How to use this prompt
-Open the canonical my-career-training GitHub repository in the coding workspace. The current requested team is the primary coding agent working alongside exact Grok 4.7 High builders, with GPT-6 Luna Max for research/discovery. Do not claim a requested model was used when it was unavailable. This document is self-contained; the reference starter is optional.
+Open the canonical repository, then read AGENTS.md, the short PROJECT_STATUS.md and NEXT_TASKS.md. DEVELOPMENT_WORKFLOW.md owns current model roles and the universal player-function acceptance process. Do not load archived session instructions by default.
 Everything below is the build assignment. Product defaults are already chosen so implementation can proceed without a long clarification round.
 1. Assignment and definition of success
 Build My Career Training, an offline career and training mod for the player's real, current Rocket League installation, with a local service for careers, training and saves. The canonical repository is sloppamadewithlove/my-career-training. The implementation includes interface design, integration, testing, debugging, and packaging.
 The player drives their own car, manages a five-member squad, plays short seasons with bot teammates and opponents, and optionally practices specific skills. Preserve normal Rocket League movement, physics, rules, controls, arenas, and the installed game's visual assets. This is an addition around the real game, not a recreated driving game or a browser simulation.
 The intended player understands Rocket League but is not a programmer. The first user plays through Steam, is around Diamond, and particularly wants to learn speed flips and flip resets. Support Epic Games installations as an equal product target, with separate runtime verification.
-One-shot means one complete implementation run: inspect, build the whole specified release, exercise it, repair concrete failures, and package it. Use internal milestones to control the work, but do not stop after a plan, attractive mockup, generated match file, or one working lesson. Continue through all deliverables that the available environment allows.
+This specification is the full product target, not an instruction to build the entire release in every session. The owner's current request and NEXT_TASKS.md define the active slice. Complete that slice through meaningful verification; do not confuse an attractive preview, compiled file or one working lesson with the whole release.
 A detailed prompt cannot guarantee an integration will work without access to the game. If a live Windows installation, platform sign-in, distribution credential, licensed reference recording, or external service is unavailable, complete all independent code and tests, identify the precise remaining dependency, and report its status accurately. Never replace missing evidence with a fake successful run.
 If a required first-release feature, teaching reference, or runtime acceptance check remains unavailable, deliver the completed independent work and mark the full V1 release incomplete. Do not call source-only delivery, an untested adapter, or missing required lesson content a finished playable release.
 2. Product architecture and launch environment
@@ -44,14 +44,14 @@ The enlarged-map/22-player lobby is a separate project and must not enter this r
 4. Native game interface and desktop management
 Build a polished, readable sports-career interface. Use original artwork and an original icon rather than copied EA or Rocket League branding. Use a dark neutral background, restrained blue/orange accents, large readable labels, clear selected states, and consistent spacing. Do not show decorative controls that do nothing.
 Main destinations:
-- Native home: My Career, Training, Garage, Workshop, Community, Settings, Exit. My Career includes Continue Career and New Career. Online/store destinations are disabled or removed for this session. Any separate return-to-normal-game command must complete the save, close, restore and normal-launch sequence first.
+- Native home: My Career, Training, Garage, Settings, Quit My Career. Training contains Lessons, Workshop, Mods and Favorites. Online/store destinations are disabled or removed for this session. Returning to normal Rocket League requires save, close, restore and normal launch.
 - Career Hub: next fixture, team, recent result, standings summary, and one prominent Play Match button.
 - Squad: human plus four bots, starter/bench positions, role, level, appearance, and recruitment choices.
 - Season: schedule, complete league table, match history, and season awards.
 - Training: skill catalog with independent lessons and saved assistance settings.
-- Garage: supported bot appearance choices and clearly identified career rewards.
+- Garage: full supported installed cosmetic catalog, search/filter/thumbnails, preview/apply/restore; preserve the ordinary preset. Career-local rewards do not grant online ownership.
 - Settings: launcher, install location, accessibility, controls/binding display, game connection, diagnostics, and backups.
-After a match, show the result and Continue. Training and review remain optional secondary choices. Never force a lesson or a "Practice This Moment" flow between fixtures.
+After a match use the five-button results contract specified above; never force training between fixtures.
 Support mouse, keyboard, and controller navigation in the app. Use visible focus, consistent Back/Cancel behavior, configurable text scale, reduced motion, and cues that do not depend only on color. Handle controller disconnects without losing progress. The player must always be able to restore skipped tutorial explanations from the lesson's Help settings.
 The desktop shortcut launches the app, checks the selected game installation, restores the career hub, and starts the supported game session when ready. On first run, setup may need the install/launcher choice; subsequent starts should not require a terminal or repeated setup. Avoid creating a match before the player has selected the fixture or lesson.
 A verified non-invasive shortcut may bring the career app to the foreground during the offline session. Do not intercept gameplay controls unexpectedly or depend on an unverified global-hook implementation.
@@ -103,22 +103,22 @@ Preserve the last valid save and support backup/export/import. Validate before r
 Test crashes between result receipt and save completion, duplicate end events, app restart during a fixture, corrupted saves, and repeated import. Prevent concurrent application instances from racing writes. Do not overwrite a player's existing career during installation or upgrade. Uninstall preserves user saves by default.
 9. Training system and launch catalog
 All training is optional, independently selectable, and available immediately. Build useful lessons on standard built-in arenas so Steam and Epic players can use the core training without downloading Workshop maps.
-Implement these eight lesson groups, each with at least one functioning resettable drill and several approachable steps where useful:
+The target catalog below remains required. Each skill has 12 distinct, mechanically appropriate scenarios and usually a simple-practice mode. Follow TRAINING_WORKSHOP_DIRECTION.md for the current scenario, bot, controller, thumbnail and ghost requirements. Deliver verified slices without calling a partial catalog complete.
 Lesson	Required practice and feedback
 Speed flip	Repeatable start and target crossing; show jump, diagonal dodge, opposing pitch/cancel, recovery, and landing events. Measure actual time and speed.
 Flip reset	Approach, car orientation, underside/wheel contact with the ball, reset acquisition, then optional use of the gained flip. Include a setup that reduces the approach difficulty.
 Ground dribble and flick	Controlled carry zone, sustained control, recoveries, and a chosen flick/target attempt.
-Power shots	Repeatable incoming ball, contact timing, measured ball speed, and a clear target.
+Power shots	Real teammate passes with a keeper/defenders, aiming and contact timing, actual ball speed and goal/target evidence; all actors reset. Community packs are supplementary.
 Shot placement	Selectable goal target zones, varied starting angles, measured hit/miss and shot location.
 Fast aerial	Reach a defined aerial target, track jump sequence and boost use, distinguish an accidental backflip when evidence supports it.
 Aerial and air-roll control	Reach ordered airborne gates and recover; left/right practice and selectable assistance.
 Fast flight and recovery	Controlled route through standard-arena gates, time/completion, landing orientation, and a useful recovery observation.
 
 
-These are skill drills, not claims that a single technique is mandatory in every match. Train ordinary physics. A special slowed demonstration or simplified starting setup must be identified and must not contaminate normal-speed records.
-Use a data-driven lesson format containing a stable ID/version, description, required capabilities, starting state, reset/settle conditions, steps, target objects, success events, feedback rules, timeout, reference recordings, and assistance defaults.
+Each skill uses appropriate mechanic practice and match situations; not every scenario needs bots. Train normal physics and normal game speed. Simplify positions, space and opponent behavior where useful; do not confuse beginner setups with certified competitive rank.
+Use a data-driven lesson/scenario format: stable versioned IDs, scenario index 1–12, description, capability requirements, map and actor roles (human/passer/keeper/defender), initial poses/velocities/boost, bot behavior constraints, seed, reset/settle conditions, skill/outcome evidence, failure/timeout, feedback, thumbnail provenance, validated reference and assistance defaults.
 For each attempt:
-1. Establish the car/ball state, boost, orientation, and relevant velocity using supported state setting.
+1. Establish all scenario actors: human car, ball, teammate/opponent bots, boost, orientations, velocities and bot scenario state using supported controls. Preserve ordinary physics and human input.
 2. Wait until the reset has settled; clear any prior recording and stale input-edge state.
 3. Start on a clear Ready/Go event or a defined first input.
 4. Capture real game data/actions and timestamped skill events.
@@ -132,11 +132,11 @@ Every lesson must independently remember:
 - Action/controller display on/off.
 - Timing feedback on/off.
 - Automatic reset on/off.
-- Demonstration playback speed.
+- Manual retry and configurable training navigation bindings; normal-speed demonstration only.
 Include Skip Explanation and Restore Explanations. Changing one toggle must not implicitly enable another. Default settings should make the first attempt understandable and keep subsequent retries fast.
-Input display: the documented game data exposes game actions such as jump, boost, pitch, yaw, roll, steer, throttle, and handbrake. These are not automatically the physical buttons or raw hardware stick values. Show action labels first. Offer Xbox/PlayStation/keyboard glyphs only after the user selects or calibrates a binding profile. Do not guess their custom air-roll/boost binding. [4–5]
+Input display: use a transparent DS4 silhouette with independent human/ghost displays and On/Off controls, no fade mode or boxed panel. Logical game actions are not automatically physical buttons. Verify actual USB DualShock 4 input and bindings; never guess custom air-roll/boost mappings. Avoid stock HUD overlap. [4–5]
 Timing: compare actual action and movement events against a validated reference from equivalent initial conditions. For example, explain that an opposing pitch input occurred later than in the reference and show the measured times. Account for missing packets and sampling precision. Prefer game timestamps to arbitrary render frames. A successful alternative execution is not a failure merely because it differs from one demonstration.
-Ghost: implement a genuine recorded-pose ghost with an oriented wireframe car through the documented rendering API; an optional path can supplement it. A path alone is insufficient because the player needs to see the car's pitch, yaw, and roll. Make the front, roof, and underside of the outline distinguishable. It must not collide with the player or ball. Synchronize its action display with recorded poses, allow replay and slower demonstration, and interpolate carefully. Rendering supports useful primitives; a textured translucent car mesh is not established by those primitives alone. Add mesh fidelity only if a supported mechanism is proven. [6]
+Ghost: show an oriented non-contact car demonstration from a real successful validated trace, with synchronized controller inputs. Toggle On restarts and repeats at normal speed; Off removes ghost and ghost inputs immediately. It cannot affect ball, bots, player, goals or scores. Preserve target/wall geometry; see the current product contract for placement decisions. A path alone is insufficient; rendering primitives do not prove textured mesh support. [6]
 Every recording stores its source, permission to distribute, game/framework version, car/hitbox, map, mutators, starting state, time base, action samples, pose samples, and success evidence. Compare only compatible attempts or clearly explain a mismatch.
 A teaching reference must come from an actual successful execution and meet that lesson's conditions. Generate and validate one in the real game or import a permitted real recording. The player's recorded best attempt must be labeled Your Best Attempt, not Expert Demonstration. A mathematical animation or guessed button script is not proof that the technique works in Rocket League.
 For flip resets, observing an available dodge is insufficient by itself. Establish evidence of the relevant ball contact and the transition that grants the reset; reject wall/ground-contact explanations. Where the API cannot prove the event confidently, report the observed contact/timing and uncertainty instead of a false pass.
@@ -185,10 +185,10 @@ Inspect current v5 API signatures and schemas. Do not mix v4 and v5 examples. Th
 Keep high-frequency telemetry and drawing from blocking the UI or disk. Bound recording memory, rotate logs, and handle dropped packets. Make a compatibility report containing app, game, core/interface, bot provider, launcher, and OS versions. Capture minimal useful diagnostics; omit credentials and private account identifiers from logs and exported reports.
 Persist useful checkpoints during the build. Preserve unrelated existing work. Do not introduce placeholder buttons, fabricated SDK methods, fake success messages, or simulated match results in a screen that claims to show a real completed game.
 16. Repository, Cursor Origin, and Windows distribution
-Create or use the actual authenticated GitHub repository my-career-training. Discover the account/organization rather than inventing its name. Default to a public community code repository unless an existing private repository or explicit account restriction dictates otherwise. Do not overwrite an unrelated existing repository.
+Use the actual authenticated my-career-training GitHub repository. The owner explicitly chose to keep it public while removing MIT permission for future original changes. Follow LICENSE; do not change visibility or licensing again without owner direction.
 Cursor Origin is a repository-hosting/mirroring service, separate from the ordinary Git remote name origin. Keep public GitHub as the canonical community download/source location and create an inbound Cursor Origin mirror when the user's access permits it. Cursor documents origin repo create-mirrored OWNER/REPO; use the actual authenticated owner and returned clone URL. Do not replace a working GitHub remote with an invented Origin URL. Follow docs/REPOSITORY_SETUP.md and current official instructions. [18–20]
 If GitHub/Origin authentication or access is missing, prepare the complete local checkout, source archive, and precise setup steps. Do not claim the remote or mirror exists. Never commit credentials, platform sessions, player saves, recordings without permission, .env files, game assets, generated environments, or downloaded proprietary binaries.
-Include a Windows build pipeline with pinned dependencies, meaningful tests, and installer/portable packaging. Choose and document an appropriate license for original project code while preserving third-party notices and dependency obligations. Do not apply the project's license to Rocket League assets or community content it does not own.
+Include a Windows build pipeline with pinned dependencies, meaningful tests, and installer/portable packaging. Follow the current LICENSE for future original changes; preserve prior MIT grants, third-party notices and dependency obligations. Do not apply the project's license to Rocket League assets or community content it does not own.
 A release must include a versioned Windows x64 installer and portable archive, original icon, desktop shortcut option, uninstall behavior, checksums, release notes, and installation instructions ordinary players can follow. Bundle permitted runtime dependencies so the player does not need Python, Git, Cursor, or a developer terminal. Rocket League and Steam/Epic remain separate prerequisites.
 Do not rename a source ZIP to .exe or call it a ready-to-play release. Build Windows artifacts on Windows using a reproducible workflow. Treat unsigned builds honestly; do not claim a signature or publisher verification without it. Never tell users to disable operating-system protection as the default installation procedure.
 Game updates can require adapter updates. Detect and explain actual incompatibility, preserve saves, and keep the app functional for management/review where possible. Do not guarantee all future Rocket League versions or install unsupported downgrades to conceal a compatibility problem.
@@ -231,7 +231,7 @@ Deliver:
 5. Architecture/build instructions, locked dependency versions, licenses/notices, compatibility report, and the feature evidence matrix.
 6. A concise account of what worked in the real game, what only passed local tests, what needs access or recordings, and the next executable step for each remaining item.
 Use short, plain progress updates. Explain choices in words a sixth grader could understand when talking to the player; keep engineering detail in repository documents. Ask only questions that materially block execution after inspecting the available context. Do not ask again about already-decided squad size, optional training, repository name, or the separate 22-player idea.
-Begin implementation now and carry the full assignment as far as the actual tools and environment allow.
+Begin the agreed current slice after resolving material unknowns. Preserve the remaining product scope in the task board, and report partial, blocked and untested work honestly.
 Primary references
 These support integration facts and design research; product requirements above are decisions for this project. Recheck their current versions during implementation.
 1. Epic EAC modes: https://www.epicgames.com/help/c-37599050/c-32343914/easy-anti-cheat-is-now-available-in-rocket-league-a10791900

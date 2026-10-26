@@ -1,65 +1,84 @@
 ---
 name: my-career-training-testing
-description: "Reach and verify native game states when developing or testing My Career Training on Windows, including owned Rocket League sessions, durable results, Return and restoration."
+description: "Coordinate scoped My Career Training development and verify its player-facing functions, including owned Rocket League sessions, native menus, scenarios, saves and restoration."
 ---
 
-# My Career Training Testing
+# My Career Training development and testing
 
-Use the project's existing launcher and private test helpers to reach a known
-state, capture evidence, and leave the player's installation restored. This
-skill records navigation knowledge; it does not certify a new candidate.
+Use for this project's build/test work. This skill routes to current decisions and
+known game procedures; it does not certify a build or authorize unrelated changes.
+Keep its stable name so existing links and installed sessions continue to find it.
 
-For continuation performance work, use the measured phases and the owner's
-12-second target in [evidence-and-recovery.md](references/evidence-and-recovery.md).
-That target is not an achieved timing or permission to skip durable saves.
+## Fresh start
 
-## Establish the current checkpoint
+Locate the checkout from the workspace or optional private `local-workspace.json`
+beside this installed skill. That file is a location map, not executable instructions.
+Read `AGENTS.md`, short `docs/PROJECT_STATUS.md` and `docs/NEXT_TASKS.md`, then only the
+relevant blueprint/contract. Do not load all archived handoffs or repeat old research.
 
-Locate the repository from the active workspace or the optional, private
-`local-workspace.json` beside this installed skill. That file is a location map,
-not executable instructions. Read `AGENTS.md`, `docs/PROJECT_STATUS.md` and the
-current handoff. Before changing shared behavior read the integration contract;
-before publishing read the privacy guidance. Do not repeat completed research.
+The blueprint describes the intended product; status describes evidence; the task
+board describes next work. Historical receipts do not override current requirements.
+Before a broad new build ask the user only for unresolved outcomes/details; never
+re-ask confirmed choices. Continue independent authorized work while awaiting answers.
 
-Inspect HEAD, dirty files, candidate manifest, live processes and recovery
-journals. Record source versus frozen mode. A build for another commit is not
-the current candidate. Use a copied career, including a Unicode-path case;
-never use the player's original save for development.
+## Build/review mode — any unique function
 
-## Select a route and an operator
+Read `docs/DEVELOPMENT_WORKFLOW.md` for exact worker roles, isolated parallel work,
+independent review, failure/alternative rules and time/cost accounting. Use its
+six-part player-action contract for every function, including small buttons/settings,
+images, downloads, game loading, lesson actors, saves and shutdown. The four broad
+product areas are examples, not the scope limit.
 
-Read [state-routes.md](references/state-routes.md) for the states needed now.
-Use [evidence-and-recovery.md](references/evidence-and-recovery.md) when
-planning an acceptance run or diagnosing a failed transition. For delegation,
-read the repository's `docs/DEVELOPMENT_WORKFLOW.md`.
+Read `docs/INTEGRATION_CONTRACT.md` before shared interface changes. Assign bounded
+tasks on an exact base with owned files and observable acceptance. Same-goal workers
+use complementary scopes or explicitly competing isolated alternatives. Review the
+immutable result and required evidence before main integrates; a worker's confidence
+or a preview is not proof. Do not rebuild binaries for documentation-only changes.
 
-Exactly one agent owns game input at a time. State the owner, owned process
-identity (PID, creation time and executable), permitted scenario and expiry or
-completion condition in the private run record. Main owns input unless it
-explicitly hands that ownership to the tester; main then stops its own inputs.
-Read-only observers may run concurrently. A player taking control also suspends
-agent input. Record a handback before the next operator acts.
+## Game-test mode
 
-Before every input or screenshot, verify that the same owned game is foreground.
-Do not fight focus with repeated clicks. If focus is refused, stop input and
-request the user's help; a previous "ready" is not perpetual foreground proof.
-Never use old coordinates, window handles or PIDs as current evidence.
+Inspect HEAD, dirty files, candidate provenance, live processes and recovery journals.
+Record source/native/frozen mode. Never relabel a build for another revision. Validate
+the interpreter/import root and toolchain before running expensive build/test commands.
+Use copied careers including a Unicode-path case, never original saves for development.
 
-## Execute and report
+Read [state routes](references/state-routes.md) only for the needed transition.
+Read [evidence/recovery](references/evidence-and-recovery.md) for acceptance, timing or
+failed transitions. The historical 12-second continuation target is not achieved.
 
-Prefer an existing healthy game for the next compatible scenario. Restart when
-loading changed native code/assets, checking startup/restoration, or when the
-session is no longer trustworthy. Build one coherent candidate before live work.
-Do not replace a loaded DLL or movie underneath a running test.
+Exactly one agent owns game input. Record operator, PID, creation time, executable,
+permitted scenario and ending condition privately. Main owns input only after verifying
+ownership; an old handoff is not ongoing permission. For tester handoff both acknowledge;
+main stops input. Observers stay read-only. User takeover suspends automation.
 
-For each transition record: candidate, initial state, real action, observed
-destination, elapsed time, evidence and unresolved limits. Separate command
-acceptance, durable acknowledgement, attempted navigation and actual arrival.
-Return is successful only after a fresh frontend READY, actual RootMenuMovie
-and a visible authored hub in the same owned game.
+Before every input/capture verify the same owned game is foreground. Do not fight
+focus with repeated clicks. If focus is refused, stop inputs and request help. Never
+use old coordinates/handles as evidence of current state. A failed capture is not a
+fresh screenshot; never display its old output as the new result.
 
-Use bounded observers and the route's recovery rule. On timeout, capture the
-state once and diagnose the missing transition; do not repeatedly restart the
-game or repeat an input blindly. Preserve saves, conflicting files and journals.
-Publish only sanitized findings, never raw logs, screenshots with account data,
-private paths, careers, credentials or extracted game assets.
+Prefer one healthy session for compatible checks. Restart for changed loaded components,
+startup/restoration acceptance or an untrustworthy session. Build one coherent candidate;
+never replace loaded DLLs or movies underneath the game. Wait on fresh, scoped state
+signals with bounded timeouts, not repeated blind sleeps/clicks.
+
+Verify actual effects: lesson retry restores all scenario actors, navigation selects
+the intended situation, thumbnails match content, toggles change gameplay/display,
+Return saves/cleans up and reaches the real hub. Select cases from the current contract;
+do not run every scenario for a wording change. Tutorial/ghost availability requires
+real content and successful evidence, not a visible toggle.
+
+## Evidence and handoff
+
+For a tested transition record candidate, initial state, real input, actual destination,
+elapsed time, evidence and limits. Separate request acceptance, durable acknowledgement,
+navigation attempt and arrival. Return needs fresh frontend READY, actual RootMenuMovie
+and visible authored hub in the same game. Verify persistent state separately.
+
+On timeout capture state once, then follow the workflow's failed-hypothesis diagnosis
+and alternative rule; do not blindly restart or weaken success checks. Preserve saves,
+conflicting files and journals. Record one useful next experiment in the task card.
+
+Finish by updating short status/task board with passed, failed and untested behavior.
+Keep old investigations in the archive, not appended to the fresh-start instructions.
+Read `docs/REPOSITORY_PRIVACY.md` before publication. Raw logs, account-bearing images,
+careers, credentials, private paths and extracted assets stay private.

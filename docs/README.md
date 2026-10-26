@@ -1,12 +1,15 @@
 # Documentation map
 
-Start with [PROJECT_STATUS.md](PROJECT_STATUS.md). It takes precedence over older
-documents' claims about publication, implementation and untested behavior.
+Start with [AGENTS.md](../AGENTS.md), [PROJECT_STATUS.md](PROJECT_STATUS.md) and
+[NEXT_TASKS.md](NEXT_TASKS.md). Read only relevant product/technical documents.
+Current status owns capability claims; the blueprint and linked Training contract
+own requirements; the workflow owns process. Archives never override them.
 
 | Need | Read |
 | --- | --- |
-| Resume the latest paused session and Training/Workshop direction | [SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) |
-| Resume the paused 24 October repair session | [SESSION_HANDOFF_2026-10-24.md](SESSION_HANDOFF_2026-10-24.md) |
+| Choose the next specific player outcome | [NEXT_TASKS.md](NEXT_TASKS.md) |
+| Coordinate workers, failures, cost and acceptance for any function | [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) |
+| Build scenarios, ghost, browser thumbnails and Garage | [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md) |
 | Build the current Windows candidate | [BUILDING.md](BUILDING.md), [NATIVE_CANDIDATE.md](NATIVE_CANDIDATE.md) |
 | Understand the requested product | [BUILD_SPEC.md](BUILD_SPEC.md) |
 | Change shared data or lifecycle behavior | [INTEGRATION_CONTRACT.md](INTEGRATION_CONTRACT.md) |
@@ -25,3 +28,6 @@ Files under `validation/` are dated receipts: read their flags and source revisi
 investigation's history. They do not describe the current player path.
 `FEATURE_MATRIX.md` and older release notes contain historical snapshots; use
 current status and exact-release evidence before making a capability claim.
+
+The pre-consolidation status/workflow/direction are under `archive/2026-10-26/`.
+October 24/25 session handoffs are historical; do not load them on every fresh start.

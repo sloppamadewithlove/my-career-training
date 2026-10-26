@@ -1,4 +1,4 @@
 interface:
-  display_name: "My Career Training Testing"
-  short_description: "Reach and verify owned Rocket League test states"
-  default_prompt: "Use $my-career-training-testing to reach the next required game state and record evidence for the current candidate."
+  display_name: "My Career Training Build and Test"
+  short_description: "Coordinate scoped builds and verify player functions"
+  default_prompt: "Use $my-career-training-testing to read the current task board, coordinate scoped work and verify the next player outcome."

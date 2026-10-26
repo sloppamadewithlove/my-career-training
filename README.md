@@ -34,7 +34,8 @@ test target; Epic has not passed its own acceptance test.
 
 ## Start here as a contributor
 
-1. Read [current status](docs/PROJECT_STATUS.md), then [AGENTS.md](AGENTS.md).
+1. Read [AGENTS.md](AGENTS.md), [current status](docs/PROJECT_STATUS.md), and
+   [next tasks](docs/NEXT_TASKS.md). Confirm unresolved player outcomes before a broad build.
 2. Use the [build guide](docs/BUILDING.md) and
    [shared integration contract](docs/INTEGRATION_CONTRACT.md).
 3. Check the [product specification](docs/BUILD_SPEC.md) and
@@ -55,3 +56,10 @@ test target; Epic has not passed its own acceptance test.
 `runtime/`, `build/`, `dist/` and `release/` are generated and ignored by Git.
 GitHub is the source of truth; Cursor Origin is a mirror. Older research notes
 remain linked through the documentation map and are not acceptance claims.
+
+## Source permissions
+
+Copyright (c) 2026 Slava Porollo. Future original changes are not offered under
+MIT; see [LICENSE](LICENSE). Earlier MIT grants and third-party licenses remain
+in effect for their covered material. The repository stays public by owner choice;
+visibility does not grant write access or approval to change the official project.
