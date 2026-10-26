@@ -192,6 +192,49 @@ def test_only_two_cancelled_catalog_workers_can_remain_outstanding(backend, monk
     assert backend.catalog_state["items"] == []
 
 
+def test_cancelled_append_retries_same_page_without_skipping(backend, monkeypatch):
+    append_entered, append_release = threading.Event(), threading.Event()
+    calls = []
+
+    def fetch(source, *, query, page, cancel):
+        calls.append((source, query, page))
+        if page == 2 and calls.count((source, query, page)) == 1:
+            append_entered.set()
+            # Simulate a reader that completes despite cancellation. The stale
+            # result must not advance the current catalog's pagination cursor.
+            assert append_release.wait(2)
+        result = catalog_result(source, f"Page {page}", page=page, query=query)
+        item = result["items"][0]
+        item["source_id"] = 12000 + page
+        item["id"] = f"{source}:{12000 + page}"
+        item["details_url"] = community_discovery.item_details_url(source, 12000 + page)
+        result["has_next"] = page < 3
+        return result
+
+    monkeypatch.setattr(community_discovery, "fetch_catalog", fetch)
+    backend.dispatch("community_browse", {"source": "bakkes_maps", "query": "page"})
+    wait_until(backend, lambda: not backend.catalog_state["busy"])
+    assert backend.catalog_state["page"] == 1
+    assert backend.catalog_state["has_next"] is True
+
+    backend.dispatch("community_browse_more", {})
+    assert append_entered.wait(1)
+    backend.dispatch("community_browse_cancel", {})
+    append_release.set()
+    wait_until(backend, lambda: backend._catalog_outstanding == 0)
+
+    backend.dispatch("community_browse_more", {})
+    wait_until(backend, lambda: not backend.catalog_state["busy"])
+
+    assert calls == [
+        ("bakkes_maps", "page", 1),
+        ("bakkes_maps", "page", 2),
+        ("bakkes_maps", "page", 2),
+    ]
+    assert backend.catalog_state["page"] == 2
+    assert [item["title"] for item in backend.catalog_state["items"]] == ["Page 1", "Page 2"]
+
+
 def test_open_item_uses_only_id_and_source_from_current_page(backend, monkeypatch):
     opened = []
     monkeypatch.setattr(bridge.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))

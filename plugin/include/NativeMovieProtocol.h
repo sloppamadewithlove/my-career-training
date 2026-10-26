@@ -16,6 +16,7 @@ class NativeMovieProtocol {
 public:
     static constexpr const char* kLogCategory = "MCT_NATIVE_UI_V1";
     static constexpr std::size_t kMaxCommandBytes = 2048;
+    static constexpr std::size_t kMaxViewBytes = 65536;
     static constexpr bool kRuntimeVerified = false;
     static constexpr bool kProductionReady = false;
 
@@ -48,6 +49,15 @@ public:
             invalidate();
             return wire;
         }
+        if (scope.surface == NativeMenuSurface::Frontend && view.page == CareerLayoutPage::Root) {
+            view.choices.erase(std::remove_if(view.choices.begin(), view.choices.end(), [](const CareerLayoutChoice& choice) {
+                return choice.id == NativeCareerLayout::kWorkshop || choice.id == NativeCareerLayout::kCommunity;
+            }), view.choices.end());
+        } else if (view.browser.active) {
+            view.choices.erase(std::remove_if(view.choices.begin(), view.choices.end(), [](const CareerLayoutChoice& choice) {
+                return choice.id != "nav.back";
+            }), view.choices.end());
+        }
         for (auto& choice : view.choices) {
             if (returnPending && ((choice.kind == CareerLayoutEffectKind::Dispatch &&
                 !NativeReturnGate::permitsAction(choice.action)) || choice.kind == CareerLayoutEffectKind::LocalWorkshop ||
@@ -69,7 +79,8 @@ public:
         const auto authorized = returnPending && validNavigation(navigation) &&
             (scope.surface == NativeMenuSurface::Pause || scope.surface == NativeMenuSurface::Results)
             ? navigation : Json::object();
-        Json signature = {{"title", view.title}, {"body", view.body}, {"choices", Json::array()}};
+        Json signature = {{"title", view.title}, {"body", view.body}, {"choices", Json::array()},
+            {"browser", browserBinding(view.browser)}};
         signature["navigation"] = authorized;
         signature["return_pending"] = returnPending;
         signature["return_hold"] = returnHold;
@@ -83,6 +94,7 @@ public:
         if (!published_ || encoded != lastSignature_) {
             if (!advance()) return wire;
             shown_ = std::move(view.choices);
+            shownBrowser_ = std::move(view.browser);
             lastSignature_ = encoded;
             published_ = true;
         }
@@ -90,6 +102,7 @@ public:
         wire["generation"] = std::to_string(generation_);
         wire["title"] = view.title;
         wire["body"] = view.body;
+        if (shownBrowser_.active) wire["browser"] = browserWire(shownBrowser_);
         wire["return_pending"] = returnPending_ = returnPending;
         wire["return_hold"] = returnHold_ = returnHold;
         navigation_ = authorized;
@@ -119,6 +132,36 @@ public:
         if (!customMovieCallback || !published_ || message.size() > kMaxCommandBytes) return refused;
         try {
             const auto command = Json::parse(message);
+            if (command.is_object() && command.contains("browser_op")) {
+                // Exact key set and exact types before any dispatch. A missing or
+                // non-string value is refused; it is never read as an empty search.
+                if (!exactBrowserCommand(command) || live.surface != surface_ || live.generation != scopeGeneration_ ||
+                    stringValue(command, "surface") != nativeSurfaceName(surface_) ||
+                    stringValue(command, "session") != nonce_ ||
+                    stringValue(command, "generation") != std::to_string(generation_) ||
+                    stringValue(command, "revision") != std::to_string(shownBrowser_.revision) || !shownBrowser_.active)
+                    return refused;
+                const auto op = stringValue(command, "browser_op");
+                const auto value = stringValue(command, "value");
+                if (op != "tab" && op != "search" && op != "scroll" && op != "primary" && op != "favorite" &&
+                    op != "tool")
+                    return refused;
+                if (value.size() > NativeCareerLayout::kMaxBrowserKey ||
+                    (op == "search" && value.size() > NativeCareerLayout::kMaxBrowserQuery)) return refused;
+                const TrainingBrowserRow* publishedRow = nullptr;
+                const TrainingBrowserTool* publishedTool = nullptr;
+                if (op == "primary" || op == "favorite") {
+                    for (const auto& row : shownBrowser_.rows) if (row.key == value) { publishedRow = &row; break; }
+                    if (!publishedRow) return refused;
+                }
+                if (op == "tool") {
+                    for (const auto& tool : shownBrowser_.tools) if (tool.key == value) { publishedTool = &tool; break; }
+                    if (!publishedTool) return refused;
+                }
+                auto effect = layout_.chooseBrowser(op, value, live, state, workshop, publishedRow, publishedTool);
+                if (effect.accepted) invalidate();
+                return effect;
+            }
             const bool legacy = surface_ == NativeMenuSurface::Frontend && !command.contains("surface");
             if (!command.is_object() || command.size() != (legacy ? 5 : 6) || live.surface != surface_ ||
                 live.generation != scopeGeneration_ ||
@@ -147,6 +190,7 @@ public:
     void invalidate() {
         published_ = false;
         shown_.clear();
+        shownBrowser_ = {};
         nonce_.clear();
         navigation_ = Json::object();
     }
@@ -200,6 +244,70 @@ public:
     }
 
 private:
+    // Browser commands carry exactly these seven keys with these exact types.
+    // Nothing is coerced: a missing or non-string value is refused rather than
+    // treated as an empty search, and no extra key is tolerated.
+    static bool exactBrowserCommand(const Json& command) {
+        if (!command.is_object() || command.size() != 7) return false;
+        if (!command.contains("protocol") || !command["protocol"].is_number_integer() ||
+            command["protocol"] != 1) return false;
+        for (const char* key : {"session", "surface", "generation", "revision", "browser_op", "value"})
+            if (!command.contains(key) || !command[key].is_string()) return false;
+        return true;
+    }
+    static const char* browserTab(TrainingBrowserTab tab) {
+        switch (tab) {
+        case TrainingBrowserTab::Lessons: return "lessons";
+        case TrainingBrowserTab::Workshop: return "workshop";
+        case TrainingBrowserTab::Mods: return "mods";
+        case TrainingBrowserTab::Favorites: return "favorites";
+        }
+        return "lessons";
+    }
+    static const char* browserState(TrainingBrowserState state) {
+        switch (state) {
+        case TrainingBrowserState::Ready: return "ready";
+        case TrainingBrowserState::Empty: return "empty";
+        case TrainingBrowserState::Loading: return "loading";
+        case TrainingBrowserState::Error: return "error";
+        }
+        return "error";
+    }
+    static Json browserBinding(const TrainingBrowserView& browser) {
+        Json value = {{"active", browser.active}, {"tab", browserTab(browser.tab)}, {"state", browserState(browser.state)},
+            {"query", browser.query}, {"offset", browser.offset}, {"total", browser.total},
+            {"has_more", browser.hasMore},
+            {"revision", std::to_string(browser.revision)}, {"rows", Json::array()}};
+        for (const auto& row : browser.rows)
+            value["rows"].push_back({{"key", row.key}, {"type", row.type}, {"id", row.itemId}, {"title", row.title},
+                {"subtitle", row.subtitle}, {"detail", row.detail}, {"primary_label", row.primaryLabel},
+                {"primary_enabled", row.primaryEnabled}, {"favorite", row.favorite}, {"reason", row.reason},
+                {"action", row.action}, {"payload", row.payload}, {"workshop_row", row.workshop.rowId},
+                {"workshop_path", row.workshop.packagePath}, {"workshop_root", row.workshop.contentRoot},
+                {"workshop_id", row.workshop.workshopId}, {"workshop_nonce", row.workshop.nonce},
+                {"workshop_generation", std::to_string(row.workshop.generation)},
+                {"workshop_stamp", std::to_string(row.workshopStamp)}});
+        value["tools"] = Json::array();
+        for (const auto& tool : browser.tools)
+            value["tools"].push_back({{"key", tool.key}, {"label", tool.label}, {"enabled", tool.enabled},
+                {"reason", tool.reason}, {"action", tool.action}, {"payload", tool.payload}});
+        return value;
+    }
+    static Json browserWire(const TrainingBrowserView& browser) {
+        Json value = {{"tab", browserTab(browser.tab)}, {"state", browserState(browser.state)}, {"query", browser.query},
+            {"offset", browser.offset}, {"total", browser.total}, {"has_more", browser.hasMore},
+            {"revision", std::to_string(browser.revision)},
+            {"rows", Json::array()}};
+        for (const auto& row : browser.rows)
+            value["rows"].push_back({{"key", row.key}, {"title", row.title}, {"subtitle", row.subtitle},
+                {"detail", row.detail}, {"primary_label", row.primaryLabel}, {"primary_enabled", row.primaryEnabled},
+                {"favorite", row.favorite}, {"reason", row.reason}});
+        value["tools"] = Json::array();
+        for (const auto& tool : browser.tools)
+            value["tools"].push_back({{"key", tool.key}, {"label", tool.label},
+                {"enabled", tool.enabled}, {"reason", tool.reason}});
+        return value;
+    }
     static bool validNavigation(const Json& value) {
         const auto phase = stringValue(value, "phase");
         if (!value.is_object() || (phase != "authorize" && phase != "execute") ||
@@ -262,6 +370,7 @@ private:
     NativeMatchLayout matchLayout_;
     NativeMenuSurface surface_ = NativeMenuSurface::None;
     std::vector<CareerLayoutChoice> shown_;
+    TrainingBrowserView shownBrowser_;
     std::string nonce_;
     std::string lastSignature_;
     Json navigation_ = Json::object();

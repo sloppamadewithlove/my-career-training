@@ -29,6 +29,50 @@ enum class CareerLayoutPage {
     CreateCareer, CareerRules, RecoverCareer, WorkshopMods, WorkshopCatalog
 };
 
+enum class TrainingBrowserTab { Lessons, Workshop, Mods, Favorites };
+enum class TrainingBrowserState { Ready, Empty, Loading, Error };
+
+struct TrainingBrowserRow {
+    std::string key;
+    std::string type;
+    std::string itemId;
+    std::string title;
+    std::string subtitle;
+    std::string detail;
+    std::string primaryLabel;
+    bool primaryEnabled = false;
+    bool favorite = false;
+    std::string reason;
+    std::string action;
+    Json payload = Json::object();
+    NativeWorkshopRequest workshop;
+    std::uint64_t workshopStamp = 0;
+};
+
+struct TrainingBrowserTool {
+    std::string key;
+    std::string label;
+    bool enabled = false;
+    std::string reason;
+    std::string action;
+    Json payload = Json::object();
+};
+
+struct TrainingBrowserView {
+    bool active = false;
+    TrainingBrowserTab tab = TrainingBrowserTab::Lessons;
+    TrainingBrowserState state = TrainingBrowserState::Ready;
+    std::string query;
+    std::size_t offset = 0;
+    std::size_t total = 0;
+    std::vector<TrainingBrowserRow> rows;
+    std::vector<TrainingBrowserTool> tools;
+    // True only when the current catalog tab has a next page that a user scroll
+    // at the last row may request. Never a background or per-poll read.
+    bool hasMore = false;
+    std::uint64_t revision = 0;
+};
+
 // Fixed public catalog sources. There is no string parser and no arbitrary URL.
 enum class CatalogSource { None, SteamMaps, BakkesMaps, BakkesPlugins };
 
@@ -154,6 +198,7 @@ struct CareerLayoutView {
     std::string body;
     std::vector<CareerLayoutChoice> choices;
     std::vector<NativeRouteId> suppress;
+    TrainingBrowserView browser;
 };
 
 struct CareerLayoutEffect {
@@ -193,6 +238,11 @@ public:
     static constexpr bool kWritesMemory = false;
     static constexpr bool kTerminatesProcess = false;
     static constexpr std::size_t kMaxChoices = 24;
+    static constexpr std::size_t kMaxBrowserRows = 32;
+    static constexpr std::size_t kMaxBrowserTools = 8;
+    static constexpr std::size_t kMaxBrowserQuery = 80;
+    static constexpr std::size_t kMaxBrowserKey = 128;
+    static constexpr std::size_t kMaxBrowserDisplay = 240;
     static constexpr std::size_t kMaxBody = 2000;
     static constexpr std::size_t kMaxLabel = 80;
     static constexpr std::size_t kMaxReason = 240;
@@ -208,6 +258,9 @@ public:
     // Browse button, never while building a view.
     static constexpr std::size_t kCatalogRowsPerPage = 6;
     static constexpr std::size_t kMaxCatalogRows = 60;
+    // The native browser appends bounded public catalog pages, so it scans up to
+    // the backend's own 512-row cap. The legacy catalog page keeps 60.
+    static constexpr std::size_t kMaxPublicCatalogRows = 512;
     static constexpr int kMaxCatalogPage = 50;
     // The discovery parser accepts source ids from 1 to 9999999999.
     static constexpr std::int64_t kMaxCatalogSourceId = 9999999999LL;
@@ -248,12 +301,15 @@ public:
             action == "choose_provider" || action == "settings" || action == "backup_save" ||
             action == "open_data" || action == "diagnostics" ||
             action == "play_match" || action == "select_lesson" || action == "start_lesson" ||
+            action == "start_training_pack" ||
+            action == "browser_favorite" ||
             action == "assistance" || action == "lesson_variant" || action == "restore_explanations" ||
             action == "loadout" || action == "refresh_workshop" || action == "workshop_favorite" ||
             action == "community_lookup" || action == "community_paste_link" ||
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
-            action == "community_browse" || action == "community_browse_cancel" ||
+            action == "community_browse" || action == "community_browse_more" ||
+            action == "community_browse_cancel" ||
             action == "community_open_item" || action == "community_select_plugin" ||
             action == "community_open_source" ||
             action == "training_settings" || action == "ghost_control" || action == "play_recording" ||
@@ -274,6 +330,9 @@ public:
         cosmeticPage_ = 0;
         cosmeticProductId_ = 0;
         workshopPage_ = 0;
+        browserTab_ = TrainingBrowserTab::Lessons;
+        browserQuery_.clear();
+        browserOffset_ = 0;
         catalogPage_ = 0;
         catalogCategory_ = CatalogCategory::None;
         catalogBack_ = CareerLayoutPage::Workshop;
@@ -305,7 +364,7 @@ public:
         switch (page_) {
         case CareerLayoutPage::Root: buildRoot(out, state); break;
         case CareerLayoutPage::Career: buildCareer(out, state); break;
-        case CareerLayoutPage::Training: buildTraining(out, state); break;
+        case CareerLayoutPage::Training: buildTraining(out, state, workshop); break;
         case CareerLayoutPage::Lesson: buildLesson(out, state); break;
         case CareerLayoutPage::Schedule: buildSchedule(out, state); break;
         case CareerLayoutPage::Standings: buildStandings(out, state); break;
@@ -455,6 +514,103 @@ public:
         return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
     }
 
+    [[nodiscard]] CareerLayoutEffect chooseBrowser(const std::string& op, const std::string& value,
+                                                   const CareerLayoutScope& live, const Json& state,
+                                                   const NativeWorkshopContext& workshop = {},
+                                                   const TrainingBrowserRow* publishedRow = nullptr,
+                                                   const TrainingBrowserTool* publishedTool = nullptr) {
+        CareerLayoutEffect effect;
+        if (!planActive(live, state) || page_ != CareerLayoutPage::Training)
+            return refuse(effect, CareerLayoutRefusal::StaleScope, kStaleScope);
+        if (op == "tab") {
+            if (value == "lessons") browserTab_ = TrainingBrowserTab::Lessons;
+            else if (value == "workshop") browserTab_ = TrainingBrowserTab::Workshop;
+            else if (value == "mods") browserTab_ = TrainingBrowserTab::Mods;
+            else if (value == "favorites") browserTab_ = TrainingBrowserTab::Favorites;
+            else return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+            browserOffset_ = 0;
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Navigate; effect.page = page_;
+            return effect;
+        }
+        if (op == "search") {
+            if (value.size() > kMaxBrowserQuery)
+                return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+            browserQuery_ = plain(value, kMaxBrowserQuery);
+            browserOffset_ = 0;
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Navigate; effect.page = page_;
+            return effect;
+        }
+        if (op == "scroll") {
+            if (value != "up" && value != "down")
+                return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+            const auto current = view(live, state, {}, workshop).browser;
+            if (value == "up") browserOffset_ = browserOffset_ > 0 ? browserOffset_ - 1 : 0;
+            else if (browserOffset_ + 8 < current.total) ++browserOffset_;
+            else if (current.hasMore) {
+                // The user scrolled past the last displayed row of a catalog that
+                // still has a next page. One explicit append request, no payload.
+                if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+                effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
+                effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
+                effect.action = "community_browse_more"; effect.payload = Json::object();
+                effect.page = page_; return effect;
+            }
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Navigate; effect.page = page_;
+            return effect;
+        }
+        if (op == "tool") {
+            const auto current = view(live, state, {}, workshop).browser;
+            const TrainingBrowserTool* tool = nullptr;
+            for (const auto& candidate : current.tools) if (candidate.key == value) { tool = &candidate; break; }
+            if (!tool || !publishedTool || !sameBrowserTool(*tool, *publishedTool))
+                return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            if (!tool->enabled)
+                return refuse(effect, CareerLayoutRefusal::Disabled, tool->reason.empty() ? kUnknown : tool->reason);
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
+            effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
+            effect.action = tool->action; effect.payload = tool->payload; effect.page = page_;
+            return effect;
+        }
+        if ((op != "primary" && op != "favorite") || value.empty() || value.size() > kMaxBrowserKey)
+            return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+        const auto current = view(live, state, {}, workshop).browser;
+        const TrainingBrowserRow* row = nullptr;
+        for (const auto& candidate : current.rows) if (candidate.key == value) { row = &candidate; break; }
+        if (!row || !publishedRow || !sameBrowserRow(*row, *publishedRow))
+            return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+        if (op == "favorite") {
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
+            effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
+            effect.action = "browser_favorite"; effect.payload = {{"type", row->type}, {"id", row->itemId}};
+            effect.page = page_; return effect;
+        }
+        if (!row->primaryEnabled)
+            return refuse(effect, CareerLayoutRefusal::Disabled, row->reason.empty() ? kUnknown : row->reason);
+        if (!row->workshop.rowId.empty()) {
+            const auto* package = findNativeWorkshopPackage(workshop, row->workshop.rowId);
+            if (!package || package->packagePath != row->workshop.packagePath ||
+                package->contentRoot != row->workshop.contentRoot || package->workshopId != row->workshop.workshopId ||
+                workshop.nonce != row->workshop.nonce || workshop.generation != row->workshop.generation ||
+                !workshop.scopeReady || workshop.preparing || workshop.blocked)
+                return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+            effect.accepted = true; effect.kind = CareerLayoutEffectKind::LocalWorkshop;
+            effect.workshop = row->workshop; effect.page = page_; return effect;
+        }
+        if (!supportedAction(row->action) || !row->payload.is_object())
+            return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
+        if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
+        effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
+        effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
+        effect.action = row->action; effect.payload = row->payload; effect.leaveMenu = leavesMenu(row->action);
+        effect.page = page_; return effect;
+    }
+
     // Host-side binding. Rows come from the bridge workshop object. Paths outside
     // the executable's own Steam library are left unbound.
     static NativeWorkshopContext bindWorkshop(const Json& state, const std::string& executablePath,
@@ -569,6 +725,9 @@ private:
     std::size_t cosmeticPage_ = 0;
     int cosmeticProductId_ = 0;
     std::size_t workshopPage_ = 0;
+    TrainingBrowserTab browserTab_ = TrainingBrowserTab::Lessons;
+    std::string browserQuery_;
+    std::size_t browserOffset_ = 0;
     bool workshopMods_ = false;
     std::size_t catalogPage_ = 0;
     // Intended catalog category and Back target, captured when the catalog was
@@ -739,6 +898,21 @@ private:
     static bool pluginId(const std::string& value) {
         if (value.empty() || value.size() > 10 || value[0] < '1' || value[0] > '9') return false;
         return std::all_of(value.begin(), value.end(), [](unsigned char c) { return c >= '0' && c <= '9'; });
+    }
+
+    // A saved favorite id is a decimal string. It is converted to the same
+    // bounded numeric source id the catalog parser accepts, so a saved id can
+    // never widen the accepted range.
+    static bool savedCatalogId(const std::string& value, std::int64_t& out) {
+        if (!pluginId(value)) return false;
+        std::int64_t number = 0;
+        for (const auto c : value) {
+            number = number * 10 + (c - '0');
+            if (number > kMaxCatalogSourceId) return false;
+        }
+        if (number < 1) return false;
+        out = number;
+        return true;
     }
 
     static bool supportedBody(int id) { return id == 23 || id == 403 || id == 30 || id == 22; }
@@ -1019,11 +1193,14 @@ private:
 
     void buildRoot(CareerLayoutView& view, const Json& state) const {
         view.title = "My Career";
-        addLine(view.body, "Offline career, training, workshop, and community.");
+        addLine(view.body, "Offline career and one Training browser for lessons, workshop items, mods, and favorites.");
         addLine(view.body, "Your garage and game options stay the game's own screens.");
         navigate(view, kCareer, "My Career", CareerLayoutPage::Career);
         navigate(view, kTraining, "Training", CareerLayoutPage::Training);
         navigate(view, kGarage, "Garage", CareerLayoutPage::Garage);
+        // Retained as internal typed routes for compatibility tests and direct
+        // host planning. NativeMovieProtocol does not publish these legacy root
+        // entries; all player access is through Training tabs.
         navigate(view, kWorkshop, "Workshop", CareerLayoutPage::Workshop);
         navigate(view, kCommunity, "Community", CareerLayoutPage::Community);
         navigate(view, kSettings, "Settings", CareerLayoutPage::Settings);
@@ -1103,7 +1280,218 @@ private:
         back(view, CareerLayoutPage::Career);
     }
 
-    void buildTraining(CareerLayoutView& view, const Json& state) const {
+    static bool browserFavorite(const Json& state, const std::string& type, const std::string& id) {
+        const auto favorites = array(state, "browser_favorites");
+        for (const auto& favorite : favorites)
+            if (text(favorite, "type") == type && text(favorite, "id") == id) return true;
+        return false;
+    }
+
+    static bool queryMatches(const TrainingBrowserRow& row, const std::string& query) {
+        if (query.empty()) return true;
+        auto fold = [](std::string value) {
+            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+                return c >= 'A' && c <= 'Z' ? static_cast<char>(c + ('a' - 'A')) : static_cast<char>(c);
+            });
+            return value;
+        };
+        const auto needle = fold(query);
+        return fold(row.title).find(needle) != std::string::npos ||
+            fold(row.subtitle).find(needle) != std::string::npos || fold(row.detail).find(needle) != std::string::npos;
+    }
+
+    static bool sameBrowserRow(const TrainingBrowserRow& left, const TrainingBrowserRow& right) {
+        return left.key == right.key && left.type == right.type && left.itemId == right.itemId &&
+            left.title == right.title && left.subtitle == right.subtitle && left.detail == right.detail &&
+            left.primaryLabel == right.primaryLabel && left.primaryEnabled == right.primaryEnabled &&
+            left.favorite == right.favorite && left.reason == right.reason && left.action == right.action &&
+            left.payload == right.payload && left.workshop == right.workshop && left.workshopStamp == right.workshopStamp;
+    }
+
+    static bool sameBrowserTool(const TrainingBrowserTool& left, const TrainingBrowserTool& right) {
+        return left.key == right.key && left.label == right.label && left.enabled == right.enabled &&
+            left.reason == right.reason && left.action == right.action && left.payload == right.payload;
+    }
+
+    static void browserTool(TrainingBrowserView& browser, const std::string& key, const std::string& label,
+                            bool enabled, const std::string& reason, const std::string& action, Json payload) {
+        if (browser.tools.size() >= kMaxBrowserTools || key.empty() || key.size() > kMaxBrowserKey ||
+            !supportedAction(action) || !payload.is_object()) return;
+        TrainingBrowserTool tool;
+        tool.key = key; tool.label = plain(label, kMaxLabel); tool.enabled = enabled;
+        tool.reason = enabled ? "" : plain(reason, kMaxReason); tool.action = action; tool.payload = std::move(payload);
+        browser.tools.push_back(std::move(tool));
+    }
+
+    std::vector<TrainingBrowserRow> browserRows(TrainingBrowserTab tab, const Json& state,
+                                                const NativeWorkshopContext& workshop) const {
+        std::vector<TrainingBrowserRow> rows;
+        auto add = [&](TrainingBrowserRow row) {
+            if (row.itemId.empty() || row.itemId.size() > kMaxBrowserKey || row.key.empty() ||
+                row.key.size() > kMaxBrowserKey ||
+                rows.size() >= kMaxWorkshopRows + kMaxLessons + kMaxPublicCatalogRows) return;
+            row.title = plain(row.title, kMaxBrowserDisplay);
+            row.subtitle = plain(row.subtitle, kMaxBrowserDisplay);
+            row.detail = plain(row.detail, kMaxBrowserDisplay);
+            row.primaryLabel = plain(row.primaryLabel, kMaxLabel);
+            row.reason = plain(row.reason, kMaxReason);
+            if (!row.title.empty()) rows.push_back(std::move(row));
+        };
+        if (tab == TrainingBrowserTab::Favorites) {
+            for (auto source : {TrainingBrowserTab::Lessons, TrainingBrowserTab::Workshop, TrainingBrowserTab::Mods}) {
+                auto current = browserRows(source, state, workshop);
+                for (auto& row : current) if (row.favorite) add(std::move(row));
+            }
+            const auto saved = array(state, "browser_favorites");
+            const bool waiting = flag(object(state, "community_plugins"), "busy", false) || busy(state);
+            for (const auto& item : saved) {
+                const auto type = text(item, "type");
+                const auto id = text(item, "id");
+                if (!safeId(id) || (type != "lesson" && type != "workshop" && type != "plugin")) continue;
+                const auto key = type + ":" + id;
+                bool present = false;
+                for (const auto& row : rows) if (row.key == key) { present = true; break; }
+                if (present) continue;
+                TrainingBrowserRow row;
+                row.key = key; row.type = type; row.itemId = id; row.favorite = true;
+                row.title = text(item, "title", "Saved item"); row.subtitle = text(item, "subtitle");
+                row.detail = text(item, "detail", "This saved item is not in the current live catalog.");
+                row.primaryLabel = "Unavailable"; row.reason = "Refresh its source before opening it.";
+                // A saved remote favorite stays actionable after a restart. The
+                // source and numeric id are derived from the saved id only; no
+                // saved URL is used and no arbitrary id is accepted.
+                std::int64_t sourceId = 0;
+                if (type == "plugin" && pluginId(id) && savedCatalogId(id, sourceId)) {
+                    row.primaryLabel = "Check release";
+                    row.primaryEnabled = !waiting;
+                    row.reason = waiting ? kWait : "";
+                    row.action = "community_select_plugin";
+                    row.payload = {{"source", "bakkes_plugins"}, {"id", sourceId}};
+                } else if (type == "workshop") {
+                    const auto split = id.find(':');
+                    const auto sourceName = split == std::string::npos ? std::string() : id.substr(0, split);
+                    const auto number = split == std::string::npos ? std::string() : id.substr(split + 1);
+                    const auto source = catalogSourceOf(sourceName);
+                    if ((source == CatalogSource::SteamMaps || source == CatalogSource::BakkesMaps) &&
+                        savedCatalogId(number, sourceId)) {
+                        row.primaryLabel = "Open source";
+                        row.primaryEnabled = !waiting;
+                        row.reason = waiting ? kWait : "";
+                        row.action = "community_open_item";
+                        row.payload = {{"source", catalogSourceName(source)}, {"id", sourceId}};
+                    }
+                }
+                add(std::move(row));
+            }
+            return rows;
+        }
+        if (tab == TrainingBrowserTab::Lessons) {
+            const auto lessons = lessonsOf(state);
+            const auto packs = array(state, "training_packs");
+            const auto stop = (std::min)(lessons.size(), kMaxLessons);
+            for (std::size_t i = 0; i < stop; ++i) {
+                const auto id = text(lessons[i], "id"); if (!safeId(id)) continue;
+                if (id == "power-shots" && !packs.empty()) continue;
+                TrainingBrowserRow row;
+                row.key = "lesson:" + id; row.type = "lesson"; row.itemId = id;
+                row.title = text(lessons[i], "title", "Lesson"); row.subtitle = "Training lesson";
+                row.detail = text(lessons[i], "description"); row.primaryLabel = "Start lesson";
+                row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
+                row.action = "start_lesson"; row.payload = {{"id", id}};
+                row.favorite = browserFavorite(state, row.type, id); add(std::move(row));
+            }
+            for (std::size_t i = 0; i < (std::min)(packs.size(), std::size_t(6)); ++i) {
+                const auto id = text(packs[i], "id"); if (!safeId(id)) continue;
+                TrainingBrowserRow row;
+                row.type = "lesson"; row.itemId = "pack:" + id; row.key = "lesson:" + row.itemId;
+                row.title = text(packs[i], "title", "Power shots");
+                row.subtitle = text(packs[i], "rank") + " | " + text(packs[i], "author");
+                row.detail = text(packs[i], "description") + " | Featured by Psyonix | " + text(packs[i], "code");
+                row.primaryLabel = "Play training pack";
+                row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
+                row.action = "start_training_pack"; row.payload = {{"id", id}};
+                row.favorite = browserFavorite(state, row.type, row.itemId); add(std::move(row));
+            }
+            return rows;
+        }
+        if (tab == TrainingBrowserTab::Workshop) {
+            const auto items = array(object(state, "workshop"), "items");
+            const auto stop = (std::min)(items.size(), kMaxWorkshopRows);
+            for (std::size_t i = 0; i < stop; ++i) {
+                const auto id = text(items[i], "id"); if (!safeId(id)) continue;
+                TrainingBrowserRow row;
+                row.key = "workshop:" + id; row.type = "workshop"; row.itemId = id;
+                row.title = text(items[i], "title", "Training map");
+                row.subtitle = text(items[i], "creator", text(items[i], "origin", "Workshop"));
+                row.detail = text(items[i], "description", text(items[i], "availability"));
+                row.primaryLabel = "Play";
+                if (const auto* package = findNativeWorkshopPackage(workshop, id)) {
+                    const char* block = workshopBlock(items[i], workshop, busy(state));
+                    row.primaryEnabled = block == nullptr; row.reason = block ? block : "";
+                    row.workshop.rowId = package->rowId; row.workshop.workshopId = package->workshopId;
+                    row.workshop.title = row.title; row.workshop.contentRoot = package->contentRoot;
+                    row.workshop.packagePath = package->packagePath; row.workshop.nonce = workshop.nonce;
+                    row.workshop.generation = workshop.generation; row.workshopStamp = stampWorkshop(row.workshop);
+                } else row.reason = mapReason(items[i]);
+                row.favorite = browserFavorite(state, row.type, id) || flag(items[i], "favorite", false);
+                add(std::move(row));
+            }
+            const auto catalog = catalogOf(state);
+            const auto source = catalogSourceOf(text(catalog, "source"));
+            if (source == CatalogSource::SteamMaps || source == CatalogSource::BakkesMaps) {
+                const auto items = array(catalog, "items");
+                const auto stop = (std::min)(items.size(), kMaxPublicCatalogRows);
+                for (std::size_t i = 0; i < stop; ++i) {
+                    std::int64_t sourceId = 0; if (!catalogRow(items[i], source, sourceId)) continue;
+                    TrainingBrowserRow row;
+                    row.key = "workshop:" + text(items[i], "id"); row.type = "workshop"; row.itemId = text(items[i], "id");
+                    row.title = text(items[i], "title", "Training map"); row.subtitle = text(items[i], "creator");
+                    row.detail = catalogDetail(items[i], source); row.primaryLabel = "Open source";
+                    row.primaryEnabled = !catalogBusy(catalog); row.reason = row.primaryEnabled ? "" : kWait;
+                    row.action = "community_open_item"; row.payload = {{"source", catalogSourceName(source)}, {"id", sourceId}};
+                    row.favorite = browserFavorite(state, row.type, row.itemId); add(std::move(row));
+                }
+            }
+            return rows;
+        }
+        const auto plugins = object(state, "community_plugins");
+        const bool waiting = flag(plugins, "busy", false) || busy(state);
+        const auto known = array(plugins, "catalog");
+        const auto knownStop = (std::min)(known.size(), kScanCap);
+        for (std::size_t i = 0; i < knownStop; ++i) {
+            const auto id = text(known[i], "id"); if (!pluginId(id)) continue;
+            TrainingBrowserRow row;
+            row.key = "plugin:" + id; row.type = "plugin"; row.itemId = id;
+            row.title = text(known[i], "title", "Plugin"); row.subtitle = "BakkesMod plugin";
+            row.detail = "Check the current release. Activation remains unavailable."; row.primaryLabel = "Check release";
+            row.primaryEnabled = !waiting; row.reason = waiting ? kWait : "";
+            row.action = "community_lookup"; row.payload = {{"id", id}};
+            row.favorite = browserFavorite(state, row.type, id); add(std::move(row));
+        }
+        const auto catalog = catalogOf(state);
+        if (catalogSourceOf(text(catalog, "source")) == CatalogSource::BakkesPlugins) {
+            const auto items = array(catalog, "items");
+            const auto stop = (std::min)(items.size(), kMaxPublicCatalogRows);
+            for (std::size_t i = 0; i < stop; ++i) {
+                std::int64_t sourceId = 0; if (!catalogRow(items[i], CatalogSource::BakkesPlugins, sourceId)) continue;
+                const auto id = std::to_string(sourceId); bool duplicate = false;
+                for (const auto& existing : rows) if (existing.itemId == id) { duplicate = true; break; }
+                if (duplicate) continue;
+                TrainingBrowserRow row;
+                row.key = "plugin:" + id; row.type = "plugin"; row.itemId = id;
+                row.title = text(items[i], "title", "Plugin"); row.subtitle = text(items[i], "creator");
+                row.detail = catalogDetail(items[i], CatalogSource::BakkesPlugins); row.primaryLabel = "Check release";
+                row.primaryEnabled = !catalogBusy(catalog) && !waiting;
+                row.reason = row.primaryEnabled ? "" : kWait;
+                row.action = "community_select_plugin";
+                row.payload = {{"source", "bakkes_plugins"}, {"id", sourceId}};
+                row.favorite = browserFavorite(state, row.type, id); add(std::move(row));
+            }
+        }
+        return rows;
+    }
+
+    void buildTraining(CareerLayoutView& view, const Json& state, const NativeWorkshopContext& workshop) const {
         view.title = "Training";
         const auto lessons = lessonsOf(state);
         if (lessons.empty()) addLine(view.body, "No training lessons are available.");
@@ -1116,18 +1504,71 @@ private:
             for (std::size_t i = first; i < (std::min)(first + kLessonsPerPage, lessons.size()); ++i) {
                 const auto id = text(lessons[i], "id");
                 CareerLayoutChoice choice;
-                choice.id = "training.lesson." + id;
-                choice.label = plain(text(lessons[i], "title", "Lesson"), 64);
-                choice.enabled = canSelect;
-                choice.reason = canSelect ? "" : kWait;
-                choice.kind = CareerLayoutEffectKind::Dispatch;
-                choice.action = "select_lesson";
-                choice.lessonId = id;
-                choice.payload = {{"id", id}};
-                push(view, std::move(choice));
+                choice.id = "training.lesson." + id; choice.label = plain(text(lessons[i], "title", "Lesson"), 64);
+                choice.enabled = canSelect; choice.reason = canSelect ? "" : kWait;
+                choice.kind = CareerLayoutEffectKind::Dispatch; choice.action = "select_lesson";
+                choice.lessonId = id; choice.payload = {{"id", id}}; push(view, std::move(choice));
             }
             if (pages > 1) navigate(view, "training.next", "Next page", CareerLayoutPage::Training, (page + 1) % pages);
         }
+        view.browser.active = true; view.browser.tab = browserTab_; view.browser.query = browserQuery_;
+        auto rows = browserRows(browserTab_, state, workshop);
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const TrainingBrowserRow& row) {
+            return !queryMatches(row, browserQuery_);
+        }), rows.end());
+        view.browser.total = rows.size();
+        const auto maximum = rows.size() > 8 ? rows.size() - 8 : 0;
+        view.browser.offset = (std::min)(browserOffset_, maximum);
+        const auto last = (std::min)(rows.size(), view.browser.offset + kMaxBrowserRows);
+        for (std::size_t i = view.browser.offset; i < last; ++i) view.browser.rows.push_back(std::move(rows[i]));
+        const auto catalog = catalogOf(state);
+        const auto source = catalogSourceOf(text(catalog, "source"));
+        const bool catalogWaiting = catalogBusy(catalog) || busy(state);
+        int sourcePage = 1;
+        if (!whole(catalog, "page", sourcePage, 1, kMaxCatalogPage)) sourcePage = 1;
+        const auto sourceAllowed = browserTab_ == TrainingBrowserTab::Workshop
+            ? source == CatalogSource::SteamMaps || source == CatalogSource::BakkesMaps
+            : browserTab_ == TrainingBrowserTab::Mods ? source == CatalogSource::BakkesPlugins : false;
+        if (browserTab_ == TrainingBrowserTab::Workshop) {
+            browserTool(view.browser, "refresh-workshop", "Refresh library", !busy(state), kWait,
+                "refresh_workshop", Json::object());
+            browserTool(view.browser, "source-steam", "Browse Steam Maps", !catalogWaiting, kWait,
+                "community_browse", {{"source", "steam_maps"}, {"page", 1}, {"query", ""}});
+            browserTool(view.browser, "source-bakkes-maps", "Browse Bakkes Maps", !catalogWaiting, kWait,
+                "community_browse", {{"source", "bakkes_maps"}, {"page", 1}, {"query", ""}});
+        } else if (browserTab_ == TrainingBrowserTab::Mods) {
+            const auto plugins = object(state, "community_plugins");
+            const bool pluginWaiting = flag(plugins, "busy", false) || busy(state);
+            const auto selected = object(plugins, "selected");
+            browserTool(view.browser, "source-bakkes-plugins", "Browse BakkesMod plugins", !catalogWaiting, kWait,
+                "community_browse", {{"source", "bakkes_plugins"}, {"page", 1}, {"query", ""}});
+            browserTool(view.browser, "plugin-paste", "Paste plugin link", !pluginWaiting, kWait,
+                "community_paste_link", Json::object());
+            browserTool(view.browser, "plugin-download", "Download to private library",
+                !pluginWaiting && !selected.empty() && !flag(selected, "can_activate", true),
+                selected.empty() ? "Check a plugin's current release first." : kActivationReason,
+                "community_download", Json::object());
+            browserTool(view.browser, "plugin-library", "Check downloaded files", !pluginWaiting, kWait,
+                "community_library", Json::object());
+            browserTool(view.browser, "plugin-cancel", "Cancel plugin request", flag(plugins, "busy", false),
+                "Nothing is downloading.", "community_cancel", Json::object());
+        }
+        if (browserTab_ == TrainingBrowserTab::Workshop || browserTab_ == TrainingBrowserTab::Mods) {
+            if (sourceAllowed)
+                browserTool(view.browser, "source-open", "Open official catalog page", !catalogWaiting, kWait,
+                    "community_open_source", {{"source", catalogSourceName(source)}});
+            if (sourceAllowed && flag(catalog, "has_next", false) && sourcePage < kMaxCatalogPage)
+                view.browser.hasMore = !catalogWaiting;
+            browserTool(view.browser, "source-cancel", "Cancel catalog read", catalogBusy(catalog),
+                "Nothing is loading.", "community_browse_cancel", Json::object());
+        }
+        if ((browserTab_ == TrainingBrowserTab::Workshop || browserTab_ == TrainingBrowserTab::Mods) && catalogBusy(catalog))
+            view.browser.state = TrainingBrowserState::Loading;
+        else if ((browserTab_ == TrainingBrowserTab::Workshop || browserTab_ == TrainingBrowserTab::Mods) &&
+                 text(catalog, "status") == "error" && view.browser.rows.empty())
+            view.browser.state = TrainingBrowserState::Error;
+        else if (view.browser.rows.empty()) view.browser.state = TrainingBrowserState::Empty;
+        view.browser.revision = revision_;
         back(view, CareerLayoutPage::Root);
     }
 
@@ -1474,6 +1915,26 @@ private:
         if (!catalogId(item, "source_id", sourceId)) return false;
         if (text(item, "id") != std::string(catalogSourceName(source)) + ":" + std::to_string(sourceId)) return false;
         return !text(item, "title").empty();
+    }
+
+    // Bounded, meaningful detail for one public catalog row. Only fields the
+    // backend already validated and bounded are used; nothing is invented and no
+    // generic placeholder replaces real metadata.
+    static std::string catalogDetail(const Json& item, CatalogSource source) {
+        std::string detail;
+        const auto description = plain(text(item, "description"), 160);
+        if (!description.empty()) detail = description;
+        const auto creator = plain(text(item, "creator"), 48);
+        if (!creator.empty() && creator != "Unknown creator") {
+            if (!detail.empty()) detail += " - ";
+            detail += "By " + creator;
+        }
+        const auto category = plain(text(item, "kind"), 24);
+        const auto label = category.empty()
+            ? (source == CatalogSource::BakkesPlugins ? "BakkesMod plugin" : "Workshop map") : category;
+        if (!detail.empty()) detail += " - ";
+        detail += label + " - public listing, not installed or enabled.";
+        return plain(detail, kMaxBrowserDisplay);
     }
 
     static std::size_t catalogPages(std::size_t count) {

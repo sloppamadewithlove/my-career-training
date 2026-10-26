@@ -29,6 +29,10 @@ from .training import (assistance_preferences, catalog, configure_lesson, import
 
 
 _MAX_CATALOG_WORKERS = 2
+# Bounded automatic catalog append: one page per explicit user scroll, never a
+# background or per-poll read.
+_MAX_CATALOG_PAGES = 50
+_MAX_CATALOG_ROWS = 512
 
 
 def validate_document(state):
@@ -37,6 +41,13 @@ def validate_document(state):
     for lesson_id, preferences in state["lesson_preferences"].items():
         configure_lesson(lesson_id)
         assistance_preferences(preferences)
+
+
+def _display(value, limit=240):
+    if not isinstance(value, str):
+        return ""
+    return "".join(" " if ord(char) < 32 or char in "<>&" else char for char in value).encode(
+        "utf-8")[:limit].decode("utf-8", "ignore")
 
 
 class Backend(QObject):
@@ -69,6 +80,7 @@ class Backend(QObject):
         # Nothing here performs network access until an explicit browse action.
         self.catalog_state = {
             "source": "steam_maps", "page": 1, "query": "", "busy": False, "loading": False,
+            "appending": False,
             "status": "idle", "message": "Choose a catalog source, then browse one public page.",
             "items": [], "has_next": False, "source_url": "", "page_item_count": 0,
             "query_scope": "none", "remote_query": False, "truncated": False,
@@ -80,6 +92,7 @@ class Backend(QObject):
         self._catalog_cancel = threading.Event()
         self._catalog_generation = 0
         self._catalog_outstanding = 0
+        self._catalog_append_pending = False
         self.store = Store(directory, validate_document)
         self.error = ""
         try:
@@ -191,6 +204,7 @@ class Backend(QObject):
             "workshop": self.workshop_state, "plugin": self.plugin_status,
             "community_plugins": self.community_state,
             "community_catalog": self.catalog_state,
+            "browser_favorites": copy.deepcopy(self.document.get("browser_favorites", [])),
             "career_draft": dict(self.career_draft),
             "native_community_trial": self.native_community.state() if self.native_community else {},
             "native_community_request": self.native_community.request() if self.native_community else None,
@@ -284,30 +298,54 @@ class Backend(QObject):
 
     # -- public catalog browsing ------------------------------------------- #
 
-    def _catalog_job(self, source, page, query):
+    def _catalog_job(self, source, page, query, *, append=False):
         """Start one bounded public catalog read for an explicit browse action.
 
         The worker only reads one public HTML page. It never touches Qt, the
         save, BakkesMod, the game, or the plugin cache. Exactly one terminal
         result is consumed on the main thread's existing timer.
+
+        ``append`` is the strict continuation used by the native browser: it
+        derives nothing from the caller beyond the already validated source,
+        page, and query, keeps the rows already fetched, and refuses to run
+        unless the current tab really has a next page.
         """
         request = community_discovery.validate_request(source, query=query, page=page)
         if self.catalog_state["busy"]:
             raise ValueError("Wait for the current catalog page or cancel it first.")
         if self._catalog_outstanding >= _MAX_CATALOG_WORKERS:
             raise ValueError("Two catalog reads are still finishing. Wait a moment, then browse again.")
+        if append:
+            current = self.catalog_state
+            if (not current["has_next"] or current["status"] == "error"
+                    or request["source"] != current["source"]
+                    or request["query"] != current["query"]
+                    or request["page"] != current["page"] + 1
+                    or request["page"] > _MAX_CATALOG_PAGES
+                    or len(current["items"]) >= _MAX_CATALOG_ROWS):
+                raise ValueError("There is no next catalog page to read. Browse the source again.")
         self._catalog_generation += 1
         generation = self._catalog_generation
+        self._catalog_append_pending = append
         cancelled = threading.Event()
         self._catalog_cancel = cancelled
         self._catalog_outstanding += 1
         results = self._catalog_results
-        self.catalog_state.update(
-            source=request["source"], page=request["page"], query=request["query"],
-            busy=True, loading=True, status="loading", generation=generation,
-            message="Reading one public catalog page\u2026",
-            items=[], has_next=False, source_url="", page_item_count=0,
-            query_scope="none", remote_query=False, truncated=False, fetched=False)
+        if append:
+            # Keep every fetched row and the published page while the next page
+            # is read. The page number advances only on a successful result, so a
+            # cancel or error never skips a page.
+            self.catalog_state.update(
+                busy=True, loading=True, appending=True,
+                status="loading", generation=generation,
+                message="Reading the next public catalog page\u2026")
+        else:
+            self.catalog_state.update(
+                source=request["source"], page=request["page"], query=request["query"],
+                busy=True, loading=True, appending=False, status="loading", generation=generation,
+                message="Reading one public catalog page\u2026",
+                items=[], has_next=False, source_url="", page_item_count=0,
+                query_scope="none", remote_query=False, truncated=False, fetched=False)
 
         def run():
             try:
@@ -334,10 +372,16 @@ class Backend(QObject):
         self._catalog_generation += 1
         self._catalog_cancel.set()
         if self.catalog_state["busy"] or self.catalog_state["loading"]:
-            self.catalog_state.update(
-                busy=False, loading=False, status="cancelled", items=[], has_next=False,
-                source_url="", page_item_count=0, fetched=False,
-                message="Catalog read cancelled. Nothing was downloaded or enabled.")
+            if self.catalog_state.get("appending"):
+                # A cancelled append keeps the rows already fetched.
+                self.catalog_state.update(
+                    busy=False, loading=False, appending=False, status="cancelled",
+                    message="Catalog read cancelled. The rows already read are kept.")
+            else:
+                self.catalog_state.update(
+                    busy=False, loading=False, appending=False, status="cancelled", items=[], has_next=False,
+                    source_url="", page_item_count=0, fetched=False,
+                    message="Catalog read cancelled. Nothing was downloaded or enabled.")
             self.stateChanged.emit()
 
     def _poll_catalog(self):
@@ -350,33 +394,129 @@ class Backend(QObject):
             # A newer browse request or a cancel already replaced this tab; drop
             # the stale response instead of overwriting the newer catalog.
             return
-        self.catalog_state.update(busy=False, loading=False)
+        appending = self._catalog_append_pending
+        self._catalog_append_pending = False
+        self.catalog_state.update(busy=False, loading=False, appending=False)
         if status == "ok":
-            self.catalog_state.update(
-                items=result["items"], has_next=result["has_next"],
-                source_url=result["source_url"], page_item_count=result["page_item_count"],
-                query_scope=result["query_scope"], remote_query=result["remote_query"],
-                truncated=result["truncated"], fetched=result["fetched"],
-                status=result["status"], message=result["message"])
+            if appending:
+                # Append only rows that are not already displayed, in order, and
+                # never beyond the bounded row cap.
+                rows = list(self.catalog_state["items"])
+                seen = {(item.get("source"), item.get("source_id")) for item in rows}
+                for item in result["items"]:
+                    key = (item.get("source"), item.get("source_id"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    rows.append(item)
+                    if len(rows) >= _MAX_CATALOG_ROWS:
+                        break
+                capped = len(rows) >= _MAX_CATALOG_ROWS or result["page"] >= _MAX_CATALOG_PAGES
+                self.catalog_state.update(
+                    items=rows, page=result["page"],
+                    has_next=bool(result["has_next"]) and not capped,
+                    source_url=result["source_url"], page_item_count=result["page_item_count"],
+                    query_scope=result["query_scope"], remote_query=result["remote_query"],
+                    truncated=result["truncated"] or capped, fetched=result["fetched"],
+                    status=result["status"], message=result["message"])
+            else:
+                self.catalog_state.update(
+                    items=result["items"], has_next=result["has_next"],
+                    source_url=result["source_url"], page_item_count=result["page_item_count"],
+                    query_scope=result["query_scope"], remote_query=result["remote_query"],
+                    truncated=result["truncated"], fetched=result["fetched"],
+                    status=result["status"], message=result["message"])
         elif status == "cancelled":
-            self.catalog_state.update(
-                status="cancelled", items=[], has_next=False, source_url="",
-                page_item_count=0, fetched=False,
-                message="Catalog read cancelled. Nothing was downloaded or enabled.")
+            if appending:
+                self.catalog_state.update(
+                    status="cancelled",
+                    message="Catalog read cancelled. The rows already read are kept.")
+            else:
+                self.catalog_state.update(
+                    status="cancelled", items=[], has_next=False, source_url="",
+                    page_item_count=0, fetched=False,
+                    message="Catalog read cancelled. Nothing was downloaded or enabled.")
         else:
-            self.catalog_state.update(
-                status="error", items=[], has_next=False, source_url="",
-                page_item_count=0, fetched=False, message=result)
+            if appending:
+                # A failed append keeps the rows already fetched and stops the
+                # automatic continuation; the existing refresh retries it.
+                self.catalog_state.update(
+                    status="error", has_next=False,
+                    message=result + " The rows already read are kept; refresh to retry.")
+            else:
+                self.catalog_state.update(
+                    status="error", items=[], has_next=False, source_url="",
+                    page_item_count=0, fetched=False, message=result)
             self.error = result
         self.stateChanged.emit()
 
+    @staticmethod
+    def _favorite_catalog_target(kind, item_id):
+        """Derive a validated source and numeric id from one saved favorite id.
+
+        A saved favorite never carries a URL. Workshop favorites use the
+        namespaced ``source:id`` form; plugin favorites use the numeric
+        BakkesPlugins id. Anything else is not a remote catalog target.
+        """
+        if type(kind) is not str or type(item_id) is not str:
+            return None
+        if kind == "workshop":
+            source, separator, number = item_id.partition(":")
+            if not separator or source not in {"steam_maps", "bakkes_maps"}:
+                return None
+        elif kind == "plugin":
+            source, number = "bakkes_plugins", item_id
+        else:
+            return None
+        if not number.isdigit() or not 0 < len(number) <= 10 or number[0] == "0":
+            return None
+        try:
+            url = community_discovery.item_details_url(source, int(number))
+        except community_discovery.CommunityCatalogError:
+            return None
+        return {"source": source, "source_id": int(number), "details_url": url}
+
+    def _favorite_catalog_item(self, source, item_id):
+        """Return a saved favorite as a catalog row, or None.
+
+        Only an existing favorite whose saved type and id map exactly to the
+        requested source and numeric id is accepted. The canonical details URL
+        is rebuilt here; a saved URL is never trusted.
+        """
+        for favorite in self.document.get("browser_favorites", []):
+            if type(favorite) is not dict:
+                continue
+            target = self._favorite_catalog_target(favorite.get("type"), favorite.get("id"))
+            if target is None or target["source"] != source or target["source_id"] != item_id:
+                continue
+            title = _display(favorite.get("title", ""))
+            if not title:
+                continue
+            return {
+                "id": f"{source}:{item_id}", "source": source, "source_id": item_id,
+                "kind": "plugin" if source == "bakkes_plugins" else "map",
+                "title": title, "creator": _display(favorite.get("subtitle", "")),
+                "details_url": target["details_url"], "installed": None,
+                "installed_state": "unknown", "can_launch": False, "can_activate": False,
+                "career_allowed": False, "catalog_only": True, "status": "catalog_only",
+                "saved_favorite": True,
+            }
+        return None
+
     def _catalog_item(self, source, item_id):
-        """Return one currently displayed catalog row, or refuse the request."""
+        """Return one currently displayed catalog row, or a saved favorite.
+
+        A saved remote favorite stays actionable after a restart, but only for
+        its exact saved type and id. No arbitrary id is accepted.
+        """
         if type(source) is not str or type(item_id) is not int or isinstance(item_id, bool):
             raise ValueError("Choose a catalog item from the displayed list.")
         for item in self.catalog_state["items"]:
             if item.get("source") == source and item.get("source_id") == item_id:
                 return item
+        favorite = self._favorite_catalog_item(source, item_id)
+        if favorite is not None:
+            return favorite
         raise ValueError("That item is not in the displayed catalog page. Browse again first.")
 
     def _catalog_open(self, payload):
@@ -397,6 +537,68 @@ class Backend(QObject):
             raise ValueError("Only BakkesPlugins catalog rows can be checked as plugins.")
         item = self._catalog_item(payload["source"], payload["id"])
         self._community_job("lookup", str(item["source_id"]))
+
+    def _toggle_browser_favorite(self, payload):
+        """Persist a bounded public snapshot; resolve additions from live data only."""
+        if (not isinstance(payload, dict) or set(payload) != {"type", "id"}
+                or payload.get("type") not in {"lesson", "workshop", "plugin"}
+                or not isinstance(payload.get("id"), str) or not 0 < len(payload["id"]) <= 128
+                or ".." in payload["id"]
+                or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:-"
+                       for char in payload["id"])):
+            raise ValueError("Choose a current Training browser item.")
+        kind, item_id = payload["type"], payload["id"]
+        state = copy.deepcopy(self.document)
+        favorites = list(state.get("browser_favorites", []))
+        legacy_workshop = list(dict.fromkeys(state.get("workshop_favorites", [])))
+        existing = next((index for index, item in enumerate(favorites)
+                         if item.get("type") == kind and item.get("id") == item_id), None)
+        if existing is not None or (kind == "workshop" and item_id in legacy_workshop):
+            if existing is not None:
+                favorites.pop(existing)
+            if kind == "workshop" and item_id in legacy_workshop:
+                legacy_workshop.remove(item_id)
+        else:
+            item = None
+            if kind == "lesson":
+                item = next((entry for entry in catalog() if entry.get("id") == item_id), None)
+                title = (item or {}).get("title", "")
+                subtitle = "Training lesson"
+                detail = (item or {}).get("description", "")
+            elif kind == "workshop":
+                self._refresh_workshop()
+                item = next((entry for entry in self.workshop_state.get("items", [])
+                             if entry.get("id") == item_id), None)
+                if item is None:
+                    item = next((entry for entry in self.catalog_state.get("items", [])
+                                 if entry.get("id") == item_id
+                                 and entry.get("source") in {"steam_maps", "bakkes_maps"}), None)
+                title = (item or {}).get("title", "")
+                subtitle = (item or {}).get("creator") or (item or {}).get("origin", "Workshop")
+                detail = (item or {}).get("description") or (item or {}).get("availability", "")
+            else:
+                item = next((entry for entry in self.community_state.get("catalog", [])
+                             if entry.get("id") == item_id), None)
+                if item is None:
+                    item = next((entry for entry in self.catalog_state.get("items", [])
+                                 if entry.get("source") == "bakkes_plugins"
+                                 and str(entry.get("source_id")) == item_id), None)
+                title = (item or {}).get("title", "")
+                subtitle = (item or {}).get("creator", "BakkesMod plugin")
+                detail = "Saved catalog metadata. Activation remains unavailable."
+            if item is None or not title:
+                raise ValueError("That item changed. Refresh its source and choose it again.")
+            if len(favorites) >= 512:
+                raise ValueError("Remove a favorite before saving another item.")
+            favorites.append({"type": kind, "id": item_id, "title": _display(title),
+                              "subtitle": _display(subtitle), "detail": _display(detail)})
+            if kind == "workshop" and any(entry.get("id") == item_id
+                                           for entry in self.workshop_state.get("items", [])):
+                legacy_workshop.append(item_id)
+        state["browser_favorites"] = favorites
+        state["workshop_favorites"] = legacy_workshop
+        self._commit(state)
+        self.notice = "Favorite updated."
 
     def _commit(self, document):
         self.store.save(document)
@@ -764,6 +966,17 @@ class Backend(QObject):
             if not isinstance(p, dict) or set(p) - {"source", "page", "query"}:
                 raise ValueError("Choose a catalog source, page, and optional search text.")
             self._catalog_job(p.get("source"), p.get("page", 1), p.get("query", ""))
+        elif action == "community_browse_more":
+            # Strict continuation. The payload is empty: source, page, and query
+            # are derived only from the current tab, never from the caller.
+            if p:
+                raise ValueError("Read the next catalog page by scrolling to the last row.")
+            current = self.catalog_state
+            if (not current["has_next"] or current["busy"] or current["status"] == "error"
+                    or current["page"] >= _MAX_CATALOG_PAGES
+                    or len(current["items"]) >= _MAX_CATALOG_ROWS):
+                raise ValueError("There is no next catalog page to read. Browse the source again.")
+            self._catalog_job(current["source"], current["page"] + 1, current["query"], append=True)
         elif action == "community_browse_cancel":
             if p:
                 raise ValueError("Cancel the catalog read using the Catalog button.")
@@ -808,6 +1021,8 @@ class Backend(QObject):
                                                         p["id"], self.workshop_state["items"])
             self._commit(state)
             self._refresh_workshop()
+        elif action == "browser_favorite":
+            self._toggle_browser_favorite(p)
         elif action == "play_workshop":
             self._prepare_launch(action, p)
         elif action in ("choose_provider", "install_provider"):

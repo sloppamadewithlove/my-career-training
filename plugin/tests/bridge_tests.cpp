@@ -60,6 +60,7 @@ int main() {
             {"community_open_source", {{"source", "bakkes_maps"}}},
             {"community_open_item", {{"source", "steam_maps"}, {"id", 1520915243}}},
             {"community_select_plugin", {{"source", "bakkes_plugins"}, {"id", 1520915243}}},
+            {"browser_favorite", {{"type", "lesson"}, {"id", "speed-flip"}}},
         };
         for (const auto& [action, payload] : expectedCommands)
             require(bridge.send(action, payload), "Allowed offline bridge command rejected");

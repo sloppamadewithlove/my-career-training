@@ -220,10 +220,10 @@ bool LocalBridge::allowedAction(const std::string& action) {
         "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
         "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson",
         "retry_lesson", "stop_session", "assistance", "settings", "diagnostics", "loadout",
-        "restore_explanations", "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
+        "restore_explanations", "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "browser_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
         "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording",
         "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
-        "community_browse", "community_browse_cancel", "community_open_source", "community_open_item",
+        "community_browse", "community_browse_more", "community_browse_cancel", "community_open_source", "community_open_item",
         "community_select_plugin",
         "community_trial_prepare", "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data"
     };

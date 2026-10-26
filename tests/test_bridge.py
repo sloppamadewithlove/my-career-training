@@ -144,6 +144,22 @@ def test_dispatch_persists_career_lineup_settings_and_assistance_preferences(bac
     assert instance.store.load() == instance.document
 
 
+def test_training_browser_favorite_resolves_live_item_and_persists_snapshot(backend):
+    instance, _, _ = backend
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "speed-flip"})
+    favorite, = instance.document["browser_favorites"]
+    assert favorite["type"] == "lesson" and favorite["id"] == "speed-flip"
+    assert favorite["title"] == "Speed flip"
+    assert set(favorite) == {"type", "id", "title", "subtitle", "detail"}
+    assert instance.store.load()["browser_favorites"] == [favorite]
+
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "speed-flip"})
+    assert instance.document["browser_favorites"] == []
+    instance.dispatch("browser_favorite", {"type": "plugin", "id": "999999"})
+    assert "changed" in instance.error
+    assert instance.document["browser_favorites"] == []
+
+
 def _synthetic_recording():
     lesson = training.configure_lesson("speed-flip")
     actions = {

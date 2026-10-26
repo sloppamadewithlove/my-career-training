@@ -27,6 +27,7 @@
 
 #include <chrono>
 #include <mutex>
+#include <stdexcept>
 #include <utility>
 #endif
 
@@ -381,7 +382,9 @@ void NativeMovieHost::State::publish(const CareerLayoutScope& scope, const Json&
         }
         wire = protocol.publish(scope, presentation, wall, cosmeticContext ? cosmeticContext() : NativeCosmeticContext{},
             workshopNow(), pending, navigation, durable, holdAllowed);
-        LocalBridge::atomicWrite(bridge->directory() / kViewName, wire.dump());
+        const auto encoded = wire.dump();
+        if (encoded.size() > NativeMovieProtocol::kMaxViewBytes) throw std::runtime_error("native view exceeds bound");
+        LocalBridge::atomicWrite(bridge->directory() / kViewName, encoded);
     } catch (...) {
         std::lock_guard<std::mutex> guard(mutex);
         session.notePublish(monotonic);

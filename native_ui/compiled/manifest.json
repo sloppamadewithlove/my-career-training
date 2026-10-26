@@ -1,12 +1,12 @@
 {
   "source": "native_ui/menus/MctRootMenu.as",
-  "source_sha256": "b9be48397938498efe73f9d1e98d9a1af9d4a30a348ba7ff51764784a027284e",
+  "source_sha256": "836a2e812d7131b99e2719b6afc7d8237174d11112e65819901003b00bc043f1",
   "screen_source": "native_ui/MctMainMenuScreen.as",
   "screen_source_sha256": "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd",
   "root_movie_source": "native_ui/MctRootMenuMovie.as",
   "root_movie_source_sha256": "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432",
-  "abc_sha256": "1a4d719b17777b6d665d7cb56762fe53b0bd7f8b51756409eb9ce383674ff593",
-  "abc_bytes": 20216,
+  "abc_sha256": "d8d0b35d1b15268f7ef39880202f22d363410a615c15ce6161585272f908a3fd",
+  "abc_bytes": 32262,
   "authored_classes": [
     "menus::MctRootMenu",
     "MctMainMenuScreen",
@@ -45,7 +45,7 @@
     "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenType.as": "b29490ba39abb965a4b691b5693453a2b561d24bc44f47a2960a89b5845ab595",
     "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenizer.as": "e3749db0046d7dc0f4542fa76d439b29f9100a60c8380c0c03963c191b4e16f2"
   },
-  "method_bodies": 105,
+  "method_bodies": 132,
   "compiler": "Apache Flex 4.16.1",
   "swf_version": 20,
   "abc_version": "46.16",
