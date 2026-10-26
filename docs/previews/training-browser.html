@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Training Browser — Design Preview</title>
+<style>
+:root{
+  --dim:#050B18;--panel:#0B1A33;--border:#2E8BFF;--row:#10264A;--rowalt:#0D2140;
+  --focus:#1A4A8C;--primary:#2E8BFF;--primaryfocus:#5CA8FF;--accent:#FF8A1F;
+  --text:#FFFFFF;--text2:#9FB4D4;--disabled:#5A6E8F;--error:#FF5A5A;--tabfill:#12305C;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{
+  background:radial-gradient(circle at 50% 20%,#0d1c33,#050B18 70%);
+  color:var(--text);font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.preview-badge{
+  position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:50;
+  background:#FF8A1F;color:#1a0d00;font-weight:700;font-size:12px;letter-spacing:.14em;
+  padding:5px 14px;border-radius:3px;text-transform:uppercase;
+}
+.frame{
+  width:min(1600px,100%);height:min(900px,calc(100vh - 32px));
+  background:rgba(11,26,51,.95);border:3px solid var(--border);border-radius:6px;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+}
+header{display:flex;align-items:center;gap:16px;padding:14px 24px 10px}
+h1{font-size:28px;margin:0;letter-spacing:.06em;font-weight:700}
+.sub{color:var(--text2);font-size:13px}
+nav{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid #1d3a63}
+nav button{
+  background:none;border:0;border-bottom:4px solid transparent;color:var(--text2);
+  font:inherit;font-size:15px;font-weight:700;letter-spacing:.1em;padding:10px 18px;cursor:pointer;
+}
+nav button[aria-selected="true"]{background:var(--tabfill);color:#fff;border-bottom-color:var(--border)}
+nav button:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+.toolbar{display:flex;gap:10px;align-items:center;padding:12px 24px;flex-wrap:wrap}
+input[type=search]{
+  width:320px;height:40px;background:#0d2140;border:2px solid #24456f;border-radius:4px;
+  color:#fff;font:inherit;font-size:15px;padding:0 12px;
+}
+input[type=search]:focus{outline:3px solid #fff;outline-offset:1px;border-color:var(--border)}
+.chip{
+  height:34px;padding:0 12px;border-radius:4px;border:2px solid #24456f;background:#0d2140;
+  color:var(--text2);font:inherit;font-size:13px;cursor:pointer;
+}
+.chip[aria-pressed="true"]{background:var(--focus);color:#fff;border-color:var(--border)}
+.chip:focus-visible{outline:3px solid #fff;outline-offset:1px}
+.body{display:flex;gap:16px;flex:1;min-height:0;padding:0 24px 8px}
+.list{flex:1 1 70%;overflow-y:auto;min-height:0;padding-right:6px}
+.list::-webkit-scrollbar{width:6px}
+.list::-webkit-scrollbar-track{background:#13284A}
+.list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.row{
+  display:flex;align-items:center;gap:12px;height:64px;margin-bottom:4px;padding:0 12px;
+  background:var(--row);border-radius:4px;cursor:pointer;border:3px solid transparent;
+}
+.row:nth-child(even){background:var(--rowalt)}
+.row[aria-selected="true"]{background:var(--focus);border-color:#fff}
+.row:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+.thumb{width:80px;height:44px;flex:0 0 auto;border-radius:3px;background:#0d2140;overflow:hidden}
+.thumb svg{display:block;width:100%;height:100%}
+.rowmain{flex:1;min-width:0}
+.rowtitle{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowmeta{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowend{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text2)}
+.star{color:var(--accent);font-size:16px}
+.detail{
+  flex:0 0 30%;max-width:420px;display:flex;flex-direction:column;gap:10px;
+  background:#0d2140;border:2px solid #1d3a63;border-radius:6px;padding:14px;overflow-y:auto;
+}
+.detail .preview{width:100%;aspect-ratio:16/9;background:#08152b;border-radius:4px;overflow:hidden}
+.detail .preview svg{display:block;width:100%;height:100%}
+.detail h2{font-size:20px;margin:0}
+.detail .by{font-size:13px;color:var(--text2);margin:0}
+.detail .goal{font-size:14px;color:#D6E2F5;margin:0;line-height:1.4}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:11px;padding:3px 8px;border-radius:3px;background:#13284A;color:var(--text2)}
+.primary{
+  margin-top:auto;height:52px;border:0;border-radius:4px;background:var(--primary);
+  color:#fff;font:inherit;font-size:16px;font-weight:700;letter-spacing:.08em;cursor:pointer;
+}
+.primary:focus-visible{outline:3px solid #fff;outline-offset:2px;background:var(--primaryfocus)}
+.primary[disabled]{background:var(--disabled);cursor:not-allowed}
+.note{font-size:11px;color:var(--text2);margin:0}
+.empty{padding:40px 20px;text-align:center;color:var(--text2);font-size:15px}
+footer{
+  display:flex;justify-content:space-between;gap:12px;padding:8px 24px;
+  border-top:1px solid #1d3a63;font-size:12px;color:var(--text2);flex-wrap:wrap;
+}
+kbd{background:#13284A;border:1px solid #24456f;border-radius:3px;padding:1px 5px;font-size:11px}
+</style>
+</head>
+<body>
+<div class="preview-badge">Design preview — simulated, not a game feature</div>
+<div class="frame">
+  <header>
+    <h1>TRAINING</h1>
+    <span class="sub">Sample content. No downloads, installs or gameplay occur.</span>
+  </header>
+  <nav role="tablist" aria-label="Training sections">
+    <button role="tab" data-tab="lessons" aria-selected="true">LESSONS</button>
+    <button role="tab" data-tab="workshop" aria-selected="false">WORKSHOP</button>
+    <button role="tab" data-tab="mods" aria-selected="false">MODS</button>
+    <button role="tab" data-tab="favorites" aria-selected="false">FAVORITES</button>
+  </nav>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search" aria-label="Search items">
+    <button class="chip" id="favFilter" aria-pressed="false">Favorites only</button>
+    <span class="sub" id="count"></span>
+  </div>
+  <div class="body">
+    <div class="list" id="list" role="listbox" aria-label="Items" tabindex="0"></div>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </div>
+  <footer>
+    <span><kbd>↑</kbd><kbd>↓</kbd> Move · <kbd>Enter</kbd> Action · <kbd>F</kbd> Favorite · <kbd>Tab</kbd> Tabs</span>
+    <span>Favorites saved in this browser only (localStorage).</span>
+  </footer>
+</div>
+<script>
+/* Sample data only. Nothing here is downloaded, installed or launched. */
+const LESSONS=[
+["speedflip","Speed Flip","Coach Vale","Mechanic","12 Oct 2026","Kickoff speed flip with a clean diagonal dodge.","Speed flip,Kickoff","START"],
+["aerial","Fast Aerial","Coach Vale","Mechanic","09 Oct 2026","Reach the ball early with a fast double-jump aerial.","Aerial,Boost","START"],
+["dribble","Ground Dribble","Coach Ryn","Mechanic","02 Oct 2026","Keep the ball on your hood through a turn.","Dribble,Ground","START"],
+["flick","Front Flick","Coach Ryn","Mechanic","28 Sep 2026","Carry, then flick the ball forward over a defender.","Flick,Dribble","START"],
+["half","Half Flip","Coach Vale","Mechanic","21 Sep 2026","Recover facing forward with a half flip.","Recovery,Half flip","START"],
+["save","Back Post Save","Coach Ilo","Mechanic","14 Sep 2026","Rotate back post and clear along the wall.","Defence,Save","START"],
+["kickoff","Kickoff Boost Path","Coach Ilo","Mechanic","07 Sep 2026","Collect full boost on the way to kickoff.","Kickoff,Boost","START"],
+["wall","Wall Clear","Coach Ryn","Mechanic","31 Aug 2026","Read the bounce and clear from the wall.","Defence,Wall","START"]
+];
+const WORKSHOP=[
+["map-neon","Neon Rings","Lumen","Training map","18 Oct 2026","Ring course for aerial control.","Aerial,Rings","DOWNLOAD"],
+["map-dribble","Dribble Grid","Kova","Training map","11 Oct 2026","Grid lanes for close ball control.","Dribble,Ground","DOWNLOAD"],
+["map-save","Save Wall","Ilo","Training map","04 Oct 2026","Repeating shots from the back wall.","Defence,Save","PLAY"],
+["map-flip","Flip Lab","Ryn","Training map","27 Sep 2026","Reset pads for flip practice.","Flick,Reset","DOWNLOAD"],
+["map-boost","Boost Lanes","Lumen","Training map","20 Sep 2026","Boost routing lanes across the field.","Boost,Routing","DOWNLOAD"],
+["map-air","Air Dribble Tower","Kova","Training map","13 Sep 2026","Vertical air dribble repetitions.","Aerial,Dribble","DOWNLOAD"]
+];
+const MODS=[
+["mod-input","Input Overlay","Community","Mod","16 Oct 2026","Shows controller input during training.","Overlay,Input","READ DETAILS"],
+["mod-ghost","Ghost Tools","Community","Mod","09 Oct 2026","Extra ghost visibility controls.","Ghost,Training","READ DETAILS"],
+["mod-timer","Session Timer","Community","Mod","02 Oct 2026","Times each training repetition.","Timer,Training","READ DETAILS"],
+["mod-replay","Replay Notes","Community","Mod","25 Sep 2026","Annotate saved training replays.","Replay,Notes","READ DETAILS"],
+["mod-pads","Reset Pads","Community","Mod","18 Sep 2026","Adds extra reset pad layouts.","Reset,Map","READ DETAILS"]
+];
+const GARAGE=[
+["body-octane","Octane","Body","Blue","installed",true,""],
+["body-dominus","Dominus","Body","Grey","installed",true,""],
+["decal-stripe","Racing Stripe","Decal","Orange","installed",true,""],
+["decal-flame","Flame Wrap","Decal","Red","installed",false,"Installed, but this build cannot equip it."],
+["paint-gloss","Gloss Finish","Paint","White","installed",true,""],
+["wheel-spoke","Spoke Wheel","Wheels","Silver","installed",true,""],
+["wheel-chrono","Chrono Wheel","Wheels","Gold","installed",false,"Installed, but this build cannot equip it."],
+["boost-flame","Flame Boost","Boost","Orange","installed",true,""],
+["topper-cap","Team Cap","Topper","Blue","installed",true,""],
+["antenna-flag","Club Flag","Antenna","White","installed",true,""],
+["explosion-burst","Burst Goal","Explosion","Purple","installed",false,"Installed, but this build cannot equip it."],
+["trail-line","Line Trail","Trail","Cyan","installed",true,""]
+];
+const CATS=["Body","Decal","Paint","Wheels","Boost","Topper","Antenna","Explosion","Trail","Audio"];
+const STORE_KEY="mct.preview.favorites.v1";
+function loadFavorites(){
+  try{
+    const raw=window.localStorage.getItem(STORE_KEY);
+    if(!raw) return new Set();
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter(v=>typeof v==="string"&&v.length<64));
+  }catch(e){ return new Set(); }
+}
+function saveFavorites(set){
+  try{ window.localStorage.setItem(STORE_KEY,JSON.stringify([...set])); }
+  catch(e){ /* storage unavailable: favorites stay in memory only */ }
+}
+const state={
+  tab:"lessons", view:"browser", query:"", favOnly:false,
+  selected:{lessons:0,workshop:0,mods:0,favorites:0},
+  favorites:loadFavorites(),
+  garageCat:"Body", garageQuery:"", garageSel:0,
+  controller:true, options:{ghost:true,controller:true,inputs:true,labels:true}
+};
+function itemsFor(tab){
+  if(tab==="lessons") return LESSONS;
+  if(tab==="workshop") return WORKSHOP;
+  if(tab==="mods") return MODS;
+  const all=[...LESSONS,...WORKSHOP,...MODS];
+  return all.filter(r=>state.favorites.has(r[0]));
+}
+function visibleItems(){
+  const q=state.query.trim().toLowerCase();
+  return itemsFor(state.tab).filter(r=>{
+    if(state.favOnly&&!state.favorites.has(r[0])) return false;
+    if(!q) return true;
+    return (r[1]+" "+r[2]+" "+r[3]+" "+r[5]).toLowerCase().includes(q);
+  });
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function art(seed,label){
+  const hue=(seed*47)%360;
+  return '<svg viewBox="0 0 160 90" role="img" aria-label="'+esc(label)+' placeholder art">'+
+  '<rect width="160" height="90" fill="#08152b"/>'+
+  '<circle cx="80" cy="45" r="26" fill="none" stroke="hsl('+hue+',70%,62%)" stroke-width="3"/>'+
+  '<path d="M54 45h52M80 19v52" stroke="hsl('+hue+',70%,62%)" stroke-width="2" opacity=".55"/>'+
+  '<rect x="8" y="8" width="144" height="74" fill="none" stroke="#24456f"/></svg>';
+}
+
+const listEl=document.getElementById("list");
+const detailEl=document.getElementById("detail");
+const countEl=document.getElementById("count");
+const searchEl=document.getElementById("search");
+const favFilterEl=document.getElementById("favFilter");
+
+function renderTabs(){
+  document.querySelectorAll("nav button").forEach(b=>{
+    b.setAttribute("aria-selected",String(b.dataset.tab===state.tab));
+  });
+}
+function renderList(){
+  const rows=visibleItems();
+  const sel=Math.min(state.selected[state.tab]||0,Math.max(rows.length-1,0));
+  state.selected[state.tab]=sel;
+  countEl.textContent=rows.length+" item"+(rows.length===1?"":"s")+" · sample data";
+  if(!rows.length){
+    listEl.innerHTML='<div class="empty">'+(state.query?'No results for "'+esc(state.query)+'".':'No favorites yet. Press F on any item.')+'</div>';
+    return;
+  }
+  listEl.innerHTML=rows.map((r,i)=>{
+    const fav=state.favorites.has(r[0]);
+    return '<div class="row" role="option" tabindex="-1" data-i="'+i+'" aria-selected="'+(i===sel)+'">'+
+      '<div class="thumb">'+art(i+1,r[1])+'</div>'+
+      '<div class="rowmain"><div class="rowtitle">'+esc(r[1])+'</div>'+
+      '<div class="rowmeta">'+esc(r[2])+' · '+esc(r[3])+'</div></div>'+
+      '<div class="rowend">'+(fav?'<span class="star" aria-label="Favorite">★</span>':'')+
+      '<span>'+esc(r[4])+'</span></div></div>';
+  }).join("");
+  const active=listEl.querySelector('.row[aria-selected="true"]');
+  if(active) active.scrollIntoView({block:"nearest"});
+}
+function renderDetail(){
+  const rows=visibleItems();
+  const r=rows[state.selected[state.tab]||0];
+  if(!r){ detailEl.innerHTML='<p class="note">Select an item to see details.</p>'; return; }
+  const fav=state.favorites.has(r[0]);
+  const label=r[7];
+  detailEl.innerHTML=
+    '<div class="preview">'+art(r[1].length,r[1])+'</div>'+
+    '<h2>'+esc(r[1])+'</h2>'+
+    '<p class="by">by '+esc(r[2])+' · '+esc(r[3])+'</p>'+
+    '<p class="by">Updated '+esc(r[4])+'</p>'+
+    '<p class="goal">'+esc(r[5])+'</p>'+
+    '<div class="tags">'+r[6].split(",").map(t=>'<span class="tag">'+esc(t)+'</span>').join("")+'</div>'+
+    '<p class="note">'+(state.tab==="mods"?"Preview only. Enabling a mod requires a reviewed integration that does not exist yet.":"Preview only. No download, install or launch occurs.")+'</p>'+
+    '<button class="primary" id="primary">'+esc(label)+'</button>'+
+    '<button class="chip" id="favBtn" aria-pressed="'+fav+'">'+(fav?"★ Favorited":"☆ Favorite")+'</button>';
+  document.getElementById("primary").addEventListener("click",()=>{
+    detailEl.querySelector(".note").textContent="Design preview: this action is simulated and does nothing.";
+  });
+  document.getElementById("favBtn").addEventListener("click",toggleFavorite);
+}
+function render(){ renderTabs(); renderList(); renderDetail(); }
+function toggleFavorite(){
+  const rows=visibleItems();
+  const r=rows[state.selected[state.tab]||0];
+  if(!r) return;
+  if(state.favorites.has(r[0])) state.favorites.delete(r[0]);
+  else state.favorites.add(r[0]);
+  saveFavorites(state.favorites);
+  render();
+}
+function move(delta){
+  const rows=visibleItems();
+  if(!rows.length) return;
+  const next=Math.max(0,Math.min(rows.length-1,(state.selected[state.tab]||0)+delta));
+  state.selected[state.tab]=next;
+  render();
+}
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    state.tab=b.dataset.tab; state.query=""; searchEl.value="";
+    state.favOnly=false; favFilterEl.setAttribute("aria-pressed","false");
+    render();
+  });
+});
+searchEl.addEventListener("input",()=>{ state.query=searchEl.value; state.selected[state.tab]=0; render(); });
+favFilterEl.addEventListener("click",()=>{
+  state.favOnly=!state.favOnly;
+  favFilterEl.setAttribute("aria-pressed",String(state.favOnly));
+  state.selected[state.tab]=0; render();
+});
+listEl.addEventListener("click",e=>{
+  const row=e.target.closest(".row");
+  if(!row) return;
+  state.selected[state.tab]=Number(row.dataset.i);
+  render();
+});
+document.addEventListener("keydown",e=>{
+  if(e.target===searchEl&&e.key!=="Escape") return;
+  if(e.key==="ArrowDown"){ e.preventDefault(); move(1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); move(-1); }
+  else if(e.key==="f"||e.key==="F"){ e.preventDefault(); toggleFavorite(); }
+  else if(e.key==="Enter"){
+    const primary=document.getElementById("primary");
+    const onList=document.activeElement===listEl||document.activeElement===document.body||document.activeElement===document.documentElement;
+    if(primary&&onList){ e.preventDefault(); primary.focus(); }
+  }
+  else if(e.key==="Escape"){ searchEl.value=""; state.query=""; render(); }
+});
+render();
+</script>
+<div id="alt" hidden></div>
+<script>
+const hdr=document.querySelector("header"),frame=document.querySelector(".frame"),alt=document.getElementById("alt");
+const bodyEl=document.querySelector(".body"),toolbarEl=document.querySelector(".toolbar"),navEl=document.querySelector("nav");
+alt.style.cssText="flex:1;overflow:auto;padding:10px 24px;min-height:0";
+frame.insertBefore(alt,document.querySelector("footer"));
+function mkBtn(t,fn){const b=document.createElement("button");b.className="chip";b.textContent=t;b.onclick=fn;hdr.appendChild(b);return b;}
+function showAlt(html){alt.hidden=false;alt.innerHTML=html;bodyEl.hidden=true;toolbarEl.hidden=true;navEl.hidden=true;}
+function showBrowser(){alt.hidden=true;bodyEl.hidden=false;toolbarEl.hidden=false;navEl.hidden=false;}
+const tileStyle="width:150px;background:#10264A;border:3px solid transparent;border-radius:4px;color:#fff;font:inherit;padding:6px;cursor:pointer;text-align:left";
+function garage(){
+  const q=state.garageQuery.toLowerCase();
+  const rows=GARAGE.filter(r=>r[2]===state.garageCat&&(r[1]+" "+r[3]).toLowerCase().includes(q));
+  const sel=rows[state.garageSel]||rows[0];
+  const tiles=rows.map((r,i)=>'<button class="tile" data-i="'+i+'" style="'+tileStyle+(i===state.garageSel?';border-color:#fff;background:#1A4A8C':'')+'">'+art(i+3,r[1])+'<div style="font-size:13px;margin-top:4px">'+esc(r[1])+'</div><small style="color:#9FB4D4">'+esc(r[3])+'</small></button>').join("");
+  const bad=GARAGE.filter(r=>!r[5]);
+  showAlt('<h2 style="margin:0 0 4px">GARAGE</h2><p class="note">Sample catalog. Installed items this build cannot equip are listed below, not hidden.</p>'+
+  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">'+CATS.map(c=>'<button class="chip" data-cat="'+c+'" aria-pressed="'+(c===state.garageCat)+'">'+c+'</button>').join("")+'</div>'+
+  '<input id="gq" type="search" placeholder="Search garage" value="'+esc(state.garageQuery)+'" style="width:260px;height:34px;background:#0d2140;border:2px solid #24456f;border-radius:4px;color:#fff;padding:0 10px">'+
+  '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">'+(tiles||'<p class="empty">No installed items in this category.</p>')+'</div>'+
+  (sel?'<div style="background:#0d2140;border:2px solid #1d3a63;border-radius:6px;padding:12px;max-width:520px"><h3 style="margin:0 0 4px">'+esc(sel[1])+'</h3><p class="by">'+esc(sel[2])+' · '+esc(sel[3])+'</p><button class="primary" id="equip" style="width:100%">EQUIP</button><p class="note" id="gnote">Design preview: equip is simulated.</p></div>':'')+
+  '<h3 style="margin:16px 0 4px">Installed but unavailable</h3><ul style="color:#9FB4D4;font-size:13px;margin:0;padding-left:18px">'+bad.map(r=>'<li>'+esc(r[1])+' ('+esc(r[2])+') — '+esc(r[6])+'</li>').join("")+'</ul>');
+  alt.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{state.garageCat=b.dataset.cat;state.garageSel=0;garage();});
+  alt.querySelectorAll(".tile").forEach(b=>b.onclick=()=>{state.garageSel=Number(b.dataset.i);garage();});
+  const gq=document.getElementById("gq");
+  gq.oninput=()=>{state.garageQuery=gq.value;state.garageSel=0;garage();gq.focus();};
+  const eq=document.getElementById("equip");
+  if(eq) eq.onclick=()=>{document.getElementById("gnote").textContent="Design preview: no cosmetic change was made.";};
+}
+const PAD={cross:"#7FA7E8",circle:"#FF6B6B",square:"#F28AD0",triangle:"#4FD1A5"};
+function pad(active){
+  const c=k=>active===k?PAD[k]:"none";
+  return '<svg viewBox="0 0 360 240" width="300" height="200" role="img" aria-label="Original DualShock-style controller silhouette, preview only">'+
+  '<path d="M70 60h220c26 0 44 22 44 52 0 46-18 78-40 78-20 0-30-26-52-26h-124c-22 0-32 26-52 26-22 0-40-32-40-78 0-30 18-52 44-52z" fill="#000" fill-opacity=".2" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>'+
+  '<rect x="140" y="66" width="80" height="34" rx="4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>'+
+  '<circle cx="118" cy="150" r="22" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><circle cx="118" cy="150" r="9" fill="#fff" fill-opacity=".5"/>'+
+  '<circle cx="242" cy="150" r="22" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><circle cx="242" cy="150" r="9" fill="#fff" fill-opacity=".5"/>'+
+  '<circle cx="292" cy="112" r="9" fill="'+c("triangle")+'" stroke="#4FD1A5" stroke-width="2"/>'+
+  '<circle cx="316" cy="136" r="9" fill="'+c("circle")+'" stroke="#FF6B6B" stroke-width="2"/>'+
+  '<circle cx="268" cy="136" r="9" fill="'+c("square")+'" stroke="#F28AD0" stroke-width="2"/>'+
+  '<circle cx="292" cy="160" r="9" fill="'+c("cross")+'" stroke="#7FA7E8" stroke-width="2"/>'+
+  '<path d="M96 118h28M110 104v28" stroke="#fff" stroke-opacity=".5" stroke-width="3"/>'+
+  '<rect x="60" y="34" width="34" height="26" rx="6" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>'+
+  '<rect x="266" y="34" width="34" height="26" rx="6" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/></svg>';
+}
+function options(){
+  const o=state.options;
+  showAlt('<h2 style="margin:0 0 4px">TRAINING OPTIONS</h2><p class="note">In-session mock screen. Every option starts on. No pre-launch options are shown.</p>'+
+  '<div style="max-width:560px;margin-top:10px">'+Object.keys(o).map(k=>'<label style="display:flex;justify-content:space-between;align-items:center;background:#10264A;border-radius:4px;padding:10px 12px;margin-bottom:6px;font-size:14px">'+(k==="controller"?"Show controller":k.charAt(0).toUpperCase()+k.slice(1))+'<input type="checkbox" data-opt="'+k+'" '+(o[k]?"checked":"")+'></label>').join("")+'</div>'+
+  '<h3 style="margin:14px 0 4px">Controller display</h3><p class="note">Demonstrative highlight only. No controller is read.</p>'+
+  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">'+["cross","circle","square","triangle"].map(k=>'<button class="chip" data-pad="'+k+'">'+k+'</button>').join("")+'<button class="chip" data-pad="">clear</button></div>'+
+  '<div id="padwrap" '+(o.controller?"":"hidden")+'>'+pad("")+'</div>');
+  alt.querySelectorAll("[data-opt]").forEach(c=>c.onchange=()=>{state.options[c.dataset.opt]=c.checked;options();});
+  alt.querySelectorAll("[data-pad]").forEach(b=>b.onclick=()=>{document.getElementById("padwrap").innerHTML=pad(b.dataset.pad);});
+}
+mkBtn("GARAGE",garage);mkBtn("TRAINING OPTIONS",options);mkBtn("BACK TO BROWSER",showBrowser);
+</script>
+</body>
+</html>
