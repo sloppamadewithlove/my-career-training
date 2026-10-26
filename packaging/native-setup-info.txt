@@ -1,0 +1,18 @@
+MY CAREER TRAINING — WINDOWS TEST
+
+This installs one app and its support files. There is no ZIP to extract.
+After setup, open the My Career Training shortcut. Its helpers start automatically.
+
+You need your installed Steam copy of Rocket League. Close the game before opening
+My Career Training. This test supports only the game build listed in its release notes.
+
+BakkesMod connects My Career to Rocket League. If it is missing, the app offers
+guided setup using the official BakkesMod installer. It is more than a skins tool.
+
+My Career uses Rocket League's supported offline mode. Online matchmaking is not
+part of the career. Close My Career before starting the normal game from Steam.
+If Rocket League asks whether to view instructions for enabling Easy Anti-Cheat,
+choose No to dismiss those instructions and continue this offline session.
+
+This is a test release. See its release notes for what was actually tested.
+Setup and uninstall keep your separate My Career saves.

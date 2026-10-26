@@ -16,7 +16,12 @@
 #include <stdexcept>
 #include <windows.h>
 #include <shellapi.h>
+#include <Xinput.h>
 
+// The SDK normally embeds __FILE__, including the builder's private home path.
+// Keep the same public metadata field and ABI with a repository-relative name.
+#undef BAKKESMOD_STANDARD_PLUGIN_STUFF
+#define BAKKESMOD_STANDARD_PLUGIN_STUFF BAKKESMOD_PLUGIN_API_VERSION, "plugin/src/MyCareerTraining.cpp"
 BAKKESMOD_PLUGIN(MyCareerTraining, "My Career Training", "0.3.0", PLUGINTYPE_FREEPLAY)
 extern "C" __declspec(dllexport) int mct_protocol_version() { return 1; }
 
@@ -120,6 +125,8 @@ void MyCareerTraining::onLoad() {
             [this](const std::string& command) { communityExecute(command); },
             [this](const std::string& name, double& value) { return communityReadCvar(name, value); },
             [this](const std::string& name, double value) { return communityWriteCvar(name, value); });
+        trainingPackHost_ = std::make_unique<mct::NativeTrainingPackHost>(
+            [this](const std::string& command) { trainingPackExecute(command); });
 #endif
         nativeMovie_ = std::make_unique<mct::NativeMovieHost>(gameWrapper, *bridge_, [this] { return ownedOfflineNow(); },
             [this] { return nativeCosmeticContext(); },
@@ -128,12 +135,14 @@ void MyCareerTraining::onLoad() {
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
             closeNativeMenu();
             menuOpen_ = !menuOpen_.load();
             if (menuOpen_) cvarManager->executeCommand("openmenu mycareertraining", false);
         }, "Toggle the offline My Career interface", PERMISSION_OFFLINE);
         cvarManager->registerNotifier("mct_training", [this](std::vector<std::string>) {
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
             closeNativeMenu();
             page_ = 4; menuOpen_ = true;
@@ -170,6 +179,7 @@ void MyCareerTraining::onUnload() {
     workshopLauncher_.reset();
     shutdownCommunity();
     if (communityHost_) communityHost_.reset();
+    if (trainingPackHost_) trainingPackHost_.reset();
 #endif
     if (!restoreCosmetics())
         cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
@@ -195,6 +205,7 @@ bool MyCareerTraining::ownedOfflineNow() const {
 }
 
 void MyCareerTraining::acquireMenuBind() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
     if (bindAttempted_ || !ownedOfflineNow()) return;
     bindAttempted_ = true;
     for (const char* key : {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}) {
@@ -215,6 +226,7 @@ void MyCareerTraining::releaseMenuBind() {
 }
 
 void MyCareerTraining::pollMenuShortcut() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
     if (!toggleVirtualKey_) return; // Existing user mct_menu bindings use the notifier.
     const auto binding = cvarManager->getBindStringForKey(toggleKey_);
     if (!binding.empty()) { releaseMenuBind(); return; }
@@ -568,6 +580,17 @@ void MyCareerTraining::maintainCommunity() {
 #endif
 }
 
+void MyCareerTraining::maintainTrainingPack() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!trainingPackHost_ || !bridge_) return;
+    try {
+        trainingPackHost_->tick(bridge_->state(), [this] { return trainingPackObservation(); });
+    } catch (...) {
+        cvarManager->log("My Career: the Custom Training pack tick stopped.");
+    }
+#endif
+}
+
 void MyCareerTraining::shutdownCommunity() {
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     if (communityHost_) communityHost_->shutdown(cvarManager != nullptr && gameWrapper != nullptr);
@@ -579,6 +602,13 @@ mct::Json MyCareerTraining::communityStatus() const {
     if (communityHost_) return communityHost_->status();
 #endif
     return {{"status", "idle"}, {"reason", "trial_compiled_out"}, {"game_verified", false}, {"production_allowed", false}};
+}
+
+mct::Json MyCareerTraining::trainingPackStatus() const {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (trainingPackHost_) return trainingPackHost_->status();
+#endif
+    return {{"status", "idle"}, {"reason", "native_movie_trial_compiled_out"}};
 }
 
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
@@ -696,7 +726,127 @@ void MyCareerTraining::communityExecute(const std::string& command) {
         throw std::runtime_error("The community trial command is not the derived load.");
     cvarManager->executeCommand(command, false);
 }
+
+mct::NativeTrainingPackObservation MyCareerTraining::trainingPackObservation() const {
+    mct::NativeTrainingPackObservation observation;
+    observation.now = mct::unixTime();
+    observation.pid = GetCurrentProcessId();
+    observation.created = processScope_.created;
+    observation.processAvailable = cvarManager != nullptr && gameWrapper != nullptr;
+    observation.ownedOffline = ownedOfflineNow();
+    observation.fresh = bridge_ && bridge_->fresh();
+    observation.movieReady = nativeMovie_ && nativeMovie_->movieReady();
+    std::string sha;
+    std::string core;
+    std::string build;
+    observation.buildVerified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, core, build);
+    if (bridge_) observation.nonce = mct::stringValue(bridge_->state(), "bridge_session");
+    if (!gameWrapper) return observation;
+    try {
+        observation.online = gameWrapper->IsInOnlineGame();
+        observation.replay = gameWrapper->IsInReplay();
+        observation.frontend = !gameWrapper->IsInGame() && !observation.replay && !observation.online;
+        observation.inCustomTraining = gameWrapper->IsInCustomTraining();
+        if (observation.inCustomTraining) {
+            auto server = gameWrapper->GetGameEventAsServer();
+            if (server) {
+                TrainingEditorWrapper editor(server.memory_address);
+                auto save = editor.GetTrainingData();
+                if (!save) return observation;
+                auto training = save.GetTrainingData();
+                if (!training) return observation;
+                auto code = training.GetCode();
+                if (!code) return observation;
+                observation.loadedCode = code.ToString();
+            }
+        }
+    } catch (...) {
+        observation.loadedCode.clear();
+    }
+    return observation;
+}
+
+void MyCareerTraining::trainingPackExecute(const std::string& command) {
+    if (!cvarManager) throw std::runtime_error("The Custom Training command manager is unavailable.");
+    bool allowed = false;
+    for (const auto& pack : mct::kNativeTrainingPacks)
+        if (command == std::string("load_training ") + pack.code) allowed = true;
+    if (!allowed) throw std::runtime_error("The Custom Training command is not in the fixed catalog.");
+    cvarManager->executeCommand(command, false);
+}
 #endif
+
+namespace {
+// The foreground window must belong to this game process. Reading the window
+// identity never takes focus and never touches the player's controls.
+bool foregroundIsThisProcess() {
+    const HWND window = GetForegroundWindow();
+    if (!window) return false;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    return pid != 0 && pid == GetCurrentProcessId();
+}
+
+// Development reference capture owns the only ghost control path while it is
+// active, so the local toggle must stay inert. The bridge publishes no capture
+// flag for ordinary sessions; a missing flag is not capture.
+bool referenceCaptureActive(const mct::Json& state) {
+    const auto telemetry = mct::objectValue(state, "telemetry");
+    if (!telemetry.is_object()) return false;
+    for (const char* key : {"capture", "reference_capture"}) {
+        if (!telemetry.contains(key)) continue;
+        const auto& value = telemetry[key];
+        if (value.is_boolean() && value.get<bool>()) return true;
+        if (value.is_object() && !value.empty()) return true;
+    }
+    return false;
+}
+}  // namespace
+
+void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRuntime& runtime) {
+    // Observe only: one XInput sample per existing tick, no new thread, no
+    // binding, no consumption and no vehicle input. Exactly one connected
+    // controller slot is required; zero or several slots produce no toggle.
+    mct::TrainingGhostInput::Pad pad;
+    int connected = 0;
+    int slot = -1;
+    bool dpadLeft = false;
+    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
+        XINPUT_STATE sample{};
+        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
+        ++connected;
+        slot = static_cast<int>(index);
+        dpadLeft = (sample.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0;
+    }
+    if (connected == 1) {
+        pad.slot = slot;
+        pad.dpadLeft = dpadLeft;
+    }
+
+    mct::TrainingGhostInput::Scope scope;
+    scope.owned = offlineReady_.load() && ownedOfflineNow();
+    scope.fresh = bridge_ && bridge_->fresh();
+    scope.foreground = foregroundIsThisProcess();
+    scope.inGame = runtime.inGame;
+    scope.online = runtime.online;
+    scope.replay = runtime.replay;
+    scope.paused = runtime.paused;
+    scope.matchEnded = runtime.matchEnded;
+    scope.nativeMenuActive = menuOpen_ || ShouldBlockInput() || nativeDialogActive_.load() || nativeProbe_.active() ||
+        lower(runtime.menu).find("pause") != std::string::npos;
+    scope.referenceCaptureActive = referenceCaptureActive(state);
+
+    // The helper samples the button edge before any eligibility test, so a
+    // held button across a career/training, pause/resume, focus or session
+    // transition can never become a new press.
+    const auto decision = trainingGhostInput_.observe(scope, state, pad, mct::unixTime());
+    if (!decision.toggle) return;
+    // Same ACK path as the native pause menu: no direct file write and no
+    // worker bypass. The local latch inside the helper suppresses duplicates
+    // until the observed pending flag clears, the enabled state changes or the
+    // five-second deadline expires.
+    bridge_->send("ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.enabled}});
+}
 
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
@@ -723,6 +873,7 @@ void MyCareerTraining::tick() {
             nativeMovie_->tick();
             nativeMovieReady_ = offlineReady_ && nativeMovie_->movieReady();
         } else nativeMovieReady_ = false;
+        maintainTrainingPack();
         maintainCommunity();
         if (nativeDialogActive_ && (!offlineReady_ || next.inGame || next.replay ||
             nativeNonce_ != stringValue(publishedState, "bridge_session"))) closeNativeMenu();
@@ -765,10 +916,11 @@ void MyCareerTraining::tick() {
             }
             enforceCareer(state, next);
             const auto change = menuLifecycle_.observe({true, next.inGame,
-                nativePause, next.matchEnded, nonce, phase});
+                nativePause, next.matchEnded, nonce, phase, MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0});
             // Observe the pause edge even while resuming, so a slow native
             // close cannot repeatedly reclaim input after the player resumes.
-            if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active() && !nativeDialogActive_)
+            if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) menuOpen_ = false;
+            else if (change == mct::MenuChange::Show && !resumePending_ && !pauseCaptureSuppressed_ && !nativeProbe_.active() && !nativeDialogActive_)
                 menuOpen_ = true;
             else if (change == mct::MenuChange::Hide) menuOpen_ = false;
             auto enabled = cvarManager->getCvar("cl_itemmod_enabled");
@@ -784,7 +936,8 @@ void MyCareerTraining::tick() {
             next.probeMessage = probeMessage_;
             // One request per transition; OnClose stays closed until a new
             // transition or explicit menu key. The same host renders the HUD.
-            if (change != mct::MenuChange::None && !windowOpen_)
+            if (change != mct::MenuChange::None && !windowOpen_ &&
+                (!MCT_ENABLE_NATIVE_MOVIE_TRIAL || (next.inGame && !nativePause && !next.matchEnded)))
                 cvarManager->executeCommand("openmenu mycareertraining", false);
             if (mct::unixTime() - lastStatus_ >= 0.5) {
                 Json status = {{"version", "0.3.0"}, {"sdk_api", 95}, {"online", next.online},
@@ -794,11 +947,14 @@ void MyCareerTraining::tick() {
                     {"cosmetic_products", next.products->size()}, {"itemmod_available", next.itemModAvailable},
                     {"cosmetic_restoration_pending", cosmeticOverride_.restorationPending()},
                     {"idle_protection", "not verified: no supported idle-kick disable API exposed by SDK 95; no movement spoofing"},
-                    {"menu_mode", nativeMovieReady_ ? "authored native movie development trial" : "full-screen custom PluginWindow with input capture"},
+                    {"menu_mode", MCT_ENABLE_NATIVE_MOVIE_TRIAL ?
+                        (nativeMovieReady_ ? "authored native movie development trial" : "authored native movie awaiting handshake") :
+                        "full-screen custom PluginWindow with input capture"},
                     {"in_replay", next.replay},
                     {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"native_community_status", communityStatus()},
+                    {"native_training_pack", trainingPackStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
@@ -816,10 +972,13 @@ void MyCareerTraining::tick() {
             menuLifecycle_.observe({});
             menuOpen_ = false;
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
-            if (communityHost_ && communityHost_->active() && bridge_ && mct::unixTime() - lastStatus_ >= 0.5) {
+            if (((communityHost_ && communityHost_->active()) ||
+                 (trainingPackHost_ && trainingPackHost_->active())) &&
+                bridge_ && mct::unixTime() - lastStatus_ >= 0.5) {
                 Json status = {{"version", "0.3.0"}, {"online", next.online}, {"in_game", next.inGame},
                     {"in_replay", next.replay}, {"frontend", !next.inGame && !next.replay && !next.online},
                     {"pid", GetCurrentProcessId()}, {"native_community_status", communityStatus()},
+                    {"native_training_pack", trainingPackStatus()},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"runtime_verified", false}, {"production_ready", false}};
                 bridge_->publishStatus(std::move(status));
@@ -833,11 +992,16 @@ void MyCareerTraining::tick() {
             next.probeEvents = 0;
             next.probeMessage = probeMessage_;
         }
+        // Sampled on every tick, after the offline branch has refreshed the
+        // runtime and enforceCareer has updated matchEnded. The helper decides
+        // eligibility itself and always tracks the button edge.
+        pollTrainingGhostToggle(publishedState, next);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        trainingGhostInput_.reset();
         restoreCosmetics();
         nativeProbe_.clear();
         removeProbeHooks();
@@ -1135,29 +1299,34 @@ void MyCareerTraining::updateNavigationFlags(bool active) {
     ImGui::SetCurrentContext(previous);
 }
 bool MyCareerTraining::ShouldBlockInput() {
-    return !nativeMovieReady_ && mct::MenuLifecycle::blocksInput(offlineReady_, menuOpen_, windowOpen_);
+    return !nativeMovieReady_ && mct::MenuLifecycle::blocksInput(
+        offlineReady_, menuOpen_, windowOpen_, MCT_ENABLE_NATIVE_MOVIE_TRIAL != 0);
 }
 bool MyCareerTraining::IsActiveOverlay() { return !ShouldBlockInput(); }
-void MyCareerTraining::OnOpen() { windowOpen_ = true; }
+void MyCareerTraining::OnOpen() {
+    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) menuOpen_ = false;
+    windowOpen_ = true;
+}
 void MyCareerTraining::OnClose() {
     windowOpen_ = false; menuOpen_ = false;
     updateNavigationFlags(false);
 }
 
 void MyCareerTraining::Render() {
-    updateNavigationFlags(hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
+    updateNavigationFlags(!MCT_ENABLE_NATIVE_MOVIE_TRIAL && hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
         bridge_ && bridge_->fresh() && !nativeDialogActive_ && !nativeMovieReady_);
-    // The replacement only takes over after its own validated ready message.
-    // Gameplay clears readiness, so the existing training HUD remains usable.
+    // Native candidates own all menu surfaces even before a ready message.
+    // Their existing gameplay HUD remains nonblocking between those surfaces.
     if (!hasContext_ || !bridge_ || !offlineReady_ || !bridge_->fresh() || nativeDialogActive_ || nativeMovieReady_) return;
     std::lock_guard<std::recursive_mutex> preferenceGuard(preferencesMutex_);
     try {
         const auto state = bridge_->state();
         const auto runtime = runtimeSnapshot();
         if (runtime.online) return;
+        if (MCT_ENABLE_NATIVE_MOVIE_TRIAL && (!runtime.inGame || runtime.paused || runtime.matchEnded)) return;
         if (runtime.probeActive && !menuOpen_) return;
         beginStyle();
-        if (menuOpen_) renderMenu(state, runtime);
+        if (!MCT_ENABLE_NATIVE_MOVIE_TRIAL && menuOpen_) renderMenu(state, runtime);
         else renderTrainingHud(state, runtime);
         endStyle();
     } catch (const std::exception& error) {

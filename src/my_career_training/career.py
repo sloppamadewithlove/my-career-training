@@ -2,7 +2,9 @@
 
 League fixtures are resolved one round at a time. A human result must match an
 explicit pending session; duplicate final packets return the same awarded state.
-All dictionaries returned by this module can be serialized as ordinary JSON.
+A human forfeit keeps the observed score, including a tie or a human lead, and
+records the opponent as the winner. All dictionaries returned by this module
+can be serialized as ordinary JSON.
 """
 from __future__ import annotations
 
@@ -244,7 +246,11 @@ def new_career(team_name, format=3, seed=None, recruits=None):
 
 
 def standings(career):
-    """League-only table. Playoffs never rewrite the league points or goals."""
+    """League-only table. Playoffs never rewrite the league points or goals.
+
+    Wins, losses, and points follow the recorded winner, so a forfeited lead or
+    tie still awards the opponent. Goals for and against stay the observed score.
+    """
     season = _season(career)
     rows = {club["id"]: {"id": club["id"], "club_id": club["id"], "name": club["name"],
                              "played": 0, "wins": 0, "losses": 0, "points": 0,
@@ -253,13 +259,14 @@ def standings(career):
     completed = [f for f in season["fixtures"] if f["status"] == "completed"]
     for f in completed:
         result = f["result"]
-        for own, other, score, against in ((f["home"], f["away"], result["home_score"], result["away_score"]),
-                                           (f["away"], f["home"], result["away_score"], result["home_score"])):
+        for own, score, against in ((f["home"], result["home_score"], result["away_score"]),
+                                    (f["away"], result["away_score"], result["home_score"])):
             row = rows[own]
+            won = result["winner"] == own
             row["played"] += 1
-            row["wins"] += score > against
-            row["losses"] += score < against
-            row["points"] += 3 if score > against else 0
+            row["wins"] += int(won)
+            row["losses"] += int(not won)
+            row["points"] += 3 if won else 0
             row["goals_for"] += score
             row["goals_against"] += against
             row["goal_difference"] = row["goals_for"] - row["goals_against"]
@@ -324,14 +331,25 @@ def start_fixture(career, session_id):
     return _finish(career)
 
 
-def _result(fixture, session_id, home_score, away_score, provenance):
-    return {"id": f"result:{fixture['id']}:{session_id}", "fixture_id": fixture["id"],
-            "session_id": session_id, "home_score": home_score, "away_score": away_score,
-            "winner": fixture["home"] if home_score > away_score else fixture["away"],
-            "provenance": provenance, "simulated": provenance == "simulated", "completed_at": _now(),
-            "format": fixture["format"], "map": fixture["map"], "lineup": list(fixture["lineup"]),
-            "difficulty": deepcopy(fixture["difficulty"]), "seed": fixture["seed"],
-            "bot_runtime": deepcopy(fixture["bot_runtime"])}
+def _forfeit_winner(fixture):
+    """The other club takes the result when the human forfeits. Human must be playing."""
+    return fixture["away"] if fixture["home"] == "human" else fixture["home"]
+
+
+def _result(fixture, session_id, home_score, away_score, provenance, *, winner=None, forfeit=False):
+    if winner is None:
+        winner = fixture["home"] if home_score > away_score else fixture["away"]
+    result = {"id": f"result:{fixture['id']}:{session_id}", "fixture_id": fixture["id"],
+              "session_id": session_id, "home_score": home_score, "away_score": away_score,
+              "winner": winner,
+              "provenance": provenance, "simulated": provenance == "simulated", "completed_at": _now(),
+              "format": fixture["format"], "map": fixture["map"], "lineup": list(fixture["lineup"]),
+              "difficulty": deepcopy(fixture["difficulty"]), "seed": fixture["seed"],
+              "bot_runtime": deepcopy(fixture["bot_runtime"])}
+    if forfeit:
+        result["outcome"] = "forfeited"
+        result["forfeited_by"] = "human"
+    return result
 
 
 def _simulate(season, fixture):
@@ -438,6 +456,18 @@ def _advance(career):
         season["playoffs"].append(_fixture(career, season, winners[0], winners[1], 8, 1, "final"))
 
 
+def _commit_human_result(career, fixture, result):
+    """Award one accepted human result and advance the season once."""
+    fixture["result"] = result
+    fixture["status"] = "completed"
+    fixture["attempts"][-1]["status"] = "completed"
+    fixture["attempts"][-1]["ended_at"] = _now()
+    career["pending_session"] = None
+    _award_match(career, fixture)
+    _advance(career)
+    return _finish(career)
+
+
 def complete_fixture(career, fixture_id, session_id, home_score, away_score, provenance="game"):
     """Commit an authoritative final score once; ties and stale attempts are rejected."""
     career = _copy(career)
@@ -458,14 +488,49 @@ def complete_fixture(career, fixture_id, session_id, home_score, away_score, pro
     _require(career["pending_session"] is not None and fixture["status"] == "pending"
              and career["pending_session"]["fixture_id"] == fixture_id
              and fixture["session_id"] == session_id, "Result does not match the active fixture/session.")
-    fixture["result"] = _result(fixture, session_id, home_score, away_score, provenance)
-    fixture["status"] = "completed"
-    fixture["attempts"][-1]["status"] = "completed"
-    fixture["attempts"][-1]["ended_at"] = _now()
-    career["pending_session"] = None
-    _award_match(career, fixture)
-    _advance(career)
-    return _finish(career)
+    return _commit_human_result(
+        career, fixture, _result(fixture, session_id, home_score, away_score, provenance))
+
+
+def forfeit_fixture(career, fixture_id, session_id, home_score, away_score):
+    """Forfeit the current pending human fixture without inventing goals.
+
+    Scores are the observed integers from 0 to 999. A tie, a human lead, and a
+    human deficit are all retained. The result records provenance ``forfeit``,
+    outcome ``forfeited``, forfeited_by ``human``, simulated false, and the
+    opponent as winner. Experience, the career record, and schedule advancement
+    use the same path as a completed match, with no win bonus.
+
+    Repeating that same session, fixture, and score returns the committed career.
+    A different score or session, another fixture, or an existing played result
+    is rejected. The caller's career is unchanged when validation fails.
+    """
+    career = _copy(career)
+    _require(_integer(home_score, 0, 999) and _integer(away_score, 0, 999),
+             "Final scores must be whole numbers from 0 to 999.")
+    fixture = next((f for f in _all_fixtures(career) if f["id"] == fixture_id), None)
+    _require(fixture is not None and "human" in (fixture["home"], fixture["away"]),
+             "This is not a human career fixture.")
+    opponent = _forfeit_winner(fixture)
+    if fixture["status"] == "completed":
+        result = fixture["result"]
+        same_forfeit = (result.get("provenance") == "forfeit" and result.get("outcome") == "forfeited"
+                        and result.get("forfeited_by") == "human" and result.get("simulated") is False
+                        and result.get("winner") == opponent
+                        and (result.get("session_id"), result.get("home_score"), result.get("away_score"))
+                        == (session_id, home_score, away_score))
+        if same_forfeit:
+            return career
+        if result.get("provenance") != "forfeit":
+            raise ValueError("This fixture already has a played result; a forfeit cannot replace it.")
+        raise ValueError("This fixture already has a different final result; it cannot be awarded twice.")
+    _require(career["pending_session"] is not None and fixture["status"] == "pending"
+             and career["pending_session"]["fixture_id"] == fixture_id
+             and fixture["session_id"] == session_id,
+             "A forfeit must match the current pending human fixture and session.")
+    return _commit_human_result(
+        career, fixture, _result(fixture, session_id, home_score, away_score, "forfeit",
+                                 winner=opponent, forfeit=True))
 
 
 def abandon_fixture(career):
@@ -881,16 +946,23 @@ def _validate_fixture(f, fixture_ids, result_ids, session_ids):
                  and r["id"] not in result_ids and r["fixture_id"] == f["id"]
                  and r["session_id"] == f["session_id"], "Completed result identity is inconsistent.")
         result_ids.add(r["id"])
-        _require(_integer(r["home_score"], 0, 999) and _integer(r["away_score"], 0, 999)
-                 and r["home_score"] != r["away_score"], "Completed games need an untied final score.")
-        _require(r["winner"] == (f["home"] if r["home_score"] > r["away_score"] else f["away"]),
-                 "Result winner does not match the final score.")
+        _require(_integer(r["home_score"], 0, 999) and _integer(r["away_score"], 0, 999),
+                 "Completed games need whole-number scores from 0 to 999.")
         _require(all(r[k] == f[k] for k in ("format", "map", "lineup", "difficulty", "seed", "bot_runtime")),
                  "Result settings do not match the played fixture.")
-        _require((human and r["provenance"] in ("game", "manual", "manual_recovery")
-                  and r["simulated"] is False) or
-                 (not human and r["provenance"] == "simulated" and r["simulated"] is True),
-                 "Simulated games cannot be represented as real human matches.")
+        if r.get("provenance") == "forfeit" or "outcome" in r or "forfeited_by" in r:
+            _require(human and r.get("provenance") == "forfeit" and r.get("outcome") == "forfeited"
+                     and r.get("forfeited_by") == "human" and r.get("simulated") is False
+                     and r.get("winner") == _forfeit_winner(f),
+                     "A forfeit must record the human, the opponent as winner, and forfeit provenance.")
+        else:
+            _require(r["home_score"] != r["away_score"], "Completed games need an untied final score.")
+            _require(r["winner"] == (f["home"] if r["home_score"] > r["away_score"] else f["away"]),
+                     "Result winner does not match the final score.")
+            _require((human and r["provenance"] in ("game", "manual", "manual_recovery")
+                      and r["simulated"] is False) or
+                     (not human and r["provenance"] == "simulated" and r["simulated"] is True),
+                     "Simulated games cannot be represented as real human matches.")
         if human:
             _require(f["attempts"] and f["attempts"][-1]["status"] == "completed"
                      and f["attempts"][-1]["session_id"] == f["session_id"]

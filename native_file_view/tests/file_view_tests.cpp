@@ -9,6 +9,7 @@
 #include <cwchar>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -475,13 +476,16 @@ int CheckCommonReads(const std::map<std::string, std::string>& fields, const Mct
     const auto readSize = std::to_string(firstHex.size() / 2);
     if (int rc = Expect(fields, "handle_size", readSize, outcome)) return rc;
     if (int rc = Expect(fields, "standard_size", readSize, outcome)) return rc;
-    // Path-based queries are not redirected; metadata on the opened private
-    // handle must still agree with the bytes that handle actually reads.
-    if (int rc = Expect(fields, "path_size", std::to_string(std::strlen(kOriginal)), outcome)) return rc;
+    // A caller may allocate its asynchronous read from path metadata before
+    // opening the file. The path and handle must describe the same bytes.
+    if (int rc = Expect(fields, "path_size", readSize, outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_err", "0", outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_size", readSize, outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "unrelated_hex", HexText(kUnrelated), outcome)) return rc;
     if (int rc = Expect(fields, "sibling_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "sibling_hex", HexText(kSibling), outcome)) return rc;
+    if (int rc = Expect(fields, "sibling_path_size", std::to_string(std::strlen(kSibling)), outcome)) return rc;
     if (int rc = Expect(fields, "mixed_err", "0", outcome)) return rc;
     if (int rc = Expect(fields, "mixed_hex", mixedHex, outcome)) return rc;
     if (int rc = Expect(fields, "relative_err", "0", outcome)) return rc;
@@ -642,6 +646,8 @@ int TestPrivateMissing() {
     if (int rc = Expect(fields, "module", "1", outcome)) return rc;
     if (int rc = Expect(fields, "scope", "1", outcome)) return rc;
     if (int rc = Expect(fields, "first_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+    if (int rc = Expect(fields, "preopen_size", "-1", outcome)) return rc;
     if (int rc = Expect(fields, "first_hex", "", outcome)) return rc;
     if (!outcome.ambient_excluded) return Fail(L"ambient event was inherited", &outcome);
     return HashesMatchManifest(tree);
@@ -891,6 +897,313 @@ int TestTimeout() {
     return 0;
 }
 
+constexpr char kMainSource[] = "MAIN-SOURCE-BYTES";
+constexpr char kMainPrivate[] = "PRIVATE-MAIN-PACKAGE!!";
+constexpr char kMidSource[] = "MID-SOURCE!";
+constexpr char kMidPrivate[] = "MIDP";
+constexpr char kEndSource[] = "END-SRC!";
+constexpr char kEndPrivate[] = "PRIVATE-END-PACKAGE!";
+constexpr char kOtherName[] = "OTHER-BASENAME";
+
+struct MapTree {
+    std::wstring root;
+    std::wstring mainSource;
+    std::wstring midSource;
+    std::wstring endSource;
+    std::wstring mainPrivate;
+    std::wstring midPrivate;
+    std::wstring endPrivate;
+    std::wstring otherName;
+    std::wstring note;
+    std::wstring scratch;
+    std::wstring nested;
+    std::wstring unicodePrivate;
+
+    ~MapTree() { Remove(); }
+
+    void Remove() {
+        if (root.empty()) {
+            return;
+        }
+        const std::wstring saved = root;
+        root.clear();
+        std::wstring canonicalRoot;
+        if (!CanonicalOwnedPath(saved, &canonicalRoot) || !UnderTempScratch(canonicalRoot)) {
+            return;
+        }
+        const wchar_t* files[] = {
+            L"\\game\\TAGame\\CookedPCConsole\\GFX_MainMenu_SF.upk",
+            L"\\game\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk",
+            L"\\game\\TAGame\\CookedPCConsole\\GFX_EndGameMenu_SF.upk",
+            L"\\game\\TAGame\\CookedPCConsole\\nested\\note.txt",
+            L"\\private\\main.upk",
+            L"\\private\\mid.upk",
+            L"\\private\\end.upk",
+            L"\\private\\linked-main.upk",
+            L"\\private\\\u83dc\u5355\\end.upk",
+            L"\\other\\GFX_MidGameMenu_SF.upk",
+            L"\\scratch\\out.bin",
+        };
+        for (const wchar_t* relative : files) {
+            std::wstring candidate;
+            if (!CanonicalOwnedPath(canonicalRoot + relative, &candidate) || !IsInsideRoot(canonicalRoot, candidate)) {
+                continue;
+            }
+            SetFileAttributesW(candidate.c_str(), FILE_ATTRIBUTE_NORMAL);
+            DeleteFileW(candidate.c_str());
+        }
+        const wchar_t* directories[] = {
+            L"\\game\\TAGame\\CookedPCConsole\\nested",
+            L"\\game\\TAGame\\CookedPCConsole",
+            L"\\game\\TAGame",
+            L"\\game",
+            L"\\private\\\u83dc\u5355",
+            L"\\private",
+            L"\\other",
+            L"\\scratch",
+        };
+        for (const wchar_t* relative : directories) {
+            std::wstring candidate;
+            if (!CanonicalOwnedPath(canonicalRoot + relative, &candidate) || !IsInsideRoot(canonicalRoot, candidate)) {
+                continue;
+            }
+            RemoveDirectoryW(candidate.c_str());
+        }
+        RemoveDirectoryW(canonicalRoot.c_str());
+    }
+};
+
+bool BuildMapTree(MapTree* tree, std::wstring* error) {
+    wchar_t temp[MAX_PATH]{};
+    if (GetTempPathW(MAX_PATH, temp) == 0) {
+        *error = L"temporary directory is unavailable";
+        return false;
+    }
+    tree->root = std::wstring(temp) + L"mct-nfv-maps-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+                 std::to_wstring(GetTickCount64());
+    const wchar_t* directories[] = {L"",
+                                    L"\\game",
+                                    L"\\game\\TAGame",
+                                    L"\\game\\TAGame\\CookedPCConsole",
+                                    L"\\game\\TAGame\\CookedPCConsole\\nested",
+                                    L"\\private",
+                                    L"\\private\\\u83dc\u5355",
+                                    L"\\other",
+                                    L"\\scratch"};
+    for (const wchar_t* directory : directories) {
+        if (!MakeDirectory(tree->root + directory)) {
+            *error = L"map directories were not created";
+            return false;
+        }
+    }
+    const std::pair<const wchar_t*, const char*> files[] = {
+        {L"\\game\\TAGame\\CookedPCConsole\\GFX_MainMenu_SF.upk", kMainSource},
+        {L"\\game\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk", kMidSource},
+        {L"\\game\\TAGame\\CookedPCConsole\\GFX_EndGameMenu_SF.upk", kEndSource},
+        {L"\\game\\TAGame\\CookedPCConsole\\nested\\note.txt", "NOTE"},
+        {L"\\private\\main.upk", kMainPrivate},
+        {L"\\private\\mid.upk", kMidPrivate},
+        {L"\\private\\end.upk", kEndPrivate},
+        {L"\\private\\\u83dc\u5355\\end.upk", kEndPrivate},
+        {L"\\other\\GFX_MidGameMenu_SF.upk", kOtherName},
+    };
+    for (const auto& file : files) {
+        if (!WriteExact(tree->root + file.first, file.second)) {
+            *error = L"map files were not written";
+            return false;
+        }
+    }
+    tree->mainSource = Canon(tree->root + L"\\game\\TAGame\\CookedPCConsole\\GFX_MainMenu_SF.upk");
+    tree->midSource = Canon(tree->root + L"\\game\\TAGame\\CookedPCConsole\\GFX_MidGameMenu_SF.upk");
+    tree->endSource = Canon(tree->root + L"\\game\\TAGame\\CookedPCConsole\\GFX_EndGameMenu_SF.upk");
+    tree->mainPrivate = Canon(tree->root + L"\\private\\main.upk");
+    tree->midPrivate = Canon(tree->root + L"\\private\\mid.upk");
+    tree->endPrivate = Canon(tree->root + L"\\private\\end.upk");
+    tree->unicodePrivate = Canon(tree->root + L"\\private\\\u83dc\u5355\\end.upk");
+    tree->otherName = Canon(tree->root + L"\\other\\GFX_MidGameMenu_SF.upk");
+    tree->note = Canon(tree->root + L"\\game\\TAGame\\CookedPCConsole\\nested\\note.txt");
+    tree->scratch = Canon(tree->root + L"\\scratch\\out.bin");
+    tree->nested = Canon(tree->root + L"\\game\\TAGame\\CookedPCConsole\\nested");
+    if (tree->mainSource.empty() || tree->unicodePrivate.empty() || tree->scratch.empty()) {
+        *error = L"a map path is not canonical";
+        return false;
+    }
+    return true;
+}
+
+MctLaunchSpec MapSpec(const MapTree& tree) {
+    MctLaunchSpec spec;
+    spec.target = tree.mainSource;
+    spec.unrelated = tree.note;
+    spec.sibling = tree.otherName;
+    spec.relative_path = L"note.txt";
+    spec.mixed_case = FlipCase(tree.mainSource);
+    spec.extra = tree.endSource;
+    spec.scratch = tree.scratch;
+    spec.working_directory = tree.nested;
+    spec.timeout_ms = 20000;
+    return spec;
+}
+
+bool BuildMaps(const MapTree& tree, bool includeEnd, bool unicodeEnd, MctFileViewScopeV2* scope) {
+    MctFileViewMapInput inputs[3]{};
+    inputs[0] = {kMctFileViewIdMain, tree.mainSource.c_str(), tree.mainPrivate.c_str()};
+    inputs[1] = {kMctFileViewIdMidgame, tree.midSource.c_str(), tree.midPrivate.c_str()};
+    std::uint32_t count = 2;
+    if (includeEnd) {
+        inputs[2] = {kMctFileViewIdEndgame, tree.endSource.c_str(),
+                     (unicodeEnd ? tree.unicodePrivate : tree.endPrivate).c_str()};
+        count = 3;
+    }
+    return MctBuildFileViewScopeV2(inputs, count, scope);
+}
+
+int LaunchMaps(const MapTree& tree, const MctFileViewScopeV2& scope, const wchar_t* probe2, const wchar_t* probe3,
+               MctLaunchOutcome* outcome) {
+    MctLaunchSpec spec = MapSpec(tree);
+    spec.kind = MctLaunchKind::Injected;
+    spec.copy_payload = true;
+    spec.payload_v2 = true;
+    spec.scope_v2 = scope;
+    if (probe2 != nullptr) {
+        spec.probe2 = probe2;
+    }
+    if (probe3 != nullptr) {
+        spec.probe3 = probe3;
+    }
+    if (!MctLaunchFixture(spec, outcome) || !outcome->identity_ok || outcome->timed_out || outcome->exit_code != 0) {
+        return Fail(L"fixed-map fixture did not exit cleanly", outcome);
+    }
+    return 0;
+}
+
+int TestFixedMaps() {
+    MapTree tree;
+    std::wstring error;
+    if (!BuildMapTree(&tree, &error)) {
+        return Fail(error, nullptr);
+    }
+    MctFileViewScopeV2 two{};
+    if (!BuildMaps(tree, false, false, &two) || two.count != 2) {
+        return Fail(L"two-map scope was refused", nullptr);
+    }
+    {
+        MctLaunchOutcome outcome;
+        if (int rc = LaunchMaps(tree, two, tree.midSource.c_str(), nullptr, &outcome)) {
+            return rc;
+        }
+        const auto fields = ParseReceipt(outcome.receipt);
+        if (int rc = Expect(fields, "scope", "1", outcome)) return rc;
+        if (int rc = Expect(fields, "preopen_size", std::to_string(std::strlen(kMainPrivate)), outcome)) return rc;
+        if (int rc = Expect(fields, "first_hex", HexText(kMainPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_preopen_size", std::to_string(std::strlen(kMidPrivate)), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_hex", HexText(kMidPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_err", "0", outcome)) return rc;
+        if (int rc = Expect(fields, "extra_hex", HexText(kEndSource), outcome)) return rc;
+        if (int rc = Expect(fields, "sibling_hex", HexText(kOtherName), outcome)) return rc;
+        if (int rc = Expect(fields, "mixed_hex", HexText(kMainPrivate), outcome)) return rc;
+    }
+    MctFileViewScopeV2 three{};
+    if (!BuildMaps(tree, true, true, &three) || three.count != 3) {
+        return Fail(L"unicode three-map scope was refused", nullptr);
+    }
+    {
+        MctLaunchOutcome outcome;
+        if (int rc = LaunchMaps(tree, three, tree.midSource.c_str(), tree.endSource.c_str(), &outcome)) {
+            return rc;
+        }
+        const auto fields = ParseReceipt(outcome.receipt);
+        if (int rc = Expect(fields, "preopen_size", std::to_string(std::strlen(kMainPrivate)), outcome)) return rc;
+        if (int rc = Expect(fields, "first_hex", HexText(kMainPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_preopen_size", std::to_string(std::strlen(kMidPrivate)), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_hex", HexText(kMidPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "probe3_preopen_size", std::to_string(std::strlen(kEndPrivate)), outcome)) return rc;
+        if (int rc = Expect(fields, "probe3_hex", HexText(kEndPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "sibling_hex", HexText(kOtherName), outcome)) return rc;
+    }
+    const std::string mainBefore = Sha256File(tree.mainSource, &error);
+    const std::string midBefore = Sha256File(tree.midSource, &error);
+    if (!DeleteFileW(tree.midPrivate.c_str())) {
+        return Fail(L"mid private file was not removed", nullptr);
+    }
+    MctFileViewScopeV2 missingMid{};
+    if (!BuildMaps(tree, false, false, &missingMid)) {
+        return Fail(L"scope with a missing mid private was refused", nullptr);
+    }
+    {
+        MctLaunchOutcome outcome;
+        if (int rc = LaunchMaps(tree, missingMid, tree.midSource.c_str(), nullptr, &outcome)) {
+            return rc;
+        }
+        const auto fields = ParseReceipt(outcome.receipt);
+        if (int rc = Expect(fields, "first_hex", HexText(kMainPrivate), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_preopen_err", std::to_string(ERROR_FILE_NOT_FOUND), outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_preopen_size", "-1", outcome)) return rc;
+        if (int rc = Expect(fields, "probe2_hex", "", outcome)) return rc;
+        if (Sha256File(tree.mainSource, &error) != mainBefore || Sha256File(tree.midSource, &error) != midBefore) {
+            return Fail(L"a failed private open changed a source package", &outcome);
+        }
+    }
+    if (!WriteExact(tree.midPrivate, kMidPrivate)) {
+        return Fail(L"mid private file was not restored", nullptr);
+    }
+    const std::wstring link = tree.root + L"\\private\\linked-main.upk";
+    if (!CreateHardLinkW(link.c_str(), tree.mainSource.c_str(), nullptr)) {
+        return Fail(L"hard link was not created", nullptr);
+    }
+    const std::wstring linked = Canon(link);
+    if (linked.empty()) {
+        return Fail(L"hard link path is not canonical", nullptr);
+    }
+    MctFileViewMapInput aliased[] = {
+        {kMctFileViewIdMain, tree.mainSource.c_str(), tree.mainPrivate.c_str()},
+        {kMctFileViewIdMidgame, tree.midSource.c_str(), linked.c_str()},
+    };
+    MctFileViewScopeV2 aliasScope{};
+    if (!MctBuildFileViewScopeV2(aliased, 2, &aliasScope)) {
+        return Fail(L"distinct hard-link paths were rejected before identity checks", nullptr);
+    }
+    MctLaunchSpec aliasLaunch = MapSpec(tree);
+    aliasLaunch.kind = MctLaunchKind::Injected;
+    aliasLaunch.copy_payload = true;
+    aliasLaunch.payload_v2 = true;
+    aliasLaunch.scope_v2 = aliasScope;
+    MctLaunchOutcome aliasOutcome;
+    if (MctLaunchFixture(aliasLaunch, &aliasOutcome) || aliasOutcome.detail.find(L"same file") == std::wstring::npos) {
+        return Fail(L"a hard-link alias was copied", &aliasOutcome);
+    }
+    MctFileViewMapInput duplicate[] = {
+        {kMctFileViewIdMain, tree.mainSource.c_str(), tree.mainPrivate.c_str()},
+        {kMctFileViewIdMain, tree.midSource.c_str(), tree.midPrivate.c_str()},
+    };
+    MctFileViewScopeV2 rejected{};
+    if (MctBuildFileViewScopeV2(duplicate, 2, &rejected)) {
+        return Fail(L"a duplicate id was accepted", nullptr);
+    }
+    MctFileViewMapInput unknown[] = {
+        {kMctFileViewIdMain, tree.mainSource.c_str(), tree.mainPrivate.c_str()},
+        {9u, tree.midSource.c_str(), tree.midPrivate.c_str()},
+    };
+    if (MctBuildFileViewScopeV2(unknown, 2, &rejected)) {
+        return Fail(L"an unknown id was accepted", nullptr);
+    }
+    const std::wstring wrongName = Canon(tree.root + L"\\other\\GFX_MidGameMenu_SF.upk");
+    MctFileViewMapInput wrongSuffix[] = {
+        {kMctFileViewIdMain, tree.mainSource.c_str(), tree.mainPrivate.c_str()},
+        {kMctFileViewIdMidgame, wrongName.c_str(), tree.midPrivate.c_str()},
+    };
+    if (MctBuildFileViewScopeV2(wrongSuffix, 2, &rejected)) {
+        return Fail(L"an unapproved source location was accepted", nullptr);
+    }
+    MctFileViewScopeV2 unused = two;
+    unused.mappings[2].id = kMctFileViewIdEndgame;
+    if (MctFileViewScopeV2Accept(unused)) {
+        return Fail(L"a nonzero unused slot was accepted", nullptr);
+    }
+    return 0;
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
@@ -910,6 +1223,7 @@ int wmain(int argc, wchar_t** argv) {
     if (scenario == L"payload-revalidate") return TestPayloadRevalidate();
     if (scenario == L"ambient-handles") return TestAmbientHandles();
     if (scenario == L"timeout") return TestTimeout();
+    if (scenario == L"fixed-maps") return TestFixedMaps();
     fwprintf(stderr, L"unknown scenario\n");
     return 2;
 }

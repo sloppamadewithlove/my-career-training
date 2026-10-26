@@ -1,8 +1,9 @@
-"""Compose the owned MctRootMenu ABC into the pinned MainMenu movie.
+"""Compose owned menu ABCs into pinned development movies.
 
-The public entry accepts one development GFX and the compiled class ABC.
-It returns a new movie in memory. It does not write files, launch a game,
-or claim that Scaleform has initialized the added class.
+``compose_movie`` accepts the pinned MainMenu GFX and the frontend class ABC.
+``compose_match_movie`` accepts only the fixed ``midgame`` and ``endgame``
+scenes. Both return a new movie in memory. They do not write files, launch a
+game, or claim that Scaleform has initialized the added classes.
 """
 
 from __future__ import annotations
@@ -20,6 +21,43 @@ MAX_TAGS = 4096
 MAX_POOL = 100_000
 NEW_CLASS = "MctRootMenu"
 SCREEN_CLASS = "MctMainMenuScreen"
+ROOT_MOVIE_CLASS = "MctRootMenuMovie"
+ORIGINAL_ROOT_NAME = "RootMenuMovie"
+RENAMED_ORIGINAL_ROOT = "MctOriginalRootMenuMovie"
+AUTHORED_CLASSES = [f"menus::{NEW_CLASS}", SCREEN_CLASS, ROOT_MOVIE_CLASS]
+LIBRARY_COMMIT = "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559"
+LIBRARY_CLASSES = [
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONParseError",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+]
+COMPILED_CLASSES = [
+    f"menus::{NEW_CLASS}",
+    SCREEN_CLASS,
+    ROOT_MOVIE_CLASS,
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONParseError",
+]
+LIBRARY_FILES = {
+    "native_ui/vendor/as3corelib/PROVENANCE.json": "f4f0d2420b305100cf2c0ae1d36e0be3ab7a77f8cba201dc1d874491b4662ea7",
+    "native_ui/vendor/as3corelib/README": "d2085963bde4505f6de3d3760b53d30777b482ed443b205736f74da3c3fbc756",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as": "9414b8263250237f8671f5e05ad86c92536cdbd840f52bf47ee5367b99fae5c8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONDecoder.as": "4f11d1427099c93135d818c70cc1f7201faa02d5375aaeaef12874531d6dfb65",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONEncoder.as": "ae997d2e420d4115b6c9b6a2ee449879b0fdf4c67bd9f2433e3ef58d9f277c31",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONParseError.as": "83cbdd7157d513cbc81a6c564e4f4e5e14daa58d98bafbab05ed4df4418e3638",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONToken.as": "80ee91dbdebac33f6739d3b6026a59ff9ea14fd8bd906a1e06e83988ed9c34a8",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenType.as": "b29490ba39abb965a4b691b5693453a2b561d24bc44f47a2960a89b5845ab595",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONTokenizer.as": "e3749db0046d7dc0f4542fa76d439b29f9100a60c8380c0c03963c191b4e16f2",
+}
 VIEW_SENTINEL = "__MCT_VIEW_URL__"
 SESSION_SENTINEL = "__MCT_SESSION__"
 ADDED_DOABC_NAME = "MCTNativeMenu"
@@ -28,13 +66,56 @@ DOCUMENT_SOURCE_NAME = "MainMenuScreen"
 DOCUMENT_TARGET_NAME = "MctMainMenuScreen"
 MOVIE_SHA256 = "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
 ORIGINAL_ABC_SHA256 = "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-MOD_ABC_SHA256 = "fbcedd362034ac360d8b5a7de7c9041f5fbe1604fab99b0ead6a9dc6249e5eaf"
-SOURCE_SHA256 = "dd27703fb36a8959f47b8de68fc7c23dc51f177f1ce4b80470c1bc0b0cc61194"
-SCREEN_SOURCE_SHA256 = "dc074ee1d945a498429ec9d8cbd7892d1eaefe60bb167692474ea26df523ec6a"
+MOD_ABC_SHA256 = "7b69e6845163d5684de3c8962727af664848274d30ca8453dfda2e69500bd975"
+SOURCE_SHA256 = "f6a12acb25680687dc7dd02c3cf8f35e0efd51e12da007cdd7d0e5a28234cf64"
+SCREEN_SOURCE_SHA256 = "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd"
+ROOT_MOVIE_SOURCE_SHA256 = "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432"
+_CODEC_COMPILED = (
+    "com.adobe.serialization.json::JSON",
+    "com.adobe.serialization.json::JSONDecoder",
+    "com.adobe.serialization.json::JSONEncoder",
+    "com.adobe.serialization.json::JSONTokenType",
+    "com.adobe.serialization.json::JSONTokenizer",
+    "com.adobe.serialization.json::JSONToken",
+    "com.adobe.serialization.json::JSONParseError",
+)
+PAUSE_AUTHORED = (
+    "menus::MctPauseMenu",
+    "MctPauseMenuMovie",
+    "MctPauseMenuScreen",
+)
+RESULTS_AUTHORED = (
+    "menus::MctResultsMenu",
+    "MctResultsMenuMovie",
+    "MctResultsMenuScreen",
+)
+PAUSE_COMPILED = PAUSE_AUTHORED + _CODEC_COMPILED
+RESULTS_COMPILED = RESULTS_AUTHORED + _CODEC_COMPILED
+MIDGAME_MOVIE_SHA256 = "fa1aea999d6fff856c8c522c3a5844fdfd532fac0a23bf70369a2274e38a35b7"
+MIDGAME_MOVIE_BYTES = 940852
+MIDGAME_PACKAGE_SHA256 = "25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50"
+MIDGAME_PACKAGE_RELATIVE = "TAGame/CookedPCConsole/GFX_MidGameMenu_SF.upk"
+MIDGAME_EXPORT_NAME = "MidgameMenu"
+MIDGAME_ORIGINAL_ABC_SHA256 = "71e96360863604a12bb5b53b32f5014beec0ab9fc614b6e03f27c150abe0bba7"
+MIDGAME_ABC_SHA256 = "f6d57a96920e65c5ea0a1af8be3730cbfcf8ffc9340ad32312502864bac2e610"
+MIDGAME_ABC_BYTES = 21655
+MIDGAME_SOURCE_SHA256 = "668c45a450005ffad172acfb57dbab03357b68fe3c8d092d1f76c9ab7889bce5"
+MIDGAME_SCREEN_SOURCE_SHA256 = "829791dea145b2251faf7a34956c5ed6b47369d531bb36409f51527f8f608062"
+MIDGAME_ROOT_SOURCE_SHA256 = "e83e7c63db253503c677bd2c149d7acf989a682bb0653e2d0895b235cad28653"
+ENDGAME_MOVIE_SHA256 = "94830737b9ee356d5039ecd8f401f0d0734885c22be70e6139b44008e1733b3c"
+ENDGAME_MOVIE_BYTES = 1133247
+ENDGAME_PACKAGE_SHA256 = "dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc"
+ENDGAME_PACKAGE_RELATIVE = "TAGame/CookedPCConsole/GFX_EndGameMenu_SF.upk"
+ENDGAME_EXPORT_NAME = "EndGameMenu"
+ENDGAME_ORIGINAL_ABC_SHA256 = "47c04e221622bf21ecf98b1905ed786b8682f35886e93a9d3b3fb0d4b698c52d"
+ENDGAME_ABC_SHA256 = "c7c365db1c31f826356af576149ef88374a1531728940ba3468378dbdd854315"
+ENDGAME_ABC_BYTES = 25630
+ENDGAME_SOURCE_SHA256 = "0b37e35fe314e225e9fac201d48ec248570248332f67d543b15b6c127128399f"
+ENDGAME_SCREEN_SOURCE_SHA256 = "56788df6ff86bc2c8f6f7c23a3f73cbc964a36c2cc84435394481e2eff4d13f2"
+ENDGAME_ROOT_SOURCE_SHA256 = "15083968df55fc13d0c468336566d080376c8464a70b1a06a464f086db4e792c"
+MATCH_SCENE_IDS = ("midgame", "endgame")
+_OLD_SUPER_MULTINAME = 5940
 _SESSION_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-_NO_OPERAND = {0x1D, 0x30, 0x47, 0xD0}
-_U8_OPERAND = {0x65}
-_U30_OPERAND = {0x58, 0x60, 0x68}
 _UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 
 
@@ -57,31 +138,34 @@ class ComposeProfile:
     mod_abc_sha256: str
     source_sha256: str
     screen_source_sha256: str
-    string_count: int
-    string_count_offset: int
-    string_pool_end: int
-    menus_string_offset: int
-    namespace_kind_offset: int
-    namespace_name_index: int
-    namespace_index: int
-    multiname_count: int
-    multiname_count_offset: int
-    multiname_pool_end: int
+    root_movie_source_sha256: str
     super_offset: int
+    super_bytes: bytes
     old_multiname_index: int
     class_index: int
     code_offset: int
     code_length: int
     code_sha256: str
-    getlex_pcs: tuple[int, int]
-    pushscope_pc: int
-    newclass_pc: int
     method_index: int
     script_index: int
     doabc_index: int
     symbol_character: int
     symbol_name: str
-    preserved_spans: tuple[tuple[int, bytes], ...] = ()
+    menu_class: str = NEW_CLASS
+    screen_class: str = SCREEN_CLASS
+    wrapper_class: str = ROOT_MOVIE_CLASS
+    original_root_name: str = ORIGINAL_ROOT_NAME
+    renamed_original_root: str = RENAMED_ORIGINAL_ROOT
+    document_source_name: str = DOCUMENT_SOURCE_NAME
+    document_target_name: str = DOCUMENT_TARGET_NAME
+    scene_id: str = "frontend"
+    package_sha256: str = ""
+    package_relative: str = ""
+    export_name: str = ""
+    movie_bytes: int = 0
+    mod_abc_bytes: int = 0
+    authored_classes: tuple[str, ...] = tuple(AUTHORED_CLASSES)
+    compiled_classes: tuple[str, ...] = tuple(COMPILED_CLASSES)
 
 
 PRODUCTION_PROFILE = ComposeProfile(
@@ -90,36 +174,101 @@ PRODUCTION_PROFILE = ComposeProfile(
     mod_abc_sha256=MOD_ABC_SHA256,
     source_sha256=SOURCE_SHA256,
     screen_source_sha256=SCREEN_SOURCE_SHA256,
-    string_count=13849,
-    string_count_offset=2048,
-    string_pool_end=274271,
-    menus_string_offset=113446,
-    namespace_kind_offset=276629,
-    namespace_name_index=5806,
-    namespace_index=814,
-    multiname_count=12205,
-    multiname_count_offset=282536,
-    multiname_pool_end=335281,
+    root_movie_source_sha256=ROOT_MOVIE_SOURCE_SHA256,
     super_offset=446019,
-    old_multiname_index=5940,
+    super_bytes=bytes.fromhex("b42e"),
+    old_multiname_index=_OLD_SUPER_MULTINAME,
     class_index=702,
     code_offset=1113629,
     code_length=73,
     code_sha256="b09ed973afb268ab53aa4c7b9f78e65574da52bcdfc2b7abc590086a8039f174",
-    getlex_pcs=(46, 50),
-    pushscope_pc=49,
-    newclass_pc=53,
     method_index=11548,
     script_index=700,
     doabc_index=177,
     symbol_character=83,
-    symbol_name="RootMenuMovie",
-    preserved_spans=((309137, bytes.fromhex("07ae06982e")),),
+    symbol_name=ORIGINAL_ROOT_NAME,
 )
+
+MIDGAME_PROFILE = ComposeProfile(
+    movie_sha256=MIDGAME_MOVIE_SHA256,
+    abc_sha256=MIDGAME_ORIGINAL_ABC_SHA256,
+    mod_abc_sha256=MIDGAME_ABC_SHA256,
+    source_sha256=MIDGAME_SOURCE_SHA256,
+    screen_source_sha256=MIDGAME_SCREEN_SOURCE_SHA256,
+    root_movie_source_sha256=MIDGAME_ROOT_SOURCE_SHA256,
+    super_offset=373395,
+    super_bytes=bytes.fromhex("c021"),
+    old_multiname_index=4288,
+    class_index=494,
+    code_offset=917990,
+    code_length=63,
+    code_sha256="2a1fc566e90d22d42f1a36d8500187bdbee0f5d912ec309e8bbd5be3dd621fb9",
+    method_index=9421,
+    script_index=492,
+    doabc_index=35,
+    symbol_character=6,
+    symbol_name="MidGameMenuMovie",
+    menu_class="MctPauseMenu",
+    screen_class="MctPauseMenuScreen",
+    wrapper_class="MctPauseMenuMovie",
+    original_root_name="MidGameMenuMovie",
+    renamed_original_root="MctOriginalMidGameMenuMovie",
+    document_source_name="MidGameMenuScreen",
+    document_target_name="MctPauseMenuScreen",
+    scene_id="midgame",
+    package_sha256=MIDGAME_PACKAGE_SHA256,
+    package_relative=MIDGAME_PACKAGE_RELATIVE,
+    export_name=MIDGAME_EXPORT_NAME,
+    movie_bytes=MIDGAME_MOVIE_BYTES,
+    mod_abc_bytes=MIDGAME_ABC_BYTES,
+    authored_classes=PAUSE_AUTHORED,
+    compiled_classes=PAUSE_COMPILED,
+)
+
+ENDGAME_PROFILE = ComposeProfile(
+    movie_sha256=ENDGAME_MOVIE_SHA256,
+    abc_sha256=ENDGAME_ORIGINAL_ABC_SHA256,
+    mod_abc_sha256=ENDGAME_ABC_SHA256,
+    source_sha256=ENDGAME_SOURCE_SHA256,
+    screen_source_sha256=ENDGAME_SCREEN_SOURCE_SHA256,
+    root_movie_source_sha256=ENDGAME_ROOT_SOURCE_SHA256,
+    super_offset=436424,
+    super_bytes=bytes.fromhex("b728"),
+    old_multiname_index=5175,
+    class_index=652,
+    code_offset=1101107,
+    code_length=73,
+    code_sha256="d52dea42400109a102650c7369f167c7bd502032732906594c255c90a0589df7",
+    method_index=11075,
+    script_index=650,
+    doabc_index=148,
+    symbol_character=23,
+    symbol_name="EndGameMenuMovie",
+    menu_class="MctResultsMenu",
+    screen_class="MctResultsMenuScreen",
+    wrapper_class="MctResultsMenuMovie",
+    original_root_name="EndGameMenuMovie",
+    renamed_original_root="MctOriginalEndGameMenuMovie",
+    document_source_name="EndGameMenuScreen",
+    document_target_name="MctResultsMenuScreen",
+    scene_id="endgame",
+    package_sha256=ENDGAME_PACKAGE_SHA256,
+    package_relative=ENDGAME_PACKAGE_RELATIVE,
+    export_name=ENDGAME_EXPORT_NAME,
+    movie_bytes=ENDGAME_MOVIE_BYTES,
+    mod_abc_bytes=ENDGAME_ABC_BYTES,
+    authored_classes=RESULTS_AUTHORED,
+    compiled_classes=RESULTS_COMPILED,
+)
+
+MATCH_PROFILES = {
+    "midgame": MIDGAME_PROFILE,
+    "endgame": ENDGAME_PROFILE,
+}
 
 
 def compose_movie(original_gfx: bytes, mod_abc: bytes, *, session: str, view_url: str) -> dict:
-    """Return the pinned development movie with both authored classes attached."""
+    """Return the pinned development movie with the authored classes attached."""
 
     _require_inputs(original_gfx, mod_abc)
     if _sha256(original_gfx) != MOVIE_SHA256:
@@ -147,6 +296,20 @@ def compose_with_profile(
     return _compose(original_gfx, mod_abc, session=session, view_url=view_url, profile=profile)
 
 
+def compose_match_movie(scene: str, original_gfx: bytes, mod_abc: bytes, *, session: str, view_url: str) -> dict:
+    """Compose one fixed match scene. Scene ids are only ``midgame`` and ``endgame``."""
+
+    if type(scene) is not str or scene not in MATCH_PROFILES:
+        raise ComposeRejected("scene")
+    profile = MATCH_PROFILES[scene]
+    _require_inputs(original_gfx, mod_abc)
+    if len(original_gfx) != profile.movie_bytes or _sha256(original_gfx) != profile.movie_sha256:
+        raise ComposeRejected("movie hash mismatch")
+    if len(mod_abc) != profile.mod_abc_bytes or _sha256(mod_abc) != profile.mod_abc_sha256:
+        raise ComposeRejected("abc hash mismatch")
+    return _compose(original_gfx, mod_abc, session=session, view_url=view_url, profile=profile)
+
+
 def _compose(
     original_gfx: bytes,
     mod_abc: bytes,
@@ -162,11 +325,14 @@ def _compose(
     original_abc = _abc_from_doabc(tags[profile.doabc_index].payload)
     if _sha256(original_abc) != profile.abc_sha256:
         raise ComposeRejected("abc hash mismatch")
-    spliced, splice = _splice_abc(original_abc, profile)
-    bound = _bind_mod_abc(mod_abc, session=session, view_url=view_url)
-    document_symbol = _rebind_document_symbol(tags[profile.doabc_index + 1].payload)
-    output = _assemble(original_gfx, header_end, tags, profile.doabc_index, spliced, bound, document_symbol)
-    _require_output(original_gfx, output, header_end, tags, profile, spliced, bound)
+    renamed_original, original_rename = _rename_original_root(original_abc, profile)
+    bound = _bind_mod_abc(mod_abc, session=session, view_url=view_url, profile=profile)
+    bound, authored_rename = _rename_unique_string(bound, profile.wrapper_class, profile.original_root_name)
+    document_symbol = _rebind_document_symbol(tags[profile.doabc_index + 1].payload, profile)
+    output = _assemble(
+        original_gfx, header_end, tags, profile.doabc_index, renamed_original, bound, document_symbol
+    )
+    _require_output(original_gfx, output, header_end, tags, profile, renamed_original, bound)
     metadata = _metadata(
         original_gfx,
         original_abc,
@@ -174,7 +340,8 @@ def _compose(
         bound,
         output,
         profile,
-        splice,
+        original_rename,
+        authored_rename,
         session,
         view_url,
         len(tags),
@@ -298,7 +465,7 @@ def _require_tag_shape(tags: list[_Tag], profile: ComposeProfile) -> None:
     names = dict(entries)
     if names.get(profile.symbol_character) != profile.symbol_name:
         raise ComposeRejected("symbol class")
-    _require_document_binding(entries)
+    _require_document_binding(entries, profile)
 
 
 def _symbol_entries(payload: bytes) -> list[tuple[int, str]]:
@@ -332,31 +499,35 @@ def _symbol_entries(payload: bytes) -> list[tuple[int, str]]:
     return entries
 
 
-def _require_document_binding(entries: list[tuple[int, str]]) -> None:
+def _require_document_binding(entries: list[tuple[int, str]], profile: ComposeProfile) -> None:
     names = [name for _character, name in entries]
+    source_name = profile.document_source_name
+    target_name = profile.document_target_name
     document = [name for character, name in entries if character == DOCUMENT_CHARACTER]
     if len(document) != 1:
         raise ComposeRejected("document class")
-    if document[0] == DOCUMENT_TARGET_NAME or DOCUMENT_TARGET_NAME in names:
+    if document[0] == target_name or target_name in names:
         raise ComposeRejected("document class")
-    if document[0] != DOCUMENT_SOURCE_NAME or names.count(DOCUMENT_SOURCE_NAME) != 1:
+    if document[0] != source_name or names.count(source_name) != 1:
         raise ComposeRejected("document class")
-    if any(character != DOCUMENT_CHARACTER and name == DOCUMENT_SOURCE_NAME for character, name in entries):
+    if any(character != DOCUMENT_CHARACTER and name == source_name for character, name in entries):
         raise ComposeRejected("document class")
 
 
-def _rebind_document_symbol(payload: bytes) -> bytes:
+def _rebind_document_symbol(payload: bytes, profile: ComposeProfile) -> bytes:
     entries = _symbol_entries(payload)
-    _require_document_binding(entries)
-    old = struct.pack("<H", DOCUMENT_CHARACTER) + DOCUMENT_SOURCE_NAME.encode("ascii") + b"\0"
-    new = struct.pack("<H", DOCUMENT_CHARACTER) + DOCUMENT_TARGET_NAME.encode("ascii") + b"\0"
+    _require_document_binding(entries, profile)
+    source_name = profile.document_source_name
+    target_name = profile.document_target_name
+    old = struct.pack("<H", DOCUMENT_CHARACTER) + source_name.encode("ascii") + b"\0"
+    new = struct.pack("<H", DOCUMENT_CHARACTER) + target_name.encode("ascii") + b"\0"
     if payload.count(old) != 1:
         raise ComposeRejected("document class")
     expected = payload.replace(old, new, 1)
     rebuilt = bytearray(struct.pack("<H", len(entries)))
     for character, name in entries:
         if character == DOCUMENT_CHARACTER:
-            name = DOCUMENT_TARGET_NAME
+            name = target_name
         rebuilt += struct.pack("<H", character) + name.encode("utf-8") + b"\0"
     if bytes(rebuilt) != expected or expected.count(new) != 1 or expected.count(old) != 0:
         raise ComposeRejected("document class")
@@ -369,299 +540,87 @@ def _abc_from_doabc(payload: bytes) -> bytes:
     return payload[5:]
 
 
-def _splice_abc(abc: bytes, profile: ComposeProfile) -> tuple[bytes, dict]:
-    string_end = _require_count(abc, profile.string_count_offset, profile.string_count)
-    multiname_end = _require_count(abc, profile.multiname_count_offset, profile.multiname_count)
-    _require_namespace(abc, profile)
-    super_end, super_width = _require_operand(abc, profile.super_offset, profile.old_multiname_index)
-    code_end = profile.code_offset + profile.code_length
-    if code_end > len(abc):
-        raise ComposeRejected("truncated movie")
-    code = abc[profile.code_offset : code_end]
-    instructions = _walk_initializer(code)
-    operand_spans = _require_initializer(code, instructions, profile)
-    if code_end >= len(abc):
-        raise ComposeRejected("truncated movie")
-    exception, exception_end = _read_u30(abc, code_end)
-    if exception != 0 or exception_end != code_end + 1:
-        raise ComposeRejected("opcode")
-    getlex_spans = []
-    for pc, width in operand_spans:
-        start = profile.code_offset + pc + 1
-        getlex_spans.append((start, start + width))
-    new_string_index = profile.string_count
-    new_multiname_index = profile.multiname_count
-    _require_same_width(super_width, new_multiname_index)
-    for start, end in getlex_spans:
-        _require_same_width(end - start, new_multiname_index)
-    string_entry = _u30(len(NEW_CLASS.encode("ascii"))) + NEW_CLASS.encode("ascii")
-    qname = bytes((0x07,)) + _u30(profile.namespace_index) + _u30(new_string_index)
-    _require_layout(abc, profile, string_end, multiname_end, super_end, getlex_spans, string_entry, qname)
-    patched = _join_splices(
-        abc,
-        profile,
-        string_end,
-        multiname_end,
-        super_end,
-        getlex_spans,
-        string_entry,
-        qname,
-        new_multiname_index,
-    )
-    _require_exact_splices(
-        abc, patched, profile, string_entry, qname, getlex_spans, super_end, string_end, multiname_end
-    )
-    return patched, {
-        "string_entry": string_entry,
-        "qname": qname,
-        "string_count_end": string_end,
-        "multiname_count_end": multiname_end,
-        "super_end": super_end,
-        "getlex_spans": tuple(getlex_spans),
-        "new_string_index": new_string_index,
-        "new_multiname_index": new_multiname_index,
-    }
+def _rename_original_root(abc: bytes, profile: ComposeProfile) -> tuple[bytes, dict]:
+    renamed, info = _rename_unique_string(abc, profile.original_root_name, profile.renamed_original_root)
+    _require_original_bodies(abc, renamed, profile, info)
+    return renamed, info
 
 
-def _require_count(abc: bytes, offset: int, expected: int) -> int:
-    value, end = _read_u30(abc, offset)
-    if value != expected or end - offset != len(_u30(value)):
-        raise ComposeRejected("pool count")
-    if len(_u30(value + 1)) != end - offset:
-        raise ComposeRejected("operand width")
-    return end
+def _rename_unique_string(abc: bytes, old: str, new: str) -> tuple[bytes, dict]:
+    """Replace one parsed string-pool entry. Later bytes stay intact aside from the length shift."""
 
-
-def _require_namespace(abc: bytes, profile: ComposeProfile) -> None:
-    if profile.namespace_kind_offset >= len(abc) or abc[profile.namespace_kind_offset] != 0x16:
-        raise ComposeRejected("namespace")
-    name_index, _end = _read_u30(abc, profile.namespace_kind_offset + 1)
-    menus = b"\x05menus"
-    start = profile.menus_string_offset
-    if name_index != profile.namespace_name_index or abc[start : start + len(menus)] != menus:
-        raise ComposeRejected("namespace")
-
-
-def _require_operand(abc: bytes, offset: int, expected: int) -> tuple[int, int]:
-    value, end = _read_u30(abc, offset)
-    width = end - offset
-    if value != expected or width != len(_u30(value)):
-        raise ComposeRejected("pool count")
-    return end, width
-
-
-def _require_same_width(width: int, new_index: int) -> None:
-    if width != len(_u30(new_index)):
-        raise ComposeRejected("operand width")
-
-
-def _walk_initializer(code: bytes) -> list[tuple[int, int, int | None]]:
-    instructions = []
-    pos = 0
-    while pos < len(code):
-        start = pos
-        opcode = code[pos]
-        pos += 1
-        if opcode in range(0x0C, 0x1C):
-            raise ComposeRejected("opcode")
-        if opcode in _NO_OPERAND:
-            instructions.append((start, opcode, None))
-        elif opcode in _U8_OPERAND:
-            if pos >= len(code):
-                raise ComposeRejected("truncated movie")
-            instructions.append((start, opcode, code[pos]))
-            pos += 1
-        elif opcode in _U30_OPERAND:
-            value, pos = _read_u30(code, pos)
-            instructions.append((start, opcode, value))
-        else:
-            raise ComposeRejected("opcode")
-    return instructions
-
-
-def _require_initializer(
-    code: bytes,
-    instructions: list[tuple[int, int, int | None]],
-    profile: ComposeProfile,
-) -> list[tuple[int, int]]:
-    if len(profile.getlex_pcs) != 2:
-        raise ComposeRejected("opcode")
-    by_pc = {pc: (index, opcode, operand) for index, (pc, opcode, operand) in enumerate(instructions)}
+    if old == new or not old or not new:
+        raise ComposeRejected("class alias")
     try:
-        first = by_pc[profile.getlex_pcs[0]]
-        second = by_pc[profile.getlex_pcs[1]]
-        scope = by_pc[profile.pushscope_pc]
-        newclass = by_pc[profile.newclass_pc]
-    except KeyError:
-        raise ComposeRejected("opcode") from None
-    if (first[1], scope[1], second[1], newclass[1]) != (0x60, 0x30, 0x60, 0x58):
-        raise ComposeRejected("opcode")
-    if (first[0] + 1, scope[0] + 1, second[0] + 1) != (scope[0], second[0], newclass[0]):
-        raise ComposeRejected("opcode")
-    if first[2] != profile.old_multiname_index or second[2] != profile.old_multiname_index:
-        raise ComposeRejected("opcode")
-    if newclass[2] != profile.class_index:
-        raise ComposeRejected("opcode")
-    spans = []
-    for pc, _opcode, operand in (instructions[first[0]], instructions[second[0]]):
-        if type(operand) is not int:
-            raise ComposeRejected("opcode")
-        width = instructions[by_pc[pc][0] + 1][0] - (pc + 1)
-        if width != len(_u30(operand)):
-            raise ComposeRejected("operand width")
-        spans.append((pc, width))
-    if b"".join(_instruction_bytes(instructions)) != code or _sha256(code) != profile.code_sha256:
-        raise ComposeRejected("opcode")
-    return spans
+        raw_old = old.encode("ascii")
+        raw_new = new.encode("ascii")
+    except UnicodeEncodeError:
+        raise ComposeRejected("class alias") from None
+    pool_end, entries = _string_entries(abc)
+    old_hits = [(start, end) for start, end, text in entries if text == old]
+    if len(old_hits) != 1 or any(text == new for _start, _end, text in entries):
+        raise ComposeRejected("class alias")
+    start, end = old_hits[0]
+    encoded_old = _u30(len(raw_old)) + raw_old
+    encoded_new = _u30(len(raw_new)) + raw_new
+    if not 4 <= start < end <= pool_end <= len(abc) or abc[start:end] != encoded_old:
+        raise ComposeRejected("class alias")
+    renamed = abc[:start] + encoded_new + abc[end:]
+    if renamed[:start] != abc[:start] or renamed[start + len(encoded_new) :] != abc[end:]:
+        raise ComposeRejected("class alias")
+    new_pool_end, new_entries = _string_entries(renamed)
+    delta = len(encoded_new) - len(encoded_old)
+    if new_pool_end != pool_end + delta:
+        raise ComposeRejected("class alias")
+    expected = [new if text == old else text for _start, _end, text in entries]
+    if [text for _start, _end, text in new_entries] != expected:
+        raise ComposeRejected("class alias")
+    if sum(text == new for _start, _end, text in new_entries) != 1 or any(
+        text == old for _start, _end, text in new_entries
+    ):
+        raise ComposeRejected("class alias")
+    return renamed, {"start": start, "end": end, "delta": delta, "pool_end": pool_end, "old": old, "new": new}
 
 
-def _instruction_bytes(instructions: list[tuple[int, int, int | None]]) -> list[bytes]:
-    rendered = []
-    for _pc, opcode, operand in instructions:
-        if opcode in _NO_OPERAND:
-            rendered.append(bytes((opcode,)))
-        elif opcode in _U8_OPERAND and type(operand) is int:
-            rendered.append(bytes((opcode, operand)))
-        elif opcode in _U30_OPERAND and type(operand) is int:
-            rendered.append(bytes((opcode,)) + _u30(operand))
-        else:
-            raise ComposeRejected("opcode")
-    return rendered
-
-
-def _require_layout(
-    abc: bytes,
-    profile: ComposeProfile,
-    string_end: int,
-    multiname_end: int,
-    super_end: int,
-    getlex_spans: list[tuple[int, int]],
-    string_entry: bytes,
-    qname: bytes,
-) -> None:
+def _require_original_bodies(original: bytes, renamed: bytes, profile: ComposeProfile, rename: dict) -> None:
+    if profile.super_bytes != _u30(profile.old_multiname_index) or not profile.super_bytes:
+        raise ComposeRejected("preserved bytes")
+    super_end = profile.super_offset + len(profile.super_bytes)
     code_end = profile.code_offset + profile.code_length
-    mutations = [
-        (profile.string_count_offset, string_end),
-        (profile.multiname_count_offset, multiname_end),
-        (profile.super_offset, super_end),
-        getlex_spans[0],
-        getlex_spans[1],
-    ]
-    for start, end in mutations:
-        if start < 0 or end > len(abc) or start >= end:
-            raise ComposeRejected("truncated movie")
-    ordered = sorted(mutations)
-    if ordered != mutations or any(left[1] > right[0] for left, right in zip(ordered, ordered[1:])):
-        raise ComposeRejected("overlapping splice")
-    if not string_end <= profile.string_pool_end <= profile.multiname_count_offset:
-        raise ComposeRejected("overlapping splice")
-    if not multiname_end <= profile.multiname_pool_end <= profile.super_offset:
-        raise ComposeRejected("overlapping splice")
-    if not super_end <= getlex_spans[0][0] <= getlex_spans[0][1] <= getlex_spans[1][0]:
-        raise ComposeRejected("overlapping splice")
-    if getlex_spans[1][1] > code_end:
-        raise ComposeRejected("overlapping splice")
-    inserts = (profile.string_pool_end, profile.multiname_pool_end)
-    read_only = [(profile.menus_string_offset, profile.menus_string_offset + len(b"\x05menus"))]
-    name_index, name_end = _read_u30(abc, profile.namespace_kind_offset + 1)
-    if name_index != profile.namespace_name_index:
-        raise ComposeRejected("namespace")
-    read_only.append((profile.namespace_kind_offset, name_end))
-    for start, blob in profile.preserved_spans:
-        read_only.append((start, start + len(blob)))
-        if abc[start : start + len(blob)] != blob:
-            raise ComposeRejected("preserved bytes")
-    for start, end in read_only:
-        if start < 0 or end > len(abc):
-            raise ComposeRejected("truncated movie")
-        if any(start < insert < end for insert in inserts) or any(
-            _overlaps((start, end), mutation) for mutation in mutations
-        ):
-            raise ComposeRejected("overlapping splice")
-    if not string_entry or not qname:
-        raise ComposeRejected("splice")
+    delta = rename["delta"]
+    if not (
+        rename["end"] <= profile.super_offset < super_end <= profile.code_offset < code_end <= len(original)
+    ):
+        raise ComposeRejected("preserved bytes")
+    if code_end + delta > len(renamed):
+        raise ComposeRejected("preserved bytes")
+    superclass = original[profile.super_offset : super_end]
+    code = original[profile.code_offset : code_end]
+    if superclass != profile.super_bytes or _sha256(code) != profile.code_sha256:
+        raise ComposeRejected("preserved bytes")
+    if renamed[profile.super_offset + delta : super_end + delta] != superclass:
+        raise ComposeRejected("preserved bytes")
+    if renamed[profile.code_offset + delta : code_end + delta] != code:
+        raise ComposeRejected("preserved bytes")
 
 
-def _join_splices(
-    abc: bytes,
-    profile: ComposeProfile,
-    string_end: int,
-    multiname_end: int,
-    super_end: int,
-    getlex_spans: list[tuple[int, int]],
-    string_entry: bytes,
-    qname: bytes,
-    new_multiname_index: int,
-) -> bytes:
-    first, second = getlex_spans
-    parts = (
-        abc[: profile.string_count_offset],
-        _u30(profile.string_count + 1),
-        abc[string_end : profile.string_pool_end],
-        string_entry,
-        abc[profile.string_pool_end : profile.multiname_count_offset],
-        _u30(profile.multiname_count + 1),
-        abc[multiname_end : profile.multiname_pool_end],
-        qname,
-        abc[profile.multiname_pool_end : profile.super_offset],
-        _u30(new_multiname_index),
-        abc[super_end : first[0]],
-        _u30(new_multiname_index),
-        abc[first[1] : second[0]],
-        _u30(new_multiname_index),
-        abc[second[1] :],
-    )
-    return b"".join(parts)
+def _require_root_names(original_abc: bytes, authored_abc: bytes, profile: ComposeProfile) -> None:
+    _require_pool_name(original_abc, profile.renamed_original_root, profile.original_root_name)
+    _require_pool_name(authored_abc, profile.original_root_name, profile.wrapper_class)
+    _pool_end, entries = _string_entries(authored_abc)
+    texts = [text for _start, _end, text in entries]
+    if texts.count(profile.menu_class) != 1 or texts.count(profile.screen_class) != 1:
+        raise ComposeRejected("compiled class")
 
 
-def _require_exact_splices(
-    original: bytes,
-    patched: bytes,
-    profile: ComposeProfile,
-    string_entry: bytes,
-    qname: bytes,
-    getlex_spans: list[tuple[int, int]],
-    super_end: int,
-    string_end: int,
-    multiname_end: int,
-) -> None:
-    qname_at = profile.multiname_pool_end + len(string_entry)
-    if patched[qname_at : qname_at + len(qname)] != qname:
-        raise ComposeRejected("splice")
-    without_qname = patched[:qname_at] + patched[qname_at + len(qname) :]
-    string_at = profile.string_pool_end
-    if without_qname[string_at : string_at + len(string_entry)] != string_entry:
-        raise ComposeRejected("splice")
-    restored = bytearray(without_qname[:string_at] + without_qname[string_at + len(string_entry) :])
-    spans = (
-        (profile.string_count_offset, string_end),
-        (profile.multiname_count_offset, multiname_end),
-        (profile.super_offset, super_end),
-        getlex_spans[0],
-        getlex_spans[1],
-    )
-    for start, end in spans:
-        restored[start:end] = original[start:end]
-    if bytes(restored) != original:
-        raise ComposeRejected("splice")
-    for start, blob in profile.preserved_spans:
-        shifted = _shift(
-            start, profile.string_pool_end, len(string_entry), profile.multiname_pool_end, len(qname)
-        )
-        if patched[shifted : shifted + len(blob)] != blob:
-            raise ComposeRejected("preserved bytes")
+def _require_pool_name(abc: bytes, present: str, absent: str) -> None:
+    _pool_end, entries = _string_entries(abc)
+    texts = [text for _start, _end, text in entries]
+    if texts.count(present) != 1 or texts.count(absent) != 0:
+        raise ComposeRejected("class alias")
 
 
-def _shift(offset: int, string_end: int, string_len: int, multiname_end: int, qname_len: int) -> int:
-    shifted = offset
-    if offset >= string_end:
-        shifted += string_len
-    if offset >= multiname_end:
-        shifted += qname_len
-    return shifted
-
-
-def _bind_mod_abc(mod_abc: bytes, *, session: str, view_url: str) -> bytes:
+def _bind_mod_abc(mod_abc: bytes, *, session: str, view_url: str, profile: ComposeProfile) -> bytes:
     if len(mod_abc) < 4 or mod_abc[:4] != struct.pack("<HH", 16, 46):
         raise ComposeRejected("mod abc")
     pool_end, entries = _string_entries(mod_abc)
@@ -669,11 +628,24 @@ def _bind_mod_abc(mod_abc: bytes, *, session: str, view_url: str) -> bytes:
         VIEW_SENTINEL: view_url.encode("ascii"),
         SESSION_SENTINEL: session.encode("ascii"),
     }
-    found = {text: [] for text in (VIEW_SENTINEL, SESSION_SENTINEL, NEW_CLASS, SCREEN_CLASS)}
+    found = {
+        text: []
+        for text in (
+            VIEW_SENTINEL,
+            SESSION_SENTINEL,
+            profile.menu_class,
+            profile.screen_class,
+            profile.wrapper_class,
+        )
+    }
     for start, end, text in entries:
         if text in found:
             found[text].append((start, end))
-    if len(found[NEW_CLASS]) != 1 or len(found[SCREEN_CLASS]) != 1:
+    if (
+        len(found[profile.menu_class]) != 1
+        or len(found[profile.screen_class]) != 1
+        or len(found[profile.wrapper_class]) != 1
+    ):
         raise ComposeRejected("compiled class")
     if any(len(found[text]) != 1 for text in replacements):
         raise ComposeRejected("sentinel")
@@ -733,11 +705,11 @@ def _assemble(
     header_end: int,
     tags: list[_Tag],
     doabc_index: int,
-    spliced_abc: bytes,
+    renamed_abc: bytes,
     bound_abc: bytes,
     document_symbol: bytes,
 ) -> bytes:
-    patched = _encode_tag(82, struct.pack("<I", 1) + b"\0" + spliced_abc)
+    patched = _encode_tag(82, struct.pack("<I", 1) + b"\0" + renamed_abc)
     added = _encode_tag(82, struct.pack("<I", 1) + ADDED_DOABC_NAME.encode("ascii") + b"\0" + bound_abc)
     ordered = [tag.raw for tag in tags]
     ordered[doabc_index] = patched
@@ -763,7 +735,7 @@ def _require_output(
     header_end: int,
     original_tags: list[_Tag],
     profile: ComposeProfile,
-    spliced: bytes,
+    renamed_abc: bytes,
     bound: bytes,
 ) -> None:
     if output[:4] != original[:4] or output[8:header_end] != original[8:header_end]:
@@ -781,13 +753,13 @@ def _require_output(
     output_symbols = [tag for tag in tags if tag.code == 76]
     if len(original_symbols) != 1 or len(output_symbols) != 1:
         raise ComposeRejected("output")
-    if output_symbols[0].payload != _rebind_document_symbol(original_symbols[0].payload):
+    if output_symbols[0].payload != _rebind_document_symbol(original_symbols[0].payload, profile):
         raise ComposeRejected("document class")
     if [tag.code for tag in tags].count(82) != 2:
         raise ComposeRejected("output")
     if tags[profile.doabc_index + 1].code != 82 or tags[profile.doabc_index + 2].code != 76:
         raise ComposeRejected("output")
-    if _abc_from_doabc(tags[profile.doabc_index].payload) != spliced:
+    if _abc_from_doabc(tags[profile.doabc_index].payload) != renamed_abc:
         raise ComposeRejected("output")
     added = tags[profile.doabc_index + 1].payload
     prefix = struct.pack("<I", 1) + ADDED_DOABC_NAME.encode("ascii") + b"\0"
@@ -796,8 +768,9 @@ def _require_output(
     rebound = _symbol_entries(tags[profile.doabc_index + 2].payload)
     if dict(rebound).get(profile.symbol_character) != profile.symbol_name:
         raise ComposeRejected("symbol class")
-    if dict(rebound).get(DOCUMENT_CHARACTER) != DOCUMENT_TARGET_NAME:
+    if dict(rebound).get(DOCUMENT_CHARACTER) != profile.document_target_name:
         raise ComposeRejected("document class")
+    _require_root_names(renamed_abc, bound, profile)
 
 
 def _metadata(
@@ -807,21 +780,13 @@ def _metadata(
     bound: bytes,
     output: bytes,
     profile: ComposeProfile,
-    splice: dict,
+    original_rename: dict,
+    authored_rename: dict,
     session: str,
     view_url: str,
     input_tag_count: int,
 ) -> dict:
-    string_len = len(splice["string_entry"])
-    qname_len = len(splice["qname"])
-    super_offset = _shift(
-        profile.super_offset, profile.string_pool_end, string_len, profile.multiname_pool_end, qname_len
-    )
-    getlex_offsets = [
-        _shift(start, profile.string_pool_end, string_len, profile.multiname_pool_end, qname_len)
-        for start, _end in splice["getlex_spans"]
-    ]
-    return {
+    metadata = {
         "constructed": True,
         "production_ready": False,
         "runtime_verified": False,
@@ -835,29 +800,30 @@ def _metadata(
         "output_sha256": _sha256(output),
         "source_sha256": profile.source_sha256,
         "screen_source_sha256": profile.screen_source_sha256,
-        "authored_class_count": 2,
-        "authored_classes": [f"menus::{NEW_CLASS}", SCREEN_CLASS],
-        "class_name": f"menus::{NEW_CLASS}",
+        "root_movie_source_sha256": profile.root_movie_source_sha256,
+        "authored_class_count": len(profile.authored_classes),
+        "authored_classes": list(profile.authored_classes),
+        "library_classes": list(LIBRARY_CLASSES),
+        "compiled_classes": list(profile.compiled_classes),
+        "class_name": f"menus::{profile.menu_class}",
+        "runtime_root_class": profile.original_root_name,
+        "original_root_alias": profile.renamed_original_root,
         "timeline_character": profile.symbol_character,
         "timeline_name": profile.symbol_name,
         "document_character": DOCUMENT_CHARACTER,
-        "document_symbol_from": DOCUMENT_SOURCE_NAME,
-        "document_symbol_to": DOCUMENT_TARGET_NAME,
+        "document_symbol_from": profile.document_source_name,
+        "document_symbol_to": profile.document_target_name,
         "online_suppression_verified": False,
         "class_loader_verified": False,
         "script_index": profile.script_index,
         "method_index": profile.method_index,
         "class_index": profile.class_index,
         "old_multiname_index": profile.old_multiname_index,
-        "new_string_index": splice["new_string_index"],
-        "new_multiname_index": splice["new_multiname_index"],
-        "namespace_index": profile.namespace_index,
-        "namespace_kind": 0x16,
-        "string_record_bytes": string_len,
-        "qname_record_bytes": qname_len,
-        "bytes_inserted": string_len + qname_len,
-        "patched_super_offset": super_offset,
-        "patched_getlex_operand_offsets": getlex_offsets,
+        "superclass_offset": profile.super_offset,
+        "script_code_offset": profile.code_offset,
+        "script_code_sha256": profile.code_sha256,
+        "original_string_delta": original_rename["delta"],
+        "authored_string_delta": authored_rename["delta"],
         "doabc_count": 2,
         "added_doabc_name": ADDED_DOABC_NAME,
         "input_tag_count": input_tag_count,
@@ -867,10 +833,11 @@ def _metadata(
         "session_utf8_length": len(session.encode("ascii")),
         "view_url_utf8_length": len(view_url.encode("ascii")),
     }
-
-
-def _overlaps(left: tuple[int, int], right: tuple[int, int]) -> bool:
-    return left[0] < right[1] and right[0] < left[1]
+    if profile.scene_id != "frontend":
+        metadata["scene_id"] = profile.scene_id
+        metadata["export_name"] = profile.export_name
+        metadata["package_relative"] = profile.package_relative
+    return metadata
 
 
 def _sha256(data: bytes) -> str:

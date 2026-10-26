@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#09121d">
-  <meta name="description" content="Download the My Career Training native-menu test build for offline Rocket League on Windows and Steam. Compiled portable package; in-game verification is still pending.">
+  <meta name="description" content="My Career Training is an offline Rocket League career project for Windows. The October 24 test build has a confirmed startup crash and is being repaired.">
   <title>My Career Training</title>
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="stylesheet" href="styles.css">
@@ -12,23 +12,23 @@
 <body>
   <main>
     <img class="app-icon" src="assets/icon.svg" width="64" height="64" alt="">
-    <p class="eyebrow">OFFLINE ROCKET LEAGUE CAREER · TEST BUILD</p>
+    <p class="eyebrow">OFFLINE ROCKET LEAGUE CAREER · REPAIR IN PROGRESS</p>
     <h1>My Career Training</h1>
     <p class="intro">A solo Rocket League career played through a personalized menu in offline mode.</p>
 
     <div class="actions">
-      <a class="button download" href="https://github.com/sloppamadewithlove/my-career-training/releases/download/native-candidate-2026-10-24/MyCareerTraining-NativeCandidate-2fed6cd.zip">Download Windows test build</a>
-      <a class="button github" href="https://github.com/sloppamadewithlove/my-career-training/releases/tag/native-candidate-2026-10-24">Read test build notes</a>
+      <a class="button github" href="https://github.com/sloppamadewithlove/my-career-training/tree/fix/windows-startup-and-download">Follow the repair</a>
+      <a class="button github" href="https://github.com/sloppamadewithlove/my-career-training/releases/tag/native-candidate-2026-10-24">Previous test build notes</a>
     </div>
-    <p class="download-details">24 October 2026 · Windows 64-bit · Portable ZIP · 267 MB</p>
+    <p class="download-details">The October 24 Windows ZIP has a confirmed startup crash. A replacement download will be listed after testing.</p>
 
     <div class="notes">
-      <p><strong>How to start:</strong> Close Rocket League, extract the entire ZIP, open the extracted folder and run <strong>MyCareerTraining.exe</strong>. Keep all the files together. The app starts the offline session and manages its temporary plugin setup.</p>
-      <p><strong>What you need:</strong> Your installed Steam copy of Rocket League and BakkesMod. This package is already compiled; Visual Studio, Python and Cursor are not required. This candidate targets the Steam build recorded on SLAVAPC (Steam build ID 25914621); other builds are refused.</p>
-      <p><strong>Included for testing:</strong> My Career, Training, Garage, Workshop, Community and Settings routes, with career management, local appearance options and installed Steam Workshop map selection.</p>
-      <p><strong>Test status:</strong> Automated package and code checks passed. The custom menu, button navigation, gameplay and restoration of the normal game still need in-game testing. This is a development candidate, not a verified finished release.</p>
+      <p><strong>What happened:</strong> Live Windows tests reproduced a crash while Rocket League loads the replacement menu. Passing code checks did not prove that the game worked. The old ZIP is not a working release.</p>
+      <p><strong>Simpler installation:</strong> The replacement is being prepared as one Windows setup file and one My Career Training shortcut. The Worker is an internal helper; players should never need to open it.</p>
+      <p><strong>What you need:</strong> Your installed Steam copy of Rocket League and BakkesMod. BakkesMod hosts the in-game controls; RLBot runs the offline bots. Python, Visual Studio and Cursor are build tools, not player requirements. The current test targets Steam build ID 25914621; other builds are refused.</p>
+      <p><strong>Planned menu:</strong> My Career, Training, Garage, Workshop, Community and Settings. The custom buttons, gameplay and return to normal Rocket League must pass live testing before this is described as working.</p>
       <p><strong>Current limits:</strong> Car bodies use your owned Garage choices. Imported local maps are not launchable yet. Community plugins can be downloaded and cached; only the reviewed Speedflip Trainer has a trial activation route.</p>
-      <p><strong>Offline sessions:</strong> Gameplay is offline; normal account and cloud connections are not blocked. Use the app's Exit control and let recovery finish before starting normal Rocket League.</p>
+      <p><strong>Offline sessions:</strong> Rocket League's official offline launch mode disables Easy Anti-Cheat for that session. Its notice offers instructions for enabling it: choose <strong>No</strong> to dismiss those instructions and remain offline. Normal account and cloud connections are not blocked.</p>
     </div>
     <nav class="links" aria-label="Project information">
       <a href="https://github.com/sloppamadewithlove/my-career-training">View the GitHub repository <span aria-hidden="true">↗</span></a>

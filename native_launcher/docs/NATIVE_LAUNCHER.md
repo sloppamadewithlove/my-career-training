@@ -24,12 +24,21 @@ The helper does not accept an executable, a DLL, a process id, or extra argument
 
 `session` is a canonical lowercase UUID. It is the nonce written to `MCT_NATIVE_MOVIE_SESSION`. `game_root` is the absolute installation directory that contains `Binaries` and `TAGame`. `private_package` is an absolute regular file outside that directory. Unknown fields, nested values, duplicate keys, uppercase hashes, and uppercase UUIDs are rejected. Strings are UTF-8; the helper does not fetch a URL.
 
+Two optional flat pairs may be added without replacing the main fields. Both members of a pair are required together, and at most these two extras are accepted:
+
+- `private_midgame_package` and `private_midgame_package_sha256`
+- `private_endgame_package` and `private_endgame_package_sha256`
+
+The plan cannot name a source path, a source hash, an executable, or a package id outside this fixed set. Source paths are derived from `game_root` and the compiled relative pins. With both extra pairs absent, the plan and the launch receipt keep the original fields.
+
 These pins are compiled into the helper. The plan cannot replace them.
 
 | File | Relative path | Size | SHA-256 |
 | --- | --- | --- | --- |
 | Executable | `Binaries/Win64/RocketLeague.exe` | 39727616 | `56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7` |
 | Source package | `TAGame/CookedPCConsole/GFX_MainMenu_SF.upk` | 3418271 | `d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65` |
+| Midgame source | `TAGame/CookedPCConsole/GFX_MidGameMenu_SF.upk` | 814718 | `25176a42c7990fce5670f2907020a3641a521553a4aa3c583588717b36e40f50` |
+| Endgame source | `TAGame/CookedPCConsole/GFX_EndGameMenu_SF.upk` | 4348661 | `dc4735a75d5ec8ffff423c4db92c3fad1f859191bf384e20ad949e4ed757b3cc` |
 | Private package | caller path, outside the game | 1 byte through 16 MiB | caller SHA-256, checked from the held handle |
 
 The adjacent DLL is `MctNativeFileView64.dll`. Its SHA-256 is generated from the linked binary and checked from a read-only handle. A plan cannot name a different DLL. The DLL path must round-trip through the process ANSI code page with `WC_NO_BEST_FIT_CHARS`; a lossy substitution is rejected because Detours takes that path as `LPCSTR`.
@@ -38,15 +47,17 @@ Paths are canonical drive paths from `native_file_view/include/FileViewPath.h`. 
 
 ## Process
 
-The helper holds read-only handles to the executable, source package, private package, and DLL, sharing only `FILE_SHARE_READ`, until the owned process exits. Hashes are read from those handles. It refuses the launch when a Toolhelp snapshot shows any `RocketLeague.exe`. That snapshot does not open those processes. It creates only the pinned executable with `DetourCreateProcessWithDllExW` and `CREATE_SUSPENDED`.
+The helper holds read-only handles to the executable, every approved source package, every approved private package, and the DLL, sharing only `FILE_SHARE_READ`, until the owned process exits. A repeated path or file id across those files is rejected. Hashes are read from those handles. It refuses the launch when a Toolhelp snapshot shows any `RocketLeague.exe`. That snapshot does not open those processes. It creates only the pinned executable with `DetourCreateProcessWithDllExW` and `CREATE_SUSPENDED`.
 
 The command line is exactly:
 
-`RocketLeague.exe -noeac -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie`
+`RocketLeague.exe -rlbot RLBot_ControllerURL=127.0.0.1:23233 RLBot_PacketSendRate=240 -nomovie`
 
-`-noeac` is the existing offline mode used by `bootstrap.py`, not an online anti-cheat bypass. The working directory is the executable's parent. Child handles are not inherited. The game is not started hidden; the helper itself is a windowless program. The child environment is a copy of the parent block with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the session. The parent process environment is unchanged.
+The launch mode follows the pinned [RLBot v5.0.0-rc18 Steam launcher](https://github.com/RLBot/core/blob/v5.0.0-rc18/RLBotCS/ManagerTools/LaunchManager/Steam.Windows.cs), which supplies the RLBot arguments and Steam environment without adding `-noeac`.
 
-While the new process is suspended, the helper checks its pid, creation time, Win32 image path, and NT image path against the held executable. It copies one `MctFileViewScopeV1` with `DetourCopyPayloadToProcess` and GUID `{7B1E6A14-2C4F-4A8E-9D33-5F0B8C2E71A6}`. The scope names the source package and the private package. It checks again for any other `RocketLeague.exe` and resumes only after that check. On a failure before resume, it calls `TerminateProcess` only on the new process handle and waits up to 5 seconds. It does not open or kill a process by pid, and it does not kill a game that was already running.
+`-rlbot` selects RLBot's offline mode. Do not combine it with `-noeac`: the supported game build connected to RLBot and produced live packets with the official RLBot argument set, while adding `-noeac` prevented that connection in the controlled test. Manual BakkesMod-only `-noeac` guidance is a separate mode. The working directory is the executable's parent. Child handles are not inherited. The game is not started hidden; the helper itself is a windowless program. The child environment is a copy of the parent block with `SteamAppId=252950`, `SteamGameId=252950`, and `MCT_NATIVE_MOVIE_SESSION` set to the session. The parent process environment is unchanged.
+
+While the new process is suspended, the helper checks its pid, creation time, Win32 image path, and NT image path against the held executable. With no extra package it copies one `MctFileViewScopeV1`. With one or both extras it copies one fixed `MctFileViewScopeV2` (count 2 or 3, three slots, ids main=1, midgame=2, endgame=3). Both use `DetourCopyPayloadToProcess` and GUID `{7B1E6A14-2C4F-4A8E-9D33-5F0B8C2E71A6}`. The scope names only those approved packages. It checks again for any other `RocketLeague.exe` and resumes only after that check. On a failure before resume, it calls `TerminateProcess` only on the new process handle and waits up to 5 seconds. It does not open or kill a process by pid, and it does not kill a game that was already running.
 
 If that wait confirms the child has exited, the helper closes the process and thread handles and then drops the file holds. If `TerminateProcess` fails and the child is still alive, or the wait times out, the helper keeps those CreateProcess handles and the file holds. It writes the error receipt, does not write a launch receipt, and stays alive until the owned process handle is signaled. A partial create that returned a handle is handled the same way. After a confirmed exit, process handles are closed. They are not closed while the child may still be running.
 
@@ -94,10 +105,11 @@ The integrated bootstrap requires Steam, the recorded installation, and no game 
 from my_career_training.native_launch import launch_native_offline
 
 owner = launch_native_offline(game_root, private_package, private_sha256, session)
+# optional: additional_packages={"midgame": {"private_package": path, "private_package_sha256": digest}}
 game_identity = owner.identity
 ```
 
-The adapter reads bounded receipts with a deadline and retains the helper. An uncertain launch leaves plugin recovery deferred, including when the helper has not created its child yet. The shared plugin-session guard blocks recovery while a native helper remains. Do not kill the helper when the desktop app exits or put the game in a kill-on-close job. `production_ready`, `game_verified`, and `file_view_observed` remain false.
+The adapter reads bounded receipts with a deadline and retains the helper. An uncertain launch leaves plugin recovery deferred, including when the helper has not created its child yet. The shared plugin-session guard blocks recovery while a native helper remains. Do not kill the helper when the desktop app exits or put the game in a kill-on-close job. `production_ready`, `game_verified`, and `file_view_observed` remain false. A requested extra adds `private_midgame_package`, `private_midgame_package_sha256`, and `source_midgame_package_sha256`, and the same three names for endgame. The receipt limit is 8192 bytes. The build runtime receipt is unchanged and still pins the helper and file-view DLL only.
 
 The online handoff stays the existing lifecycle: save, stop the worker, save, `graceful_close` of the owned window (`WM_CLOSE` only), wait until no Rocket League process remains, `restore_plugin_session`, recheck that no game started during cleanup, then the normal Steam online launch. The helper only waits for the process it created. It does not restore BakkesMod files or launch online.
 

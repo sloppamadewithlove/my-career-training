@@ -1,8 +1,14 @@
-# 0.3.0 development: native-menu installer held
+# Release history
 
-There is no downloadable native-menu edition yet. The public installer remains
-held under the owner's native-menu requirement. GitHub source changes and green
-Windows checks must not be presented as a completed download.
+For current instructions and evidence, read [PROJECT_STATUS.md](PROJECT_STATUS.md).
+The 24 October native candidate ZIP was published for testing and failed player
+startup. The stable installer remains held. The repair is tracked separately;
+source checks alone do not establish a working download.
+
+## Earlier 0.3.0 development snapshot (historical)
+
+The following describes an earlier revision, before the native candidate was
+published. It does not supersede current status or the candidate source.
 
 The development community library now separates downloading from enabling a
 plugin. A player can check an official BakkesPlugins ID and cache its archive

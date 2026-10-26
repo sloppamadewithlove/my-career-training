@@ -297,6 +297,17 @@ def test_recording_bound_import_rejection_and_private_provenance(tmp_path):
     assert path.read_bytes() == original
 
 
+def test_observed_boost_is_recorded_but_remains_optional_for_legacy_personal_recordings():
+    value = recording()
+    assert [sample["boost"] for sample in value["samples"]] == [100, 100]
+    assert validate_recording(value) == []
+
+    legacy = copy.deepcopy(value)
+    for sample in legacy["samples"]:
+        sample.pop("boost")
+    assert validate_recording(legacy) == []
+
+
 def test_personal_bests_require_compatibility_and_never_become_expert():
     candidate = recording()
     old = copy.deepcopy(candidate)
@@ -320,7 +331,7 @@ def test_pose_interpolation_wraps_yaw_and_does_not_bridge_gaps():
     front = next(x for x in lines if x["style"] == "front")
     # The halfway nose still points toward negative x, not across a 360-degree spin.
     assert front["end"][0] < front["start"][0]
-    assert {line["style"] for line in lines} == {"outline", "front", "roof", "underside"}
+    assert {line["style"] for line in lines} == {"outline", "front", "roof", "underside", "wheel"}
     assert interpolate_pose(value, 1 / 240, speed=0.5)["time"] == pytest.approx(1 / 480)
     value["samples"][1]["packet_gap"] = True
     assert interpolate_pose(value, 1 / 240) is None

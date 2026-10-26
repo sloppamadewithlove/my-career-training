@@ -8,9 +8,11 @@
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
 #include "NativeWorkshopLauncher.h"
 #include "NativeCommunityHost.h"
+#include "NativeTrainingPackHost.h"
 #endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
+#include "TrainingGhostInput.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -69,6 +71,7 @@ private:
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     std::unique_ptr<mct::NativeWorkshopLauncher> workshopLauncher_;
     std::unique_ptr<mct::NativeCommunityHost> communityHost_;
+    std::unique_ptr<mct::NativeTrainingPackHost> trainingPackHost_;
     std::string workshopSession_;
     std::uint64_t workshopGeneration_ = 1;
     mct::NativeCommunityObservation communityObservation() const;
@@ -77,9 +80,11 @@ private:
     bool communityReadCvar(const std::string& name, double& value) const;
     bool communityWriteCvar(const std::string& name, double value) const;
     void communityExecute(const std::string& command);
+    mct::NativeTrainingPackObservation trainingPackObservation() const;
+    void trainingPackExecute(const std::string& command);
 #endif
     std::atomic<bool> nativeMovieReady_{false};
-    std::atomic<bool> menuOpen_{true};
+    std::atomic<bool> menuOpen_{!MCT_ENABLE_NATIVE_MOVIE_TRIAL};
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};
@@ -116,6 +121,7 @@ private:
     bool scanningProducts_ = true;
     std::vector<MctProduct> productScan_;
     mct::CosmeticOverrideState cosmeticOverride_;
+    mct::TrainingGhostInput trainingGhostInput_;
     bool resumePending_ = false;
     bool resumeEscapeSent_ = false;
     bool pauseCaptureSuppressed_ = false;
@@ -163,6 +169,7 @@ private:
     void removeProbeHooks();
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
+    void pollTrainingGhostToggle(const mct::Json& state, const MctRuntime& runtime);
     void processLocalRequests(MctRuntime& result);
     bool restoreCosmetics();
     void advanceResume(MctRuntime& result);
@@ -176,8 +183,10 @@ private:
     void dispatchWorkshopCommand(const std::string& command);
     void maintainWorkshop();
     void maintainCommunity();
+    void maintainTrainingPack();
     void shutdownCommunity();
     mct::Json communityStatus() const;
+    mct::Json trainingPackStatus() const;
     void loadPreferences();
     void savePreferences();
     bool command(const std::string& action, mct::Json payload = mct::Json::object());

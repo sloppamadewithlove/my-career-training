@@ -46,7 +46,7 @@
     "production_ready": false,
     "runtime_verified": false
   },
-  "computer": "SLAVAPC",
+  "computer": "windows-test-host",
   "operating_system": "Windows 11 Home 64-bit, 10.0.26200",
   "game_or_injector_running_at_completion": false,
   "notes": [

@@ -66,14 +66,13 @@ bool offlineCommandLine() {
     int count = 0;
     auto args = CommandLineToArgvW(GetCommandLineW(), &count);
     if (!args) return false;
-    bool offline = false, bot = false, online = false;
+    bool bot = false, conflicting = false;
     for (int i = 1; i < count; ++i) {
-        offline = offline || _wcsicmp(args[i], L"-noeac") == 0;
         bot = bot || _wcsicmp(args[i], L"-rlbot") == 0;
-        online = online || _wcsicmp(args[i], L"-eac") == 0;
+        conflicting = conflicting || _wcsicmp(args[i], L"-noeac") == 0 || _wcsicmp(args[i], L"-eac") == 0;
     }
     LocalFree(args);
-    return offline && bot && !online;
+    return bot && !conflicting;
 }
 
 bool identifier(const std::string& value) {

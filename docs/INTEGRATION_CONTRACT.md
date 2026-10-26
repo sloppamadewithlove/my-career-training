@@ -11,6 +11,18 @@ Pure functions returning NEW career dicts (never mutate caller on failure): `new
 ## Training (`training/`)
 `catalog()` returns eight lesson dicts with id,title,description,steps,starting_state,targets,timeout,assistance_defaults,reference_status. `TrainingEngine(lesson_id, preferences=None)` with `reset()`, `update(frame)`, `summary()`, `recording()`, state/finished properties if useful. Frame normalized: time, dt, car:{position:[x,y,z],velocity:[x,y,z],rotation:[pitch,yaw,roll],angular_velocity:[x,y,z],boost,wheel_contact,has_jumped,has_double_jumped,has_dodged,dodge_timeout,air_state,latest_touch?}, ball:{position,velocity,latest_touch?}, actions:{throttle,steer,pitch,yaw,roll,jump,boost,handbrake}, packet_gap boolean. Provide wireframe ghost line geometry independent of SDK and recording validation/interpolation. Assistance keys `ghost`, `explanations`, `actions`, `timing`, `auto_reset`, `playback_speed`. No fake expert recordings.
 
+## Development bot-reference capture
+
+`reference_capture.py` supplies a source-only, private-profile opt-in for actual
+speed-flip bot capture; it adds no public UI action. In this mode only the
+designated mapped bot is controlled, observed and reset; normal lessons retain
+their Human actor. Loss of capture scope ends the owned runtime. Recordings keep
+actual packet actions and optional observed wheel contact/angular velocity.
+Candidate files and receipts stay private and unvalidated. The pure controller
+and evidence checks are in `training/bot_reference.py`; see
+[BOT_REFERENCE_CAPTURE.md](BOT_REFERENCE_CAPTURE.md) for the configuration
+acknowledgement and no-promotion contracts.
+
 ## Bots (`bots/`)
 `SpecialistController(role="all-rounder", level=1, difficulty=0.5, seed=0)`; `step(frame, player_index, intents=None)` -> controls dict throttle/steer/pitch/yaw/roll/jump/boost/handbrake. Frame includes time, cars:[{index,team,position,velocity,rotation,boost,wheel_contact}], ball:{position,velocity}, prediction:[{time,position}], boosts:[{position,active,is_full}]. Roles keeper/defender/passer/attacker/all-rounder. Expose provider manifest/capabilities honestly experimental without rank certification. No RLBot imports in pure bot modules.
 
@@ -21,6 +33,13 @@ Injectable `Lifecycle` callbacks save, stop worker, close owned game gracefully,
 Context object `backend` has `state` QVariantMap and `dispatch(action, payload)` Slot(str,QVariantMap); stateChanged updates state. UI reads backend.state with defaults. Main state shape: page string, career dict/null, standings list, next_fixture dict/null, lessons list, selected_lesson dict/null, settings dict, lesson_preferences dict, session {state,message,busy}, error string, notice string, diagnostics dict, content list, garage list, latest_attempt dict/null. Main actions: navigate {page}, new_career {team_name,format,recruits?}, play_match {}, lineup {ids}, replace_recruit {outgoing,incoming}, rename_recruit {id,name}, set_format {format}, set_difficulty {baseline,curve}, next_season {}, abandon_fixture {}, select_lesson {id}, start_lesson {id}, retry_lesson {}, stop_session {}, assistance {id,key,value}, settings {key,value}, online_request {}, online_confirm {yes}, export_save {}, import_save {}, diagnostics {}, open_data {}, loadout {id,car_id,primary_color,secondary_color}, open_link {url}, import_map {}, restore_explanations {id}. Parent owns bridge behavior; notify parent of extra actions needed. Use QtQuick.Controls and Layouts. Avoid required JS accessing undefined. No placeholder actions; unavailable integration actions explain capability.
 
 ## Community plugin downloads
+
+The separate public catalog and normal-speed ghost-practice contracts are
+documented in [TRAINING_WORKSHOP_IMPLEMENTATION.md](TRAINING_WORKSHOP_IMPLEMENTATION.md).
+Catalog rows do not grant installation or activation capability. The native
+pause ghost controls use command/session acknowledgements and remain separate
+from legacy recording playback. Do not remove either action from the native
+host allowlist when merging independent Training and Workshop patches.
 
 `community_plugins.py` owns official metadata lookup and bounded download into
 the app's private `community-plugins` cache. It does not extract, execute, install
@@ -78,5 +97,154 @@ the existing domain edit checks. Neither action accepts caller text or a path.
 `backup_save {}` saves and exports to a distinct timestamped file in the app's
 data folder without a dialog; arbitrary destination payloads are refused.
 
+Native Career exposes an explicit confirmation before restarting an unfinished
+fixture. Its `abandon_fixture` payload binds `expected_career_id`,
+`expected_fixture_id` and `expected_session_id`. The backend rejects partial,
+extra, changed or live-worker confirmations without writing the save. A valid
+restart returns that fixture to the schedule without awarding a result; existing
+completed matches and squad data remain. Legacy empty-payload abandon calls keep
+their existing worker-stop behavior.
+
+The native movie host derives `frontend`, `pause`, or `results` from the owned
+offline game's SDK state. Bridge JSON and movie messages cannot select a surface.
+Surface changes clear queued callbacks and readiness. The common view includes
+`surface`; pause/results commands include it and the current generation/revision.
+Their ready message is exactly `protocol`, `session`, `surface`, `generation`,
+`event:"ready"`. The legacy three-field frontend ready message and five-field
+frontend command are accepted only while the actual frontend is active.
+The rebuilt frontend sends surface and generation in READY too; legacy READY
+must not satisfy Return arrival.
+
+Pause Resume and Game options are fixed stock callbacks in the authored movie.
+Retry lesson dispatches `retry_lesson {expected_session_id}`. Return dispatches
+`return_hub {expected_session_id,expected_fixture_id,abandon}` after an explicit
+confirmation for an unfinished fixture. Stale activity identities are rejected
+before saving or stopping. Results Return is disabled until the backend reports
+the saved result for the current session and fixture. No movie invokes a raw
+match restart or console navigation command.
+
+After the worker stops, the service drains final output and durable result
+receipts before abandoning a still-unfinished fixture or clearing its request.
+An uncommitted final score prevents that cleanup. A completed cleanup publishes
+the hub activity and retains the owned game for the next lesson or fixture.
+These contracts require separate live pause/results acceptance for the exact
+packaged movies; passing the pure host tests is not gameplay verification.
+
+After a requested native Return has drained and saved the stopped activity,
+`native_return_ready` is `{session_id,fixture_id}` for that old activity.
+Its fixture string is empty for a lesson. At this point `session.id` and
+`session.fixture_id` are JSON null, `session.kind` is `hub`, the state is `Idle`,
+and `worker_running` and `busy` are false. An error or uncommitted result prevents
+readiness. The receipt persists for the host's final game navigation and is
+cleared before a new activity starts; result recovery alone does not issue it.
+The host must match an accepted native Return request, retain the pending
+navigation across a resumed/unloaded pause menu, and observe the actual frontend
+before declaring the game navigation complete.
+
+The Return repair uses the fixed typed ActionScript `Shell.ExitToMainMenu`
+route, with the pause movie's stock `m_bExitingMatch` behavior. It must not use
+SDK `disconnect`, which reached the title screen in the recorded game test.
+The navigation intent is bound to the accepted bridge nonce, activity, fixture,
+and one-shot intent token. A service acknowledgement authorizes navigation;
+it does not prove navigation was attempted or that the hub was reached.
+
+`DevUtil.Log` has no success return value. The movie therefore must not exit
+immediately after sending a rejectable consumption event. The required exchange
+is an `authorize` view, a matching `return_navigation_consumed` event, and a
+separate host `execute` view carrying the consumed generation. The movie can
+execute only with its matching local consumption latch. Both phases participate
+in view generation. `return_navigation_issued` records an attempt immediately
+before the typed call; it is not an arrival receipt.
+
+The host separately latches a successfully published execute grant. Publication
+is not proof of an attempted call. If readiness or the movie is lost after that
+publication, the host cannot know whether the call ran and its log was dropped;
+it must not offer another exit or reopen attempt. Preserve the pending intent
+and uncertain-delivery diagnostic until actual arrival or scope replacement.
+Loss of readiness before execute publication revokes consumption and permits a
+fresh authorization handshake. An explicit fresh view without navigation must
+never later resume its old consumed generation.
+
+Unloading the pause/results movie invalidates its consumption grant but retains
+the accepted Return intent. A changed activity, nonce, owned process, build, or
+offline scope revokes the intent. New native activities remain blocked while
+Return is pending. Completion requires a new authored frontend READY after the
+surface transition and the fresh SDK menu stack reporting `RootMenuMovie` in
+the same owned offline game. Idle, a title screen, and stale readiness are not
+completion. A bounded live test of `OnOpenPauseMenu` did not open the pause
+movie; the host no longer calls it. An externally unloaded pause retains intent
+and reports that the player must reopen pause with Escape or Start.
+
+The view binds `return_pending` and `return_hold` into its generation. Each
+control has a `return_commit` boolean, true only for actual Return or confirmed Forfeit dispatch,
+not for opening an unfinished-match confirmation. The movie covers the initial
+click-to-host gap for at most two seconds. A fresh accepted hold then retains
+the menu, disables Resume/Options, and consumes closing input while displaying
+Leaving. Cancel remains available before commitment. The host hold ends after
+15 monotonic seconds without resetting on heartbeat or reauthorization; errors,
+stale views and uncertain execution also release controls. Release does not
+discard the intent or permit a second exit. Existing safe Quit and save-retry
+dispatch remain available when their service gates permit them. Quit must not
+receive automatic focus from the preceding confirmation. The permanent
+navigation-issued latch guards the exit call, not all recovery controls.
+
+Career pause also offers a red Forfeit Match action, with a separate confirmation
+whose default selection is Back. It requires a current owned unfinished career
+match and exact session/fixture binding; training, calibration and finished results
+cannot forfeit. The movie effect carries
+`forfeit_match {expected_session_id,expected_fixture_id,confirm:true}`. The trusted
+host adds a fresh 32-character lowercase hexadecimal `return_intent`; the service
+accepts exactly those four fields. The host rechecks the actual server's
+`GetbMatchEnded` immediately before dispatch.
+
+The service drains already received natural results before choosing a forfeit.
+An already saved natural finish wins that race. Otherwise `forfeit_fixture`
+atomically records `provenance:forfeit`, `outcome:forfeited`,
+`forfeited_by:human`, and the opponent as winner, retaining the observed goals.
+Ties and human leads still count as losses; table points, progression and brackets
+follow the explicit winner. No goals are invented. The pending fixture clears
+and the schedule advances once. A late matching natural result receipt cannot
+overwrite or award the saved forfeit again.
+
+Only after that durable save does worker cleanup begin. Navigation still requires
+the exact `native_return_ready` acknowledgement and the existing typed Return
+handshake; the host additionally checks the matching saved forfeit. A failed
+precommit attempt publishes `native_forfeit_rejected {session_id,fixture_id,intent}`.
+Only an exact matching rejection releases that host intent for another attempt;
+generic errors and old rejection records cannot do so. A postcommit cleanup
+failure must not publish a rejection. Regular unfinished Return still requeues
+the fixture without recording a loss.
+
+The native results host separately retains a saved natural result against the
+observed automatic next-map countdown. It must have tracked the exact game event
+while its bound career fixture was Playing. Refreshing the finished-state timer
+requires that same event, an ended match, actual EndGameMenuMovie with fresh
+authored results READY, matching persisted result, cleared pending fixture and
+fresh owned offline scope. It refreshes only a positive countdown at 30 seconds
+or below to 60 seconds, with at least five seconds between attempts. It never
+revives an expired timer or writes the Soccar match clock. The typed SDK setter
+still needs live acceptance. `IsFinished()` is not used as evidence: the observed
+build returned false even while the real results screen counted down.
+After earning fresh results READY, the timer-only permission also covers
+`OptionsMenuMovie` while the SDK stack still contains `EndGameMenuMovie`
+underneath it. Unknown screens do not receive timer writes and revoke that
+modal permission; a loading gap performs no writes. Returning to results must
+earn fresh READY again. This permission never authorizes shell navigation.
+A stale bridge or unavailable game event discards the timer binding because the
+gap could hide a map transition and object-address reuse. Accepted Return intent
+is still retained separately. The host checks the current results generation and
+READY again immediately before a results-screen timer write.
+
+These are the repair's acceptance requirements. Exact source, compiled movies,
+and live-game evidence must be recorded separately before release.
+
+The next results-flow change is defined in
+[RESULTS_CONTINUATION_CONTRACT.md](RESULTS_CONTINUATION_CONTRACT.md). It adds
+separate prepare/start commands, exact continuation acknowledgements and the
+five requested results controls. Treat that contract as implementation work in
+progress until current status records the corresponding source and live checks.
+Results Exit returns to the hub; the home close-app control is Quit My Career.
+
 ## Packaging
+
 Entry `python -m my_career_training`, flags `--worker` (JSON lines stdin/stdout), `--self-test` (headless package contracts), `--smoke-test` (QML load then quit), optional `--data-dir`. Resources under package. `runtime/RLBotServer.exe` build-only downloaded verified core; packaged under runtime. Mac UI/domain tests omit RLBot dependency, Windows includes exact versions. Original SVG/ICO icon generated by UI worker. Version 0.1.0 testing prerelease; never mark full V1 complete without game tests and real references.

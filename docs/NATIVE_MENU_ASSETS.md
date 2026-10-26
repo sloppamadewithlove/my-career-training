@@ -2,11 +2,33 @@
 
 `scripts/stage_native_runtime.py` builds a private runtime directory.
 `native_menu_assets.prepare_native_menu` reads one pinned Rocket League
-install and writes a private package under a per-session directory. Neither
+install and writes three private packages under a per-session directory. Neither
 step installs that package, launches the game, or queries BakkesMod.
 
 `runtime_verified` and `production_ready` stay false. A prepared file is not
 evidence that Scaleform initialized the menu or that a match can start.
+
+## Frontend, pause, and results
+
+Preparation now requires the pinned MainMenu, MidGameMenu, and EndGameMenu
+packages. It creates all three before publishing `prepare-receipt.json`.
+An interrupted publication removes only files created by that call, preserving
+unrelated files. Installed packages are read only and checked again afterward.
+
+`PreparedNativeMenu.private_package` remains the frontend path.
+`additional_packages` contains exactly `midgame` and `endgame`. Each record has
+`private_package`, `private_package_sha256`, `source_package_relative`,
+`source_package_sha256`, and `source_movie_sha256`. The launch caller passes only
+the first two fields; the launcher supplies its own fixed source identities.
+All three movies receive the same session and canonical view URL.
+
+The runtime allowlist adds `MctPauseMenu.abc`, `MctResultsMenu.abc`, and
+`match-manifest.json`. The match manifest pins the six authored sources, both
+compiled class inventories, original package/movie identities, and the existing
+licensed JSON library. No private SDK, game class definition, or game asset is
+part of this distribution. MainMenu still uses `replace_final_movie`; the match
+packages use `replace_movie` to append the selected serial to the last chunk
+without moving another export. See `NATIVE_PACKAGE_REWRITE.md` for that boundary.
 
 ## What the end-user install does not need
 
@@ -33,9 +55,17 @@ that build. This module does not read BakkesMod.
 | Movie SHA-256 | `57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0` |
 
 The staged ABC, manifest, and `native_movie_compose.py` pins must agree,
-including both authored classes `menus::MctRootMenu` and `MctMainMenuScreen`
-and document character `0` bound to `MctMainMenuScreen`. A mismatch refuses
-staging. The stage script does not edit those files and does not unpin them.
+including the project classes `menus::MctRootMenu`, `MctMainMenuScreen`,
+and `MctRootMenuMovie`, the seven `com.adobe.serialization.json` library
+classes, the vendored source, README, and provenance hashes, the wrapper
+source hash, and document character `0` bound to `MctMainMenuScreen`.
+`authored_classes` are the project classes. `library_classes` are as3corelib.
+`classes` is the parsed definition order. The receipt pin `classes` stays the
+three project classes. A mismatch refuses staging before the compiled ABC is
+accepted. The stage script does not edit those files and does not unpin them.
+The BSD terms for the JSON codec are in `THIRD_PARTY_NOTICES.md`, which both
+package specs copy next to the executable. That notice does not make this ABC
+`runtime_verified`.
 
 ## Decoder configuration
 

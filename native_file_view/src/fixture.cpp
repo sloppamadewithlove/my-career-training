@@ -25,10 +25,19 @@ struct ReadProbe {
     long long handleSize = -1;
     long long standardSize = -1;
     long long pathSize = -1;
+    DWORD preopenError = 0;
+    long long preopenSize = -1;
 };
 
 ReadProbe ReadExisting(const std::wstring& path) {
     ReadProbe probe;
+    WIN32_FILE_ATTRIBUTE_DATA before{};
+    if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &before)) {
+        probe.preopenSize = static_cast<long long>((static_cast<unsigned long long>(before.nFileSizeHigh) << 32) |
+                                                  before.nFileSizeLow);
+    } else {
+        probe.preopenError = GetLastError();
+    }
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
@@ -37,7 +46,10 @@ ReadProbe ReadExisting(const std::wstring& path) {
     }
     unsigned char buffer[64]{};
     DWORD read = 0;
-    const BOOL ok = ReadFile(file, buffer, sizeof(buffer), &read, nullptr);
+    // Model a loader which sizes its read using path metadata before open.
+    const DWORD requested = probe.preopenSize >= 0 && probe.preopenSize < sizeof(buffer)
+                                ? static_cast<DWORD>(probe.preopenSize) : sizeof(buffer);
+    const BOOL ok = ReadFile(file, buffer, requested, &read, nullptr);
     const DWORD readError = ok ? 0 : GetLastError();
     LARGE_INTEGER size{};
     FILE_STANDARD_INFO standard{};
@@ -122,6 +134,8 @@ int wmain(int argc, wchar_t** argv) {
     std::wstring mixedCase;
     std::wstring extra;
     std::wstring scratch;
+    std::wstring probe2;
+    std::wstring probe3;
     DWORD holdMs = 0;
     bool sawHold = false;
 
@@ -143,7 +157,9 @@ int wmain(int argc, wchar_t** argv) {
             !TakeFlag(argc, argv, &index, L"--relative", &relativePath) &&
             !TakeFlag(argc, argv, &index, L"--mixed", &mixedCase) &&
             !TakeFlag(argc, argv, &index, L"--extra", &extra) &&
-            !TakeFlag(argc, argv, &index, L"--scratch", &scratch)) {
+            !TakeFlag(argc, argv, &index, L"--scratch", &scratch) &&
+            !TakeFlag(argc, argv, &index, L"--probe2", &probe2) &&
+            !TakeFlag(argc, argv, &index, L"--probe3", &probe3)) {
             return 2;
         }
     }
@@ -191,10 +207,13 @@ int wmain(int argc, wchar_t** argv) {
     AppendField(&receipt, "handle_size", std::to_string(first.handleSize));
     AppendField(&receipt, "standard_size", std::to_string(first.standardSize));
     AppendField(&receipt, "path_size", std::to_string(first.pathSize));
+    AppendField(&receipt, "preopen_err", first.preopenError);
+    AppendField(&receipt, "preopen_size", std::to_string(first.preopenSize));
     AppendField(&receipt, "unrelated_err", unrelatedProbe.error);
     AppendField(&receipt, "unrelated_hex", unrelatedProbe.hex);
     AppendField(&receipt, "sibling_err", siblingProbe.error);
     AppendField(&receipt, "sibling_hex", siblingProbe.hex);
+    AppendField(&receipt, "sibling_path_size", std::to_string(siblingProbe.preopenSize));
     AppendField(&receipt, "mixed_err", mixedProbe.error);
     AppendField(&receipt, "mixed_hex", mixedProbe.hex);
     AppendField(&receipt, "relative_err", relativeProbe.error);
@@ -210,6 +229,22 @@ int wmain(int argc, wchar_t** argv) {
     AppendField(&receipt, "openalways_err", openAlwaysError);
     AppendField(&receipt, "scratch_err", scratchProbe.error);
     AppendField(&receipt, "scratch_hex", scratchProbe.hex);
+    if (!probe2.empty()) {
+        const ReadProbe probe = ReadExisting(probe2);
+        AppendField(&receipt, "probe2_err", probe.error);
+        AppendField(&receipt, "probe2_preopen_err", probe.preopenError);
+        AppendField(&receipt, "probe2_preopen_size", std::to_string(probe.preopenSize));
+        AppendField(&receipt, "probe2_hex", probe.hex);
+        AppendField(&receipt, "probe2_path_size", std::to_string(probe.pathSize));
+    }
+    if (!probe3.empty()) {
+        const ReadProbe probe = ReadExisting(probe3);
+        AppendField(&receipt, "probe3_err", probe.error);
+        AppendField(&receipt, "probe3_preopen_err", probe.preopenError);
+        AppendField(&receipt, "probe3_preopen_size", std::to_string(probe.preopenSize));
+        AppendField(&receipt, "probe3_hex", probe.hex);
+        AppendField(&receipt, "probe3_path_size", std::to_string(probe.pathSize));
+    }
     receipt.push_back('\n');
 
     const HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);

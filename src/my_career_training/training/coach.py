@@ -10,11 +10,18 @@ import hashlib
 import json
 import math
 
-from .catalog import assistance_preferences
+from .catalog import assistance_preferences, lesson
 from .controller import controller_bindings, controller_display
-from .recordings import compatible_recordings, ghost_lines, interpolate_pose, validate_recording
+from .recordings import (compatible_recordings, ghost_lines, interpolate_pose, relative_placement,
+                         validate_recording)
 
 PLAYBACK_SPEEDS = (0.25, 0.5, 0.75, 1.0)
+# Owner default: the ghost sits slightly in front of the player's car.
+PRACTICE_FORWARD_OFFSET = 300.0
+# Targets that describe the car's own route. Anything else depends on the ball
+# or a wall, where a translated car-only path would misrepresent the scenario.
+CAR_ONLY_TARGETS = ("plane", "gate", "recovery")
+BALL_DEPENDENT_EVENTS = ("ball_contact", "goal_target", "carry_sustained", "flick", "reset_acquired")
 NO_REFERENCE = (
     "No permitted successful teaching recording is installed for this setup. "
     "Record your own attempt or import a permitted actual execution. "
@@ -315,3 +322,214 @@ class GhostPlayback:
             rotated = offset if name == "top" else _rotate(pose["quaternion"], offset)
             views[name] = {"position": [x + y for x, y in zip(target, rotated)], "look_at": list(target)}
         return views
+
+
+def practice_support(lesson_id):
+    """Whether a translated car-only ghost is an honest depiction of this drill.
+
+    Ball- and wall-contact drills depend on the demonstration's spatial
+    relationship to the ball, so a car-only path moved in front of the player
+    would imply a scenario that is not actually set up. Those lessons stay
+    unsupported until a compatible placement or a ghost ball exists.
+    """
+    value = lesson(lesson_id)
+    target_types = {target.get("type") for target in value["targets"]}
+    events = set(value["success_events"])
+    if target_types - set(CAR_ONLY_TARGETS) or events & set(BALL_DEPENDENT_EVENTS):
+        return {
+            "supported": False,
+            "reason": "This drill depends on the ball or a wall. A translated car-only ghost "
+                      "would not reproduce the recorded scenario, so ghost practice stays off "
+                      "until a compatible placement or ghost ball is available.",
+        }
+    return {"supported": True, "reason": ""}
+
+
+def practice_context(lesson_value, metadata=None):
+    """Build the compatibility context for a lesson so a wrong setup is refused.
+
+    Unknown values stay ``"unknown"``; ``compatible_recordings`` treats unknown
+    as a mismatch rather than a silent equivalence.
+    """
+    metadata = metadata or {}
+    return {
+        "lesson_id": lesson_value["id"],
+        "lesson_version": lesson_value["version"],
+        "variant": deepcopy(lesson_value.get("variant")),
+        "metadata": {
+            "game_version": metadata.get("game_version", "unknown"),
+            "framework_version": metadata.get("framework_version", "unknown"),
+            "car_hitbox": metadata.get("car_hitbox", "unknown"),
+            "map": lesson_value.get("map", "unknown"),
+            "mutators": deepcopy(metadata.get("mutators", {})),
+            "starting_state": deepcopy(lesson_value["starting_state"]),
+            "time_base": "game_seconds",
+        },
+    }
+
+
+class GhostPractice:
+    """Normal-speed looping ghost practice placed slightly ahead of the player.
+
+    This is the owner's practice flow, not the legacy watch/lead transport. It
+    has no pause, seek or slow-motion control. Enabling restarts the recording
+    from its first sample and anchors the recorded start pose onto the player's
+    current pose plus a forward offset. Later poses keep their recorded relative
+    motion; the ghost is never dragged to follow the player. Disabling hides the
+    pose, lines and coach controller state immediately, before any new packet.
+    """
+
+    def __init__(self, recording=None, *, forward_offset=PRACTICE_FORWARD_OFFSET, context=None):
+        self.forward_offset = _number(forward_offset, "Ghost placement distance",
+                                      minimum=0, maximum=2000)
+        self.context = deepcopy(context)
+        self.recording = None
+        self.provenance = None
+        self.kind = None
+        self.enabled = False
+        self.playing = False
+        self.status = "unavailable"
+        self.cursor = 0.0
+        self._times = []
+        self._last_clock = None
+        self._anchor = None
+        self._origin = None
+        if recording is not None:
+            self.load(recording)
+
+    def load(self, recording, *, kind="personal", context=None):
+        """Validate and select a recording. Playback stays off until enabled.
+
+        A supplied context is enforced; when the caller omits one, the context
+        given to this practice instance is used so a wrong lesson/setup cannot
+        slip through with ``context=None``.
+        """
+        if kind not in ("personal", "reference"):
+            raise ValueError("Choose a personal or teaching reference recording.")
+        validate_recording(recording, require_reference=kind == "reference")
+        context = self.context if context is None else context
+        provenance = recording_provenance(recording, context=context)
+        if provenance["compatibility"] is False:
+            raise ValueError("Recording does not match this lesson setup: "
+                             + ", ".join(provenance["compatibility_differences"]))
+        self.recording = deepcopy(recording)
+        self.provenance = provenance
+        self.kind = kind
+        self.context = deepcopy(context)
+        self._times = [sample["time"] for sample in self.recording["samples"]]
+        self._origin = {"position": list(self.recording["samples"][0]["position"]),
+                        "rotation": list(self.recording["samples"][0]["rotation"])}
+        self._anchor = None
+        self._last_clock = None
+        self.cursor = self._times[0]
+        self.enabled = False
+        self.playing = False
+        self.status = "ready"
+        return self.snapshot()
+
+    @property
+    def duration(self):
+        return self._times[-1] if self._times else 0.0
+
+    @property
+    def available(self):
+        return self.recording is not None
+
+    def set_enabled(self, enabled, *, player_pose=None):
+        """Deterministic toggle. On restarts from the beginning; Off hides at once."""
+        if not isinstance(enabled, bool):
+            raise ValueError("Ghost practice must be on or off.")
+        if enabled:
+            if self.recording is None:
+                raise ValueError(NO_REFERENCE)
+            self.enabled = True
+            self.playing = True
+            self.status = "playing"
+            self.cursor = self._times[0]
+            self._last_clock = None
+            # A fresh On re-anchors to the player's current pose. A loop repeat
+            # keeps this anchor so relative motion is preserved.
+            self._anchor = self._anchor_from(player_pose)
+            if self._anchor is None:
+                self.status = "waiting_for_player"
+        else:
+            self.enabled = False
+            self.playing = False
+            self.status = "off" if self.recording is not None else "unavailable"
+            self._last_clock = None
+        return self.snapshot()
+
+    def toggle(self, *, player_pose=None):
+        return self.set_enabled(not self.enabled, player_pose=player_pose)
+
+    def _anchor_from(self, player_pose):
+        if not isinstance(player_pose, dict):
+            return None
+        position = player_pose.get("position")
+        if not (isinstance(position, (list, tuple)) and len(position) == 3
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+                        for x in position)):
+            return None
+        rotation = player_pose.get("rotation")
+        if not (isinstance(rotation, (list, tuple)) and len(rotation) == 3
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+                        for x in rotation)):
+            return None
+        return {"position": [float(x) for x in position],
+                "rotation": [float(x) for x in rotation]}
+
+    def _bounded(self, cursor):
+        beginning = self._times[0]
+        if cursor >= self.duration and self.duration > beginning:
+            # Repeat from the recorded beginning with the same anchor.
+            return beginning + (cursor - beginning) % (self.duration - beginning)
+        return min(self.duration, max(beginning, cursor))
+
+    def update(self, game_seconds, *, player_pose=None):
+        """Advance at normal speed only. Uses game time, never wall time."""
+        now = _number(game_seconds, "Game clock")
+        if not self.enabled or self.recording is None:
+            return self.snapshot()
+        if self._anchor is None:
+            self._anchor = self._anchor_from(player_pose)
+            if self._anchor is None:
+                self.status = "waiting_for_player"
+                return self.snapshot()
+            self.status = "playing"
+        if self._last_clock is not None and now < self._last_clock:
+            # A restarted game clock restarts the demonstration from its start.
+            self.cursor = self._times[0]
+        elif self._last_clock is not None:
+            self.cursor = self._bounded(self.cursor + (now - self._last_clock))
+        self._last_clock = now
+        return self.snapshot()
+
+    def snapshot(self, *, bindings=None):
+        pose = None
+        if self.enabled and self.recording is not None and self._anchor is not None:
+            recorded = interpolate_pose(self.recording, self.cursor, sample_times=self._times)
+            if recorded is not None:
+                pose = relative_placement(recorded, origin=self._origin, anchor=self._anchor,
+                                          forward_offset=self.forward_offset)
+        gap = self.enabled and self.recording is not None and self._anchor is not None and pose is None
+        visible = pose is not None
+        actions = deepcopy(pose["actions"]) if visible else None
+        return {
+            "available": self.available, "enabled": self.enabled, "playing": self.playing,
+            "visible": visible, "status": "capture_gap" if gap else self.status,
+            "cursor": self.cursor, "duration": self.duration, "speed": 1.0,
+            "mode": "practice", "loop": True, "forward_offset": self.forward_offset,
+            "pose": deepcopy(pose) if visible else None,
+            "lines": ghost_lines(pose) if visible else [],
+            "coach_actions": actions,
+            "controller": controller_display(actions, bindings, observed=visible, source="ghost"),
+            "provenance": deepcopy(self.provenance),
+            "label": self.provenance["label"] if self.provenance else "Teaching demonstration unavailable",
+            "message": ("Capture gap; no motion or coach inputs are invented." if gap
+                        else NO_REFERENCE if self.recording is None
+                        else "Ghost practice off" if not self.enabled
+                        else "Waiting for your car's pose to place the ghost." if self._anchor is None
+                        else "Render-only recorded ghost, slightly ahead of your car"),
+            "controls": ["toggle"],
+            "player_input_applied": False,
+        }

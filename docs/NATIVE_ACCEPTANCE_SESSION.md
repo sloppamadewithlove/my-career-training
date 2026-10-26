@@ -47,7 +47,61 @@ while the player is unavailable and has asked for source-only work.
    training pack, and fetching a new pack may need normal account services.
    Unknown/refused trials require closing this session before another activity.
 
-## After the session
+## Return repair acceptance
+
+For the Return repair, first test one coherent source candidate, then the exact
+same-run inventoried frozen installer input. Record these as separate results.
+Keep the previous installer on hold even if its CI pipeline passed.
+
+1. Start an activity with the actual native Play button. Record the owned game
+   PID and creation time, source revision, and matching runtime hashes.
+2. Exercise a lesson, Retry, Escape, Game options/Back and Resume. Confirm that
+   an unfinished career fixture requires Return confirmation and that Cancel
+   leaves that fixture active.
+3. Return from a lesson and from an explicitly abandoned unfinished fixture.
+   Observe the durable service acknowledgement, navigation attempt, and actual
+   arrival separately. Require a fresh frontend READY, `RootMenuMovie`, and a
+   foreground screenshot of the authored hub. A screenshot requires a fresh
+   identity and foreground check; a blocked input is not a successful test.
+4. Exercise Resume, Escape/Start and Options while cleanup is delayed. The
+   committed Leaving state must retain the menu until cleanup completes. Check
+   rejection/staleness and the 15-second hold cap restore usable recovery
+   controls without forgetting intent or permitting another exit. An external
+   movie unload must retain intent and permit ordinary pause reopening. The
+   earlier bounded `OnOpenPauseMenu` live test did not open a movie; that SDK
+   call has been removed. Confirm destructive confirmation defaults to Back
+   and pending Quit cannot receive an accidental carried Enter/A press.
+5. Complete a real career fixture. Verify its actual score saves exactly once,
+   its pending fixture clears, and its durable receipt is acknowledged. Use the
+   actual results Exit button and repeat the hub arrival checks.
+6. Start another activity without another game process. Restart the app using
+   the copied saved career and verify the completed result persists. Repeat the
+   real fixture/save/Return/restart cycle with the exact frozen build.
+7. Check mouse, keyboard and a real controller separately. Software key events
+   are not physical-controller evidence. Verify the offline menus have no
+   actionable matchmaking, tournaments or store routes.
+8. In a real unfinished career fixture, check the red Forfeit Match button and
+   its Back-first confirmation. Cancel must preserve the active fixture. Confirm
+   must save an explicitly labelled forfeited loss once, clear the pending
+   fixture, advance the schedule and reach the visible native hub through the
+   exact acknowledgement. Restart and verify the forfeit remains. Domain tests
+   separately cover tied/leading/away scores, save failure and late natural
+   receipts; do not manufacture such game scores for a live test.
+9. After a natural completed fixture, leave the actual results screen open past
+   the previous 60-second expiry. Observe the finished-state countdown refresh,
+   retained results READY and unchanged saved score, then use the actual Exit
+   button. Timer setter dispatch alone is not a successful retention test.
+10. Check the ordered results controls: Play Next Match, Schedule, Change Preset,
+    Settings, Exit. One Play Next Match click must use the saved lineup, finish
+    exact cleanup, reach fresh native-root READY internally, and start one next
+    fixture in the same game without another setup menu or confirmation. Verify
+    the prior result remains saved once. Schedule and Settings must remain usable
+    beyond the former expiry and Back must return to the same ended match. Equip
+    an existing local preset, observe the change and restore the original.
+    Results Exit returns to the hub; home Quit My Career closes the app/game.
+    Test mouse and keyboard independently from the physical controller.
+
+## Restoration and normal launch
 
 - Wait for the owned game and helper to exit. Complete community and base-plugin
   recovery before starting the normal launcher. Preserve conflicting files and

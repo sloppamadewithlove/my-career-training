@@ -229,5 +229,22 @@ def test_single_instance_lock_rejects_second_store_and_releases_on_close(tmp_pat
     finally:
         first.close()
 
+
+def test_browser_favorites_are_bounded_namespaced_public_metadata(tmp_path):
+    state = storage.default_state()
+    state["browser_favorites"] = [{"type": "lesson", "id": "speed-flip", "title": "Speed flip",
+                                   "subtitle": "Training lesson", "detail": "Local metadata"}]
+    with storage.Store(tmp_path) as store:
+        store.save(state)
+        assert store.load()["browser_favorites"] == state["browser_favorites"]
+        duplicate = storage.default_state()
+        duplicate["browser_favorites"] = state["browser_favorites"] * 2
+        with pytest.raises(ValueError, match="favorites"):
+            store.save(duplicate)
+        authority = storage.default_state()
+        authority["browser_favorites"] = [{**state["browser_favorites"][0], "action": "start_lesson"}]
+        with pytest.raises(ValueError, match="favorites"):
+            store.save(authority)
+
     with storage.Store(tmp_path):
         pass

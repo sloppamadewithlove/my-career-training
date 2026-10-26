@@ -22,6 +22,11 @@ static std::string controlId(const Json& view, const std::string& label) {
         if (item.at("label") == label) return item.at("id").get<std::string>();
     throw std::runtime_error("Label not published");
 }
+static std::string browserCommand(const Json& view, const std::string& op, const std::string& value) {
+    return Json{{"protocol", 1}, {"session", view.at("session")}, {"surface", "frontend"},
+        {"generation", view.at("generation")}, {"revision", view.at("browser").at("revision")},
+        {"browser_op", op}, {"value", value}}.dump();
+}
 static void requireMovieWire(const Json& view) {
     require(!view.at("runtime_verified") && !view.at("production_ready"), "Compatibility falsely granted");
     require(view.at("controls").size() <= NativeCareerLayout::kMaxChoices, "Published controls exceed the movie cap");
@@ -30,7 +35,7 @@ static void requireMovieWire(const Json& view) {
         !view.contains("cosmetic_draft") && !view.contains("cl_itemmod_code"), "Trusted field was published");
     require(view.dump().find("cl_itemmod") == std::string::npos, "Item-mod cvar was published");
     for (const auto& control : view.at("controls")) {
-        require(control.size() == 6, "Control gained a trusted field");
+        require(control.size() == 7 && control.at("return_commit").is_boolean(), "Control contract changed");
         require(control.contains("id") && control.contains("label") && control.contains("enabled") &&
             control.contains("reason") && control.contains("stock") && control.contains("revision"),
             "Control keys changed");
@@ -40,14 +45,91 @@ static void requireMovieWire(const Json& view) {
     }
 }
 
+static void returnNavigationContract() {
+    NativeMovieProtocol host;
+    auto live = scope();
+    live.surface = NativeMenuSurface::Pause;
+    auto data = state();
+    data["session"] = {{"state", "Idle"}, {"id", nullptr}, {"fixture_id", nullptr},
+        {"kind", "hub"}, {"worker_running", false}, {"busy", false}};
+    data["error"] = "";
+    data["career"] = {{"pending_session", nullptr}};
+    const Json authorize = {{"phase", "authorize"}, {"intent", "0123456789abcdef0123456789abcdef"},
+        {"activity", "activity-1"}, {"fixture", "fixture-1"}};
+    require(host.open(live, data), "Return pause did not open");
+    const auto waiting = host.publish(live, data, 500, {}, {}, true);
+    const auto offered = host.publish(live, data, 501, {}, {}, true, authorize);
+    require(offered.at("navigation") == authorize, "Fixed Return authorization missing");
+    require(waiting.at("generation") != offered.at("generation"), "Authorization kept an old generation");
+    require(host.publish(live, data, 502, {}, {}, true, authorize).at("generation") == offered.at("generation"),
+        "Unchanged authorization changed focus generation");
+    Json consumed = {{"protocol", 1}, {"event", "return_navigation_consumed"}, {"session", live.nonce},
+        {"surface", "pause"}, {"generation", offered.at("generation")}, {"intent", authorize.at("intent")},
+        {"activity", "activity-1"}, {"fixture", "fixture-1"}};
+    require(host.navigationConsumedMessage(consumed.dump(), live), "Matching Return consumption refused");
+    for (const auto* field : {"session", "surface", "generation", "intent", "activity", "fixture"}) {
+        auto wrong = consumed;
+        wrong[field] = "different";
+        require(!host.navigationConsumedMessage(wrong.dump(), live), "Mismatched Return consumption accepted");
+    }
+    auto extra = consumed; extra["command"] = "exit";
+    require(!host.navigationConsumedMessage(extra.dump(), live), "Caller supplied navigation accepted");
+    auto numericGeneration = consumed; numericGeneration["generation"] = 1;
+    require(!host.navigationConsumedMessage(numericGeneration.dump(), live), "Numeric generation accepted");
+    auto unsafe = live; unsafe.fresh = false;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Stale consumption accepted");
+    unsafe = live; unsafe.online = true;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Online consumption accepted");
+    unsafe = live; ++unsafe.generation;
+    require(!host.navigationConsumedMessage(consumed.dump(), unsafe), "Old movie instance consumed Return");
+
+    auto execute = authorize;
+    execute["phase"] = "execute";
+    execute["consumed_generation"] = offered.at("generation");
+    const auto confirmed = host.publish(live, data, 503, {}, {}, true, execute);
+    require(confirmed.at("navigation") == execute, "Validated consumption did not reach execute view");
+    require(confirmed.at("generation") != offered.at("generation"), "Execute reused authorization generation");
+    require(host.navigationConsumedMessage(consumed.dump(), live), "Identical consumption retry lost its execute acknowledgement");
+    auto issued = consumed;
+    issued["event"] = "return_navigation_issued";
+    issued["generation"] = confirmed.at("generation");
+    issued["consumed_generation"] = offered.at("generation");
+    require(host.navigationIssuedMessage(issued.dump(), live), "Matching execute attempt refused");
+    auto wrongIssued = issued; wrongIssued["consumed_generation"] = "0";
+    require(!host.navigationIssuedMessage(wrongIssued.dump(), live), "Execute used another consumption");
+    wrongIssued = issued; wrongIssued.erase("consumed_generation");
+    require(!host.navigationIssuedMessage(wrongIssued.dump(), live), "Unbound execute attempt accepted");
+    host.invalidate(); // Pause unloads between consumption and execution.
+    require(!host.navigationIssuedMessage(issued.dump(), live), "Unloaded movie retained execute authority");
+    ++live.generation;
+    require(host.open(live, data), "Fresh pause did not reopen");
+    const auto reauthorized = host.publish(live, data, 504, {}, {}, true, authorize);
+    require(reauthorized.at("generation") != offered.at("generation"), "Reopen reused consumed generation");
+    require(!host.navigationConsumedMessage(consumed.dump(), live), "Old consumption survived pause unload");
+
+    live.surface = NativeMenuSurface::Frontend; ++live.generation;
+    require(host.open(live, data), "Return frontend did not open");
+    const auto frontend = host.publish(live, data, 505, {}, {}, true, execute);
+    require(!frontend.contains("navigation"), "Frontend received match-exit authority");
+    Json strongReady = {{"protocol", 1}, {"event", "ready"}, {"session", live.nonce},
+        {"surface", "frontend"}, {"generation", frontend.at("generation")}};
+    require(host.readyMessage(strongReady.dump(), live, true), "Current generation frontend READY refused");
+    const Json legacyReady = {{"protocol", 1}, {"event", "ready"}, {"session", live.nonce}};
+    require(host.readyMessage(legacyReady.dump(), live), "Ordinary frontend compatibility hello regressed");
+    require(!host.readyMessage(legacyReady.dump(), live, true), "Legacy READY qualified as fresh Return arrival");
+    strongReady["generation"] = offered.at("generation");
+    require(!host.readyMessage(strongReady.dump(), live), "Old generation acknowledged new frontend");
+}
+
 int main() {
     try {
+        returnNavigationContract();
         NativeMovieProtocol protocol;
         auto live = scope();
         auto data = state();
         require(protocol.open(live, data), "Owned movie did not open");
         auto first = protocol.publish(live, data, 100);
-        require(first.at("active") && first.at("controls").size() == 7, "Seven native controls missing");
+        require(first.at("active") && first.at("controls").size() == 5, "Collapsed native root controls missing");
         require(!first.at("production_ready") && !first.at("runtime_verified"), "Compatibility falsely granted");
         auto repeat = protocol.publish(live, data, 101);
         require(first.at("generation") == repeat.at("generation"), "Heartbeat rebuilt focus generation");
@@ -93,12 +175,14 @@ int main() {
         require(protocol.select(command(unicodeRoot, NativeCareerLayout::kTraining), live, data, true).accepted,
             "Unicode training page did not open");
         auto unicodeTraining = protocol.publish(live, data, 106);
+        require(unicodeTraining.at("browser").value("active", false),
+            "Authored movie requires an explicit active browser flag before rendering");
         const auto serialized = unicodeTraining.dump();
         require(Json::parse(serialized) == unicodeTraining, "Unicode controls did not round trip");
         bool foundUnicode = false;
-        for (const auto& control : unicodeTraining.at("controls")) {
-            const auto label = control.at("label").get<std::string>();
-            require(label.size() <= NativeCareerLayout::kMaxLabel, "Unicode control exceeded its display bound");
+        for (const auto& control : unicodeTraining.at("browser").at("rows")) {
+            const auto label = control.at("title").get<std::string>();
+            require(label.size() <= NativeCareerLayout::kMaxBrowserDisplay, "Unicode browser row exceeded its display bound");
             foundUnicode = foundUnicode || label.find(u8"\u754c") != std::string::npos;
         }
         require(foundUnicode, "Unicode label was lost");
@@ -233,13 +317,16 @@ int main() {
         requireMovieWire(workshopRoot);
         require(workshopRoot.dump().find(package) == std::string::npos, "Root published a package path");
         require(workshopRoot.dump().find("load_workshop") == std::string::npos, "Root published a workshop command");
-        require(workshopMovie.select(command(workshopRoot, NativeCareerLayout::kWorkshop), live, workshopState, true, {}, workshop).accepted,
-            "Workshop page did not open");
-        auto workshopMenu = workshopMovie.publish(live, workshopState, 401, {}, workshop);
+        require(workshopMovie.select(command(workshopRoot, NativeCareerLayout::kTraining), live, workshopState, true, {}, workshop).accepted,
+            "Training browser did not open");
+        auto lessonsMenu = workshopMovie.publish(live, workshopState, 401, {}, workshop);
+        require(workshopMovie.select(browserCommand(lessonsMenu, "tab", "workshop"), live, workshopState, true, {}, workshop).accepted,
+            "Workshop tab did not open");
+        auto workshopMenu = workshopMovie.publish(live, workshopState, 402, {}, workshop);
         requireMovieWire(workshopMenu);
         require(workshopMenu.dump().find(package) == std::string::npos, "Workshop wire published a package path");
         require(workshopMenu.dump().find("load_workshop") == std::string::npos, "Workshop wire published a command");
-        const auto play = command(workshopMenu, "workshop.play.steam:library:4242424242");
+        const auto play = browserCommand(workshopMenu, "primary", "workshop:steam:library:4242424242");
         auto forged = Json::parse(play);
         forged["path"] = package;
         forged["action"] = "play_workshop";
@@ -251,12 +338,12 @@ int main() {
         auto stalePlay = workshopMovie.select(play, live, changedState, true, {}, changedWorkshop);
         require(!stalePlay.accepted && stalePlay.action.empty() && stalePlay.workshop.packagePath.empty(),
             "A changed package reused the published click");
-        auto republishedWorkshop = workshopMovie.publish(live, changedState, 402, {}, changedWorkshop);
+        auto republishedWorkshop = workshopMovie.publish(live, changedState, 403, {}, changedWorkshop);
         requireMovieWire(republishedWorkshop);
         require(republishedWorkshop.at("generation") != workshopMenu.at("generation"), "Path change kept the generation");
         require(republishedWorkshop.dump().find(otherPackage) == std::string::npos, "Changed path was published");
         require(!workshopMovie.select(play, live, changedState, true, {}, changedWorkshop).accepted, "Stale workshop generation accepted");
-        auto currentPlay = workshopMovie.select(command(republishedWorkshop, "workshop.play.steam:library:4242424242"),
+        auto currentPlay = workshopMovie.select(browserCommand(republishedWorkshop, "primary", "workshop:steam:library:4242424242"),
             live, changedState, true, {}, changedWorkshop);
         require(currentPlay.accepted && currentPlay.kind == CareerLayoutEffectKind::LocalWorkshop &&
             currentPlay.action.empty() && currentPlay.payload.empty() && currentPlay.workshop.packagePath == otherPackage &&

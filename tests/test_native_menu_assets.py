@@ -74,16 +74,40 @@ def _pin_decoder(monkeypatch, source: bytes, license_text: bytes) -> None:
     monkeypatch.setattr(stage, "LICENSE_SHA256", _sha(normalized_license))
 
 
+def _library_lines(module) -> str:
+    return (
+        f"LIBRARY_COMMIT = {module.LIBRARY_COMMIT!r}\n"
+        f"LIBRARY_CLASSES = {list(module.LIBRARY_CLASSES)!r}\n"
+        f"COMPILED_CLASSES = {list(module.COMPILED_CLASSES)!r}\n"
+        f"LIBRARY_FILES = {module.LIBRARY_FILES!r}\n"
+    )
+
+
+def _copy_vendor(root: Path) -> None:
+    for relative in stage.LIBRARY_FILES:
+        source = REPO.joinpath(*Path(relative).parts)
+        target = root.joinpath(*Path(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+
+
 def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     abc = b"abc-fixture"
     source = b"menu-source"
     screen = b"screen-source"
+    wrapper = b"wrapper-source"
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+        "authored_classes": list(stage.AUTHORED_CLASSES),
+        "classes": list(stage.COMPILED_CLASSES),
         "game_classes_linked": False,
+        "library_classes": list(stage.LIBRARY_CLASSES),
+        "library_commit": stage.LIBRARY_COMMIT,
+        "library_files": dict(stage.LIBRARY_FILES),
         "production_ready": False,
+        "root_movie_source": "native_ui/MctRootMenuMovie.as",
+        "root_movie_source_sha256": _sha(wrapper),
         "runtime_verified": False,
         "screen_source": "native_ui/MctMainMenuScreen.as",
         "screen_source_sha256": _sha(screen),
@@ -95,6 +119,8 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     (root / "scripts").mkdir()
     (root / "native_ui" / "menus" / "MctRootMenu.as").write_bytes(source)
     (root / "native_ui" / "MctMainMenuScreen.as").write_bytes(screen)
+    (root / "native_ui" / "MctRootMenuMovie.as").write_bytes(wrapper)
+    _copy_vendor(root)
     (root / "native_ui" / "compiled" / "MctRootMenu.abc").write_bytes(abc)
     manifest_path = root / "native_ui" / "compiled" / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -107,25 +133,122 @@ def _write_repo(root: Path, *, abc_hash: str | None = None) -> dict:
     rewrite = (
         "def replace_final_movie(*args, **kwargs):\n"
         "    raise RuntimeError('stage must not rewrite')\n"
+        "def replace_movie(*args, **kwargs):\n"
+        "    raise RuntimeError('stage must not rewrite')\n"
         "def encrypt_aes256_ecb_cng(*args, **kwargs):\n"
         "    raise RuntimeError('stage must not encrypt')\n"
+    )
+    match_manifest = _write_match_tree(root)
+    match_composer = _match_composer_source(
+        match_manifest, compose_body="raise RuntimeError('stage must not compose')"
     )
     compose = (
         f"MOVIE_SHA256 = {stage.MOVIE_SHA256!r}\n"
         f"MOD_ABC_SHA256 = {(abc_hash or manifest['abc_sha256'])!r}\n"
         f"SOURCE_SHA256 = {manifest['source_sha256']!r}\n"
         f"SCREEN_SOURCE_SHA256 = {manifest['screen_source_sha256']!r}\n"
+        f"ROOT_MOVIE_SOURCE_SHA256 = {manifest['root_movie_source_sha256']!r}\n"
         "NEW_CLASS = 'MctRootMenu'\n"
         "SCREEN_CLASS = 'MctMainMenuScreen'\n"
+        "ROOT_MOVIE_CLASS = 'MctRootMenuMovie'\n"
+        "ORIGINAL_ROOT_NAME = 'RootMenuMovie'\n"
+        "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
+        f"{_library_lines(stage)}"
         "def compose_movie(*args, **kwargs):\n"
         "    raise RuntimeError('stage must not compose')\n"
+        f"{match_composer}"
     )
     (root / "scripts" / "native_package_reader.py").write_text(reader, encoding="utf-8")
     (root / "scripts" / "native_package_rewrite.py").write_text(rewrite, encoding="utf-8")
     (root / "scripts" / "native_movie_compose.py").write_text(compose, encoding="utf-8")
     return manifest
+
+
+def _write_match_tree(root: Path, *, movie_hashes: dict[str, str] | None = None, package_hashes: dict[str, str] | None = None) -> dict:
+    scenes = {}
+    codec = list(stage.COMPILED_CLASSES[len(stage.AUTHORED_CLASSES):])
+    for scene_id, expected in stage.MATCH_SCENES.items():
+        scene = {key: (list(value) if isinstance(value, list) else value) for key, value in expected.items()}
+        blobs = {
+            "source": f"source-{scene_id}".encode(),
+            "screen_source": f"screen-{scene_id}".encode(),
+            "root_movie_source": f"wrapper-{scene_id}".encode(),
+        }
+        for key, blob in blobs.items():
+            path = root.joinpath(*Path(scene[key]).parts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(blob)
+            scene[f"{key}_sha256"] = _sha(blob)
+        abc = f"abc-{scene_id}".encode()
+        abc_path = root / "native_ui" / "compiled" / scene["abc_file"]
+        abc_path.parent.mkdir(parents=True, exist_ok=True)
+        abc_path.write_bytes(abc)
+        scene["abc_sha256"] = _sha(abc)
+        scene["abc_bytes"] = len(abc)
+        scene["classes"] = list(scene["authored_classes"]) + codec
+        if movie_hashes is not None:
+            scene["movie_sha256"] = movie_hashes[scene_id]
+        if package_hashes is not None:
+            scene["package_sha256"] = package_hashes[scene_id]
+        scenes[scene_id] = scene
+    manifest = {
+        "abc_version": "46.16",
+        "compiler": "Apache Flex 4.16.1",
+        "game_classes_linked": False,
+        "library_classes": list(stage.LIBRARY_CLASSES),
+        "library_commit": stage.LIBRARY_COMMIT,
+        "library_files": dict(stage.LIBRARY_FILES),
+        "production_ready": False,
+        "runtime_verified": False,
+        "scenes": scenes,
+        "schema": 1,
+        "swf_version": 20,
+    }
+    target = root / "native_ui" / "compiled" / "match-manifest.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return manifest
+
+
+def _match_composer_source(manifest: dict, *, compose_body: str) -> str:
+    profiles = {}
+    for scene_id, scene in manifest["scenes"].items():
+        profiles[scene_id] = {
+            "scene_id": scene_id,
+            "movie_sha256": scene["movie_sha256"],
+            "movie_bytes": scene["movie_bytes"],
+            "abc_sha256": scene["original_abc_sha256"],
+            "mod_abc_sha256": scene["abc_sha256"],
+            "mod_abc_bytes": scene["abc_bytes"],
+            "source_sha256": scene["source_sha256"],
+            "screen_source_sha256": scene["screen_source_sha256"],
+            "root_movie_source_sha256": scene["root_movie_source_sha256"],
+            "package_sha256": scene["package_sha256"],
+            "package_relative": scene["package_relative"],
+            "export_name": scene["export_name"],
+            "menu_class": scene["menu_class"],
+            "screen_class": scene["screen_class"],
+            "wrapper_class": scene["wrapper_class"],
+            "original_root_name": scene["original_root_name"],
+            "renamed_original_root": scene["renamed_original_root"],
+            "document_source_name": scene["document_source_name"],
+            "document_target_name": scene["document_target_name"],
+            "symbol_character": scene["symbol_character"],
+            "symbol_name": scene["symbol_name"],
+            "authored_classes": tuple(scene["authored_classes"]),
+            "compiled_classes": tuple(scene["classes"]),
+        }
+    return (
+        "class _Pin:\n"
+        "    def __init__(self, **kwargs):\n"
+        "        self.__dict__.update(kwargs)\n"
+        "MATCH_SCENE_IDS = ('midgame', 'endgame')\n"
+        f"MATCH_PROFILES = {{key: _Pin(**value) for key, value in {profiles!r}.items()}}\n"
+        "def compose_match_movie(*args, **kwargs):\n"
+        f"    {compose_body}\n"
+    )
 
 
 def _decoder_files(root: Path, key: bytes = bytes(range(32))) -> tuple[Path, Path, bytes]:
@@ -166,7 +289,7 @@ def _reader_source(movie: bytes) -> str:
         "        self.data = data\n"
         "        self.metadata = metadata or {}\n"
         "def read_movie_bytes(path, exact_export_name, decrypt_header=None):\n"
-        "    if exact_export_name != 'MainMenu':\n"
+        "    if exact_export_name not in ('MainMenu', 'MidgameMenu', 'EndGameMenu'):\n"
         "        raise RuntimeError('export')\n"
         "    if decrypt_header is not None:\n"
         "        decrypt_header(b'0123456789abcdef')\n"
@@ -178,7 +301,9 @@ def _reader_source(movie: bytes) -> str:
     )
 
 
-def _rewrite_source(movie_hash: str) -> str:
+def _rewrite_source(movie_hash: str, match_hashes: tuple[str, str] | None = None) -> str:
+    if match_hashes is None:
+        match_hashes = (assets.MIDGAME_MOVIE_SHA256, assets.ENDGAME_MOVIE_SHA256)
     return (
         "import hashlib\n"
         "class Rewritten:\n"
@@ -196,6 +321,18 @@ def _rewrite_source(movie_hash: str) -> str:
         "    if not callable(kwargs.get('decrypt_header')) or not callable(kwargs.get('encrypt_header')):\n"
         "        raise RuntimeError('callbacks')\n"
         "    return Rewritten(b'private-package-bytes')\n"
+        "def replace_movie(package_bytes, replacement_movie, **kwargs):\n"
+        "    export_name = kwargs.get('export_name')\n"
+        "    if export_name not in ('MidgameMenu', 'EndGameMenu'):\n"
+        "        raise RuntimeError('export')\n"
+        "    actual = hashlib.sha256(package_bytes).hexdigest()\n"
+        "    if kwargs.get('expected_package_sha256') != actual:\n"
+        "        raise RuntimeError('package pin')\n"
+        f"    if kwargs.get('expected_movie_sha256') not in {match_hashes!r}:\n"
+        "        raise RuntimeError('movie pin')\n"
+        "    if not callable(kwargs.get('decrypt_header')) or not callable(kwargs.get('encrypt_header')):\n"
+        "        raise RuntimeError('callbacks')\n"
+        "    return Rewritten(b'match-package-' + export_name.encode('ascii'))\n"
         "def encrypt_aes256_ecb_cng(data, key):\n"
         "    if len(key) != 32:\n"
         "        raise RuntimeError('key')\n"
@@ -203,7 +340,16 @@ def _rewrite_source(movie_hash: str) -> str:
     )
 
 
-def _compose_source(movie_pin: str, abc_hash: str, source_hash: str, screen_hash: str, mutate: Path | None) -> str:
+def _compose_source(
+    movie_pin: str,
+    abc_hash: str,
+    source_hash: str,
+    screen_hash: str,
+    root_hash: str,
+    mutate: Path | None,
+    match_manifest: dict,
+    log: Path | None = None,
+) -> str:
     mutation = ""
     if mutate is not None:
         mutation = (
@@ -211,34 +357,98 @@ def _compose_source(movie_pin: str, abc_hash: str, source_hash: str, screen_hash
             f"    target = Path({os.fspath(mutate)!r})\n"
             "    target.write_bytes(target.read_bytes() + b'-mutated')\n"
         )
+    record = ""
+    if log is not None:
+        record = (
+            "    from pathlib import Path\n"
+            f"    Path({os.fspath(log)!r}).open('a', encoding='utf-8').write(repr((session, view_url)) + '\\n')\n"
+        )
+    match_record = "return {'data': b'composed-movie', 'metadata': {'runtime_verified': False, 'production_ready': False}}"
+    if log is not None:
+        match_record = (
+            "from pathlib import Path; "
+            f"Path({os.fspath(log)!r}).open('a', encoding='utf-8').write("
+            "repr((kwargs['session'], kwargs['view_url'])) + '\\n'); "
+            "return {'data': b'composed-movie', 'metadata': {'runtime_verified': False, 'production_ready': False}}"
+        )
     return (
         f"MOVIE_SHA256 = {movie_pin!r}\n"
         f"MOD_ABC_SHA256 = {abc_hash!r}\n"
         f"SOURCE_SHA256 = {source_hash!r}\n"
         f"SCREEN_SOURCE_SHA256 = {screen_hash!r}\n"
+        f"ROOT_MOVIE_SOURCE_SHA256 = {root_hash!r}\n"
         "NEW_CLASS = 'MctRootMenu'\n"
         "SCREEN_CLASS = 'MctMainMenuScreen'\n"
+        "ROOT_MOVIE_CLASS = 'MctRootMenuMovie'\n"
+        "ORIGINAL_ROOT_NAME = 'RootMenuMovie'\n"
+        "RENAMED_ORIGINAL_ROOT = 'MctOriginalRootMenuMovie'\n"
         "DOCUMENT_CHARACTER = 0\n"
         "DOCUMENT_TARGET_NAME = 'MctMainMenuScreen'\n"
+        f"{_library_lines(assets)}"
         "def compose_movie(original_gfx, mod_abc, *, session, view_url):\n"
         f"{mutation}"
+        f"{record}"
         "    return {'data': b'composed-movie', 'metadata': {'runtime_verified': False, 'production_ready': False}}\n"
+        f"{_match_composer_source(match_manifest, compose_body=match_record)}"
     )
 
 
-def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None) -> bytes:
+def _runtime_match_manifest(pause: bytes, results: bytes) -> dict:
+    pins = assets._match_pins()
+    scenes = {}
+    for scene_id, pin in pins.items():
+        blob = pause if scene_id == "midgame" else results
+        scene = {
+            key: (list(value) if isinstance(value, list) else value)
+            for key, value in stage.MATCH_SCENES[scene_id].items()
+        }
+        scene["movie_sha256"] = pin["movie_sha256"]
+        scene["package_sha256"] = pin["package_sha256"]
+        scene["abc_sha256"] = _sha(blob)
+        scene["abc_bytes"] = len(blob)
+        scene["classes"] = list(pin["compiled_classes"])
+        scene["authored_classes"] = list(pin["authored_classes"])
+        scene["class_flags"] = list(pin["class_flags"])
+        scene["method_bodies"] = pin["method_bodies"]
+        scenes[scene_id] = scene
+    return {
+        "abc_version": "46.16",
+        "compiler": "Apache Flex 4.16.1",
+        "game_classes_linked": False,
+        "library_classes": list(assets.LIBRARY_CLASSES),
+        "library_commit": assets.LIBRARY_COMMIT,
+        "library_files": dict(assets.LIBRARY_FILES),
+        "production_ready": False,
+        "runtime_verified": False,
+        "scenes": scenes,
+        "schema": 1,
+        "swf_version": 20,
+    }
+
+
+def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None, log: Path | None = None) -> bytes:
     directory.mkdir()
     abc = b"authored-abc"
     source = b"root-source"
     screen = b"screen-source"
+    wrapper = b"wrapper-source"
+    pause = b"pause-abc"
+    results = b"results-abc"
+    match_manifest = _runtime_match_manifest(pause, results)
     key = bytes(range(32))
     license_text = _license_bytes()
     manifest = {
         "abc_bytes": len(abc),
         "abc_sha256": _sha(abc),
-        "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+        "authored_classes": list(assets.AUTHORED_CLASSES),
+        "classes": list(assets.COMPILED_CLASSES),
         "game_classes_linked": False,
+        "library_classes": list(assets.LIBRARY_CLASSES),
+        "library_commit": assets.LIBRARY_COMMIT,
+        "library_files": dict(assets.LIBRARY_FILES),
         "production_ready": False,
+        "root_movie_source": "native_ui/MctRootMenuMovie.as",
+        "root_movie_source_sha256": _sha(wrapper),
         "runtime_verified": False,
         "screen_source": "native_ui/MctMainMenuScreen.as",
         "screen_source_sha256": _sha(screen),
@@ -247,11 +457,14 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
     }
     files = {
         "MctRootMenu.abc": abc,
+        "MctPauseMenu.abc": pause,
+        "MctResultsMenu.abc": results,
         "UEViewer-LICENSE.txt": license_text,
         "decoder_config.bin": key,
         "manifest.json": (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        "match-manifest.json": (json.dumps(match_manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"),
         "native_movie_compose.py": _compose_source(
-            assets.MOVIE_SHA256, _sha(abc), _sha(source), _sha(screen), mutate
+            assets.MOVIE_SHA256, _sha(abc), _sha(source), _sha(screen), _sha(wrapper), mutate, match_manifest, log
         ).encode("utf-8"),
         "native_package_reader.py": _reader_source(movie).encode("utf-8"),
         "native_package_rewrite.py": _rewrite_source(assets.MOVIE_SHA256).encode("utf-8"),
@@ -267,7 +480,7 @@ def _write_runtime(directory: Path, movie: bytes, *, mutate: Path | None = None)
             "abc_bytes": len(abc),
             "abc_sha256": _sha(abc),
             "bakkesmod_core": assets.BAKKESMOD_CORE,
-            "classes": ["menus::MctRootMenu", "MctMainMenuScreen"],
+            "classes": list(assets.AUTHORED_CLASSES),
             "executable_relative": assets.EXECUTABLE_RELATIVE,
             "executable_sha256": assets.EXECUTABLE_SHA256,
             "export_name": assets.EXPORT_NAME,
@@ -307,6 +520,10 @@ def _layout(root: Path, *, exe: bytes = EXE, package: bytes = PACKAGE):
     cooked.parent.mkdir(parents=True)
     executable.write_bytes(exe)
     cooked.write_bytes(package)
+    for relative in (assets.MIDGAME_PACKAGE_RELATIVE, assets.ENDGAME_PACKAGE_RELATIVE):
+        path = game.joinpath(*Path(relative).parts)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(package)
     bridge = root / "bridge"
     private = root / "private"
     bridge.mkdir()
@@ -339,8 +556,93 @@ def test_documented_pins_match():
     assert stage.SOURCE_URL.endswith("/Unreal/UnrealPackage/UnPackageReader.cpp")
     assert stage.LICENSE_URL.endswith("/LICENSE.txt")
     assert stage.UEVIEWER_COMMIT in stage.SOURCE_URL
+    assert assets.AUTHORED_CLASSES == stage.AUTHORED_CLASSES
+    assert assets.AUTHORED_CLASSES == ["menus::MctRootMenu", "MctMainMenuScreen", "MctRootMenuMovie"]
+    assert assets.LIBRARY_CLASSES == stage.LIBRARY_CLASSES
+    assert assets.COMPILED_CLASSES == stage.COMPILED_CLASSES
+    assert assets.LIBRARY_COMMIT == stage.LIBRARY_COMMIT == "24c6c16aecbf0d8fcc043ae671e689b0d4b4c559"
+    assert assets.LIBRARY_FILES == stage.LIBRARY_FILES
+    assert set(assets.COMPILED_CLASSES) == set(assets.AUTHORED_CLASSES) | set(assets.LIBRARY_CLASSES)
+    assert len(assets.COMPILED_CLASSES) == 10
     assert assets.default_runtime_directory().name == "native-menu"
     assert assets.default_runtime_directory().parent.name == "runtime"
+
+
+_CRLF_VENDOR = {
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONDecoder.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONEncoder.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONParseError.as",
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSONToken.as",
+}
+
+
+def test_vendored_json_bytes_survive_git_checkout(tmp_path):
+    spec = importlib.util.spec_from_file_location("mct_compose_pins", REPO / "scripts" / "native_movie_compose.py")
+    assert spec is not None and spec.loader is not None
+    compose = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = compose
+    try:
+        spec.loader.exec_module(compose)
+    finally:
+        sys.modules.pop(spec.name, None)
+    assert compose.LIBRARY_FILES == stage.LIBRARY_FILES == assets.LIBRARY_FILES
+    assert compose.COMPILED_CLASSES == stage.COMPILED_CLASSES
+    for relative, digest in stage.LIBRARY_FILES.items():
+        raw = (REPO / relative).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == digest
+        if relative in _CRLF_VENDOR:
+            assert b"\r\n" in raw
+        else:
+            assert b"\r\n" not in raw
+        blob = hashlib.sha1(f"blob {len(raw)}\0".encode("ascii") + raw).hexdigest()
+        recorded = subprocess.run(
+            ["git", "hash-object", "--path", relative, "--", relative],
+            cwd=REPO, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        assert recorded == blob
+    env = os.environ.copy()
+    env["GIT_INDEX_FILE"] = str(tmp_path / "index")
+    subprocess.run(["git", "add", "--", "native_ui/vendor/as3corelib"], cwd=REPO, env=env, check=True)
+    listed = subprocess.run(
+        ["git", "ls-files", "--eol", "--", "native_ui/vendor/as3corelib"],
+        cwd=REPO, env=env, check=True, capture_output=True, text=True,
+    )
+    rows = {}
+    for line in listed.stdout.splitlines():
+        index_eol, work_eol, _attr, path = line.split(None, 3)
+        rows[path.replace("\\", "/")] = (index_eol, work_eol)
+    assert set(rows) == set(stage.LIBRARY_FILES)
+    for path, (index_eol, work_eol) in rows.items():
+        ending = "crlf" if path in _CRLF_VENDOR else "lf"
+        assert index_eol == f"i/{ending}"
+        assert work_eol == f"w/{ending}"
+    notices = (REPO / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    for required in (
+        "Copyright (c) 2008, Adobe Systems Incorporated",
+        "Redistribution and use in source and binary forms",
+        "Neither the name of Adobe Systems Incorporated",
+        "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS",
+    ):
+        assert required in notices
+    for name in ("my-career-training.spec", "my-career-training-native.spec"):
+        packaged = (REPO / "packaging" / name).read_text(encoding="utf-8")
+        assert 'THIRD_PARTY_NOTICES.md' in packaged
+
+
+@pytest.mark.parametrize("relative", [
+    "native_ui/vendor/as3corelib/src/com/adobe/serialization/json/JSON.as",
+    "native_ui/vendor/as3corelib/README",
+    "native_ui/vendor/as3corelib/PROVENANCE.json",
+])
+def test_stage_refuses_a_changed_vendor_file(monkeypatch, tmp_path, relative):
+    repo, source_path, license_path, destination, _key, _manifest = _stage_ready(monkeypatch, tmp_path)
+    target = repo.joinpath(*Path(relative).parts)
+    target.write_bytes(target.read_bytes() + b" ")
+    with pytest.raises(stage.StageNativeRuntimeError, match="vendored library"):
+        stage.stage_native_runtime(
+            destination, repo_root=repo, source_path=source_path, license_path=license_path,
+        )
 
 
 def test_runtime_module_does_not_import_network_or_processes():
@@ -485,6 +787,27 @@ def test_stage_writes_only_the_allowlist(monkeypatch, tmp_path):
     _assert_key_absent(recorded, key)
     assert (destination / "decoder_config.bin").read_bytes() == key
     assert "decoder_config.bin" not in recorded or "32" in recorded
+
+
+@pytest.mark.parametrize("problem", ["scene", "class", "abc", "source"])
+def test_stage_refuses_changed_match_inventory_before_publication(monkeypatch, tmp_path, problem):
+    repo, source, license_path, destination, _key, _manifest = _stage_ready(monkeypatch, tmp_path)
+    path = repo / "native_ui" / "compiled" / "match-manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if problem == "scene":
+        manifest["scenes"]["pause"] = manifest["scenes"].pop("midgame")
+    elif problem == "class":
+        manifest["scenes"]["midgame"]["classes"].append("StockGameClass")
+    elif problem == "abc":
+        abc = repo / "native_ui" / "compiled" / "MctResultsMenu.abc"
+        abc.write_bytes(abc.read_bytes() + b"changed")
+    else:
+        (repo / "native_ui" / "menus" / "MctPauseMenu.as").write_text("changed", encoding="utf-8")
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    _forbid_side_effects(monkeypatch)
+    with pytest.raises(stage.StageNativeRuntimeError):
+        stage.stage_native_runtime(destination, repo_root=repo, source_path=source, license_path=license_path)
+    assert not destination.exists()
 
 
 def test_stage_replaces_an_allowlisted_directory_without_rmtree(monkeypatch, tmp_path):
@@ -662,12 +985,23 @@ def test_wrong_build_package_nonce_and_overlap_do_not_write(monkeypatch, tmp_pat
     assert list(private.iterdir()) == []
 
 
-def test_successful_preparation_writes_only_the_private_package(monkeypatch, tmp_path):
-    monkeypatch.setattr(assets, "MOVIE_SHA256", _sha(MOVIE))
-    monkeypatch.setattr(assets, "PACKAGE_SHA256", _sha(PACKAGE))
+def _pin_fixture_packages(monkeypatch) -> None:
+    movie = _sha(MOVIE)
+    package = _sha(PACKAGE)
+    monkeypatch.setattr(assets, "MOVIE_SHA256", movie)
+    monkeypatch.setattr(assets, "PACKAGE_SHA256", package)
     monkeypatch.setattr(assets, "EXECUTABLE_SHA256", _sha(EXE))
+    monkeypatch.setattr(assets, "MIDGAME_MOVIE_SHA256", movie)
+    monkeypatch.setattr(assets, "ENDGAME_MOVIE_SHA256", movie)
+    monkeypatch.setattr(assets, "MIDGAME_PACKAGE_SHA256", package)
+    monkeypatch.setattr(assets, "ENDGAME_PACKAGE_SHA256", package)
+
+
+def test_successful_preparation_writes_three_private_packages(monkeypatch, tmp_path):
+    _pin_fixture_packages(monkeypatch)
     runtime = tmp_path / "runtime"
-    key = _write_runtime(runtime, MOVIE)
+    log = tmp_path / "compose-log.txt"
+    key = _write_runtime(runtime, MOVIE, log=log)
     result, executable, cooked, private, bridge = _prepare(monkeypatch, tmp_path / "trees", runtime)
     # A second session must accept the same immutable runtime. Source-loader
     # bytecode caches used to add an unexpected directory after the first use.
@@ -693,10 +1027,23 @@ def test_successful_preparation_writes_only_the_private_package(monkeypatch, tmp
     assert result.production_ready is False
     assert result.installed is False
     assert result.launched is False
-    assert sorted(path.name for path in session_dir.iterdir()) == ["GFX_MainMenu_SF.upk", "prepare-receipt.json"]
+    assert sorted(path.name for path in session_dir.iterdir()) == [
+        "GFX_EndGameMenu_SF.upk", "GFX_MainMenu_SF.upk", "GFX_MidGameMenu_SF.upk", "prepare-receipt.json",
+    ]
+    assert set(result.additional_packages) == {"midgame", "endgame"}
+    for scene_id, pin in assets._match_pins().items():
+        record = result.additional_packages[scene_id]
+        assert record["private_package"] == str(session_dir / pin["private_name"])
+        expected = b"match-package-" + pin["export_name"].encode("ascii")
+        assert record["private_package_sha256"] == _sha(expected)
+        assert Path(record["private_package"]).read_bytes() == expected
+        assert record["source_package_relative"] == pin["package_relative"]
+        assert record["source_package_sha256"] == _sha(PACKAGE)
+        assert record["source_movie_sha256"] == _sha(MOVIE)
     assert (session_dir / "GFX_MainMenu_SF.upk").read_bytes() == b"private-package-bytes"
     receipt_text = (session_dir / "prepare-receipt.json").read_text(encoding="utf-8")
     receipt = json.loads(receipt_text)
+    assert receipt["additional_packages"] == result.additional_packages
     assert receipt["runtime_verified"] is False
     assert receipt["installed"] is False
     assert receipt["launched"] is False
@@ -712,6 +1059,52 @@ def test_successful_preparation_writes_only_the_private_package(monkeypatch, tmp
 def game_parent_unchanged(game: Path) -> bool:
     names = {path.name for path in game.iterdir()}
     return names == {"Binaries", "TAGame"}
+
+
+@pytest.mark.parametrize("failure_at", [2, 3, 4])
+def test_partial_three_package_publication_removes_only_owned_files(monkeypatch, tmp_path, failure_at):
+    _pin_fixture_packages(monkeypatch)
+    runtime = tmp_path / "runtime"
+    _write_runtime(runtime, MOVIE)
+    game, bridge, private, _executable, _cooked = _layout(tmp_path / "trees")
+    original = assets._write_exclusive
+    calls = 0
+
+    def fail(partial, payload, final):
+        nonlocal calls
+        calls += 1
+        if calls == failure_at:
+            raise assets.NativeMenuAssetsError("injected publication failure")
+        return original(partial, payload, final)
+
+    monkeypatch.setattr(assets, "_write_exclusive", fail)
+    _forbid_side_effects(monkeypatch)
+    with pytest.raises(assets.NativeMenuAssetsError, match="injected publication failure"):
+        assets.prepare_native_menu(game, SESSION, bridge, private, runtime)
+    assert not (private / SESSION).exists()
+    for pin in assets._match_pins().values():
+        assert (game / pin["package_relative"]).read_bytes() == PACKAGE
+
+
+def test_failed_publication_retains_an_unrelated_file(monkeypatch, tmp_path):
+    _pin_fixture_packages(monkeypatch)
+    runtime = tmp_path / "runtime"
+    _write_runtime(runtime, MOVIE)
+    game, bridge, private, _executable, _cooked = _layout(tmp_path / "trees")
+    original = assets._write_exclusive
+
+    def fail(partial, payload, final):
+        if final.name == assets.MIDGAME_PRIVATE_NAME:
+            (final.parent / "keep.txt").write_text("foreign", encoding="utf-8")
+            raise assets.NativeMenuAssetsError("injected publication failure")
+        return original(partial, payload, final)
+
+    monkeypatch.setattr(assets, "_write_exclusive", fail)
+    _forbid_side_effects(monkeypatch)
+    with pytest.raises(assets.NativeMenuAssetsError, match="injected publication failure"):
+        assets.prepare_native_menu(game, SESSION, bridge, private, runtime)
+    assert list(path.name for path in (private / SESSION).iterdir()) == ["keep.txt"]
+    assert (private / SESSION / "keep.txt").read_text(encoding="utf-8") == "foreign"
 
 
 def test_preexisting_session_files_are_retained(monkeypatch, tmp_path):
@@ -747,9 +1140,7 @@ def test_source_mutation_during_preparation_refuses(monkeypatch, tmp_path):
 
 
 def test_mutation_after_private_write_is_not_cleaned_up(monkeypatch, tmp_path):
-    monkeypatch.setattr(assets, "MOVIE_SHA256", _sha(MOVIE))
-    monkeypatch.setattr(assets, "PACKAGE_SHA256", _sha(PACKAGE))
-    monkeypatch.setattr(assets, "EXECUTABLE_SHA256", _sha(EXE))
+    _pin_fixture_packages(monkeypatch)
     runtime = tmp_path / "runtime"
     _write_runtime(runtime, MOVIE)
     game, bridge, private, _executable, cooked = _layout(tmp_path / "trees")

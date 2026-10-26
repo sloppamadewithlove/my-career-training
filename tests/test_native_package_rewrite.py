@@ -83,10 +83,10 @@ def save(tmp_path: Path, data: bytes, name: str) -> Path:
     return path
 
 
-def inflate_frame(framed: bytes) -> bytes:
+def inflate_frame(framed: bytes, expected_block=BLOCK) -> bytes:
     magic, block_size, _compressed_total, plain_total = struct.unpack_from("<4I", framed)
     assert magic == MAGIC
-    assert block_size == BLOCK
+    assert block_size == expected_block
     count = (plain_total + block_size - 1) // block_size
     offset = 16
     sizes = []
@@ -396,6 +396,98 @@ def test_selected_export_must_fill_the_last_chunk():
     for built in (trailing, shared):
         with pytest.raises(rewrite.PackageRewriteError, match="entire last chunk"):
             run(built.blob, movie_of(b"next"), built.movie)
+
+
+def relocate(blob, movie, source_movie, export_name="MainMenu", **kwargs):
+    return rewrite.replace_movie(
+        blob, movie, expected_package_sha256=digest(blob),
+        expected_movie_sha256=digest(source_movie), export_name=export_name, **kwargs,
+    )
+
+
+@pytest.mark.parametrize("encrypted", [False, True])
+@pytest.mark.parametrize("selected_name", ["OtherMenu", "MainMenu"])
+@pytest.mark.parametrize("body", [b"", b"source", b"G" * 150000], ids=["shrink", "same", "grow"])
+def test_relocation_preserves_all_old_logical_bytes(tmp_path, encrypted, selected_name, body):
+    crypt = fixtures.xor_crypt(b"synthetic-test-key!") if encrypted else None
+    built = build_shaped(encrypt=crypt, movie_body=b"source", other_body=b"source")
+    source_movie = built.other_movie if selected_name == "OtherMenu" else built.movie
+    replacement = movie_of(body)
+    kwargs = {"decrypt_header": crypt, "encrypt_header": crypt} if crypt else {}
+    result = relocate(built.blob, replacement, source_movie, selected_name, **kwargs)
+    before_path = save(tmp_path, built.blob, "before.upk")
+    before = reader.inspect_menu_package(before_path, decrypt_header=crypt)
+    after = assert_reader_movie(tmp_path, result.data, "after.upk", selected_name, replacement, crypt)
+    old_last = before["chunks"][-1]
+    new_last = after["chunks"][-1]
+    selected = next(item for item in after["exports"] if item["name"] == selected_name)
+    assert selected["serial_offset"] == old_last["uncompressed_offset"] + old_last["uncompressed_size"]
+    assert new_last["uncompressed_size"] == old_last["uncompressed_size"] + selected["serial_size"]
+    old_plain = inflate_frame(built.blob[old_last["compressed_offset"]:], expected_block=4096)
+    new_plain = inflate_frame(result.data[new_last["compressed_offset"]:])
+    assert new_plain[:len(old_plain)] == old_plain
+    assert len(new_plain) == len(old_plain) + selected["serial_size"]
+    assert result.data[built.header_size:old_last["compressed_offset"]] == built.blob[built.header_size:old_last["compressed_offset"]]
+    other_name = "MainMenu" if selected_name == "OtherMenu" else "OtherMenu"
+    other_before = next(item for item in before["exports"] if item["name"] == other_name)
+    other_after = next(item for item in after["exports"] if item["name"] == other_name)
+    assert other_after == other_before
+    expected_other = built.movie if other_name == "MainMenu" else built.other_movie
+    assert reader.read_movie_bytes(tmp_path / "after.upk", other_name, crypt).data == expected_other
+    selected_size_at = built.export_offset + (0 if selected_name == "OtherMenu" else 72) + 32
+    allowed = (selected_size_at, selected_size_at + 4, selected_size_at + 8, *built.fields[1:])
+    assert_only_size_fields_changed(
+        plain_header(built.blob, built.header_size, built.name_offset, crypt),
+        plain_header(result.data, built.header_size, built.name_offset, crypt), allowed,
+    )
+    assert result.metadata["runtime_verified"] is False
+    assert result.metadata["swf_tags_validated"] is False
+
+
+def test_relocation_with_unselected_bytes_in_selected_final_chunk(tmp_path):
+    built = fixtures.build_package(block_size=BLOCK)
+    tail = b"preserved unselected final chunk bytes"
+    old_plain = inflate_frame(built.blob[built.header_size:])
+    frame = fixtures.frame_plain(old_plain + tail, BLOCK)
+    header = bytearray(built.blob[:built.header_size])
+    struct.pack_into("<i", header, built.depends_offset + 12, len(old_plain) + len(tail))
+    struct.pack_into("<i", header, built.depends_offset + 24, len(frame))
+    blob = bytes(header) + frame
+    with pytest.raises(rewrite.PackageRewriteError, match="entire last chunk"):
+        run(blob, built.movie, built.movie)
+    result = relocate(blob, built.movie, built.movie)
+    inventory = assert_reader_movie(tmp_path, result.data, "tail.upk", "MainMenu", built.movie)
+    chunk = inventory["chunks"][-1]
+    assert inflate_frame(result.data[chunk["compressed_offset"]:]).startswith(old_plain + tail)
+    assert inventory["exports"][0]["serial_offset"] == built.serial_offset + len(old_plain) + len(tail)
+
+
+def test_relocation_refuses_pins_overlap_and_final_chunk_overflow(monkeypatch):
+    built = build_shaped()
+    for bad_field, message in (("expected_package_sha256", "package SHA"), ("expected_movie_sha256", "movie SHA")):
+        kwargs = dict(expected_package_sha256=digest(built.blob), expected_movie_sha256=digest(built.other_movie))
+        kwargs[bad_field] = "00" * 32
+        with pytest.raises(rewrite.PackageRewriteError, match=message):
+            rewrite.replace_movie(built.blob, built.other_movie, export_name="OtherMenu", **kwargs)
+    overlapping = build_shaped(overlap=True)
+    with pytest.raises(rewrite.PackageRewriteError, match="overlaps the selected"):
+        relocate(overlapping.blob, overlapping.movie, overlapping.movie)
+    # Both original chunks and the new serial fit individually. Only the
+    # combined final chunk exceeds the cap, before framing/concatenation.
+    built = build_shaped(movie_body=b"A" * 8000, other_body=b"B" * 8000)
+    monkeypatch.setattr(rewrite.reader, "MAX_CHUNK_BYTES", 9000)
+    with pytest.raises(rewrite.PackageRewriteError, match="relocated final chunk"):
+        relocate(built.blob, built.movie, built.movie)
+
+
+def test_relocation_retains_api_shape_and_rejects_trailing_native_data():
+    assert inspect.signature(rewrite.replace_movie) == inspect.signature(rewrite.replace_final_movie)
+    built = fixtures.build_package()
+    summary, package = rewrite._load_package(built.blob, None)
+    selected = rewrite.reader._select_export(package, "MainMenu")
+    serial = rewrite.reader._extract_serial(package, selected)
+    with pytest.raises(rewrite.PackageRewriteError, match="RawData property span"):
+        rewrite._rawdata_span(serial + b"unrecognized bulk offsets", package.names, built.movie)
 
 
 def test_overlapping_export_is_refused(tmp_path):

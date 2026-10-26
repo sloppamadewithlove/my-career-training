@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> int:
     version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
     bundle = ROOT / 'dist' / 'MyCareerTraining'
-    for name in ('MyCareerTraining.exe', 'MyCareerTrainingWorker.exe'):
+    for name in ('MyCareerTraining.exe', '_internal/MyCareerTrainingWorker.exe'):
         if not (bundle / name).read_bytes().startswith(b'MZ'):
             raise RuntimeError(f'Missing actual Windows executable: {name}')
     release = ROOT / 'release'

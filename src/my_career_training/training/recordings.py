@@ -80,13 +80,19 @@ def validate_recording(value, *, require_reference=False):
                     raise ValueError("Button actions must be true or false.")
             elif not _finite(item) or not -1 <= item <= 1:
                 raise ValueError("Analog actions must be finite and between −1 and 1.")
-        for vector_key in ("velocity", "ball_position", "ball_velocity"):
+        for vector_key in ("velocity", "ball_position", "ball_velocity", "angular_velocity"):
             if vector_key in sample and not _vector(sample[vector_key], 3):
                 raise ValueError(f"Invalid {vector_key} in recording.")
         if "game_speed" in sample and (not _finite(sample["game_speed"]) or sample["game_speed"] <= 0):
             raise ValueError("Invalid game speed in recording.")
         if "packet_gap" in sample and not isinstance(sample["packet_gap"], bool):
             raise ValueError("Invalid packet gap marker.")
+        if "wheel_contact" in sample and not isinstance(sample["wheel_contact"], bool):
+            raise ValueError("Invalid observed wheel contact in recording.")
+        if "boost" in sample and (not _finite(sample["boost"]) or not 0 <= sample["boost"] <= 100):
+            raise ValueError(
+                "Invalid observed car boost in recording; normal boost behavior is not observed."
+            )
     if len(json.dumps(value, allow_nan=False).encode("utf-8")) > MAX_RECORDING_BYTES:
         raise ValueError("Recording exceeds the supported file size.")
     warnings = []
@@ -244,6 +250,13 @@ class Recorder:
                 frame.get("game_speed", self.metadata["starting_state"].get("game_speed", 1.0))
             ),
         }
+        # Optional observed physics for validating new bot references. Older
+        # personal recordings remain readable; missing evidence is not invented.
+        # ``boost`` is the observed car boost amount (0..100), never the intended
+        # controller action, so a normal-boost burn can be checked from samples.
+        for key in ("angular_velocity", "wheel_contact", "boost"):
+            if key in car:
+                sample[key] = deepcopy(car[key])
         self.samples.append(sample)
 
     def export(self, *, outcome="unfinished", events=None, duration=0):
@@ -323,8 +336,80 @@ def _rotate(quaternion, point):
     return [px + w * tx + y * tz - z * ty, py + w * ty + z * tx - x * tz, pz + w * tz + x * ty - y * tx]
 
 
+def _pose_quaternion(pose):
+    """Accept an interpolated pose (quaternion) or a game frame pose (euler)."""
+    if not isinstance(pose, dict):
+        raise ValueError("A ghost placement needs a recorded pose.")
+    if _vector(pose.get("quaternion"), 4):
+        return [float(x) for x in pose["quaternion"]]
+    if _vector(pose.get("rotation"), 3):
+        return euler_quaternion(pose["rotation"])
+    raise ValueError("A ghost placement needs an oriented pose.")
+
+
+def _yaw_of(quaternion):
+    """Z-up yaw of a quaternion built as Rz(yaw) Ry(-pitch) Rx(-roll).
+
+    Rocket League is Z-up, so yaw is the rotation about z. The Y-up formula
+    would report 180 degrees for a pure 90-degree z yaw.
+    """
+    w, x, y, z = quaternion
+    length = math.sqrt(w * w + x * x + y * y + z * z)
+    if not length or not math.isfinite(length):
+        raise ValueError("A ghost placement needs a finite orientation.")
+    w, x, y, z = w / length, x / length, y / length, z / length
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+def _yaw_quaternion(yaw):
+    return [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+
+
+def _quaternion_product(first, second):
+    aw, ax, ay, az = first
+    bw, bx, by, bz = second
+    return [
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    ]
+
+
+def relative_placement(pose, *, origin, anchor, forward_offset=300.0):
+    """Pure spatial transform: place a recorded pose relative to the player.
+
+    The recorded start pose (``origin``) is mapped onto the player's pose at the
+    start of playback (``anchor``), shifted ``forward_offset`` game units along
+    the player's heading. Every later pose keeps its recorded relative motion and
+    orientation, rotated by the yaw difference only. Nothing is dragged to follow
+    the player after the anchor is taken, and no input is mutated.
+    """
+    if not _finite(forward_offset):
+        raise ValueError("Ghost placement distance must be finite.")
+    origin_quaternion = _pose_quaternion(origin)
+    anchor_quaternion = _pose_quaternion(anchor)
+    if not _vector(origin.get("position"), 3) or not _vector(anchor.get("position"), 3):
+        raise ValueError("A ghost placement needs recorded and player positions.")
+    delta_yaw = _yaw_of(anchor_quaternion) - _yaw_of(origin_quaternion)
+    turn = _yaw_quaternion(delta_yaw)
+    offset = _rotate(anchor_quaternion, [float(forward_offset), 0.0, 0.0])
+    delta = [float(b) - float(a) for a, b in zip(origin["position"], pose["position"])]
+    moved = _rotate(turn, delta)
+    return {
+        "time": pose.get("time"),
+        "position": [float(a) + b + c for a, b, c in zip(anchor["position"], offset, moved)],
+        "quaternion": _quaternion_product(turn, _pose_quaternion(pose)),
+        "actions": deepcopy(pose.get("actions")),
+    }
+
+
 def ghost_lines(pose, *, dimensions=(118, 84, 36)):
-    """Oriented render-only outline. Distinct nose arrow, roof stripe, and underside cross."""
+    """Oriented render-only car outline. No collision actor is ever created.
+
+    The body box is kept, but a nose arrow, a raised roof cage and four wheel
+    loops make the ghost read as a car instead of an unlabeled rectangle.
+    """
     if not pose:
         return []
     length, width, height = [float(x) / 2 for x in dimensions]
@@ -338,16 +423,38 @@ def ghost_lines(pose, *, dimensions=(118, 84, 36)):
     def add(start, end, style):
         lines.append({"start": world(start), "end": world(end), "style": style})
 
+    def add_loop(points, style):
+        for index, start in enumerate(points):
+            add(start, points[(index + 1) % len(points)], style)
+
     for i, start in enumerate(corners):
         for end in corners[i + 1 :]:
             if sum(a != b for a, b in zip(start, end)) == 1:
                 add(start, end, "outline")
+    # Nose arrow: the only "front" cue, so the heading stays readable.
     add((0, 0, height), (length + 30, 0, height), "front")
     add((length + 30, 0, height), (length, -15, height), "front")
     add((length + 30, 0, height), (length, 15, height), "front")
-    add((-length, 0, height), (length, 0, height), "roof")
+    # Roof cage: a smaller raised rectangle with four struts.
+    roof_z = height + 12
+    roof = [(-length * .5, -width * .5, roof_z), (length * .3, -width * .5, roof_z),
+            (length * .3, width * .5, roof_z), (-length * .5, width * .5, roof_z)]
+    add_loop(roof, "roof")
+    for x, y in ((-length * .5, -width * .5), (length * .3, -width * .5),
+                 (length * .3, width * .5), (-length * .5, width * .5)):
+        add((x, y, height), (x, y, roof_z), "roof")
+    # Underside cross keeps roll orientation visible.
     add((-length, -width, -height), (length, width, -height), "underside")
     add((-length, width, -height), (length, -width, -height), "underside")
+    # Four wheel loops, just outside the body.
+    wheel_z, wheel_half_x, wheel_half_z = -height * .5, 9.0, 7.0
+    for x in (length * .62, -length * .62):
+        for y in (-(width + 4), width + 4):
+            add_loop([(x - wheel_half_x, y, wheel_z - wheel_half_z),
+                      (x + wheel_half_x, y, wheel_z - wheel_half_z),
+                      (x + wheel_half_x, y, wheel_z + wheel_half_z),
+                      (x - wheel_half_x, y, wheel_z + wheel_half_z)], "wheel")
+    return lines
     return lines
 
 

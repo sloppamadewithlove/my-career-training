@@ -54,7 +54,7 @@ static CareerLayoutScope ownedScope() {
 
 static Json readyState() {
     Json state = {{"protocol", 1}, {"offline", true}, {"bridge_session", "0123456789abcdef0123456789abcdef"},
-        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}}},
+        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}, {"worker_running", false}}},
         {"career", {{"id", "career-a"}, {"team_name", "Orbit"}, {"current_season", 0}, {"pending_session", nullptr},
             {"squad", {"anchor", "shield", "relay", "comet"}}, {"lineup", {"anchor", "shield"}},
             {"recruits", {{"anchor", {{"name", "Anchor"}, {"role", "keeper"}}},
@@ -62,8 +62,8 @@ static Json readyState() {
                 {"relay", {{"name", "Relay"}, {"role", "passer"}}},
                 {"comet", {{"name", "Comet"}, {"role", "attacker"}}}}},
             {"seasons", {{{"clubs", {{{"id", "human"}, {"name", "Orbit"}}, {{"id", "aurora"}, {"name", "Nova"}}}},
-                {"fixtures", {{{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
-        {"next_fixture", {{"id", "fixture-a"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}},
+                {"fixtures", {{{"id", "career-a:s1:league:1:0"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
+        {"next_fixture", {{"id", "career-a:s1:league:1:0"}, {"home", "human"}, {"away", "aurora"}, {"round", 1}, {"status", "scheduled"}}},
         {"standings", {{{"name", "Orbit"}, {"points", 9}}}},
         {"lessons", {{{"id", "speed-flip"}, {"title", "Speed flip"}, {"description", "A timed kickoff lesson."},
                 {"steps", {"Drive", "Jump"}}},
@@ -145,7 +145,7 @@ int main() {
         forged.kind = CareerLayoutEffectKind::Dispatch;
         forged.action = "play_match";
         forged.enabled = true;
-        forged.payload = {{"expected_career_id", "career-a"}, {"expected_fixture_id", "fixture-a"}};
+        forged.payload = {{"expected_career_id", "career-a"}, {"expected_fixture_id", "career-a:s1:league:1:0"}};
         auto refused = choose(offline, forged, scope, state, true);
         require(!refused.accepted && refused.action.empty() && refused.refusal == CareerLayoutRefusal::NoPlan, "Unopened click dispatched");
 
@@ -187,7 +187,7 @@ int main() {
         require(root.choices.size() == 7, "Top menu must have seven controls");
         const char* ids[] = {NativeCareerLayout::kCareer, NativeCareerLayout::kTraining, NativeCareerLayout::kGarage,
             NativeCareerLayout::kWorkshop, NativeCareerLayout::kCommunity, NativeCareerLayout::kSettings, NativeCareerLayout::kExit};
-        const char* labels[] = {"My Career", "Training", "Garage", "Workshop", "Community", "Settings", "Exit"};
+        const char* labels[] = {"My Career", "Training", "Garage", "Workshop", "Community", "Settings", "Quit My Career"};
         for (std::size_t i = 0; i < 7; ++i) {
             require(root.choices[i].id == ids[i] && root.choices[i].label == labels[i], "Top menu order");
         }
@@ -242,9 +242,23 @@ int main() {
         auto career = layout.view(scope, state);
         audit(career);
         require(career.body.find("Orbit vs Nova") != std::string::npos, "Next match text missing");
+        require(career.body.find(NativeCareerManagement::careerSummary(state)) != std::string::npos,
+            "Career summary rows were flattened or truncated as one line");
         auto play = findChoice(career, "career.play");
         require(play.enabled && play.action == "play_match", "Play Next Match was not executable");
-        require(play.payload == Json({{"expected_career_id", "career-a"}, {"expected_fixture_id", "fixture-a"}}), "Match payload");
+        auto failedLaunch = state;
+        failedLaunch["error"] = "The game worker could not start.";
+        failedLaunch["notice"] = "An older saved notice.";
+        const auto failureView = layout.view(scope, failedLaunch);
+        require(failureView.body.find("Could not finish: The game worker could not start.") == 0,
+            "Native menu hid the backend launch failure");
+        require(failureView.body.find("An older saved notice.") == std::string::npos,
+            "Old success notice obscured the current failure");
+        auto savedNotice = state;
+        savedNotice["notice"] = "Club name ready for the new career.";
+        require(layout.view(scope, savedNotice).body.find("Club name ready for the new career.") == 0,
+            "Native menu hid saved-action feedback");
+        require(play.payload == Json({{"expected_career_id", "career-a"}, {"expected_fixture_id", "career-a:s1:league:1:0"}}), "Match payload");
         auto notConsumed = choose(layout, play, scope, state, false);
         require(!notConsumed.accepted && notConsumed.action.empty() && notConsumed.payload.empty(), "Match fired before consumption");
         require(notConsumed.refusal == CareerLayoutRefusal::NotConsumed && notConsumed.originalConsumptionRequired, "Consumption precondition missing");
@@ -269,6 +283,12 @@ int main() {
         auto busyCareer = layout.view(scope, busy);
         require(hasChoice(busyCareer, "career.play") && !findChoice(busyCareer, "career.play").enabled, "Busy match still enabled");
         require(findChoice(busyCareer, "career.play").action.empty(), "Busy match still has an action");
+        for (const auto& invalidId : {std::string("../fixture"), std::string("fixture/one"), std::string(129, 'a')}) {
+            auto invalid = state;
+            invalid["next_fixture"]["id"] = invalidId;
+            require(!findChoice(layout.view(scope, invalid), "career.play").enabled,
+                "Malformed fixture ID enabled play");
+        }
         auto finished = state;
         finished["next_fixture"]["status"] = "completed";
         require(!findChoice(layout.view(scope, finished), "career.play").enabled, "Finished match still enabled");
@@ -369,6 +389,35 @@ int main() {
         require(advanced.accepted && advanced.action == "next_season" && advanced.page == CareerLayoutPage::Career,
             "Completed season cannot advance from native menu");
 
+        for (int scenario = 0; scenario < 3; ++scenario) {
+            auto forfeited = readyState();
+            const bool awayHuman = scenario == 2;
+            const int homeScore = scenario == 0 ? 0 : awayHuman ? 2 : 7;
+            const int awayScore = scenario == 0 ? 0 : awayHuman ? 7 : 2;
+            forfeited["career"]["seasons"][0]["fixtures"].push_back({
+                {"id", "saved-forfeit"}, {"home", awayHuman ? "aurora" : "human"},
+                {"away", awayHuman ? "human" : "aurora"}, {"round", 1}, {"phase", "league"}, {"status", "completed"},
+                {"result", {{"home_score", homeScore}, {"away_score", awayScore}, {"winner", "aurora"},
+                    {"provenance", "forfeit"}, {"outcome", "forfeited"}, {"forfeited_by", "human"}, {"simulated", false}}}});
+            NativeCareerLayout forfeitLayout;
+            require(forfeitLayout.open(scope, forfeited), "Forfeit career layout did not open");
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), NativeCareerLayout::kCareer), scope, forfeited, false);
+            require(forfeitLayout.view(scope, forfeited).body.find(u8"FORFEIT \u2014 LOSS") != std::string::npos,
+                "Career last result hid forfeit outcome");
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), "career.schedule"), scope, forfeited, false);
+            const auto schedule = forfeitLayout.view(scope, forfeited);
+            const auto observed = scenario == 0 ? "Orbit 0, Nova 0" : awayHuman ? "Nova 2, Orbit 7" : "Orbit 7, Nova 2";
+            require(schedule.body.find("Upcoming matches.") != std::string::npos &&
+                schedule.body.find("Recent results (newest first):") != std::string::npos &&
+                schedule.body.find(std::string(u8"FORFEIT \u2014 LOSS; score at forfeit: ") + observed) != std::string::npos,
+                "Schedule hid the loss or reversed actual home/away scores");
+            require(schedule.body.size() <= NativeCareerLayout::kMaxBody, "Schedule result text exceeded its bound");
+            choose(forfeitLayout, findChoice(schedule, "nav.back"), scope, forfeited, false);
+            choose(forfeitLayout, findChoice(forfeitLayout.view(scope, forfeited), "career.standings"), scope, forfeited, false);
+            require(forfeitLayout.view(scope, forfeited).body.find(u8"FORFEIT \u2014 LOSS") != std::string::npos,
+                "Season history hid forfeit outcome");
+        }
+
         auto wide = state;
         wide["career"]["seasons"][0]["fixtures"] = Json::array();
         wide["standings"] = Json::array();
@@ -432,12 +481,18 @@ int main() {
         auto staleLesson = choose(layout, practice, scope, removed, true);
         require(!staleLesson.accepted && staleLesson.action.empty() && staleLesson.refusal == CareerLayoutRefusal::StaleChoice, "Removed lesson dispatched");
         require(layout.view(scope, removed).body.find("no longer available") != std::string::npos, "Missing lesson copy");
-        auto help = findChoice(layout.view(scope, state), "training.help.ghost");
-        auto ghost = choose(layout, help, scope, state, true);
-        require(ghost.accepted && ghost.action == "assistance" && ghost.payload == Json({{"id", "speed-flip"}, {"key", "ghost"}, {"value", false}}),
-            "Ghost setting payload");
-        auto speed = choose(layout, findChoice(layout.view(scope, state), "training.speed.quarter"), scope, state, true);
-        require(speed.accepted && speed.payload["key"] == "playback_speed" && speed.payload["value"] == 0.25, "Playback speed payload");
+        auto lessonView = layout.view(scope, state);
+        require(!hasChoice(lessonView, "training.help.ghost") &&
+                !hasChoice(lessonView, "training.speed.quarter"),
+            "Legacy ghost checkbox or speed control remained in the lesson flow");
+        require(NativeCareerLayout::supportedAction("ghost_control") &&
+                NativeCareerLayout::supportedAction("play_recording"),
+            "Pause ghost-practice actions were not allowlisted");
+        auto help = findChoice(lessonView, "training.help.explanations");
+        auto explanations = choose(layout, help, scope, state, true);
+        require(explanations.accepted && explanations.action == "assistance" &&
+                explanations.payload["key"] == "explanations",
+            "Step-by-step explanation setting payload");
         auto side = choose(layout, findChoice(layout.view(scope, state), "training.side.left"), scope, state, true);
         require(side.action == "lesson_variant" && side.payload == Json({{"id", "speed-flip"}, {"key", "side"}, {"value", "left"}}), "Side payload");
         require(!hasChoice(layout.view(scope, state), "training.zone.left") && !hasChoice(layout.view(scope, state), "training.simple.on"), "Wrong lesson settings");
@@ -453,7 +508,8 @@ int main() {
         auto running = state;
         running["session"]["kind"] = "training";
         require(!findChoice(layout.view(scope, running), "training.zone.left").enabled, "In-progress lesson still changes setup");
-        require(findChoice(layout.view(scope, running), "training.help.ghost").enabled, "Lesson help was blocked during practice");
+        require(findChoice(layout.view(scope, running), "training.help.explanations").enabled,
+            "Lesson explanations were blocked during practice");
 
         auto paged = state;
         paged["lessons"] = Json::array();
@@ -621,11 +677,9 @@ int main() {
         auto options = choose(layout, findChoice(settings, "settings.options"), scope, state, true);
         require(options.accepted && options.kind == CareerLayoutEffectKind::PreserveStockRoute && options.stock == StockRoute::Options, "Options route");
         require(options.action.empty() && options.payload.empty(), "Options route dispatched a setting");
-        auto mode = choose(layout, findChoice(settings, "settings.mode.lead"), scope, state, true);
-        require(mode.accepted && mode.action == "training_settings" && mode.payload == Json({{"key", "mode"}, {"value", "lead"}}), "Training mode payload");
-        require(mode.stock == StockRoute::None, "Training setting preserved a stock route");
-        auto loop = choose(layout, findChoice(layout.view(scope, state), "settings.loop.off"), scope, state, true);
-        require(loop.payload == Json({{"key", "loop"}, {"value", false}}), "Loop payload");
+        require(!hasChoice(settings, "settings.mode.lead") && !hasChoice(settings, "settings.mode.watch") &&
+                !hasChoice(settings, "settings.loop.on") && !hasChoice(settings, "settings.loop.off"),
+            "Legacy ghost mode or loop controls remained in settings");
         auto viewName = choose(layout, findChoice(layout.view(scope, state), "settings.view.top"), scope, state, true);
         require(viewName.payload == Json({{"key", "ghost_view"}, {"value", "top"}}), "Ghost view payload");
         require(!hasChoice(settings, "settings.launcher") && !hasChoice(settings, "settings.install_path"), "App setup was exposed as a game setting");
@@ -646,7 +700,8 @@ int main() {
         require(findChoice(stoppingRoot, NativeCareerLayout::kExit).action.empty(), "Busy exit still has an action");
         choose(layout, findChoice(stoppingRoot, NativeCareerLayout::kSettings), scope, stopping, false);
         require(findChoice(layout.view(scope, stopping), "settings.options").enabled, "Game options were disabled while busy");
-        require(!findChoice(layout.view(scope, stopping), "settings.mode.watch").enabled, "Training setting stayed enabled while busy");
+        require(!hasChoice(layout.view(scope, stopping), "settings.mode.watch"),
+            "Legacy ghost mode remained available while busy");
 
         layout.open(scope, state);
         auto exitChoice = findChoice(layout.view(scope, state), NativeCareerLayout::kExit);
@@ -861,6 +916,59 @@ int main() {
         require(choose(otherLayout, findChoice(otherLayout.view(scope, otherSite), NativeCareerLayout::kCommunity),
             scope, otherSite, false).accepted, "Other site page did not open");
         require(!hasChoice(otherLayout.view(scope, otherSite), "community.trial.286"), "Trial button appeared for another plugin");
+
+        auto recoveryState = readyState();
+        recoveryState["career"]["pending_session"] = {{"fixture_id", "career-a:s1:league:1:0"}, {"session_id", "attempt-a"}};
+        NativeCareerLayout recovery;
+        require(recovery.open(scope, recoveryState), "Recovery menu did not open");
+        choose(recovery, findChoice(recovery.view(scope, recoveryState), NativeCareerLayout::kCareer), scope, recoveryState, false);
+        auto recoveryEntry = findChoice(recovery.view(scope, recoveryState), "career.recover");
+        require(recoveryEntry.kind == CareerLayoutEffectKind::Navigate && recoveryEntry.action.empty(),
+            "Recovery entry changed a save without confirmation");
+        for (const auto& phase : {"Starting Career", "Playing", "Stopping Career"}) {
+            auto active = recoveryState;
+            active["session"]["state"] = phase;
+            active["session"]["busy"] = std::string(phase) != "Playing";
+            active["session"]["worker_running"] = std::string(phase) == "Playing";
+            const auto shown = recovery.view(scope, active);
+            require(!hasChoice(shown, "career.recover"), "Active match offered unfinished recovery");
+            require(shown.body.find("Your last match did not finish") == std::string::npos,
+                "Active match was described as unfinished");
+            require(!choose(recovery, recoveryEntry, scope, active, false).accepted,
+                "Stale recovery navigation remained available during an active match");
+        }
+        auto unknownWorker = recoveryState;
+        unknownWorker["session"].erase("worker_running");
+        require(!hasChoice(recovery.view(scope, unknownWorker), "career.recover"),
+            "Recovery guessed that an unknown worker was inactive");
+        choose(recovery, recoveryEntry, scope, recoveryState, false);
+        auto confirmation = findChoice(recovery.view(scope, recoveryState), "career.recover.confirm");
+        audit(recovery.view(scope, recoveryState));
+        require(confirmation.enabled && confirmation.payload.at("expected_session_id") == "attempt-a",
+            "Recovery confirmation did not bind the unfinished attempt");
+        auto changedAttempt = recoveryState;
+        changedAttempt["career"]["pending_session"]["session_id"] = "attempt-b";
+        require(!choose(recovery, confirmation, scope, changedAttempt, true).accepted,
+            "Old confirmation restarted a different attempt");
+        auto activeAttempt = recoveryState;
+        activeAttempt["session"]["kind"] = "career";
+        activeAttempt["session"]["worker_running"] = true;
+        require(!findChoice(recovery.view(scope, activeAttempt), "career.recover.confirm").enabled,
+            "Recovery offered to clear a live match");
+        activeAttempt["session"].erase("worker_running");
+        require(!findChoice(recovery.view(scope, activeAttempt), "career.recover.confirm").enabled,
+            "Recovery guessed that an unknown worker was stopped");
+        auto failedAttempt = recoveryState;
+        failedAttempt["session"]["kind"] = "career";
+        failedAttempt["session"]["state"] = "Error/Recovery";
+        require(findChoice(recovery.view(scope, failedAttempt), "career.recover.confirm").enabled,
+            "Recovery stayed blocked by a failed worker's previous request");
+        auto recovered = choose(recovery, confirmation, scope, recoveryState, true);
+        require(recovered.accepted && recovered.action == "abandon_fixture" && !recovered.leaveMenu &&
+            recovered.page == CareerLayoutPage::Career && recovered.payload.at("expected_fixture_id") == "career-a:s1:league:1:0",
+            "Confirmed recovery did not return to Career with the bound fixture");
+        require(!hasChoice(recovery.view(scope, readyState()), "career.recover"),
+            "Recovery remained visible after the unfinished match cleared");
 
         std::cout << "Native career layout: passthrough, menu mapping, consumption, stale scope, and supported actions passed.\n";
         return 0;

@@ -3,7 +3,7 @@
 Offline Windows x64 experiment. It builds three test-only binaries:
 
 - `MctNativeFileFixture.exe` opens a synthetic asset, then probes unrelated names and write, create, and delete access.
-- `MctNativeFileView64.dll` detours `CreateFileW` for one canonical path and redirects a read-only open onto a private file.
+- `MctNativeFileView64.dll` redirects read-only `CreateFileW` opens and `GetFileAttributesExW` metadata queries for one canonical path onto the same private file.
 - `mct_native_file_view_tests.exe` launches only the adjacent fixture. It cannot attach to a process that is already running.
 
 The DLL is mapped by `DetourCreateProcessWithDllExW` before the fixture entry point. Scope is a fixed in-memory payload from that launcher. There is no installed runtime and no general injection tool.

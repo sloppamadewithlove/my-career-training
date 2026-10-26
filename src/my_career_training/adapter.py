@@ -17,9 +17,33 @@ def flat_module():
     return flat
 
 
+def capture_descriptor(capture):
+    """Descriptor for the single known development capture bot.
+
+    The existing controller construction and team mapping read exactly these
+    fields, so the capture bot reuses the ordinary bot path instead of a
+    bot-only configuration. The Human stays present and uncontrolled.
+    """
+    return {
+        "name": "Development Capture Bot",
+        "team": 0,
+        "role": "all-rounder",
+        "level": 1,
+        "difficulty": .5,
+        "seed": 0,
+        "loadout": {"car_id": 23, "primary_color": 27, "secondary_color": 0},
+        "capture_profile": capture["profile"],
+        "capture_trial_id": capture["trial_id"],
+    }
+
+
 def match_config(request):
     from .map_guard import refuse_custom_map_launch
     refuse_custom_map_launch(request)
+    # The capture gate runs here as well as in the worker setup, so a caller
+    # cannot obtain a capture match layout without passing every gate.
+    from .reference_capture import validate_capture_request
+    capture = validate_capture_request(request)
     f = flat_module()
     fixture = request.get("fixture") or {}
     training = bool(request.get("lesson_id"))
@@ -31,7 +55,20 @@ def match_config(request):
         raise ValueError("Choose Steam or Epic.")
     human_team = 0 if training or fixture.get("home") == "human" else 1
     players, descriptors = [], {}
-    if not training:
+    if capture is not None:
+        # Exactly one known CustomBot before the Human: bot index 0, Human
+        # index 1, both on the known team 0. Ordinary training keeps one Human
+        # and no bots; Career is unchanged.
+        descriptor = capture_descriptor(capture)
+        loadout = descriptor["loadout"]
+        variety = f.CustomBot(name=descriptor["name"], root_dir=str(Path.cwd()), run_command="",
+            agent_id="my-career-training/team-0", hivemind=True,
+            loadout=f.PlayerLoadout(car_id=loadout.get("car_id", 23), wheels_id=376,
+                team_color_id=loadout.get("primary_color", 27),
+                custom_color_id=loadout.get("secondary_color", 0)))
+        descriptors[0] = descriptor
+        players.append(f.PlayerConfiguration(variety=variety, team=descriptor["team"]))
+    elif not training:
         from .career import bot_runtime_snapshot
         for bot in bot_runtime_snapshot(fixture):
             team, loadout = bot["team"], bot["loadout"]
@@ -56,7 +93,10 @@ def match_config(request):
         player_configurations=players, script_configurations=[], game_mode=f.GameMode.Soccar,
         skip_replays=training, instant_start=training, mutators=mutators,
         existing_match_behavior=f.ExistingMatchBehavior.Restart, enable_rendering=f.DebugRendering.OnByDefault,
-        enable_state_setting=bool(request.get("lesson_id")), auto_save_replay=False, freeplay=training,
+        # Human drills use an unlimited offline match so shots can score. Keep
+        # development capture's existing Free Play context unchanged.
+        enable_state_setting=bool(request.get("lesson_id")), auto_save_replay=False,
+        freeplay=training and capture is not None,
         performance_monitor=f.PerformanceMonitor.NeverShow)
     return config, descriptors, len(players) - 1
 
@@ -121,11 +161,26 @@ def desired_state(state, human_index):
         match_info=None)
 
 
+def observed_score(packet):
+    """Return home/away goals by explicit team index, never array position."""
+    teams = getattr(packet, "teams", None)
+    if not isinstance(teams, (list, tuple)) or len(teams) != 2:
+        return None
+    scores = {}
+    for team in teams:
+        index, score = getattr(team, "team_index", None), getattr(team, "score", None)
+        if (type(index) is not int or index not in (0, 1) or index in scores
+                or type(score) is not int or not 0 <= score <= 999):
+            return None
+        scores[index] = score
+    return scores[0], scores[1]
+
+
 def final_score(packet, seen_active):
     f = flat_module()
     if not seen_active or packet.match_info.match_phase != f.MatchPhase.Ended:
         return None
-    scores = {t.team_index: t.score for t in packet.teams}
-    if set(scores) != {0, 1} or scores[0] == scores[1]:
+    scores = observed_score(packet)
+    if scores is None or scores[0] == scores[1]:
         return None
-    return scores[0], scores[1]
+    return scores

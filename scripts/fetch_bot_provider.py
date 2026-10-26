@@ -54,7 +54,7 @@ def main():
         receipt["models"].append({"id": provider_id, "file": model["filename"],
                                   "sha256": model["sha256"], "size": target.stat().st_size})
     if not args.verify:
-        (RESOURCE_DIR / "manifest.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+        (RESOURCE_DIR / "manifest.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps({"verified": True, **receipt}))
 
 

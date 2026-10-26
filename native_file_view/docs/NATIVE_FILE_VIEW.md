@@ -12,11 +12,11 @@ No live game process is started or modified. The launcher accepts only `MctNativ
 
 `DetourCreateProcessWithDllExW` creates the fixture suspended and inserts `MctNativeFileView64.dll` as the first in-memory import, so the loader maps it before the fixture entry point. The DLL exports `DetourFinishHelperProcess` at ordinal 1 and calls `DetourRestoreAfterWith` from `DllMain`. While the new process is still suspended, the launcher may call `DetourCopyPayloadToProcess` with GUID `{7B1E6A14-2C4F-4A8E-9D33-5F0B8C2E71A6}` and then resume the main thread.
 
-The payload is `MctFileViewScopeV1`: magic, version, size, a reserved zero, and two fixed UTF-16 paths. There are no function pointers. `DllMain` reads it with `DetourFindPayloadEx`. A missing, truncated, or inconsistent payload leaves `CreateFileW` untouched.
+The payload is `MctFileViewScopeV1`: magic, version, size, a reserved zero, and two fixed UTF-16 paths. `MctFileViewScopeV2` is a second fixed size: count 1..3 and three mapping slots. Slot ids are only main `1`, midgame `2`, and endgame `3`. Main is required, ids are unique and ascending, unused slots are zero, and each original path must end with that id's `TAGame\CookedPCConsole\GFX_*Menu_SF.upk` suffix. There are no function pointers and no caller-supplied source map. `DllMain` reads the payload with `DetourFindPayloadEx`. A missing, truncated, or inconsistent payload leaves `CreateFileW` untouched. V1 remains the single-map payload.
 
-`DllMain` does not log, open files, load libraries, start threads, or wait. The `CreateFileW` detour is attached there, which is the Detours sample pattern. The DLL stays loaded for the life of the fixture. Process exit does not detach the hook. Unloading it while a caller can still reach `CreateFileW` is not supported.
+`DllMain` does not log, open files, load libraries, start threads, or wait. The open and attribute detours are attached there, following the Detours sample pattern. Optional trace hooks only observe enumeration. The DLL stays loaded for the life of the child process. Process exit does not detach the hooks. Unloading it while a caller can still reach them is not supported.
 
-The hook compares one drive-letter path. Comparison is ordinal and case-insensitive after `GetFullPathNameW`, with `.` and `..` normalized. Inputs longer than 1023 characters are rejected before a terminator is written. The compare does not resolve reparse points, and it does not use wildcards, prefixes, or suffixes. A junction path is a different string, so it is not the configured target; `CreateFileW` then follows that junction and reads the original bytes. Only `OPEN_EXISTING` with read-only access is redirected. Write, delete, create, `WRITE_DAC`, `WRITE_OWNER`, `GENERIC_ALL`, `MAXIMUM_ALLOWED`, and other mutable requests fail with `ERROR_ACCESS_DENIED` and do not open either file. If the private open fails, that failure is returned and the original path is not opened.
+The hook compares the configured drive-letter paths. Comparison is ordinal and case-insensitive after `GetFullPathNameW`, with `.` and `..` normalized. Inputs longer than 1023 characters are rejected before a terminator is written. The compare does not resolve reparse points, and it does not use wildcards, prefixes, or suffixes. A junction path is a different string, so it is not the configured target; `CreateFileW` then follows that junction and reads the original bytes. Only `OPEN_EXISTING` with read-only access is redirected. Write, delete, create, `WRITE_DAC`, `WRITE_OWNER`, `GENERIC_ALL`, `MAXIMUM_ALLOWED`, and other mutable requests fail with `ERROR_ACCESS_DENIED` and do not open either file. Each matched original selects its own private file. `GetFileAttributesExW` and `CreateFileW` use that same private path, so the size reported before the open is the private size. If the private open fails, that failure is returned and the original path is not opened.
 
 The launcher rejects UNC paths, device paths, reparse points, directories, and an original/private pair that canonicalizes to one path or one file id. It repeats the file and identity checks when copying a payload, including a scope filled in by the caller, so a hard link or junction alias is not copied. A missing private file remains a valid payload and does not fall back to the original. The synthetic files are marked read-only and held open against replacement. The DLL path must fit Detours' ANSI `StringCchLengthA` limit of 4095 bytes and round-trip through the system ANSI code page, because `DetourCreateProcessWithDllExW` takes the DLL path as `LPCSTR`.
 
@@ -49,15 +49,24 @@ Scratch cleanup deletes only a canonical `mct-nfv-*` directory directly under th
 The plain, redirected, and inactive-scope reads also query `GetFileSizeEx` and
 `GetFileInformationByHandleEx(FileStandardInfo)` on their opened handles. Both
 sizes match the bytes actually read, including the deliberately different
-original/private lengths. A `GetFileAttributesExW` query of the original path
-still reports the original size. This documents an API boundary: path metadata
-is not redirected. These assertions passed with all eleven scenarios; they do
-not establish which metadata calls Rocket League uses.
+original/private lengths. `GetFileAttributesExW` now uses the same exact-path
+redirect. The fixture queries metadata before opening, sizes its read from that
+answer, and checks private-file errors and unrelated same-name files.
+
+The October 24 live trace observed Rocket League querying the original length
+and then opening a larger private file. The earlier fixture explicitly allowed
+that inconsistency. Directory enumeration still returns original metadata;
+there is no broad directory redirect. Live acceptance is recorded separately.
+
+Developer-only `MCT_FILE_VIEW_TRACE=1` writes numeric observations beside the
+private package as a `.trace` file. It records matching opens, attributes and
+same-basename enumeration results; no paths or account data are logged. An
+enumeration observation alone does not prove which directory was queried.
 
 Not verified:
 
 - Any installed game, its package reader, or a process that was already running.
-- Other file-open APIs. Only `CreateFileW` is hooked; the two handle metadata
+- Other file-open APIs. `CreateFileW` and `GetFileAttributesExW` are redirected; the two handle metadata
   queries above work on the genuine redirected handle without another hook.
 - A callback from the hook into the career app.
 - That lexical path matching follows junctions or covers every path a game binary might open.

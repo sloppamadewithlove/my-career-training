@@ -180,9 +180,9 @@ def launch_offline(settings, directory=None, *, native_session=None):
         if native_session is not None:
             return native_session.launch(executable)
         # Current RLBot's Steam launcher uses the installed executable and Steam identity.
-        # -noeac is the official offline mode, never an online anti-cheat bypass.
+        # -rlbot selects its own offline mode; adding -noeac prevents the game bridge connecting.
         env = dict(os.environ, SteamAppId="252950", SteamGameId="252950")
-        process = subprocess.Popen([str(executable), "-noeac", "-rlbot",
+        process = subprocess.Popen([str(executable), "-rlbot",
             "RLBot_ControllerURL=127.0.0.1:23233", "RLBot_PacketSendRate=240", "-nomovie"],
             cwd=executable.parent, env=env, shell=False)
         owned = psutil.Process(process.pid)
@@ -305,15 +305,20 @@ def run_service(directory, *, native_movie_trial=False):
             backend.error = f"Community trial is unavailable: {exc}"
     started = time.monotonic()
     plugin_seen = False
+    menu_seen = False
+    exited_before_menu = False
     connection_warning_shown = False
     handoff_error_shown = False
     def tick():
-        nonlocal plugin_seen, connection_warning_shown, handoff_error_shown
+        nonlocal plugin_seen, menu_seen, exited_before_menu, connection_warning_shown, handoff_error_shown
         try:
             backend.plugin_status = bridge.plugin_status()
             if backend.plugin_status.get("pid") != backend.owned_game.pid:
                 backend.plugin_status = {}
             plugin_seen = plugin_seen or bool(backend.plugin_status)
+            movie = backend.plugin_status.get("native_movie_trial", {})
+            ready = isinstance(movie, dict) and movie.get("movie_ready") is True
+            menu_seen = menu_seen or (ready if native_session is not None else plugin_seen)
             if native_session is not None:
                 if backend.native_community is not None:
                     backend.native_community.refresh()
@@ -331,6 +336,8 @@ def run_service(directory, *, native_movie_trial=False):
                 if backend.lifecycle.state == "Error/Recovery" and not handoff_error_shown:
                     handoff_error_shown = True
                     QMessageBox.critical(None, "My Career handoff", backend.lifecycle.last_error)
+                elif not menu_seen and backend.lifecycle.state == "Idle":
+                    exited_before_menu = True
                 app.quit()
             elif time.monotonic() - started > 90 and not plugin_seen and not connection_warning_shown:
                 connection_warning_shown = True
@@ -362,5 +369,23 @@ def run_service(directory, *, native_movie_trial=False):
                     restore_error = exc
     if restore_error is not None:
         QMessageBox.critical(None, "My Career plugin recovery", str(restore_error))
+        return 1
+    if exited_before_menu:
+        # The game's logs may contain account IDs and authentication details.
+        # Store only our observed launch stage, never copy those logs here.
+        try:
+            (Path(directory) / "startup-status.json").write_text(json.dumps({
+                "status": "game_closed_before_menu", "native_menu": native_movie_trial,
+                "plugin_connected": plugin_seen, "menu_connected": False,
+                "temporary_plugin_restored": True,
+            }, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        QMessageBox.critical(None, "My Career could not start",
+            "Rocket League closed before the My Career menu was ready. "
+            "This can mean a startup crash or that the game was closed during loading.\n\n"
+            "Your career files were kept, and the temporary plugin setup has been restored. "
+            "Open only My Career Training from its shortcut. The Worker is an automatic helper.\n\n"
+            "If this happens again, this build needs a repair; opening the Worker will not fix it.")
         return 1
     return result

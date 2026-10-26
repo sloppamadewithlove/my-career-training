@@ -332,6 +332,179 @@ def test_recorded_runtime_matches_controller_parameters_for_every_player_mapping
     assert rules.validate_career(json.loads(json.dumps(done)))
 
 
+def _human_result(career):
+    return next(f for f in career["seasons"][0]["fixtures"]
+                if f["result"] and "human" in (f["home"], f["away"]))
+
+
+def test_forfeit_keeps_observed_scores_home_and_away():
+    career = rules.new_career("Night Shift", seed=402)
+    observed = [(2, 2), (4, 1), (0, 3), (1, 1), (0, 5), (3, 1)]
+    sides = []
+    for home_score, away_score in observed:
+        fixture = rules.next_fixture(career)
+        session = f"forfeit-round-{fixture['round']}"
+        career = rules.forfeit_fixture(rules.start_fixture(career, session), fixture["id"], session,
+                                       home_score, away_score)
+        stored = next(f for f in career["seasons"][0]["fixtures"] if f["id"] == fixture["id"])
+        result = stored["result"]
+        opponent = stored["away"] if stored["home"] == "human" else stored["home"]
+        assert (result["home_score"], result["away_score"]) == (home_score, away_score)
+        assert result["winner"] == opponent and result["winner"] != "human"
+        assert result["provenance"] == "forfeit" and result["outcome"] == "forfeited"
+        assert result["forfeited_by"] == "human" and result["simulated"] is False
+        sides.append(stored["home"] == "human")
+    assert sides == [True, True, True, False, False, False]
+    assert career["record"] == {"played": 6, "wins": 0, "losses": 6, "goals_for": 13, "goals_against": 10}
+    round_one = [f for f in career["seasons"][0]["fixtures"] if f["round"] == 1]
+    assert sum(f["result"]["provenance"] == "forfeit" for f in round_one) == 1
+    assert sum(f["result"]["provenance"] == "simulated" for f in round_one) == 1
+    assert len([r for r in career["rewards"] if r["type"] == "match_experience"]) == 6
+    assert rules.validate_career(json.loads(json.dumps(career)))
+
+
+def test_forfeit_duplicate_is_idempotent_and_conflicts_are_rejected():
+    career = rules.new_career("Night Shift", seed=402)
+    fixture = rules.next_fixture(career)
+    companion = next(f for f in career["seasons"][0]["fixtures"] if "human" not in (f["home"], f["away"]))
+    future = next(f for f in career["seasons"][0]["fixtures"]
+                  if "human" in (f["home"], f["away"]) and f["id"] != fixture["id"])
+    started = rules.start_fixture(career, "keep")
+    untouched = deepcopy(started)
+    for call in (lambda: rules.forfeit_fixture(started, companion["id"], "keep", 1, 1),
+                 lambda: rules.forfeit_fixture(started, "missing-fixture", "keep", 1, 1),
+                 lambda: rules.forfeit_fixture(started, future["id"], "keep", 1, 0),
+                 lambda: rules.forfeit_fixture(started, fixture["id"], "other-session", 1, 1),
+                 lambda: rules.forfeit_fixture(started, fixture["id"], "keep", 1000, 0)):
+        with pytest.raises(ValueError):
+            call()
+        assert started == untouched
+    done = rules.forfeit_fixture(started, fixture["id"], "keep", 4, 2)
+    assert started == untouched
+    assert rules.forfeit_fixture(done, fixture["id"], "keep", 4, 2) == done
+    reopened = json.loads(json.dumps(done))
+    assert rules.forfeit_fixture(reopened, fixture["id"], "keep", 4, 2) == done
+    for call in (lambda: rules.forfeit_fixture(done, fixture["id"], "keep", 4, 1),
+                 lambda: rules.forfeit_fixture(done, fixture["id"], "other-session", 4, 2),
+                 lambda: rules.complete_fixture(done, fixture["id"], "keep", 4, 2)):
+        with pytest.raises(ValueError):
+            call()
+    assert done["record"]["played"] == 1 and len([r for r in done["rewards"] if r["type"] == "match_experience"]) == 1
+    idle = rules.new_career("Night Shift", seed=402)
+    with pytest.raises(ValueError, match="pending human fixture"):
+        rules.forfeit_fixture(idle, rules.next_fixture(idle)["id"], "never-started", 0, 0)
+    played = play(rules.new_career("Night Shift", seed=88), 2, 0)
+    finished = _human_result(played)
+    with pytest.raises(ValueError, match="played result"):
+        rules.forfeit_fixture(played, finished["id"], finished["session_id"], 2, 0)
+    assert played["record"]["wins"] == 1
+
+
+def test_forfeit_restart_roundtrip_rejects_tampered_identity():
+    career = rules.new_career("Night Shift", seed=402)
+    fixture = rules.next_fixture(career)
+    restarted = rules.abandon_fixture(rules.start_fixture(career, "abandoned-session"))
+    with pytest.raises(ValueError, match="pending human fixture"):
+        rules.forfeit_fixture(restarted, fixture["id"], "abandoned-session", 1, 0)
+    done = rules.forfeit_fixture(rules.start_fixture(restarted, "fresh-session"), fixture["id"],
+                                 "fresh-session", 1, 0)
+    reopened = json.loads(json.dumps(done))
+    assert rules.validate_career(reopened)
+    assert rules.forfeit_fixture(reopened, fixture["id"], "fresh-session", 1, 0) == done
+    stored = _human_result(done)
+    assert stored["attempts"][0]["status"] == "abandoned"
+    assert stored["attempts"][1]["status"] == "completed"
+
+    def result_of(value):
+        return _human_result(value)["result"]
+
+    for corrupt in (
+        lambda c: result_of(c).update(winner="human"),
+        lambda c: result_of(c).update(outcome="played"),
+        lambda c: result_of(c).pop("forfeited_by"),
+        lambda c: result_of(c).pop("outcome"),
+        lambda c: result_of(c).update(simulated=True),
+        lambda c: result_of(c).update(provenance="game"),
+        lambda c: result_of(c).update(forfeited_by="opponent"),
+    ):
+        forged = deepcopy(done)
+        corrupt(forged)
+        with pytest.raises(ValueError):
+            rules.validate_career(forged)
+    natural = play(rules.new_career("Night Shift", seed=402), 3, 2)
+    for corrupt in (
+        lambda c: _human_result(c)["result"].update(outcome="forfeited"),
+        lambda c: _human_result(c)["result"].update(forfeited_by="human"),
+        lambda c: _human_result(c)["result"].update(home_score=_human_result(c)["result"]["away_score"]),
+    ):
+        forged = deepcopy(natural)
+        corrupt(forged)
+        with pytest.raises(ValueError):
+            rules.validate_career(forged)
+    assert rules.validate_career(natural)
+    assert rules.validate_career(done)
+
+
+def test_forfeit_standings_keep_goals_and_progression_matches_a_loss():
+    career = rules.new_career("Night Shift", seed=402)
+    fixture = rules.next_fixture(career)
+    assert (fixture["home"], fixture["away"]) == ("human", "tidal")
+    done = rules.forfeit_fixture(rules.start_fixture(career, "lead"), fixture["id"], "lead", 5, 1)
+    rows = {row["id"]: row for row in rules.standings(done)}
+    assert (rows["human"]["wins"], rows["human"]["losses"], rows["human"]["points"]) == (0, 1, 0)
+    assert (rows["human"]["goals_for"], rows["human"]["goals_against"]) == (5, 1)
+    assert (rows["tidal"]["wins"], rows["tidal"]["losses"], rows["tidal"]["points"]) == (1, 0, 3)
+    assert (rows["tidal"]["goals_for"], rows["tidal"]["goals_against"]) == (1, 5)
+    assert rows["aurora"]["played"] == rows["cinder"]["played"] == 1
+    played_loss = play(rules.new_career("Night Shift", seed=402), 0, 1)
+    assert done["rewards"][0]["xp"] == played_loss["rewards"][0]["xp"]
+    assert done["record"]["wins"] == played_loss["record"]["wins"] == 0
+    assert (done["record"]["goals_for"], done["record"]["goals_against"]) == (5, 1)
+    assert all(done["recruits"][i]["stats"]["wins"] == 0 for i in done["squad"])
+    fresh = rules.new_career("Night Shift", seed=402)
+    level = rules.next_fixture(fresh)
+    tied = rules.forfeit_fixture(rules.start_fixture(fresh, "level"), level["id"], "level", 2, 2)
+    tied_rows = {row["id"]: row for row in rules.standings(tied)}
+    assert tied_rows["human"]["points"] == 0 and tied_rows["tidal"]["points"] == 3
+    assert (tied_rows["human"]["goals_for"], tied_rows["human"]["goals_against"]) == (2, 2)
+    assert rules.validate_career(json.loads(json.dumps(done)))
+    assert rules.validate_career(json.loads(json.dumps(tied)))
+
+
+def test_forfeit_title_semifinal_awards_opponent_and_preserves_table(monkeypatch):
+    score = install_scorebook(monkeypatch, list(rules.CLUB_IDS))
+    career = rules.new_career("Night Shift", seed=7)
+    for _ in range(6):
+        career = play(career, *score(rules.next_fixture(career)))
+    table = deepcopy(rules.standings(career))
+    wins = {key: recruit["stats"]["wins"] for key, recruit in career["recruits"].items()}
+    fixture = rules.next_fixture(career)
+    assert fixture["phase"] == "semifinal"
+    home_score, away_score = (3, 0) if fixture["home"] == "human" else (0, 3)
+    done = rules.forfeit_fixture(rules.start_fixture(career, "forfeit-semi"), fixture["id"],
+                                 "forfeit-semi", home_score, away_score)
+    stored = next(f for f in done["seasons"][0]["playoffs"] if f["id"] == fixture["id"])
+    result = stored["result"]
+    score_winner = stored["home"] if home_score > away_score else stored["away"]
+    assert (result["home_score"], result["away_score"]) == (home_score, away_score)
+    assert score_winner == "human" and result["winner"] != "human"
+    assert result["provenance"] == "forfeit" and result["outcome"] == "forfeited"
+    assert result["forfeited_by"] == "human" and result["simulated"] is False
+    assert rules.standings(done) == table
+    assert rules.next_fixture(done) is None
+    assert done["seasons"][0]["champion"] not in (None, "human")
+    assert done["seasons"][0]["playoffs"][-1]["phase"] == "final"
+    assert done["seasons"][0]["playoffs"][-1]["result"]["simulated"] is True
+    assert done["record"]["wins"] == career["record"]["wins"]
+    assert done["record"]["losses"] == career["record"]["losses"] + 1
+    reward = next(item for item in done["rewards"] if item["fixture_id"] == fixture["id"])
+    assert reward["xp"] == {recruit_id: 35 if recruit_id in fixture["lineup"] else 12
+                            for recruit_id in fixture["squad"]}
+    assert {key: recruit["stats"]["wins"] for key, recruit in done["recruits"].items()} == wins
+    assert len([item for item in done["rewards"] if item["type"] == "match_experience"]) == 7
+    assert rules.validate_career(json.loads(json.dumps(done)))
+
+
 def test_bot_runtime_rejects_tampered_parameters_and_preserves_completed_snapshot():
     career = play(rules.new_career("Runtime Metadata", seed=775))
     completed = deepcopy(career["seasons"][0]["fixtures"][0]["bot_runtime"])

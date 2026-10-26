@@ -9,6 +9,11 @@ from my_career_training import bootstrap, platforms
 from my_career_training.map_guard import MapGuard, digest
 
 
+@pytest.fixture(autouse=True)
+def isolated_launcher_state(monkeypatch):
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: False)
+
+
 @pytest.mark.parametrize("launcher", ["epic", "unknown", "", None])
 def test_offline_entry_refuses_unverified_or_default_launcher(launcher, tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap.sys, "platform", "win32")
@@ -23,6 +28,14 @@ def test_offline_entry_refuses_to_overlap_an_existing_game(monkeypatch):
     monkeypatch.setattr(bootstrap, "game_processes", lambda: [object()])
 
     with pytest.raises(RuntimeError, match="Close the existing Rocket League"):
+        bootstrap.preflight_offline({"launcher": "steam", "install_path": "unverified"})
+
+
+def test_offline_entry_waits_for_a_native_helper_even_without_a_game(monkeypatch):
+    monkeypatch.setattr(bootstrap.sys, "platform", "win32")
+    monkeypatch.setattr(bootstrap, "game_processes", lambda: [])
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: True)
+    with pytest.raises(RuntimeError, match="offline menu helper is still finishing"):
         bootstrap.preflight_offline({"launcher": "steam", "install_path": "unverified"})
 
 
@@ -64,11 +77,13 @@ def test_normal_steam_entry_uses_the_regular_game_launch_uri(monkeypatch):
 @pytest.mark.parametrize(
     ("arguments", "allowed"),
     [
-        (["RocketLeague.exe", "-noeac", "-rlbot"], True),
-        (["RocketLeague.exe", "-NOEAC", "-RLBOT"], True),
+        (["RocketLeague.exe", "-rlbot"], True),
+        (["RocketLeague.exe", "-RLBOT"], True),
         (["RocketLeague.exe"], False),
         (["RocketLeague.exe", "-noeac"], False),
-        (["RocketLeague.exe", "-rlbot"], False),
+        (["RocketLeague.exe", "-noeac", "-rlbot"], False),
+        (["RocketLeague.exe", "-NOEAC", "-RLBOT"], False),
+        (["RocketLeague.exe", "-rlbot", "-eac"], False),
         (["RocketLeague.exe", "-noeac", "-rlbot", "-eac"], False),
         (["RocketLeague.exe", "-noeac-extra", "-rlbot-helper"], False),
     ],
@@ -81,10 +96,10 @@ def test_offline_mode_uses_exact_expected_launch_flags(arguments, allowed):
     ("created", "executable", "arguments"),
     [
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe"]),
-        (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
+        (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-noeac"]),
-        (123.0, r"C:\Other\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
-        (124.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac"]),
+        (123.0, r"C:\Other\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
+        (124.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot"]),
         (123.0, r"C:\Games\RocketLeague.exe", ["RocketLeague.exe", "-rlbot", "-noeac", "-eac"]),
     ],
 )
@@ -122,7 +137,7 @@ def test_offline_identity_accepts_only_the_exact_offline_child(monkeypatch):
             return expected
 
         def cmdline(self):
-            return ["RocketLeague.exe", "-noeac", "-rlbot"]
+            return ["RocketLeague.exe", "-rlbot"]
 
     import psutil
 

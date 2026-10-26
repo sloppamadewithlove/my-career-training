@@ -43,6 +43,8 @@ gui = EXE(PYZ(a.pure), a.scripts, [], exclude_binaries=True,
           strip=False, upx=False, console=False, icon=str(icon))
 worker = EXE(PYZ(b.pure), b.scripts, [], exclude_binaries=True,
              name="MyCareerTrainingWorker", debug=False, bootloader_ignore_signals=False,
-             strip=False, upx=False, console=True, icon=str(icon))
-coll = COLLECT(gui, worker, a.binaries, a.datas, b.binaries, b.datas,
+             strip=False, upx=False, console=True, hide_console="hide-early",
+             contents_directory=".", icon=str(icon))
+worker_files = [("_internal/MyCareerTrainingWorker.exe", worker.name, "EXECUTABLE")]
+coll = COLLECT(gui, worker_files, worker.dependencies, a.binaries, a.datas, b.binaries, b.datas,
                strip=False, upx=False, name="MyCareerTraining")

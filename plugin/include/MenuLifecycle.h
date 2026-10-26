@@ -10,6 +10,7 @@ struct MenuContext {
     bool matchEnded = false;
     std::string session;
     std::string phase;
+    bool nativeMenus = false;
 };
 
 // Only transitions request a host window. Repeated game ticks must never undo
@@ -25,15 +26,20 @@ public:
         const bool ended = next.matchEnded && !previous_.matchEnded;
         const bool error = next.phase == "Error/Recovery" && next.phase != previous_.phase;
         const bool frontend = !next.inGame && previous_.inGame;
+        const bool enteredGame = next.inGame && !previous_.inGame;
         const bool resultReady = next.phase == "Career Ready" && previous_.phase == "Playing";
         previous_ = next;
+        // Native ownership survives missing/replaced movie handshakes, including
+        // the title screen. Only gameplay needs this window's nonblocking HUD.
+        if (next.nativeMenus)
+            return newSession || beganPlaying || enteredGame || frontend ? MenuChange::Hide : MenuChange::None;
         if (pauseEntered || ended || error || resultReady) return MenuChange::Show;
         if (beganPlaying) return MenuChange::Hide;
         if (newSession || frontend) return MenuChange::Show;
         return MenuChange::None;
     }
-    static bool blocksInput(bool ready, bool menuVisible, bool hostOpen) {
-        return ready && menuVisible && hostOpen;
+    static bool blocksInput(bool ready, bool menuVisible, bool hostOpen, bool nativeMenus = false) {
+        return !nativeMenus && ready && menuVisible && hostOpen;
     }
 private:
     MenuContext previous_;

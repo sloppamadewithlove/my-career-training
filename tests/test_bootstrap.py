@@ -1,6 +1,7 @@
 """Offline launch owns a temporary BakkesMod plugin session and checks process identity."""
 from __future__ import annotations
 
+import json
 import math
 from types import SimpleNamespace
 
@@ -9,6 +10,13 @@ import pytest
 from my_career_training import bootstrap
 from my_career_training.platforms import ProcessIdentity
 from my_career_training.plugin_session import PluginSession
+
+
+@pytest.fixture(autouse=True)
+def isolated_launcher_state(monkeypatch):
+    # Tests supply their game/owner state; the host PC is outside the fixture.
+    monkeypatch.setattr(bootstrap, "native_launcher_pending", lambda: False)
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: False)
 
 
 class _ProcInfo:
@@ -111,16 +119,17 @@ def test_verify_owned_offline_uses_shared_launch_tokens_and_rejects_bad_clocks(m
     monkeypatch.setattr(psutil, "Process", lambda _pid: FakeProcess())
     identity = ProcessIdentity(pid=73, created=123.0, executable=expected)
 
-    seen.update(live=123.0, args=["RocketLeague.exe", "-noeac", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233"])
+    seen.update(live=123.0, args=["RocketLeague.exe", "-rlbot", "RLBot_ControllerURL=127.0.0.1:23233"])
     assert bootstrap.verify_owned_offline(identity) is True
 
-    seen["args"] = ["RocketLeague.exe", "-noeac", "-rlbot", "-eac"]
-    assert bootstrap.verify_owned_offline(identity) is False
+    for conflict in ("-eac", "-noeac", "-NOEAC"):
+        seen["args"] = ["RocketLeague.exe", "-rlbot", conflict]
+        assert bootstrap.verify_owned_offline(identity) is False
 
     for created, live in ((math.nan, 123.0), (math.inf, 123.0), (0, 123.0), (-5, 123.0),
                           (True, 123.0), (123.0, math.nan), (123.0, 0), (123.0, -1)):
         identity = ProcessIdentity(pid=73, created=created, executable=expected)
-        seen.update(live=live, args=["RocketLeague.exe", "-noeac", "-rlbot"])
+        seen.update(live=live, args=["RocketLeague.exe", "-rlbot"])
         assert bootstrap.verify_owned_offline(identity) is False
 
 
@@ -145,7 +154,8 @@ def test_failed_launch_restores_the_journal_and_does_not_touch_steam(tmp_path, m
     assert layout.steam_sentinel.read_bytes() == b"steam-sentinel"
     args, kwargs = observed[0]
     assert args[0] == str(layout.executable)
-    assert "-noeac" in args and "-rlbot" in args
+    assert args[1:] == ["-rlbot", "RLBot_ControllerURL=127.0.0.1:23233",
+                       "RLBot_PacketSendRate=240", "-nomovie"]
     assert kwargs["shell"] is False
     assert all("localconfig" not in str(part).lower() for part in args)
     assert not (layout.root / "cfg" / "plugins.cfg.mct-backup").exists()
@@ -507,7 +517,7 @@ def test_native_service_waits_for_helper_after_child_exit(tmp_path, monkeypatch)
     from my_career_training import native_offline, platforms
     import PySide6.QtCore as qt_core
     layout = _bakkes(tmp_path)
-    app_type, _ = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
+    app_type, box = _service_fakes(monkeypatch, layout, lambda *_a, **_kw: pytest.fail("direct launch"), lambda: False)
     helper_finished = [False]
 
     class Native:
@@ -553,8 +563,14 @@ def test_native_service_waits_for_helper_after_child_exit(tmp_path, monkeypatch)
         assert quits == [True]
         return 0
     monkeypatch.setattr(app_type, "exec", run)
-    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 0
+    assert bootstrap.run_service(layout.data, native_movie_trial=True) == 1
     assert not layout.journal.exists()
+    assert box.criticals[-1][0] == "My Career could not start"
+    assert "temporary plugin setup has been restored" in box.criticals[-1][1]
+    status = json.loads((layout.data / "startup-status.json").read_text())
+    assert status == {"status": "game_closed_before_menu", "native_menu": True,
+                      "plugin_connected": False, "menu_connected": False,
+                      "temporary_plugin_restored": True}
 
 
 def test_service_restores_plugin_files_on_a_normal_exit(tmp_path, monkeypatch):

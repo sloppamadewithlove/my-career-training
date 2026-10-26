@@ -63,6 +63,39 @@ def test_no_result_without_observed_active_match(tmp_path, monkeypatch):
     assert not Path(tmp_path, "outbox").exists()
 
 
+def test_reversed_team_array_keeps_canonical_telemetry_and_final_score(tmp_path, monkeypatch):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    packet.teams.reverse()
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    telemetry = next(event for event in events if event["type"] == "telemetry")
+    assert telemetry["scores"] == [4, 3]
+    packet.match_info.match_phase = 7
+    instance.process_packet(packet)
+    result = next(event for event in events if event["type"] == "result")
+    assert (result["home_score"], result["away_score"]) == (4, 3)
+
+
+@pytest.mark.parametrize("teams", [[], [NS(team_index=0, score=4)],
+    [NS(team_index=0, score=4), NS(team_index=0, score=3)],
+    [NS(team_index=0, score=4), NS(team_index=2, score=3)],
+    [NS(team_index=0, score=4), NS(team_index=True, score=3)],
+    [NS(team_index=0, score=4), NS(score=3)],
+    [NS(team_index=0, score=4), NS(team_index=1, score=True)]])
+def test_invalid_team_mapping_never_fabricates_observed_or_final_goals(tmp_path, monkeypatch, teams):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    packet.teams = teams
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    assert next(event for event in events if event["type"] == "telemetry")["scores"] == []
+    packet.match_info.match_phase = 7
+    instance.process_packet(packet)
+    assert not any(event["type"] == "result" for event in events)
+    assert not Path(tmp_path, "outbox").exists()
+
+
 def simulated_session(tmp_path, monkeypatch, events):
     flat = NS(MatchPhase=NS(Active=3, Ended=7), ControllerState=lambda **kw: kw,
               PlayerInput=lambda index, state: (index, state))
@@ -136,6 +169,128 @@ def test_attempt_ack_required_before_reset(tmp_path):
     assert not instance.attempt_acked
     instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-1"})
     assert instance.attempt_acked
+
+
+def test_auto_reset_waits_one_second_after_first_durable_ack_and_duplicate_ack_does_not_extend(
+    tmp_path, monkeypatch
+):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    instance.engine = NS(preferences={"auto_reset": True})
+    instance.attempt_sent = "attempt-with-samples"
+    instance.attempt_retryable = True
+    now = [100.0]
+    resets = []
+    instance.reset = lambda: resets.append(now[0])
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now[0])
+
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-with-samples"})
+    deadline = instance.auto_reset_at
+    assert instance.attempt_acked is True
+    assert deadline == pytest.approx(101.0)
+    assert resets == []
+
+    now[0] = 100.75
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-with-samples"})
+
+    assert instance.auto_reset_at == deadline
+    assert resets == []
+
+
+def test_prestart_attempt_ack_does_not_schedule_automatic_reset(tmp_path, monkeypatch):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    instance.engine = NS(preferences={"auto_reset": True})
+    instance.attempt_sent = "prestart-interruption"
+    instance.attempt_retryable = False
+    resets = []
+    instance.reset = lambda: resets.append(True)
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 100.0)
+
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "prestart-interruption"})
+
+    assert instance.attempt_acked is True
+    assert instance.auto_reset_at is None
+    assert resets == []
+
+
+def test_only_attempts_with_recorded_samples_are_eligible_for_auto_retry(tmp_path):
+    instance = worker.GameSession(request(tmp_path), lambda _event: None)
+    summary = {"id": "prestart", "state": "interrupted", "outcome": "interrupted"}
+    recording = {"samples": []}
+    instance.engine = NS(summary=lambda: dict(summary), recording=lambda: dict(recording))
+
+    instance.publish_attempt()
+    assert instance.attempt_retryable is False
+
+    summary["id"] = "ran-attempt"
+    recording["samples"] = [{"time": 0.0}]
+    instance.publish_attempt()
+    assert instance.attempt_retryable is True
+
+
+def test_worker_accepts_two_step_training_samples_but_keeps_capture_strict(tmp_path, monkeypatch):
+    def processed_frames(*, capture):
+        events = []
+        instance, packet = simulated_session(tmp_path, monkeypatch, events)
+        observed = []
+        instance.engine = NS(
+            tolerances={"max_packet_interval": 0.05},
+            metadata={}, recorder=NS(metadata={}), preferences={}, finished=False,
+            update=lambda frame: observed.append(frame) or [],
+            summary=lambda: {"coaching": {}},
+        )
+        instance.applied_reset = True
+        instance.training_actor_index = 0 if capture else 1
+        instance.renderer = NS(can_render=False)
+        instance.last_controls = float("inf")
+        instance.last_render = float("inf")
+        instance.last_telemetry = float("inf")
+        instance.game_version = "test-build"
+        packet.players = [NS(), NS()]
+        monkeypatch.setattr(worker, "observed_hitbox", lambda _player: {})
+        if capture:
+            instance.capture = {"target_index": 0}
+            instance.capture_ready = True
+            instance._capture_metadata = lambda *_args: {}
+
+        samples = iter((
+            {"time": 1.0, "frame_num": 120},
+            {"time": 1.0 + 1 / 60, "frame_num": 122},
+        ))
+
+        def normalized_packet(*_args):
+            tick = next(samples)
+            bot = {
+                "index": 0, "team": 1, "is_bot": True,
+                "position": [0, 0, 17], "rotation": [0, 0, 0],
+                "actions": {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0,
+                            "roll": 0.0, "jump": False, "boost": False, "handbrake": False},
+            }
+            human = {
+                "index": 1, "team": 0, "is_bot": False,
+                "position": [0, 0, 17], "rotation": [0, 0, 0],
+                "actions": {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0,
+                            "roll": 0.0, "jump": False, "boost": False, "handbrake": False},
+            }
+            return {
+                **tick,
+                "cars": [bot, human],
+                "ball": {"position": [0, 0, 93], "velocity": [0, 0, 0]},
+            }
+
+        monkeypatch.setattr(adapter, "normalized_packet", normalized_packet)
+        instance.process_packet(packet)
+        instance.process_packet(packet)
+        return observed
+
+    ordinary = processed_frames(capture=False)
+    assert len(ordinary) == 2
+    assert ordinary[1]["packet_gap"] is False
+    assert ordinary[1]["cadence"] == "coarse_continuous"
+
+    strict_capture = processed_frames(capture=True)
+    assert len(strict_capture) == 2
+    assert strict_capture[1]["packet_gap"] is True
+    assert strict_capture[1]["cadence"] == "step_count_exceeded"
 
 
 def test_preflight_refuses_preexisting_game_and_core(monkeypatch):
@@ -244,7 +399,10 @@ def test_stop_request_blocks_bot_controls_before_queued_stop_is_processed(tmp_pa
 
 def test_stop_request_blocks_reset_engine_and_ghost_work(tmp_path, monkeypatch):
     instance, packet = simulated_session(tmp_path, monkeypatch, [])
-    instance.engine = NS(update=lambda *a: pytest.fail("Training continued after stop"))
+    instance.engine = NS(
+        update=lambda *a: pytest.fail("Training continued after stop"),
+        tolerances={"max_packet_interval": 0.05},
+    )
     instance.renderer = NS(can_render=True)
     instance.command({"type": "stop"})
     instance.process_packet(packet)
@@ -329,8 +487,10 @@ def handshake_config(arena="Stadium_P"):
     return NS(game_map_upk=arena, player_configurations=[NS(team=1, variety=CustomBot()), NS(team=0, variety=Human())])
 
 
-def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch):
+@pytest.mark.parametrize("cancel_during_model", [False, True])
+def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch, cancel_during_model):
     import threading
+    from my_career_training.bots import providers
     configuration = handshake_config()
     order = []
     acknowledged = threading.Event()
@@ -365,16 +525,28 @@ def test_match_configuration_ack_precedes_bot_connections(tmp_path, monkeypatch)
     monkeypatch.setitem(sys.modules, "rlbot.managers.rendering", NS(Renderer=lambda relay: NS()))
     monkeypatch.setattr(worker, "preflight", lambda owned=None: None)
     monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
-    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: NS(poll=lambda: None))
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: order.append("core") or NS(poll=lambda: None))
+    def model(*args):
+        order.append("model")
+        if cancel_during_model:
+            instance.command({"type": "shutdown"})
+        return object()
+    monkeypatch.setattr(providers, "create_controller", model)
     monkeypatch.setattr(adapter, "match_config", lambda req: (configuration,
         {0: {"team": 1, "level": 1, "difficulty": .5, "seed": 1}}, 1))
     instance = worker.GameSession(request(tmp_path), lambda event: None)
     monkeypatch.setattr(instance, "_relay_thread", lambda relay: None)
+    if cancel_during_model:
+        with pytest.raises(worker.SessionCancelled):
+            instance.setup()
+        assert order == ["model"]
+        assert not (tmp_path / "runtime").exists()
+        return
     instance.setup()
-    assert order == ["manager-connect", "start", "ack", "team-connect"]
+    assert order == ["model", "core", "manager-connect", "start", "ack", "team-connect"]
     order.append("mapping")
     instance.map_team(1, NS(team=1, controllables=[NS(index=0)]))
-    assert order == ["manager-connect", "start", "ack", "team-connect", "mapping", "init"]
+    assert order == ["model", "core", "manager-connect", "start", "ack", "team-connect", "mapping", "init"]
 
 
 def test_match_handshake_rejects_wrong_configuration_and_times_out(tmp_path):
@@ -400,3 +572,145 @@ def test_stop_cancels_match_handshake_before_team_connections(tmp_path):
     with pytest.raises(worker.SessionCancelled):
         instance.start_acknowledged_match(handshake_config())
     assert master.match_config_handlers == []
+
+
+def test_cancelled_or_expired_start_never_creates_core(tmp_path, monkeypatch):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    calls = []
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: calls.append("spawn"))
+    instance.command({"type": "shutdown"})
+    with pytest.raises(worker.SessionCancelled):
+        instance.spawn_core(tmp_path, 12345)
+    instance.cancel_start.clear()
+    instance.started_monotonic -= 121
+    with pytest.raises(RuntimeError, match="two minutes"):
+        instance.spawn_core(tmp_path, 12345)
+    assert calls == []
+
+
+def test_spawn_wins_race_then_stop_uses_only_created_handle(tmp_path, monkeypatch):
+    import threading
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    entered, release = threading.Event(), threading.Event()
+    actions = []
+    core = NS(poll=lambda: None, wait=lambda timeout: actions.append("wait"))
+    def spawn(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        return core
+    monkeypatch.setattr(worker, "preflight", lambda owned: None)
+    monkeypatch.setattr(worker, "core_path", lambda: Path("verified-runtime.exe"))
+    monkeypatch.setattr(worker.subprocess, "Popen", spawn)
+    loader = threading.Thread(target=instance.spawn_core, args=(tmp_path, 12345))
+    stopper = threading.Thread(target=instance.command, args=({"type": "shutdown"},))
+    loader.start()
+    assert entered.wait(2)
+    stopper.start()
+    release.set()
+    loader.join(2)
+    stopper.join(2)
+    assert not loader.is_alive() and not stopper.is_alive()
+    assert instance.cancel_start.is_set() and instance.core is core
+    instance.stop_owned_core()
+    assert actions == ["wait"]
+
+
+def test_blocked_pre_core_worker_exits_under_spawn_lock(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.stop_id = "timeout-stop"
+    def exit_worker(code):
+        assert code == 2 and instance.cancel_start.is_set()
+        assert instance.core_lock.locked()
+        raise SystemExit(code)
+    monkeypatch.setattr(worker.os, "_exit", exit_worker)
+    with pytest.raises(SystemExit):
+        instance.exit_blocked_pre_core_worker()
+    assert events == [{"type": "stopped", "session_id": instance.session_id, "id": "timeout-stop"}]
+    instance.core = object()
+    assert instance.exit_blocked_pre_core_worker() is False
+    instance.core = None
+    instance.result_sent = True
+    assert instance.exit_blocked_pre_core_worker() is False
+
+
+def test_cleanup_failure_does_not_report_stopped(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    def cancelled():
+        raise worker.SessionCancelled()
+    def cleanup_failure():
+        raise OSError("synthetic cleanup failure")
+    monkeypatch.setattr(instance, "setup", cancelled)
+    monkeypatch.setattr(instance, "teardown", cleanup_failure)
+    instance.run()
+    assert not any(event["type"] == "stopped" for event in events)
+    assert events[-1]["type"] == "error"
+
+
+def test_dead_session_cleanup_failure_cannot_acknowledge_shutdown(tmp_path, monkeypatch):
+    output = io.StringIO()
+    instance = worker.Worker(output)
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    session.thread = NS(is_alive=lambda: False)
+    session.core = NS(poll=lambda: 0)
+    session.map_guard = NS(recover=lambda: (_ for _ in ()).throw(OSError("synthetic journal busy")))
+    instance.session = session
+    with pytest.raises(OSError, match="journal busy"):
+        instance.command({"type": "shutdown"})
+    assert not session.cleanup_complete and not instance.closed
+    assert output.getvalue() == ""
+    monkeypatch.setattr(session.map_guard, "recover", lambda: None)
+    instance.command({"type": "shutdown"})
+    assert session.cleanup_complete and instance.closed
+    assert json.loads(output.getvalue())["type"] == "stopped"
+
+
+def test_shutdown_preserves_post_core_writer_and_rejects_stale_session(tmp_path, monkeypatch):
+    output = io.StringIO()
+    instance = worker.Worker(output)
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    calls = []
+    session.core = NS(poll=lambda: None, wait=lambda timeout: calls.append("core-stop"))
+    session.thread = NS(is_alive=lambda: True, join=lambda timeout=None: calls.append(("join", timeout)))
+    instance.session = session
+    with pytest.raises(ValueError, match="different session"):
+        instance.command({"type": "shutdown", "session_id": str(uuid.uuid4())})
+    assert calls == [] and not session.cancel_start.is_set()
+    instance.command({"type": "shutdown", "session_id": session.session_id})
+    assert calls == [("join", 28), "core-stop"]
+    assert instance.closed is False
+    assert "still finishing" in json.loads(output.getvalue())["message"]
+
+
+def test_eof_waits_for_post_core_receipt_writer(tmp_path):
+    instance = worker.Worker(io.StringIO())
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    joins = []
+    session.core = NS(poll=lambda: 0)
+    session.thread = NS(is_alive=lambda: True, join=lambda timeout=None: joins.append(timeout))
+    instance.session = session
+    assert instance.run(io.StringIO("")) == 0
+    assert joins == [28, None]
+
+
+def test_eof_retries_failed_cleanup_even_after_session_thread_exited(tmp_path, monkeypatch):
+    instance = worker.Worker(io.StringIO())
+    session = worker.GameSession(request(tmp_path), instance.emit)
+    calls = []
+    session.thread = NS(is_alive=lambda: False, join=lambda timeout: calls.append("join"))
+    session.core = NS(poll=lambda: None, wait=lambda timeout: calls.append("core-stop"))
+    original = session.teardown
+    def teardown():
+        calls.append("cleanup")
+        if calls.count("cleanup") == 1:
+            raise OSError("synthetic cleanup busy")
+        original()
+    monkeypatch.setattr(session, "teardown", teardown)
+    monkeypatch.setattr(worker.time, "sleep", lambda delay: calls.append(("retry", delay)))
+    instance.session = session
+    assert instance.run(io.StringIO("")) == 0
+    assert instance.closed and session.cleanup_complete
+    assert calls.count("cleanup") == 2 and ("retry", 1) in calls
+    assert calls.count("core-stop") >= 1
+    assert not any(json.loads(line)["type"] == "stopped" for line in instance.output.getvalue().splitlines())

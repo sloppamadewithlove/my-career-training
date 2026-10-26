@@ -1,5 +1,13 @@
 # My Career in-game plugin
 
+The current Training/Workshop work targets the opt-in native-menu candidate
+(`MCT_ENABLE_NATIVE_MOVIE_TRIAL=ON`). Its Training pause menu selects saved
+recordings and toggles normal-speed looping ghost practice; it does not offer
+pause/slow controls. Workshop includes Training Maps and Mods catalog browsing.
+See `docs/TRAINING_WORKSHOP_IMPLEMENTATION.md` for the implementation and evidence
+limits. The ImGui interface and playback controls described below are the legacy
+default build and do not establish acceptance of the native candidate.
+
 `MyCareerTraining.dll` runs in the installed Windows Rocket League through
 BakkesMod. The desktop shortcut starts the background career service and the
 supported offline game launch. The visible interface is a full-screen in-game

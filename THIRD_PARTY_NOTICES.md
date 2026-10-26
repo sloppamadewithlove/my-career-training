@@ -87,3 +87,50 @@ build tool, not copied into the app. Installer technology remains subject to
 Review Inno Setup's commercial-use terms before commercial distribution; this
 community testing preview is not a commercial license purchase or a claim to
 possess one.
+
+## Native menu JSON codec
+
+The native menu ABC includes the JSON encoder and decoder from as3corelib
+commit `24c6c16aecbf0d8fcc043ae671e689b0d4b4c559`
+(`https://github.com/mikechambers/as3corelib`). Only that JSON closure is
+vendored, under `native_ui/vendor/as3corelib/`. Those seven classes are
+third-party code. The upstream tree has no standalone license file. The
+README and each source file retain the copyright and BSD terms below. This
+project's MIT license does not relicense them.
+
+Both Windows packages copy this file next to the executable
+(`packaging/my-career-training.spec` and
+`packaging/my-career-training-native.spec`). Shipping this notice does not
+show that the compiled menu ABC has been accepted in Rocket League.
+`runtime_verified` and `production_ready` stay false until that exact artifact
+is checked.
+
+Copyright (c) 2008, Adobe Systems Incorporated
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+* Neither the name of Adobe Systems Incorporated nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

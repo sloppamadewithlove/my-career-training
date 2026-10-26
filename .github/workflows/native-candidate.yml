@@ -1,0 +1,108 @@
+name: Native Windows candidate and installer
+
+on:
+  push:
+    branches: [fix/windows-startup-and-download]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-windows:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QUICK_BACKEND: software
+      SDL_VIDEODRIVER: dummy
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          version: '0.11.3'
+          enable-cache: true
+      - name: Install locked build environment
+        run: |
+          uv python install 3.12.13
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv sync --python 3.12.13 --frozen --all-groups
+      - name: Source checks
+        run: |
+          uv run --frozen ruff check src tests scripts packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen pytest -q
+      - name: Stage pinned native runtime and bot dependencies
+        run: |
+          uv run --frozen python scripts/fetch_runtime.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen python scripts/fetch_bot_provider.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen python scripts/stage_native_runtime.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen python scripts/build_native_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen python scripts/collect_licenses.py
+      - name: Prepare verified portable Inno Setup compiler
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $setup
+          if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732') {
+            throw 'Compiler download hash mismatch'
+          }
+          $compilerDir = Join-Path $env:RUNNER_TEMP 'InnoSetupNative'
+          $setupProcess = Start-Process -FilePath $setup -WindowStyle Hidden -Wait -PassThru -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/PORTABLE=1', '/CURRENTUSER', '/NOICONS', "/DIR=`"$compilerDir`"")
+          if ($setupProcess.ExitCode -ne 0) { throw 'Compiler extraction failed' }
+          "INNO_COMPILER=$compilerDir\ISCC.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build exact clean-source installer and run package smoke
+        run: |
+          git status --porcelain --untracked-files=normal
+          uv run --frozen python scripts/build_native_installer.py --compiler "$env:INNO_COMPILER"
+      - name: Test install, reinstall, helper migration and uninstall
+        shell: pwsh
+        run: |
+          $setupFiles = @(Get-ChildItem 'build/native-candidate/installers/*-Setup.exe' -File)
+          if ($setupFiles.Count -ne 1) { throw 'Expected exactly one test installer' }
+          uv run --frozen python scripts/test_native_installer.py $setupFiles[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Native installer lifecycle failed' }
+      - name: Retain sanitized test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-test-evidence-${{ github.sha }}
+          path: |
+            build/native-menu-candidate-smoke-receipt.json
+            build/native-installer-lifecycle.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Retain tested candidate for live acceptance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-tested-candidate-${{ github.sha }}
+          path: |
+            build/native-candidate/installers/*-Setup.exe
+            build/native-candidate/installers/*.json
+            build/native-candidate/source-archives/*
+            build/upstream-sources/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain the exact installer input for game acceptance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-live-acceptance-bundle-${{ github.sha }}
+          path: build/native-candidate/dist/MyCareerTrainingNativeCandidate/
+          # Only this clean, smoke-inventoried build folder is included. Some
+          # runtime libraries use dot-prefixed files which must be retained.
+          include-hidden-files: true
+          compression-level: 6
+          if-no-files-found: error
+          retention-days: 14

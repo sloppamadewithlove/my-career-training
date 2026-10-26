@@ -15,10 +15,14 @@ ALLOWED_ACTIONS = frozenset({
     "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson",
     "start_lesson", "retry_lesson", "stop_session", "assistance", "settings", "setup_finish",
     "diagnostics", "loadout", "restore_explanations", "lesson_variant", "play_recording",
-    "return_hub", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
+    "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
+    "play_recording",
     "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
     "community_trial_prepare",
+    "start_training_pack",
+    "community_browse", "community_browse_more", "community_browse_cancel", "community_open_item", "community_select_plugin",
+    "community_open_source", "browser_favorite",
     "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data",
 })
 

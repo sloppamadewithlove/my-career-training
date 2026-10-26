@@ -238,30 +238,77 @@ def test_persisted_playback_settings_initialize_and_update_actual_coach():
     coach = GhostPlayback(mode=prefs["mode"], speed=prefs["playback_speed"],
                           lead_seconds=prefs["lead_seconds"], loop=prefs["loop"])
     assert coach.speed == 1
-    session = SimpleNamespace(coach=coach, coaching_preferences=prefs)
+    session = SimpleNamespace(coach=coach, coaching_preferences=prefs, capture=None)
     GameSession.handle_command(session, {"type": "coaching", "preferences": {"playback_speed": .25}})
     assert session.coaching_preferences["playback_speed"] == .25 and coach.speed == .25
     with pytest.raises(ValueError, match="speed must"):
         coaching_preferences({"playback_speed": True})
 
 
-def test_playback_selects_best_for_active_lesson_and_variant_only():
+def _legacy_playback_backend(recordings):
     from types import SimpleNamespace
+    sent, pending, cleared = [], [], []
+    backend = SimpleNamespace(
+        _worker_active=lambda: True, request={"lesson_id": "speed-flip", "variants": {}},
+        _recordings=lambda _id: recordings,
+        document={"settings": {"training_display": {"mode": "lead", "lead_seconds": 1.25}}},
+        session_id="test-session", _ghost_practice_enabled=True, _ghost_pending={},
+        telemetry={"ghost_practice": {"available": True, "enabled": True, "visible": True}})
+
+    def send(kind, **data):
+        sent.append((kind, data))
+        return f"command-{len(sent)}"
+
+    backend._send = send
+    def remember(command_id, kind, lesson_id, *args, **kwargs):
+        practice = kwargs.get("practice", args[0] if args else None)
+        pending.append((command_id, kind, lesson_id, practice))
+
+    backend._remember_ghost_command = remember
+    backend._clear_ghost_practice_state = lambda **kwargs: cleared.append(kwargs)
+    backend._sync_ghost_assistance = lambda *_args: None
+    return backend, sent, pending, cleared
+
+
+def test_legacy_qml_and_imgui_playback_payloads_keep_best_compatible_recording():
     from my_career_training.bridge import Backend
     value = capture()
     other_variant = deepcopy(value)
     other_variant["variant"]["side"] = "left"
-    other_variant["duration"] = 1.5
-    sent = []
-    backend = SimpleNamespace(
-        _worker_active=lambda: True, request={"lesson_id": "speed-flip", "variants": {}},
-        _recordings=lambda _id: [other_variant, value],
-        document={"settings": {"training_display": {"mode": "lead", "lead_seconds": 1.25}}},
-        _send=lambda kind, **data: sent.append((kind, data)))
-    Backend._action(backend, "play_recording", {"id": "speed-flip"})
-    assert sent[0][1]["recording"]["variant"] == value["variant"]
-    assert sent[0][1]["recording"]["duration"] == value["duration"]
-    assert sent[0][1]["mode"] == "lead" and sent[0][1]["lead_seconds"] == 1.25
-    with pytest.raises(ValueError, match="Start the selected lesson"):
-        Backend._action(backend, "play_recording", {"id": "flip-reset"})
-    assert len(sent) == 1
+    other_variant["duration"] = 0.5  # A shorter incompatible attempt must not win.
+    cases = [
+        ({"id": "speed-flip", "kind": "personal_best"}, "lead", 1.25),
+        ({"id": "speed-flip", "mode": "watch"}, "watch", 1.25),
+        ({"id": "speed-flip", "mode": "lead", "lead_seconds": 0.5}, "lead", 0.5),
+    ]
+
+    for payload, expected_mode, expected_lead in cases:
+        backend, sent, pending, cleared = _legacy_playback_backend([other_variant, value])
+        Backend._action(backend, "play_recording", payload)
+
+        assert len(sent) == 1 and sent[0][0] == "play_recording"
+        command = sent[0][1]
+        assert command["recording"]["variant"] == value["variant"]
+        assert command["recording"]["duration"] == value["duration"]
+        assert command["mode"] == expected_mode and command["lead_seconds"] == expected_lead
+        assert command["practice"] is False
+        assert pending == [("command-1", "play_recording", "speed-flip", False)]
+        assert cleared == []
+        assert backend._ghost_practice_enabled is True
+
+
+@pytest.mark.parametrize("payload", [
+    {"id": "speed-flip", "mode": "slow"},
+    {"id": "speed-flip", "mode": "watch", "lead_seconds": math.nan},
+    {"id": "speed-flip", "kind": "unrecognized"},
+])
+def test_legacy_playback_rejects_unsupported_mode_and_values_without_dispatch(payload):
+    from my_career_training.bridge import Backend
+    backend, sent, pending, cleared = _legacy_playback_backend([capture()])
+
+    with pytest.raises(ValueError):
+        Backend._action(backend, "play_recording", payload)
+
+    assert sent == []
+    assert pending == []
+    assert cleared == []

@@ -25,7 +25,7 @@ def default_state() -> dict:
     return {"schema_version": 1, "career": None, "settings": {
         "launcher": "steam", "install_path": "", "text_scale": 1.0,
         "reduced_motion": False, "binding_profile": "actions"},
-        "lesson_preferences": {}, "attempts": [], "recordings": []}
+        "lesson_preferences": {}, "attempts": [], "recordings": [], "browser_favorites": []}
 
 
 def validate_state(value: dict) -> None:
@@ -36,6 +36,26 @@ def validate_state(value: dict) -> None:
             raise ValueError(f"Save is missing valid {key} data.")
     if value.get("career") is not None and not isinstance(value["career"], dict):
         raise ValueError("Career data is malformed.")
+    favorites = value.get("browser_favorites", [])
+    if not isinstance(favorites, list) or len(favorites) > 512:
+        raise ValueError("Training browser favorites are malformed.")
+    seen = set()
+    for favorite in favorites:
+        if (not isinstance(favorite, dict) or set(favorite) != {"type", "id", "title", "subtitle", "detail"}
+                or favorite.get("type") not in {"lesson", "workshop", "plugin"}):
+            raise ValueError("Training browser favorites are malformed.")
+        identity = (favorite["type"], favorite.get("id"))
+        if (not isinstance(identity[1], str) or not identity[1] or len(identity[1]) > 128
+                or ".." in identity[1] or identity in seen
+                or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:-"
+                       for char in identity[1])):
+            raise ValueError("Training browser favorites are malformed.")
+        seen.add(identity)
+        for key, limit in (("title", 240), ("subtitle", 240), ("detail", 240)):
+            if (not isinstance(favorite.get(key), str) or len(favorite[key].encode("utf-8")) > limit
+                    or (key == "title" and not favorite[key])
+                    or any(ord(char) < 32 or char in "<>&" for char in favorite[key])):
+                raise ValueError("Training browser favorite metadata is malformed.")
     settings = value["settings"]
     if settings.get("launcher") not in ("steam", "epic"):
         raise ValueError("Choose a supported launcher: Steam or Epic.")

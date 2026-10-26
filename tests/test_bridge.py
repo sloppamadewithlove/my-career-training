@@ -29,6 +29,8 @@ def qt_app():
 def backend(tmp_path, monkeypatch, qt_app):
     game_running = {"value": False}
     launches = []
+    monkeypatch.setattr(bridge, "native_launcher_pending", lambda: False)
+    monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: False)
     monkeypatch.setattr(bridge, "detect_installations", lambda: [])
     monkeypatch.setattr(
         bridge, "game_processes", lambda: ["mock-rocket-league"] if game_running["value"] else []
@@ -46,6 +48,11 @@ class FakeProcess:
     def __init__(self, state=QProcess.Running):
         self.current_state = state
         self.writes = []
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+        self.current_state = QProcess.NotRunning
 
     def state(self):
         return self.current_state
@@ -60,6 +67,66 @@ class FakeProcess:
     def waitForFinished(self, _timeout):
         self.current_state = QProcess.NotRunning
         return True
+
+
+def unfinished_career(instance):
+    instance.dispatch("new_career", {"team_name": "Recovery test", "format": 1})
+    state = instance.document.copy()
+    state["career"] = career.start_fixture(state["career"], "attempt-a")
+    instance._commit(state)
+    pending = state["career"]["pending_session"]
+    return {"expected_career_id": state["career"]["id"],
+            "expected_fixture_id": pending["fixture_id"], "expected_session_id": pending["session_id"]}
+
+
+def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedule(backend):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    instance.process = FakeProcess(QProcess.NotRunning)
+    instance.request = {"fixture": {"id": payload["expected_fixture_id"]}}
+    instance.session_state = "Error/Recovery"
+    assert instance.state["session"]["worker_running"] is False
+    instance.dispatch("assistance", {"id": "power-shots", "key": "actions", "value": False})
+    assert not instance.error and instance.document["lesson_preferences"]["power-shots"]["actions"] is False
+    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": True})
+    assert instance.error  # Custom Training owns retry; no fake worker setting.
+    before = json.loads(json.dumps(instance.document["career"]))
+    instance.dispatch("abandon_fixture", payload)
+    assert instance.error == ""
+    saved = instance.store.load()["career"]
+    assert saved["pending_session"] is None
+    assert saved["id"] == before["id"]
+    assert saved["recruits"] == before["recruits"]
+    assert saved["rewards"] == before["rewards"]
+    fixture = career.next_fixture(saved)
+    assert fixture["id"] == payload["expected_fixture_id"]
+    assert fixture["status"] == "scheduled"
+    assert fixture["result"] is None
+    assert instance.state["session"]["state"] == "Idle"
+    assert instance.state["session"]["kind"] == "hub"
+
+
+@pytest.mark.parametrize("change", ["career", "fixture", "attempt", "missing", "extra", "active"])
+def test_native_restart_rejects_changed_or_live_attempt_without_saving(backend, change):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    if change in {"career", "fixture"}:
+        payload[f"expected_{change}_id"] = "different"
+    elif change == "attempt":
+        payload["expected_session_id"] = "different"
+    elif change == "missing":
+        del payload["expected_session_id"]
+    elif change == "extra":
+        payload["score"] = 7
+    else:
+        instance.process = FakeProcess()
+    before = json.dumps(instance.document, sort_keys=True)
+    saved = instance.store.load()
+    instance.dispatch("abandon_fixture", payload)
+    assert "unfinished match changed" in instance.error
+    assert json.dumps(instance.document, sort_keys=True) == before
+    assert instance.store.load() == saved
+    instance.process = None
 
 
 def test_dispatch_persists_career_lineup_settings_and_assistance_preferences(backend):
@@ -79,6 +146,22 @@ def test_dispatch_persists_career_lineup_settings_and_assistance_preferences(bac
     assert instance.document["settings"]["text_scale"] == 1.25
     assert instance.document["lesson_preferences"]["speed-flip"]["explanations"] is False
     assert instance.store.load() == instance.document
+
+
+def test_training_browser_favorite_resolves_live_item_and_persists_snapshot(backend):
+    instance, _, _ = backend
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "speed-flip"})
+    favorite, = instance.document["browser_favorites"]
+    assert favorite["type"] == "lesson" and favorite["id"] == "speed-flip"
+    assert favorite["title"] == "Speed flip"
+    assert set(favorite) == {"type", "id", "title", "subtitle", "detail"}
+    assert instance.store.load()["browser_favorites"] == [favorite]
+
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "speed-flip"})
+    assert instance.document["browser_favorites"] == []
+    instance.dispatch("browser_favorite", {"type": "plugin", "id": "999999"})
+    assert "changed" in instance.error
+    assert instance.document["browser_favorites"] == []
 
 
 def _synthetic_recording():
@@ -146,12 +229,17 @@ def test_import_recording_uses_real_dialog_action_and_preserves_fixture_provenan
     assert stored["outcome"] == "unfinished"
 
 
-def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, monkeypatch, tmp_path):
+@pytest.mark.parametrize("cancelled_start", [False, True])
+def test_result_receipt_survives_save_failure_and_replays_exactly_once(backend, monkeypatch, tmp_path, cancelled_start):
     instance, _, _ = backend
     started = career.new_career("Receipt Test", seed=841)
     fixture = career.next_fixture(started)
     session_id = str(uuid.uuid4())
     instance.session_id = session_id
+    if cancelled_start:
+        instance.startup_cancelled_session = session_id
+        instance.session_state = "Error/Recovery"
+        instance.error = "Starting took too long."
     instance.request = {"lesson_id": None}
     state = dict(instance.document)
     state["career"] = career.start_fixture(started, session_id)
@@ -358,9 +446,13 @@ def test_source_worker_ready_ping_and_shutdown_protocol():
             self.session_id = command["session_id"]
             self.thread = FakeThread()
             self.commands = []
+            self.cleanup_complete = True
 
         def command(self, command):
             self.commands.append(command)
+
+        def stop_owned_core(self):
+            pass
 
     session_id = str(uuid.uuid4())
     output = io.StringIO()
@@ -381,6 +473,97 @@ def test_source_worker_ready_ping_and_shutdown_protocol():
     assert events[1] == {"type": "pong", "id": "bridge-probe", "session_id": session_id}
     assert process.closed is True
     assert process.session.commands == [{"type": "shutdown", "id": "shutdown-2"}]
+
+
+@pytest.mark.parametrize("ready", [False, True])
+def test_start_deadline_cancels_worker_without_abandoning_fixture(backend, monkeypatch, ready):
+    instance, _, _ = backend
+    payload = unfinished_career(instance)
+    before = instance.store.load()
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = payload["expected_session_id"]
+    instance.request = {"fixture": {"id": payload["expected_fixture_id"]}}
+    instance.worker_ready = ready
+    instance.start_deadline = bridge.time.monotonic() - 1
+    instance.session_state = "Starting Career"
+    closed_games = []
+    monkeypatch.setattr(bridge, "graceful_close", closed_games.append)
+    instance._tick()
+    assert instance.session_state == "Error/Recovery"
+    assert instance.startup_cancelled_session == instance.session_id
+    assert instance.stop_reason is None and instance.stopping_worker
+    assert process.killed is not ready
+    sent = [json.loads(value) for value in process.writes]
+    assert ([value["type"] for value in sent] == ["shutdown"]) is ready
+    if ready:
+        assert sent[0]["session_id"] == instance.session_id
+    for event in ({"type": "ready"}, {"type": "session", "state": "running"},
+                  {"type": "session", "state": "starting"}, {"type": "telemetry", "time": 2}):
+        instance._event(dict(event, session_id=instance.session_id))
+    assert instance.session_state == "Error/Recovery" and instance.telemetry == {}
+    assert process.writes == [json.dumps(value).encode() + b"\n" for value in sent]
+    process.current_state = QProcess.NotRunning
+    instance._process_error(None)
+    instance._process_finished(2, None)
+    assert "took too long" in instance.error
+    assert instance.store.load() == before and instance.document == before
+    assert not closed_games
+
+
+@pytest.mark.parametrize("via_receipt", [False, True])
+def test_cancelled_start_still_saves_matching_result_once(backend, tmp_path, via_receipt):
+    instance, _, _ = backend
+    session_id = str(uuid.uuid4())
+    started = career.new_career("Timeout receipt test", seed=43)
+    fixture = career.next_fixture(started)
+    state = dict(instance.document)
+    state["career"] = career.start_fixture(started, session_id)
+    instance._commit(state)
+    instance.session_id = instance.startup_cancelled_session = session_id
+    instance.request = {"fixture": fixture}
+    instance.session_state = "Error/Recovery"
+    instance.error = "Starting took too long."
+    result = {"type": "result", "session_id": session_id, "fixture_id": fixture["id"],
+              "home_score": 3, "away_score": 2, "provenance": "game"}
+    receipt = game_worker.persist_result(tmp_path, result)
+    if via_receipt:
+        instance._recover_outbox()
+    else:
+        instance._event(result)
+    instance._event(result)
+    instance._event({"type": "session", "state": "running", "session_id": session_id})
+    assert instance.session_state == "Career Ready" and not instance.error
+    assert instance.document["career"]["pending_session"] is None and not receipt.exists()
+    awards = [item for item in instance.document["career"]["rewards"] if item["type"] == "match_experience"]
+    assert len(awards) == 1
+
+
+def test_timed_out_writer_can_finish_and_close_worker_without_game_exit(backend, monkeypatch):
+    instance, _, _ = backend
+    instance.process = FakeProcess()
+    instance.session_id = instance.startup_cancelled_session = str(uuid.uuid4())
+    instance.session_state = "Error/Recovery"
+    closed_games = []
+    monkeypatch.setattr(bridge, "graceful_close", closed_games.append)
+    for _ in range(2):
+        instance._event({"type": "stopped", "session_id": instance.session_id})
+    sent = [json.loads(value) for value in instance.process.writes]
+    assert len(sent) == 1 and sent[0]["type"] == "shutdown"
+    assert sent[0]["session_id"] == instance.session_id
+    assert not instance.process.killed and not closed_games
+    assert instance.session_state == "Error/Recovery"
+
+
+def test_explicit_return_after_start_timeout_keeps_transition_priority(backend):
+    instance, _, _ = backend
+    instance.process = FakeProcess()
+    instance.in_game = True
+    instance.session_id = instance.startup_cancelled_session = str(uuid.uuid4())
+    instance.stop_reason = "return_hub"
+    instance._event({"type": "stopped", "session_id": instance.session_id})
+    assert instance.session_state == "Waiting for Worker"
+    assert not instance.startup_stop_acknowledged
 
 
 def _load_main_window(instance, qt_app):
@@ -754,6 +937,144 @@ def test_pending_community_load_blocks_other_activity_but_keeps_exit_available(b
     instance.dispatch("new_career", {"team_name": "Wait", "format": 3})
     assert "community plugin confirmation" in instance.error
     assert instance.document["career"] is None
+    stops = []
+    monkeypatch.setattr(instance, "_begin_stop", stops.append)
+    instance.dispatch("quit_game", {})
+    assert not instance.error and stops == ["exit"]
+
+
+class _TrainingPackCapability:
+    def __init__(self):
+        from types import SimpleNamespace
+        self.scope = SimpleNamespace(
+            nonce="45234854-6e9c-4af5-9c50-e9347f375140", pid=888,
+            start_identity="1234567890.125", frontend=True)
+        self.heartbeat = {}
+        self.available = True
+
+    def _observation(self, require_frontend=True):
+        if not self.available or (require_frontend and not self.scope.frontend):
+            raise RuntimeError("not owned frontend")
+        return self.scope, object(), self.heartbeat
+
+    def state(self):
+        return {"busy": False, "requires_restart": False}
+
+    def request(self):
+        return None
+
+
+def _load_training_pack(instance, capability, pack_id="powershot-practice"):
+    instance.native_community = capability
+    instance.session_state = "Idle"
+    instance.dispatch("start_training_pack", {"id": pack_id})
+    request = instance.state["training_pack_request"]
+    capability.heartbeat = {"native_training_pack": dict(
+        request, status="loaded", code=instance.state["native_training_pack"]["training_pack"]["code"],
+        reason="exact_code_confirmed")}
+    instance._tick()
+    return request
+
+
+def test_native_training_pack_is_workerless_exact_catalog_activity(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "unknown"})
+    assert "Unknown training pack" in instance.error
+    instance.dispatch("start_training_pack", {"id": "powershot-practice", "code": "arbitrary"})
+    assert "featured Custom Training" in instance.error
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert not instance.error and instance.process is None
+    state = instance.state
+    assert state["session"]["kind"] == "training"
+    assert state["session"]["worker_running"] is False
+    assert state["session"]["busy"] is True
+    assert state["native_training_pack"]["status"] == "pending"
+    assert state["training_pack_request"]["pack_id"] == "powershot-practice"
+    assert state["session"]["id"] == state["training_pack_request"]["session_id"]
+    assert state["training_packs"][0]["code"] == "C9E4-0F05-B71A-C322"
+
+
+def test_training_pack_requires_owned_frontend_and_blocks_overlap(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    capability.scope.frontend = False
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert "verified native" in instance.error
+    capability.scope.frontend = True
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert not instance.error
+    instance.dispatch("new_career", {"team_name": "Overlap", "format": 1})
+    assert "Custom Training pack" in instance.error
+    assert instance.document["career"] is None
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert "Custom Training pack" in instance.error
+    assert instance.process is None
+
+
+def test_featured_pack_favorite_resolves_fixed_catalog_and_persists(backend):
+    instance, _, _ = backend
+    payload = {"type": "lesson", "id": "pack:powershot-practice"}
+    instance.dispatch("browser_favorite", payload)
+    assert not instance.error
+    saved = instance.store.load()["browser_favorites"]
+    assert saved[0]["id"] == payload["id"]
+    assert saved[0]["subtitle"] == "Gold | Skogur"
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "pack:unknown"})
+    assert instance.error and instance.store.load()["browser_favorites"] == saved
+    instance.dispatch("browser_favorite", payload)
+    assert not instance.error and instance.document["browser_favorites"] == []
+
+
+def test_training_pack_exact_ack_preferences_and_return_cleanup(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    request = _load_training_pack(instance, capability)
+    assert instance.state["native_training_pack"]["status"] == "loaded"
+    assert instance.state["training_pack_request"]["request_id"] == request["request_id"]
+    assert instance.state["session"]["busy"] is False
+    assert instance.state["session"]["worker_running"] is False
+    # A loaded pack is returnable but continues to lock out overlapping work.
+    instance.dispatch("start_training_pack", {"id": "powershots"})
+    assert "Finish or return" in instance.error
+    assert instance.session_id == request["session_id"]
+    instance.dispatch("training_settings", {"key": "controller_position", "value": "bottom_left"})
+    assert not instance.error and instance.process is None
+    instance.in_game = True
+    instance.dispatch("return_hub", {"expected_session_id": request["session_id"],
+                                      "expected_fixture_id": "", "abandon": False})
+    assert not instance.error
+    assert instance.native_return_ready == {"session_id": request["session_id"], "fixture_id": ""}
+    assert instance.request is None and instance.session_id is None
+    state = instance.state
+    assert state["training_pack_request"] is None
+    assert state["session"]["id"] is None
+    assert state["native_training_pack"]["status"] == "idle"
+    assert state["native_training_pack"]["active"] is False
+    assert state["session"]["state"] == "Idle"
+
+
+def test_training_pack_forged_ack_timeout_lock_and_exit(backend, monkeypatch):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    request = instance.state["training_pack_request"]
+    capability.heartbeat = {"native_training_pack": dict(
+        request, request_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        status="loaded", code="C9E4-0F05-B71A-C322", reason="forged")}
+    instance._tick()
+    assert instance.state["native_training_pack"]["status"] == "pending"
+    instance.native_training_pack._requested_at -= 21
+    instance._tick()
+    state = instance.state
+    assert state["native_training_pack"]["status"] == "failed"
+    assert state["native_training_pack"]["requires_restart"] is True
+    assert state["session"]["busy"] is True and state["session"]["can_exit"] is True
+    instance.dispatch("new_career", {"team_name": "Blocked", "format": 1})
+    assert "Close this My Career session" in instance.error
     stops = []
     monkeypatch.setattr(instance, "_begin_stop", stops.append)
     instance.dispatch("quit_game", {})
