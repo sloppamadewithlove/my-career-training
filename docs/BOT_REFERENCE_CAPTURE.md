@@ -119,3 +119,20 @@ Tests use synthetic data and do not establish a working in-game speed flip.
 
 Tests for this module use synthetic fixtures only; no fixture is shipped as a
 reference recording.
+
+## First live diagnosis
+
+The copied-profile source run reached the authored hub, Training, speed-flip
+details, practice, pause/Resume and Return to a fresh hub. It did not produce a
+completed attempt. Observed bot reset position, grounded state, speed, angular
+velocity and jump flags met the settle requirements. Incoming packets instead
+advanced two physics frames roughly every 16.67 ms, so the strict packet-gap
+check prevented the drill from starting. The game's Video menu was set to
+60 FPS with VSync off. RLBot's [tick-rate contract](https://wiki.rlbot.org/v5/botmaking/tick-rate/)
+limits delivery to the lesser of game FPS and 120 Hz; increasing a socket
+setting cannot recover the missing observations. Keep the reference evidence
+checks intact and verify consecutive frames in the real runtime before
+accepting a recording. The development-only capture telemetry exposes the
+observed actor and reset facts to make this diagnosis reviewable.
+
+No speed-flip demonstration or benchmark acceptance is established by this run.
