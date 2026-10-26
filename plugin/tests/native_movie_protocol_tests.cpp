@@ -175,6 +175,8 @@ int main() {
         require(protocol.select(command(unicodeRoot, NativeCareerLayout::kTraining), live, data, true).accepted,
             "Unicode training page did not open");
         auto unicodeTraining = protocol.publish(live, data, 106);
+        require(unicodeTraining.at("browser").value("active", false),
+            "Authored movie requires an explicit active browser flag before rendering");
         const auto serialized = unicodeTraining.dump();
         require(Json::parse(serialized) == unicodeTraining, "Unicode controls did not round trip");
         bool foundUnicode = false;

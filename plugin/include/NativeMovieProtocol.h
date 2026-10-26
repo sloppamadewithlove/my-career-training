@@ -295,7 +295,7 @@ private:
     }
     static Json browserWire(const TrainingBrowserView& browser) {
         Json value = {{"tab", browserTab(browser.tab)}, {"state", browserState(browser.state)}, {"query", browser.query},
-            {"offset", browser.offset}, {"total", browser.total}, {"has_more", browser.hasMore},
+            {"offset", browser.offset}, {"total", browser.total}, {"has_more", browser.hasMore}, {"active", browser.active},
             {"revision", std::to_string(browser.revision)},
             {"rows", Json::array()}};
         for (const auto& row : browser.rows)
