@@ -1217,7 +1217,7 @@ package menus
                             throw new Error("Invalid browser tool");
                 }
                 if (!validView(incoming)) { loseConnection(); return; }
-                if (getTimer() - lastHello >= 1000)
+                if (getTimer() - lastHello >= 1000 || String(incoming.generation) != generation)
                 {
                     DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                         surface:"frontend", generation:String(incoming.generation), event:"ready"}));
@@ -1266,6 +1266,11 @@ package menus
                         // The host rejects any repeated accepted generation.
                         busy = false;
                         refreshMenu();
+                        // A coalesced edit may have arrived while its predecessor
+                        // was waiting for the new generation's READY handshake.
+                        if (view.browser != null && browserSearchPending &&
+                            browserPendingQuery != String(view.browser.query))
+                            browserCommand("search", browserPendingQuery);
                     }
                 }
             }
