@@ -93,7 +93,10 @@ def match_config(request):
         player_configurations=players, script_configurations=[], game_mode=f.GameMode.Soccar,
         skip_replays=training, instant_start=training, mutators=mutators,
         existing_match_behavior=f.ExistingMatchBehavior.Restart, enable_rendering=f.DebugRendering.OnByDefault,
-        enable_state_setting=bool(request.get("lesson_id")), auto_save_replay=False, freeplay=training,
+        # Human drills use an unlimited offline match so shots can score. Keep
+        # development capture's existing Free Play context unchanged.
+        enable_state_setting=bool(request.get("lesson_id")), auto_save_replay=False,
+        freeplay=training and capture is not None,
         performance_monitor=f.PerformanceMonitor.NeverShow)
     return config, descriptors, len(players) - 1
 

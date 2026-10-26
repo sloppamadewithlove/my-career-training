@@ -208,7 +208,7 @@ def test_training_config_and_state_message_roundtrip_the_real_schema():
     assert len(restored_config.player_configurations) == 1
     assert isinstance(restored_config.player_configurations[human_index].variety, flat.Human)
     assert descriptors == {}
-    assert restored_config.freeplay is True
+    assert restored_config.freeplay is False
     assert restored_config.enable_state_setting is True
     assert restored_config.launcher == flat.Launcher.Epic
 
