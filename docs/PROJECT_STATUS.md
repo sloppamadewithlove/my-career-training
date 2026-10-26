@@ -5,6 +5,13 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
+**Bot-reference development foundation (26 October):** source `8be3163` adds an
+opt-in copied-profile capture path that drives and records a separate offline
+bot, plus provisional speed-flip and same-setup baseline checks. It passed
+1,266 Python tests (15 skipped) and the rebuilt native candidate's 44 checks.
+No validated bot reference is bundled; these checks are not real-game speed-flip
+acceptance. See [BOT_REFERENCE_CAPTURE.md](BOT_REFERENCE_CAPTURE.md).
+
 **Training/Workshop source candidate (26 October):** the reviewed implementation
 adds normal-speed, looping, render-only ghost practice anchored ahead of the car,
 recorded logical input display, and native Training pause recording/toggle controls.
