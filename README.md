@@ -1,3 +1,11 @@
+> **Current development starts on [fix/windows-startup-and-download](https://github.com/sloppamadewithlove/my-career-training/tree/fix/windows-startup-and-download).**
+> Read its [current status](https://github.com/sloppamadewithlove/my-career-training/blob/fix/windows-startup-and-download/docs/PROJECT_STATUS.md),
+> [task board](https://github.com/sloppamadewithlove/my-career-training/blob/fix/windows-startup-and-download/docs/NEXT_TASKS.md)
+> and [agent workflow](https://github.com/sloppamadewithlove/my-career-training/blob/fix/windows-startup-and-download/docs/DEVELOPMENT_WORKFLOW.md).
+> This default branch retains the older runtime checkpoint; its historical instructions
+> do not override the current development documents. Preserve local changes when switching.
+> Future original changes follow [LICENSE](LICENSE); previous MIT grants remain intact.
+
 # My Career Training
 
 A solo career and training mod for **Rocket League on Windows / Steam**.
