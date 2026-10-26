@@ -752,8 +752,11 @@ mct::NativeTrainingPackObservation MyCareerTraining::trainingPackObservation() c
             if (server) {
                 TrainingEditorWrapper editor(server.memory_address);
                 auto save = editor.GetTrainingData();
+                if (!save) return observation;
                 auto training = save.GetTrainingData();
+                if (!training) return observation;
                 auto code = training.GetCode();
+                if (!code) return observation;
                 observation.loadedCode = code.ToString();
             }
         }
