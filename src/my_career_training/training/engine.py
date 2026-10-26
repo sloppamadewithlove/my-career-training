@@ -136,6 +136,7 @@ class TrainingEngine:
         self.last_frame = None
         self.settle_start = None
         self.settle_first_time = None
+        self.preparation = {"samples": 0, "gaps": 0}
         self.reset_requested_at = None
         self.events = []
         self.observations = []
@@ -241,6 +242,16 @@ class TrainingEngine:
                 car.get(key) is False for key in ("has_jumped", "has_double_jumped", "has_dodged")
             )
             cadence = self.cadence(self.last_frame, frame)
+            self.preparation.update(
+                samples=self.preparation["samples"] + 1,
+                gaps=self.preparation["gaps"] + int(cadence["gap"]),
+                cadence=deepcopy(cadence), grounded=_grounded(car), flags_clean=flags_clean,
+                position_error=_distance(car["position"], target["position"]),
+                speed=_length(car["velocity"]),
+                spin=_length(car.get("angular_velocity", [0, 0, 0])),
+            )
+            if cadence["gap"]:
+                self.preparation["last_gap"] = deepcopy(cadence)
             valid = (
                 _grounded(car)
                 and flags_clean
@@ -266,10 +277,10 @@ class TrainingEngine:
                 ]
             if now - self.settle_first_time >= SETTLE_TIMEOUT_SECONDS:
                 # One actionable interruption instead of an endless settle loop.
-                if cadence["gap"]:
+                if cadence["gap"] or (self.preparation["gaps"] and valid):
                     return self._interrupt(
                         "No continuous telemetry cadence was observed while preparing the drill "
-                        f"({cadence['reason']}). Check the game connection, then retry."
+                        f"({self.preparation.get('last_gap', cadence)['reason']}). Check the game connection, then retry."
                     )
                 return self._interrupt(
                     "The car did not settle in the starting pose within "
@@ -773,6 +784,7 @@ class TrainingEngine:
 
     def _coaching(self):
         coaching = lesson_coaching(self.lesson, self.events, state=self.state, outcome=self.outcome)
+        coaching["preparation"] = deepcopy(self.preparation)
         if self.state == "settling":
             # Before "go" the drill is preparing, not settling a measured attempt.
             coaching["message"] = "Preparing the drill. Wait for READY before pressing anything."
