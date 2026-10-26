@@ -195,17 +195,21 @@ int main() {
                 require(row.at("title") == "Pack 0" && row.at("subtitle") == "Bronze | Psyonix" &&
                     row.at("detail").get<std::string>().find("ABCD-1234") != std::string::npos,
                     "training pack metadata was not placed on its browser row");
-                require(row.at("primary_label") == "Play training pack" && row.at("primary_enabled"),
-                    "training pack row was not playable in a ready lesson state");
+                require(row.at("primary_label") == "Unavailable offline" && !row.at("primary_enabled").get<bool>(),
+                    "training pack offered the known failing offline service load");
             }
         }
         require(firstPackFound, "first featured training pack row was missing");
         require(!genericPowerShots, "generic Power Shots lesson remained beside featured packs");
         for (const auto& control : packs.at("controls"))
             require(control.at("id") != "training.next", "browser exposed a legacy More lessons control");
-        auto playPack = packProtocol.select(browser(packs, "primary", "lesson:pack:pack-0"), live, packData, true);
-        require(playPack.accepted && playPack.action == "start_training_pack" &&
-            playPack.payload == Json{{"id", "pack-0"}}, "pack row did not dispatch its bounded pack id");
+        const auto stalePackPrimary = browser(packs, "primary", "lesson:pack:pack-0");
+        auto playPack = packProtocol.select(stalePackPrimary, live, packData, true);
+        require(!playPack.accepted, "unavailable offline pack dispatched a load");
+        auto changedPackData = packData;
+        changedPackData["training_packs"][0]["description"] = "Updated pack details";
+        require(!packProtocol.select(stalePackPrimary, live, changedPackData, true).accepted,
+            "a stale primary from the previous pack row dispatched a load");
 
         NativeMovieProtocol favoritePackProtocol;
         auto favoritePacks = enterBrowserTab(favoritePackProtocol, live, packData, "lessons", 160);
@@ -214,6 +218,30 @@ int main() {
         require(favoritePack.accepted && favoritePack.action == "browser_favorite" &&
             favoritePack.payload == Json{{"type", "lesson"}, {"id", "pack:pack-0"}},
             "pack favorite did not use its namespaced public id");
+
+        auto favoritedPackData = packData;
+        favoritedPackData["browser_favorites"] = Json::array({
+            Json{{"type", "lesson"}, {"id", "pack:pack-0"}}
+        });
+        NativeMovieProtocol savedFavoriteProtocol;
+        auto savedFavorites = enterBrowserTab(savedFavoriteProtocol, live, favoritedPackData, "favorites", 170);
+        const Json* savedPackRow = nullptr;
+        for (const auto& row : savedFavorites.at("browser").at("rows"))
+            if (row.at("key") == "lesson:pack:pack-0") savedPackRow = &row;
+        require(savedPackRow != nullptr &&
+                savedPackRow->at("primary_label") == "Unavailable offline" &&
+                !savedPackRow->at("primary_enabled").get<bool>(),
+            "saved pack favorite did not retain its unavailable state");
+        require(!savedFavoriteProtocol.select(
+                    browser(savedFavorites, "primary", "lesson:pack:pack-0"),
+                    live, favoritedPackData, true).accepted,
+            "saved pack favorite dispatched a known failing training load");
+        auto unstarredPack = savedFavoriteProtocol.select(
+            browser(savedFavorites, "favorite", "lesson:pack:pack-0"),
+            live, favoritedPackData, true);
+        require(unstarredPack.accepted && unstarredPack.action == "browser_favorite" &&
+                unstarredPack.payload == Json{{"type", "lesson"}, {"id", "pack:pack-0"}},
+            "unavailable pack favorite could not be removed normally");
         std::cout << "native training browser tests passed\n";
         return 0;
     } catch (const std::exception& error) {

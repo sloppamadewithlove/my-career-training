@@ -1407,8 +1407,11 @@ private:
                 row.title = text(packs[i], "title", "Power shots");
                 row.subtitle = text(packs[i], "rank") + " | " + text(packs[i], "author");
                 row.detail = text(packs[i], "description") + " | Featured by Psyonix | " + text(packs[i], "code");
-                row.primaryLabel = "Play training pack";
-                row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
+                // Real offline playtest: Training/GetTrainingData is FeatureDisabled.
+                // Keep discovery/favorites, but do not offer a known failing load.
+                row.primaryLabel = "Unavailable offline";
+                row.primaryEnabled = false;
+                row.reason = "This pack needs Rocket League's training service. Offline loading is not available yet.";
                 row.action = "start_training_pack"; row.payload = {{"id", id}};
                 row.favorite = browserFavorite(state, row.type, row.itemId); add(std::move(row));
             }
