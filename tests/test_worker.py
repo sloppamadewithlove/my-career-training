@@ -171,6 +171,128 @@ def test_attempt_ack_required_before_reset(tmp_path):
     assert instance.attempt_acked
 
 
+def test_auto_reset_waits_one_second_after_first_durable_ack_and_duplicate_ack_does_not_extend(
+    tmp_path, monkeypatch
+):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    instance.engine = NS(preferences={"auto_reset": True})
+    instance.attempt_sent = "attempt-with-samples"
+    instance.attempt_retryable = True
+    now = [100.0]
+    resets = []
+    instance.reset = lambda: resets.append(now[0])
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now[0])
+
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-with-samples"})
+    deadline = instance.auto_reset_at
+    assert instance.attempt_acked is True
+    assert deadline == pytest.approx(101.0)
+    assert resets == []
+
+    now[0] = 100.75
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-with-samples"})
+
+    assert instance.auto_reset_at == deadline
+    assert resets == []
+
+
+def test_prestart_attempt_ack_does_not_schedule_automatic_reset(tmp_path, monkeypatch):
+    instance = worker.GameSession(request(tmp_path), lambda event: None)
+    instance.engine = NS(preferences={"auto_reset": True})
+    instance.attempt_sent = "prestart-interruption"
+    instance.attempt_retryable = False
+    resets = []
+    instance.reset = lambda: resets.append(True)
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 100.0)
+
+    instance.handle_command({"type": "attempt_ack", "attempt_id": "prestart-interruption"})
+
+    assert instance.attempt_acked is True
+    assert instance.auto_reset_at is None
+    assert resets == []
+
+
+def test_only_attempts_with_recorded_samples_are_eligible_for_auto_retry(tmp_path):
+    instance = worker.GameSession(request(tmp_path), lambda _event: None)
+    summary = {"id": "prestart", "state": "interrupted", "outcome": "interrupted"}
+    recording = {"samples": []}
+    instance.engine = NS(summary=lambda: dict(summary), recording=lambda: dict(recording))
+
+    instance.publish_attempt()
+    assert instance.attempt_retryable is False
+
+    summary["id"] = "ran-attempt"
+    recording["samples"] = [{"time": 0.0}]
+    instance.publish_attempt()
+    assert instance.attempt_retryable is True
+
+
+def test_worker_accepts_two_step_training_samples_but_keeps_capture_strict(tmp_path, monkeypatch):
+    def processed_frames(*, capture):
+        events = []
+        instance, packet = simulated_session(tmp_path, monkeypatch, events)
+        observed = []
+        instance.engine = NS(
+            tolerances={"max_packet_interval": 0.05},
+            metadata={}, recorder=NS(metadata={}), preferences={}, finished=False,
+            update=lambda frame: observed.append(frame) or [],
+            summary=lambda: {"coaching": {}},
+        )
+        instance.applied_reset = True
+        instance.training_actor_index = 0 if capture else 1
+        instance.renderer = NS(can_render=False)
+        instance.last_controls = float("inf")
+        instance.last_render = float("inf")
+        instance.last_telemetry = float("inf")
+        instance.game_version = "test-build"
+        packet.players = [NS(), NS()]
+        monkeypatch.setattr(worker, "observed_hitbox", lambda _player: {})
+        if capture:
+            instance.capture = {"target_index": 0}
+            instance.capture_ready = True
+            instance._capture_metadata = lambda *_args: {}
+
+        samples = iter((
+            {"time": 1.0, "frame_num": 120},
+            {"time": 1.0 + 1 / 60, "frame_num": 122},
+        ))
+
+        def normalized_packet(*_args):
+            tick = next(samples)
+            bot = {
+                "index": 0, "team": 1, "is_bot": True,
+                "position": [0, 0, 17], "rotation": [0, 0, 0],
+                "actions": {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0,
+                            "roll": 0.0, "jump": False, "boost": False, "handbrake": False},
+            }
+            human = {
+                "index": 1, "team": 0, "is_bot": False,
+                "position": [0, 0, 17], "rotation": [0, 0, 0],
+                "actions": {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0,
+                            "roll": 0.0, "jump": False, "boost": False, "handbrake": False},
+            }
+            return {
+                **tick,
+                "cars": [bot, human],
+                "ball": {"position": [0, 0, 93], "velocity": [0, 0, 0]},
+            }
+
+        monkeypatch.setattr(adapter, "normalized_packet", normalized_packet)
+        instance.process_packet(packet)
+        instance.process_packet(packet)
+        return observed
+
+    ordinary = processed_frames(capture=False)
+    assert len(ordinary) == 2
+    assert ordinary[1]["packet_gap"] is False
+    assert ordinary[1]["cadence"] == "coarse_continuous"
+
+    strict_capture = processed_frames(capture=True)
+    assert len(strict_capture) == 2
+    assert strict_capture[1]["packet_gap"] is True
+    assert strict_capture[1]["cadence"] == "step_count_exceeded"
+
+
 def test_preflight_refuses_preexisting_game_and_core(monkeypatch):
     import psutil
     for name in ("RocketLeague.exe", "RLBotServer.exe"):
@@ -277,7 +399,10 @@ def test_stop_request_blocks_bot_controls_before_queued_stop_is_processed(tmp_pa
 
 def test_stop_request_blocks_reset_engine_and_ghost_work(tmp_path, monkeypatch):
     instance, packet = simulated_session(tmp_path, monkeypatch, [])
-    instance.engine = NS(update=lambda *a: pytest.fail("Training continued after stop"))
+    instance.engine = NS(
+        update=lambda *a: pytest.fail("Training continued after stop"),
+        tolerances={"max_packet_interval": 0.05},
+    )
     instance.renderer = NS(can_render=True)
     instance.command({"type": "stop"})
     instance.process_packet(packet)

@@ -543,6 +543,7 @@ def test_packet_capture_records_bot_last_input_not_the_controller_intent(tmp_pat
         preferences={}, finished=False,
         update=lambda observed: observed_frames.append(observed) or [],
         summary=lambda: {"coaching": {}},
+        tolerances={"max_packet_interval": 0.05},
     )
     observed_frames = []
     session.applied_reset = True
@@ -598,6 +599,7 @@ def test_human_entering_capture_corridor_aborts_before_any_bot_input(tmp_path, m
     session.engine = NS(
         state="active", started_at=10.0, metadata={}, recorder=NS(metadata={}),
         preferences={}, finished=False, update=lambda _frame: [], summary=lambda: {"coaching": {}},
+        tolerances={"max_packet_interval": 0.05},
     )
     session.applied_reset = True
     session.renderer = NS(can_render=False)
