@@ -545,6 +545,11 @@ package menus
         private function renderBrowser() : void
         {
             if (browserLayer == null || !browserLayer.visible || view == null || view.browser == null) return;
+            var searchWasEditing:Boolean = browserSearchEditing && browserZone == "search";
+            var searchBegin:int = browserSearch != null ? browserSearch.selectionBeginIndex : 0;
+            var searchEnd:int = browserSearch != null ? browserSearch.selectionEndIndex : 0;
+            if (browserSearch != null)
+                browserSearch.removeEventListener(FocusEvent.FOCUS_OUT, browserSearchFocusOut);
             while (browserLayer.numChildren > 0) browserLayer.removeChildAt(0);
             browserLayer.graphics.clear();
             browserSearch = null;
@@ -776,10 +781,12 @@ package menus
                     panelX + 30, panelY + panelHeight - 72, panelWidth - 60, 24, 12, 0xFFB26B);
             browserText(browserLayer, "LEFT / RIGHT TABS OR ACTION    UP / DOWN BROWSE    ENTER / CROSS START    ESC BACK",
                 panelX + 30, panelY + panelHeight - 48, panelWidth - 60, 28, 12, 0x9FB4D4, false, "center");
-            if (browserSearchEditing && stage != null && browserSearch != null)
+            browserSearchEditing = searchWasEditing;
+            if (searchWasEditing && stage != null && browserSearch != null)
             {
                 stage.focus = browserSearch;
-                browserSearch.setSelection(browserSearch.text.length, browserSearch.text.length);
+                browserSearch.setSelection(Math.min(searchBegin, browserSearch.text.length),
+                    Math.min(searchEnd, browserSearch.text.length));
             }
         }
 
