@@ -18,6 +18,14 @@ no API key or live builder connection is configured. Another session owns the
 demo recording, so game interaction/installed runtime changes remain on hold.
 These documentation changes do not alter the tested e41 binaries or acceptance.
 
+**Role correction:** the owner explicitly restricts Opus to visual design and
+design review. Main and DeepSeek own all implementation, including interactive
+HTML previews and behavioral fixes; Luna researches/tests. The separate HTML
+prototype was authored by Opus before this correction, including input logic;
+that assignment crossed the intended role boundary and is not a precedent.
+No game source or installed runtime was changed. Preview work is stopped at the
+owner's correction; current assignments must follow DEVELOPMENT_WORKFLOW.md.
+
 The owner paused on 25 October and requested a fresh session. Read
 [SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) first. The next
 product direction is **Training and Workshop**: inspect their existing

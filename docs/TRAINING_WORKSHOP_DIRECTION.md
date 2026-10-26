@@ -113,8 +113,11 @@ Community entry points checked on 25 October:
 ## Delivery order and open dependencies
 
 1. Record these decisions and the agent roles in DEVELOPMENT_WORKFLOW.md.
-2. Opus produces HTML layout previews; main checks honesty, behavior and fit to
-   the owner's request. Owner selects/refines before native UI implementation.
+2. Opus supplies visual mockups and layout specifications only. Main or DeepSeek
+   implements the HTML/CSS/JavaScript preview and fixes its behavior. Main reviews
+   the result; Luna tests it. Opus can review rendered visuals. Owner selects/
+   refines before native UI implementation. Calling code a preview does not make
+   it an Opus design-only assignment.
 3. RunInfra's official documentation confirms the intended model and endpoint;
    configure private credentials and verify an actual bounded request before
    delegating paid building work. No supplied/configured API key at this point.

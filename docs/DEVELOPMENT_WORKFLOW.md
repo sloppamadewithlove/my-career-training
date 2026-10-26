@@ -18,10 +18,10 @@ then exposed a real unhandled screen; the release stayed on hold.
 
 | Role | Requested model / route | Concrete output and boundary |
 | --- | --- | --- |
-| Main interviewer, reviewer and integrator | Current main agent | Clarify requirements, define shared contracts, review builder patches independently, return defects for correction, integrate, protect privacy and own acceptance |
+| Main interviewer, builder, reviewer and integrator | Current main agent | Clarify requirements, define contracts, implement as needed, independently review DeepSeek patches, return defects for correction, integrate and own acceptance |
 | Research, exploration and testing | GPT-6 Luna, max reasoning, Codex CLI | Bounded source/web research, test plans and exact-candidate evidence; game input only after an explicit handoff from main |
 | Builder and hard implementation problems | DeepSeek V4.1 Flash 1017 via RunInfra, paid using the owner's private API key | Scoped implementation patches against an immutable base, rationale and focused verification; no independent merge/publish authority; connection is not yet configured or verified |
-| Designer | Claude Opus 5.5 high, Cursor CLI or a verified existing Anthropic authenticated session | In-game and website design, HTML previews, scoped layout/focus/assets; stop designer on quota exhaustion |
+| Designer only | Claude Opus 5.5 high, Cursor CLI or a verified existing Anthropic authenticated session | Visual mockups, layout/appearance specifications and design reviews for game and website; no implementation/code edits, input logic, bug fixes, scripts or builds; stop designer on quota exhaustion |
 | Independent workflow reviewer | GPT-6 Astra, low reasoning | Check a bounded checkpoint's assignments, receipts, unresolved defects, privacy and claims; do not duplicate every code review |
 
 These owner-selected roles supersede the earlier Grok-primary / Sol-fallback
@@ -30,6 +30,16 @@ replace an unavailable builder or designer with another paid model. The main
 agent remains accountable for correctness and sends a rejected patch back with
 specific defects and acceptance criteria. Luna verifies the corrected behavior;
 main reviews the resulting diff and evidence before integration.
+
+**Strict owner clarification:** a working HTML preview is implementation. Opus
+provides the visual design; main or DeepSeek writes its HTML/CSS/JavaScript and
+all event handling. Keyboard/controller behavior, state management, downloads,
+runtime fixes, asset compilation and native integration belong to builders.
+Afterward Opus may review screenshots and request visual adjustments; a builder
+implements those adjustments. Do not send behavioral defects back to Opus merely
+because it designed the screen. Main may build directly and remains responsible
+for reviewing DeepSeek output. Luna owns research and test work. This clarification
+overrides older assignments that called Opus a design engineer or asset builder.
 
 The owner identified RunInfra's model page. Its [official model documentation](https://runinfra.ai/inference-api/deepseek-v4-1-flash-1017)
 documents the request ID `deepseek-v4-1-flash-1017`, upstream name

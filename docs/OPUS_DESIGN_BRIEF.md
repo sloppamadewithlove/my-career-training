@@ -1,4 +1,4 @@
-# My Career Training: design-engineer handoff for Opus 5.5
+# My Career Training: visual design handoff for Opus 5.5
 
 **Purpose:** Give Opus 5.5 a precise design assignment for the next My Career
 Training iteration. This file is a handoff prompt; it does not mean Opus has
@@ -6,20 +6,29 @@ reviewed the project or that the live game integration has passed.
 
 ## Current assignment update — 25 October 2026
 
+**Design-only boundary, explicitly corrected by the owner:** Opus supplies visual
+mockups, colors, typography, spacing, layout/focus specifications and design
+reviews. It does not author implementation code, interactive HTML/CSS/JavaScript,
+keyboard/controller event handling, scripts, bug fixes or builds. Main and
+DeepSeek implement the design and any corrections. Opus may review their rendered
+screenshots for visual fit. This rule supersedes any historical design-engineer
+or code/compiled-asset assignments elsewhere in this document.
+
 The owner has now specified the Training/Workshop direction in
 [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md). This supersedes
 older requests below for pause/slow playback, ghost placement beside the player,
-or another broad requirements interview. First deliver self-contained HTML
-previews with Rows/Grid comparison before native implementation. The ghost is
+or another broad requirements interview. First provide visual layouts for
+Rows/Grid comparison; main or DeepSeek turns them into self-contained HTML
+previews before native implementation. The ghost is
 slightly ahead, left D-pad toggles it, its own controller inputs are visible,
 and speed flip is the first lesson. Tutorial video and controlled bot scenarios
 are separate lesson actions. Workshop has Training Maps and Mods tabs; content
 is downloaded on demand. Gameplay-changing mods remain out of Career and ball
 prediction stays off. Do not claim sample preview motions are real lessons.
 
-Opus owns in-game and website design. DeepSeek via the requested Run Infra
-provider is the preferred implementation builder once its connection is verified;
-main reviews and integrates, and Luna max researches/tests. Existing login-based
+Opus owns visual design only for the game and website. DeepSeek via RunInfra
+is the preferred implementation builder once its connection is verified;
+main may implement, reviews DeepSeek work and integrates; Luna max researches/tests. Existing login-based
 design access needs no new API key. See DEVELOPMENT_WORKFLOW.md for exact roles.
 Another session currently owns a demo recording: no game input or installed
 asset/plugin changes until its completion and an ownership handoff are verified.
