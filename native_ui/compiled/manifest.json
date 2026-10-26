@@ -1,12 +1,12 @@
 {
   "source": "native_ui/menus/MctRootMenu.as",
-  "source_sha256": "40fcdb0daf6890827a494bd5559e6405c3eb6742cd6a46dfb0f56436678616af",
+  "source_sha256": "f6a12acb25680687dc7dd02c3cf8f35e0efd51e12da007cdd7d0e5a28234cf64",
   "screen_source": "native_ui/MctMainMenuScreen.as",
   "screen_source_sha256": "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd",
   "root_movie_source": "native_ui/MctRootMenuMovie.as",
   "root_movie_source_sha256": "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432",
-  "abc_sha256": "9563b0b6a5d75595bec9029ba9d2bfb31804fd0687072049997f03211c78f23f",
-  "abc_bytes": 33384,
+  "abc_sha256": "7b69e6845163d5684de3c8962727af664848274d30ca8453dfda2e69500bd975",
+  "abc_bytes": 33506,
   "authored_classes": [
     "menus::MctRootMenu",
     "MctMainMenuScreen",

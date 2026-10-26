@@ -81,6 +81,7 @@ package menus
         private var browserSearchEditing:Boolean = false;
         private var browserSearchPending:Boolean = false;
         private var browserPendingQuery:String = "";
+        private var browserSearchRetries:int = 0;
 
         public function MctRootMenu()
         {
@@ -429,11 +430,16 @@ package menus
                     event.stopImmediatePropagation();
                     renderBrowser();
                 }
-                else if (event.keyCode == 27 && String(view.browser.query).length > 0 && !busy)
+                else if (event.keyCode == 27)
                 {
                     event.preventDefault();
                     event.stopImmediatePropagation();
-                    browserCommand("search", "");
+                    browserSearch.text = "";
+                    browserPendingQuery = "";
+                    browserSearchPending = true;
+                    browserSearchRetries = 0;
+                    if (!busy && String(view.browser.query).length > 0)
+                        browserCommand("search", "");
                 }
                 return;
             }
@@ -856,6 +862,7 @@ package menus
             if (browserSearchHint != null) browserSearchHint.visible = clean.length == 0 && !browserSearchEditing;
             browserPendingQuery = clean;
             browserSearchPending = true;
+            browserSearchRetries = 0;
             if (!busy && browserPendingQuery != String(view.browser.query))
                 browserCommand("search", browserPendingQuery);
         }
@@ -1217,7 +1224,8 @@ package menus
                             throw new Error("Invalid browser tool");
                 }
                 if (!validView(incoming)) { loseConnection(); return; }
-                if (getTimer() - lastHello >= 1000 || String(incoming.generation) != generation)
+                if (getTimer() - lastHello >= 1000 ||
+                    (isFrontMenu() && String(incoming.generation) != generation))
                 {
                     DevUtil.Log("MCT_NATIVE_UI_V1", com.adobe.serialization.json.JSON.encode({protocol:1, session:SESSION,
                         surface:"frontend", generation:String(incoming.generation), event:"ready"}));
@@ -1270,7 +1278,19 @@ package menus
                         // was waiting for the new generation's READY handshake.
                         if (view.browser != null && browserSearchPending &&
                             browserPendingQuery != String(view.browser.query))
-                            browserCommand("search", browserPendingQuery);
+                        {
+                            if (browserSearchRetries < 1)
+                            {
+                                ++browserSearchRetries;
+                                browserCommand("search", browserPendingQuery);
+                            }
+                            else
+                            {
+                                browserSearchPending = false;
+                                browserPendingQuery = String(view.browser.query);
+                                refreshMenu();
+                            }
+                        }
                     }
                 }
             }
