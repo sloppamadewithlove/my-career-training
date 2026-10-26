@@ -34,7 +34,15 @@ ghost inputs. Retry re-anchors after the actual reset settles.
 classes remain for compatibility, but native practice does not expose pause,
 seek, speed or one-shot controls. The original ImGui build is a separate UI.
 
-Open: real validated speed-flip teaching recording, gameplay left-D-pad edge
+The native host now observes left D-pad through XInput during an owned,
+foreground offline Training session. Exactly one connected XInput controller
+is required; a fresh press follows a release, and an acknowledgement latch
+prevents duplicate toggles. Career, menus, capture sessions and stale/unowned
+games are excluded. The existing Rocket League binding is not consumed or
+replaced. Physical PS4 acceptance still requires the intended Steam Input
+gamepad mapping; raw DualShock support is not established by XInput tests.
+
+Open: real validated speed-flip teaching recording, physical left-D-pad
 binding, physical DS4 acceptance, video playback, bot scenarios and live visual
 acceptance of this candidate. A saved personal attempt is not a professional
 demonstration.
