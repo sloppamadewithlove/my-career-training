@@ -11,6 +11,18 @@ Pure functions returning NEW career dicts (never mutate caller on failure): `new
 ## Training (`training/`)
 `catalog()` returns eight lesson dicts with id,title,description,steps,starting_state,targets,timeout,assistance_defaults,reference_status. `TrainingEngine(lesson_id, preferences=None)` with `reset()`, `update(frame)`, `summary()`, `recording()`, state/finished properties if useful. Frame normalized: time, dt, car:{position:[x,y,z],velocity:[x,y,z],rotation:[pitch,yaw,roll],angular_velocity:[x,y,z],boost,wheel_contact,has_jumped,has_double_jumped,has_dodged,dodge_timeout,air_state,latest_touch?}, ball:{position,velocity,latest_touch?}, actions:{throttle,steer,pitch,yaw,roll,jump,boost,handbrake}, packet_gap boolean. Provide wireframe ghost line geometry independent of SDK and recording validation/interpolation. Assistance keys `ghost`, `explanations`, `actions`, `timing`, `auto_reset`, `playback_speed`. No fake expert recordings.
 
+## Development bot-reference capture
+
+`reference_capture.py` supplies a source-only, private-profile opt-in for actual
+speed-flip bot capture; it adds no public UI action. In this mode only the
+designated mapped bot is controlled, observed and reset; normal lessons retain
+their Human actor. Loss of capture scope ends the owned runtime. Recordings keep
+actual packet actions and optional observed wheel contact/angular velocity.
+Candidate files and receipts stay private and unvalidated. The pure controller
+and evidence checks are in `training/bot_reference.py`; see
+[BOT_REFERENCE_CAPTURE.md](BOT_REFERENCE_CAPTURE.md) for the configuration
+acknowledgement and no-promotion contracts.
+
 ## Bots (`bots/`)
 `SpecialistController(role="all-rounder", level=1, difficulty=0.5, seed=0)`; `step(frame, player_index, intents=None)` -> controls dict throttle/steer/pitch/yaw/roll/jump/boost/handbrake. Frame includes time, cars:[{index,team,position,velocity,rotation,boost,wheel_contact}], ball:{position,velocity}, prediction:[{time,position}], boosts:[{position,active,is_full}]. Roles keeper/defender/passer/attacker/all-rounder. Expose provider manifest/capabilities honestly experimental without rank certification. No RLBot imports in pure bot modules.
 

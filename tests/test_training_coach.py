@@ -238,7 +238,7 @@ def test_persisted_playback_settings_initialize_and_update_actual_coach():
     coach = GhostPlayback(mode=prefs["mode"], speed=prefs["playback_speed"],
                           lead_seconds=prefs["lead_seconds"], loop=prefs["loop"])
     assert coach.speed == 1
-    session = SimpleNamespace(coach=coach, coaching_preferences=prefs)
+    session = SimpleNamespace(coach=coach, coaching_preferences=prefs, capture=None)
     GameSession.handle_command(session, {"type": "coaching", "preferences": {"playback_speed": .25}})
     assert session.coaching_preferences["playback_speed"] == .25 and coach.speed == .25
     with pytest.raises(ValueError, match="speed must"):

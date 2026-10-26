@@ -244,6 +244,18 @@ class GameSession:
         self.legacy_playback = False
         self.coaching_preferences = request.get("coaching", {})
         self.engine = None
+        # Development-only real bot capture. ``None`` for every ordinary session.
+        self.capture = None
+        self.capture_controller = None
+        self.capture_ready = False
+        self.capture_aborted = None
+        self.capture_metadata = {}
+        self.capture_arena = None
+        self.capture_configuration = None
+        self.capture_configuration_ack = None
+        # The actor the training engine observes and state-sets. It is the Human
+        # in every normal mode and the designated capture bot only in capture.
+        self.training_actor_index = None
         from .review import MatchReview
         self.review = MatchReview()
         self.renderer = None
@@ -367,6 +379,12 @@ class GameSession:
         master = self.manager.rlbot_interface
         def on_config(received):
             if self.config_signature(received) == expected:
+                if self.capture is not None:
+                    from .reference_capture import configuration_snapshot
+                    actual = configuration_snapshot(received)
+                    if actual != self.capture_configuration:
+                        return
+                    self.capture_configuration_ack = actual
                 acknowledged.set()
         master.match_config_handlers.append(on_config)
         deadline = time.monotonic() + timeout
@@ -395,8 +413,14 @@ class GameSession:
         from .bots.providers import create_controller
         from .training import TrainingEngine
         from .training.recordings import validate_recording
+        from .reference_capture import validate_capture_request
         self.check_cancel()
+        # The capture gate runs here as well as inside adapter.match_config, so
+        # neither entry point alone can reach a capture session.
+        self.capture = validate_capture_request(self.request)
         preflight(self.owned)
+        if self.capture is not None and self.owned is not None:
+            self.game_version = game_file_version(self.owned.executable)
         # Heal a journal an older build already wrote, only after preflight says no game is open.
         # This does not copy a custom map or write a new journal.
         if self.request.get("data_dir"):
@@ -407,11 +431,41 @@ class GameSession:
         config, descriptors, self.human_index = adapter.match_config(self.request)
         self.human_team = config.player_configurations[self.human_index].team
         self.descriptors = descriptors
+        # Ordinary sessions observe the Human. Capture observes only the
+        # designated bot, and only after the mapping and packet checks below.
+        self.training_actor_index = self.human_index
+        self.capture_arena = config.game_map_upk
+        if self.capture is not None:
+            from .training.bot_reference import SpeedFlipTrialController
+            from .reference_capture import configuration_snapshot
+            self.capture_configuration = configuration_snapshot(config)
+            if self.human_index != self.capture["human_index"] or self.capture["target_index"] not in descriptors:
+                raise RuntimeError("The capture match layout is unexpected. No controls were sent.")
+            self.training_actor_index = self.capture["target_index"]
+            self.capture_controller = SpeedFlipTrialController(
+                self.capture["profile"], self.capture["parameters"] or None)
+            self.capture_metadata = {
+                "source": {
+                    "kind": "actual_execution",
+                    "actor": "bot",
+                    "actor_index": self.capture["target_index"],
+                    "origin": "project-controlled offline bot",
+                    "profile": self.capture["profile"],
+                    "trial_id": self.capture["trial_id"],
+                    "controller_plan": self.capture_controller.controller_plan(),
+                    "label": self.capture["label"],
+                    "provenance": self.capture["provenance"],
+                },
+                "permission": {"distribute": False},
+            }
         if self.request.get("lesson_id"):
             variants = self.request.get("variants") or {}
             allowed = {key: variants[key] for key in ("side", "target_zone", "angle", "simplified") if key in variants}
+            engine_metadata = {"framework_version": adapter.SDK_VERSION}
+            if self.capture is not None:
+                engine_metadata.update(self.capture_metadata)
             self.engine = TrainingEngine(self.request["lesson_id"], self.request.get("preferences"),
-                                         metadata={"framework_version": adapter.SDK_VERSION}, **allowed)
+                                         metadata=engine_metadata, **allowed)
         from .training import GhostPlayback, GhostPractice, practice_context, practice_support
         from .training import coaching_preferences
         self.coaching_preferences = coaching_preferences(self.coaching_preferences)
@@ -422,15 +476,26 @@ class GameSession:
         if self.engine is not None:
             self.practice_support = practice_support(self.request["lesson_id"])
             self.practice = GhostPractice(context=practice_context(self.engine.lesson, self.engine.metadata))
+        if self.capture is not None:
+            # Development capture owns the only ghost control path: no practice
+            # ghost and no legacy playback may run alongside it.
+            self.practice = None
+            self.practice_snapshot = {}
+            self.practice_support = {"supported": False,
+                                     "reason": "Ghost practice is unavailable during development capture."}
+            self.legacy_playback = False
+            self.engine.set_preference("ghost", False)
+            self.engine.set_preference("auto_reset", False)
         if self.request.get("recording") is not None:
             validate_recording(self.request["recording"])
             self.recording = self.request["recording"]
         self.event("session", state="starting", message="Loading the selected offline bots.")
-        for index, descriptor in descriptors.items():
-            self.check_cancel()
-            self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
-                descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
-            self.check_cancel()
+        if self.capture is None:
+            for index, descriptor in descriptors.items():
+                self.check_cancel()
+                self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
+                    descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
+                self.check_cancel()
         runtime = Path(self.request["data_dir"]).resolve() / "runtime" / self.session_id
         runtime.mkdir(parents=True, exist_ok=True)
         port = free_port()
@@ -473,8 +538,23 @@ class GameSession:
         expected = sorted(index for index, descriptor in self.descriptors.items() if descriptor["team"] == team)
         assigned = sorted(item.index for item in info.controllables)
         if info.team != team or assigned != expected or self.human_index in assigned:
+            # Any invalid mapping withdraws capture control before the raise, so
+            # no later packet can send inputs on a stale mapping.
+            self._abort_capture("The game returned an unexpected bot-control mapping.")
             raise RuntimeError("The game returned an unexpected bot-control mapping. No human controls were sent.")
+        if self.capture is not None:
+            # Capture needs exactly the designated bot on its known team, and the
+            # Human must never appear in a bot-control mapping.
+            target = self.capture["target_index"]
+            if team != self.descriptors[target]["team"] or assigned != [target]:
+                self._abort_capture("The capture bot mapping changed.")
+                raise RuntimeError("The game returned an unexpected capture mapping. No controls were sent.")
+            if self.capture_ready and self.mapping.get(team) != assigned:
+                self._abort_capture("The capture bot mapping changed.")
+                raise RuntimeError("The capture bot mapping changed. No controls were sent.")
         self.mapping[team] = assigned
+        if self.capture is not None and team == self.descriptors[self.capture["target_index"]]["team"]:
+            self.capture_ready = True
         # rc18 records readiness only for agents already reserved by this mapping.
         # Sending InitComplete on socket-connect can arrive before reservation and
         # leave wait_for_agents pending forever.
@@ -486,17 +566,29 @@ class GameSession:
     def reset(self):
         if self.cancel_start.is_set() or self.stopping:
             return
+        if self.capture is not None:
+            from .reference_capture import recheck_capture
+            target = self.capture["target_index"]
+            team = self.descriptors[target]["team"]
+            if (self.capture_aborted is not None or not self.capture_ready
+                    or self.mapping.get(team) != [target]):
+                raise RuntimeError("Capture cannot reset after its bot mapping was lost or capture stopped.")
+            recheck_capture(self.capture)
         from .adapter import desired_state
         if self.engine is None:
             raise RuntimeError("Retry is available during a training lesson.")
         if self.attempt_sent and not self.attempt_acked:
             raise RuntimeError("The previous attempt is still being saved. Wait before retrying.")
         settle_state = self.engine.reset()
-        self.manager.rlbot_interface.send_msg(desired_state(settle_state, self.human_index))
+        self.manager.rlbot_interface.send_msg(desired_state(settle_state, self.training_actor_index))
         self.applied_reset = True
         self.attempt_sent = None
         self.attempt_acked = False
         self.playback_origin = None
+        if self.capture_controller is not None:
+            # A retry restarts the candidate schedule from its beginning.
+            self.capture_controller.reset()
+            self.capture_aborted = None
         if self.coach:
             self.coach.restart()
         if self.practice is not None and self.practice.available and self.practice.enabled:
@@ -551,6 +643,16 @@ class GameSession:
 
     def handle_command(self, command):
         kind = command.get("type", command.get("command"))
+        if self.capture is not None and kind in {"ghost_control", "play_recording"}:
+            # Development capture owns the only ghost control path. Reject the
+            # command with an explicit failed acknowledgement before any
+            # playback or practice state changes, so no double ghost control
+            # can exist alongside the capture trial.
+            message = "Ghost practice and recorded playback are unavailable during development capture."
+            self._ack_ghost(command, accepted=False, error=message)
+            # Mark the command so the run loop does not acknowledge it twice.
+            command["_capture_ack"] = True
+            raise ValueError(message)
         if kind in {"stop", "shutdown"}:
             self.stop_id = command.get("id")
             self.stopping = True
@@ -566,6 +668,9 @@ class GameSession:
             preferences = command.get("preferences", {})
             if "key" in command:
                 preferences = {command["key"]: command["value"]}
+            if self.capture is not None and (preferences.get("auto_reset") is True
+                                             or preferences.get("ghost") is True):
+                raise ValueError("Development capture requires explicit retries with playback disabled.")
             for key, value in preferences.items():
                 self.engine.set_preference(key, value)
             # The assistance ghost setting and practice visibility stay in step.
@@ -665,6 +770,109 @@ class GameSession:
         else:
             raise ValueError("Unknown game-session command.")
 
+    def _abort_capture(self, reason):
+        """Stop capture control immediately; the Human is never moved."""
+        if self.capture is None:
+            return
+        self.capture_ready = False
+        self.mapping.clear()
+        # With an invalid mapping we cannot safely send even a neutral input.
+        # End this owned session so teardown stops its runtime instead of
+        # leaving the last bot input held indefinitely.
+        self.stopping = True
+        self.stop_deadline = 0
+        if self.capture_aborted is None:
+            self.capture_aborted = reason
+            if self.capture_controller is not None:
+                self.capture_controller.finish()
+            self.event("error", message=f"Reference capture stopped: {reason}")
+
+    def _capture_actions(self, frame):
+        """Neutral unless the engine is active with a known Go time."""
+        from .reference_capture import neutral_actions
+        if self.capture_aborted is not None or self.capture_controller is None:
+            return neutral_actions()
+        if self.engine is None or self.engine.state != "active" or self.engine.started_at is None:
+            return neutral_actions()
+        elapsed = frame["time"] - self.engine.started_at
+        return self.capture_controller.step(elapsed, frame)
+
+    def _capture_controls(self, frame, flat):
+        """Send inputs only to the mapped capture bot, never to the Human.
+
+        The marker, the mapping and the Human clearance are rechecked at every
+        control boundary; any change aborts capture instead of sending inputs.
+        """
+        from .reference_capture import recheck_capture
+        target = self.capture["target_index"]
+        team = self.descriptors[target]["team"]
+        if self.capture_aborted is not None or not self.capture_ready:
+            return
+        if self.mapping.get(team) != [target]:
+            self._abort_capture("The capture bot mapping changed.")
+            return
+        car = frame["cars"][target]
+        if car.get("is_bot") is not True or car.get("team") != team:
+            self._abort_capture("The capture target is not the designated bot.")
+            return
+        if not self._capture_human_clear(frame):
+            self._abort_capture("The Human entered the capture corridor.")
+            return
+        try:
+            recheck_capture(self.capture)
+        except ValueError as error:
+            self._abort_capture(str(error))
+            return
+        actor_frame = dict(frame, car=car, actions=car["actions"])
+        actions = self._capture_actions(actor_frame)
+        if self.cancel_start.is_set() or self.stopping:
+            return
+        self.relays[team].send_msg(flat.PlayerInput(target, flat.ControllerState(**actions)))
+
+    def _capture_human_clear(self, frame):
+        """True while the Human stays outside the capture corridor."""
+        from .reference_capture import HUMAN_CLEARANCE
+        target = self.capture["target_index"]
+        human = frame["cars"][self.human_index]
+        bot = frame["cars"][target]
+        dx = human["position"][0] - bot["position"][0]
+        dy = human["position"][1] - bot["position"][1]
+        return math.hypot(dx, dy) >= HUMAN_CLEARANCE
+
+    def _capture_metadata(self, packet, frame):
+        """Observed setup facts only; requested mutators are annotated as such."""
+        from . import adapter
+        target = self.capture["target_index"]
+        lesson = getattr(self.engine, "lesson", None)
+        starting_state = lesson.get("starting_state") if isinstance(lesson, dict) else None
+        source = {
+            "kind": "actual_execution",
+            "actor": "bot",
+            "actor_index": target,
+            "origin": "project-controlled offline bot",
+            "profile": self.capture["profile"],
+            "trial_id": self.capture["trial_id"],
+            "controller_plan": (self.capture_controller.controller_plan()
+                                if self.capture_controller is not None else None),
+            "label": self.capture["label"],
+            "provenance": self.capture["provenance"],
+        }
+        return {
+            "source": source,
+            "permission": {"distribute": False},
+            "game_version": self.game_version,
+            "framework_version": adapter.SDK_VERSION,
+            "car_hitbox": observed_hitbox(packet.players[target]),
+            "map": self.capture_arena,
+            "observed_game_speed": frame.get("game_speed"),
+            "starting_state": starting_state,
+            "mutators": {
+                "source": "rlbot_match_configuration",
+                "requested": self.capture_configuration,
+                "acknowledged": self.capture_configuration_ack,
+            },
+        }
+
     def process_packet(self, packet):
         from rlbot import flat
         from . import adapter
@@ -690,6 +898,7 @@ class GameSession:
         if not (human_valid and count_valid and bots_valid):
             if not self.seen_active and phase != 3:
                 return  # Existing startup timeout still bounds this wait.
+            self._abort_capture("The observed player layout changed.")
             if not human_valid:
                 raise RuntimeError("The game has an unexpected human-player layout. Controls were withheld.")
             if not count_valid:
@@ -704,22 +913,34 @@ class GameSession:
         frame["match_ended"] = packet.match_info.match_phase == flat.MatchPhase.Ended
         if (phase in {2, 3} and not self.cancel_start.is_set() and not self.stopping
                 and now - self.last_controls >= 1 / 120):
-            intents = [controller.intent for controller in self.controllers.values() if controller.intent]
-            for team, indices in self.mapping.items():
-                for index in indices:
-                    actions = self.controllers[index].step(frame, index, intents)
-                    if not self.cancel_start.is_set() and not self.stopping:
-                        self.relays[team].send_msg(flat.PlayerInput(index, flat.ControllerState(**actions)))
+            if self.capture is not None:
+                # Capture drives only the designated bot through its own relay.
+                self._capture_controls(frame, flat)
+            else:
+                intents = [controller.intent for controller in self.controllers.values() if controller.intent]
+                for team, indices in self.mapping.items():
+                    for index in indices:
+                        actions = self.controllers[index].step(frame, index, intents)
+                        if not self.cancel_start.is_set() and not self.stopping:
+                            self.relays[team].send_msg(flat.PlayerInput(index, flat.ControllerState(**actions)))
             self.last_controls = now
         human = humans[0]
+        # The engine observes the Human in every normal mode and the designated
+        # capture bot only in the development capture mode.
+        actor = frame["cars"][self.training_actor_index] if self.capture is not None else human
         prior = self.last_frame
-        frame.update(car=human, actions=human["actions"],
+        frame.update(car=actor, actions=actor["actions"],
                      dt=frame["time"] - prior["time"] if prior else 0,
                      packet_gap=bool(prior and (frame["frame_num"] - prior["frame_num"]) % (2**32) != 1))
         self.last_frame = frame
         if self.engine and not self.cancel_start.is_set() and not self.stopping:
-            metadata = {"game_version": self.game_version,
-                        "car_hitbox": observed_hitbox(packet.players[self.human_index])}
+            if self.capture is not None and (self.capture_aborted is not None or not self.capture_ready):
+                return
+            if self.capture is not None:
+                metadata = self._capture_metadata(packet, frame)
+            else:
+                metadata = {"game_version": self.game_version,
+                            "car_hitbox": observed_hitbox(packet.players[self.human_index])}
             self.engine.metadata.update(metadata)
             self.engine.recorder.metadata.update(metadata)
             if not self.applied_reset:
@@ -727,7 +948,8 @@ class GameSession:
             else:
                 for event in self.engine.update(frame):
                     if event["type"] == "set_state" and not self.cancel_start.is_set():
-                        self.manager.rlbot_interface.send_msg(adapter.desired_state(event["state"], self.human_index))
+                        self.manager.rlbot_interface.send_msg(
+                            adapter.desired_state(event["state"], self.training_actor_index))
                     elif event["type"] == "completed":
                         self.publish_attempt()
                     else:
@@ -757,11 +979,18 @@ class GameSession:
         if self.practice is not None and not self.cancel_start.is_set() and not self.stopping:
             self.practice_snapshot = self.practice.update(frame["time"], player_pose=self._player_pose())
         if now - self.last_telemetry >= 1 / 30:
+            capture_telemetry = None
+            if self.capture is not None:
+                from .reference_capture import telemetry as capture_telemetry_event
+                capture_telemetry = capture_telemetry_event(
+                    self.capture, active=self.capture_aborted is None and self.capture_ready,
+                    target_index=self.capture["target_index"], aborted=self.capture_aborted)
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
                        scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
                        ghost_practice=self.practice_snapshot,
                        ghost_practice_support=dict(self.practice_support),
+                       reference_capture=capture_telemetry,
                        coaching=(self.engine.summary().get("coaching", {}) if self.engine and not self.cancel_start.is_set() and not self.stopping else {}))
             self.last_telemetry = now
 
@@ -775,7 +1004,23 @@ class GameSession:
             recording = None
         self.attempt_sent = summary["id"]
         self.attempt_acked = False
+        if self.capture is not None and recording is not None and getattr(self.engine, "finished", False):
+            # Persist only a trial the engine actually completed; an unfinished
+            # or imported claim never becomes a candidate.
+            self._persist_candidate(summary, recording)
         self.event("attempt", summary=summary, recording=recording)
+
+    def _persist_candidate(self, summary, recording):
+        from .reference_capture import persist_candidate
+        try:
+            receipt = persist_candidate(self.capture["data_dir"], self.capture, summary["id"],
+                                        recording, summary, self.engine.recorder.metadata)
+        except (ValueError, OSError) as error:
+            self.event("error", message=f"The reference candidate was not saved: {error}")
+            return None
+        self.event("reference_candidate", receipt=receipt, label=self.capture["label"],
+                   provenance=self.capture["provenance"], gate="not-evaluated")
+        return receipt
 
     def render(self, frame):
         if self.cancel_start.is_set() or self.stopping or not self.renderer.can_render:
@@ -905,7 +1150,8 @@ class GameSession:
                     try:
                         self.handle_command(value)
                     except (ValueError, RuntimeError, KeyError) as error:
-                        if value.get("type", value.get("command")) in {"ghost_control", "play_recording"}:
+                        if (value.get("type", value.get("command")) in {"ghost_control", "play_recording"}
+                                and not value.get("_capture_ack")):
                             # A safe rejection for exactly this command; the
                             # bridge reverts any optimistic state on it.
                             self._ack_ghost(value, accepted=False, error=str(error))

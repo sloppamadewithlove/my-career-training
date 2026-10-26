@@ -17,9 +17,33 @@ def flat_module():
     return flat
 
 
+def capture_descriptor(capture):
+    """Descriptor for the single known development capture bot.
+
+    The existing controller construction and team mapping read exactly these
+    fields, so the capture bot reuses the ordinary bot path instead of a
+    bot-only configuration. The Human stays present and uncontrolled.
+    """
+    return {
+        "name": "Development Capture Bot",
+        "team": 0,
+        "role": "all-rounder",
+        "level": 1,
+        "difficulty": .5,
+        "seed": 0,
+        "loadout": {"car_id": 23, "primary_color": 27, "secondary_color": 0},
+        "capture_profile": capture["profile"],
+        "capture_trial_id": capture["trial_id"],
+    }
+
+
 def match_config(request):
     from .map_guard import refuse_custom_map_launch
     refuse_custom_map_launch(request)
+    # The capture gate runs here as well as in the worker setup, so a caller
+    # cannot obtain a capture match layout without passing every gate.
+    from .reference_capture import validate_capture_request
+    capture = validate_capture_request(request)
     f = flat_module()
     fixture = request.get("fixture") or {}
     training = bool(request.get("lesson_id"))
@@ -31,7 +55,20 @@ def match_config(request):
         raise ValueError("Choose Steam or Epic.")
     human_team = 0 if training or fixture.get("home") == "human" else 1
     players, descriptors = [], {}
-    if not training:
+    if capture is not None:
+        # Exactly one known CustomBot before the Human: bot index 0, Human
+        # index 1, both on the known team 0. Ordinary training keeps one Human
+        # and no bots; Career is unchanged.
+        descriptor = capture_descriptor(capture)
+        loadout = descriptor["loadout"]
+        variety = f.CustomBot(name=descriptor["name"], root_dir=str(Path.cwd()), run_command="",
+            agent_id="my-career-training/team-0", hivemind=True,
+            loadout=f.PlayerLoadout(car_id=loadout.get("car_id", 23), wheels_id=376,
+                team_color_id=loadout.get("primary_color", 27),
+                custom_color_id=loadout.get("secondary_color", 0)))
+        descriptors[0] = descriptor
+        players.append(f.PlayerConfiguration(variety=variety, team=descriptor["team"]))
+    elif not training:
         from .career import bot_runtime_snapshot
         for bot in bot_runtime_snapshot(fixture):
             team, loadout = bot["team"], bot["loadout"]

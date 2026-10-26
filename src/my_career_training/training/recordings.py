@@ -80,13 +80,15 @@ def validate_recording(value, *, require_reference=False):
                     raise ValueError("Button actions must be true or false.")
             elif not _finite(item) or not -1 <= item <= 1:
                 raise ValueError("Analog actions must be finite and between −1 and 1.")
-        for vector_key in ("velocity", "ball_position", "ball_velocity"):
+        for vector_key in ("velocity", "ball_position", "ball_velocity", "angular_velocity"):
             if vector_key in sample and not _vector(sample[vector_key], 3):
                 raise ValueError(f"Invalid {vector_key} in recording.")
         if "game_speed" in sample and (not _finite(sample["game_speed"]) or sample["game_speed"] <= 0):
             raise ValueError("Invalid game speed in recording.")
         if "packet_gap" in sample and not isinstance(sample["packet_gap"], bool):
             raise ValueError("Invalid packet gap marker.")
+        if "wheel_contact" in sample and not isinstance(sample["wheel_contact"], bool):
+            raise ValueError("Invalid observed wheel contact in recording.")
     if len(json.dumps(value, allow_nan=False).encode("utf-8")) > MAX_RECORDING_BYTES:
         raise ValueError("Recording exceeds the supported file size.")
     warnings = []
@@ -244,6 +246,11 @@ class Recorder:
                 frame.get("game_speed", self.metadata["starting_state"].get("game_speed", 1.0))
             ),
         }
+        # Optional observed physics for validating new bot references. Older
+        # personal recordings remain readable; missing evidence is not invented.
+        for key in ("angular_velocity", "wheel_contact"):
+            if key in car:
+                sample[key] = deepcopy(car[key])
         self.samples.append(sample)
 
     def export(self, *, outcome="unfinished", events=None, duration=0):
