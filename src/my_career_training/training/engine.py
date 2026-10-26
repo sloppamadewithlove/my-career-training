@@ -44,6 +44,29 @@ def _finite_vector(value):
     )
 
 
+def _sampled_interval_ok(previous, frame, max_interval):
+    """Finite, increasing observed interval within the documented maximum.
+
+    The first observation of a preparation has no predecessor and is allowed.
+    This is the ordinary sampled-preparation interval check only; it never
+    replaces the shared cadence classification.
+    """
+    if not isinstance(previous, dict):
+        return True
+    before, now = previous.get("time"), frame.get("time")
+    if (
+        isinstance(before, bool)
+        or not isinstance(before, (int, float))
+        or not math.isfinite(before)
+        or isinstance(now, bool)
+        or not isinstance(now, (int, float))
+        or not math.isfinite(now)
+    ):
+        return False
+    dt = now - before
+    return math.isfinite(dt) and 0 < dt <= max_interval
+
+
 def _rotation_distance(first, second):
     a, b = euler_quaternion(first), euler_quaternion(second)
     dot = min(1.0, abs(sum(x * y for x, y in zip(a, b))))
@@ -136,7 +159,15 @@ class TrainingEngine:
         self.last_frame = None
         self.settle_start = None
         self.settle_first_time = None
-        self.preparation = {"samples": 0, "gaps": 0}
+        self.settle_samples = 0
+        self.preparation = {
+            "samples": 0,
+            "gaps": 0,
+            "valid_samples": 0,
+            # Ordinary preparation is sampled pose readiness, not expert
+            # recording certification; strict capture keeps the exact gate.
+            "sampled": not self.strict_capture,
+        }
         self.reset_requested_at = None
         self.events = []
         self.observations = []
@@ -258,17 +289,22 @@ class TrainingEngine:
                 and _distance(car["position"], target["position"]) < 60
                 and _length(car["velocity"]) < 25
                 and _length(car.get("angular_velocity", [0, 0, 0])) < 0.2
-                and not cadence["gap"]
+                and (not cadence["gap"] if self.strict_capture else
+                     _sampled_interval_ok(self.last_frame, frame, 0.05))
             )
             if valid:
                 if self.settle_start is None:
                     self.settle_start = now
+                self.settle_samples += 1
             else:
                 self.settle_start = None
+                self.settle_samples = 0
+            self.preparation["valid_samples"] = self.settle_samples
             if self.settle_first_time is None:
                 self.settle_first_time = now
             self.last_frame = deepcopy(frame)
-            if self.settle_start is not None and now - self.settle_start >= 0.25:
+            if (self.settle_start is not None and now - self.settle_start >= 0.25
+                    and (self.strict_capture or self.settle_samples >= 3)):
                 self.state = "ready"
                 self.reset_requested_at = now
                 return [

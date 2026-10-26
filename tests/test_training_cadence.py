@@ -171,6 +171,98 @@ def test_60hz_samples_can_settle_confirm_reset_and_start_training():
     assert [event["type"] for event in go_events] == ["go"]
 
 
+def test_ordinary_preparation_accepts_stationary_samples_with_explicit_packet_gaps():
+    engine = TrainingEngine("speed-flip")
+    ready_events = []
+    gap_samples = {3, 9, 14}
+
+    for index in range(40):
+        frame = _engine_frame(engine, index / 60, 3_000 + 2 * index)
+        frame["packet_gap"] = index in gap_samples
+        events = engine.update(frame)
+        if events:
+            ready_events = events
+            break
+
+    assert engine.state == "ready"
+    assert [event["type"] for event in ready_events] == ["set_state", "ready"]
+    assert engine.preparation["gaps"] == len(gap_samples)
+    assert engine.preparation["valid_samples"] >= 3
+    assert engine.preparation["sampled"] is True
+
+
+def test_ordinary_preparation_does_not_stitch_across_long_intervals_or_invalid_pose():
+    engine = TrainingEngine("speed-flip")
+    last_events = []
+    # One >50 ms observation interval invalidates the pre-gap settle run. Later
+    # good 60 Hz observations can begin a new 250 ms run, but cannot join it to
+    # the earlier samples.
+    schedule = [0, 2, 4, 14] + list(range(16, 50, 2))
+    for frame_num in schedule:
+        game_time = frame_num / 120
+        frame = _engine_frame(engine, game_time, 4_000 + frame_num)
+        last_events = engine.update(frame)
+        if last_events:
+            break
+    assert engine.state == "ready"
+    assert game_time >= (16 / 120) + 0.25
+    assert [event["type"] for event in last_events] == ["set_state", "ready"]
+
+    engine.reset()
+    ready_at = None
+    # A physically invalid sample resets the stationary run. Readiness must be
+    # measured from the first subsequent clean sample, not stitched to earlier
+    # valid observations.
+    for index in range(40):
+        frame = _engine_frame(engine, index / 60, 5_000 + 2 * index)
+        if index == 9:
+            frame["car"]["has_jumped"] = True
+        events = engine.update(frame)
+        if events:
+            ready_at = index / 60
+            break
+    assert engine.state == "ready"
+    assert ready_at is not None and ready_at >= (10 / 60) + 0.25
+
+
+def test_ordinary_preparation_still_times_out_once_after_five_game_seconds():
+    engine = TrainingEngine("speed-flip")
+    completed = []
+    for index in range(302):
+        frame = _engine_frame(engine, index / 60, 6_000 + 2 * index)
+        frame["car"]["position"][0] += 500
+        events = engine.update(frame)
+        if events:
+            completed = events
+            break
+
+    assert engine.state == "interrupted"
+    assert len(completed) == 1 and completed[0]["type"] == "completed"
+    assert "did not settle" in completed[0]["summary"]["feedback"].lower()
+    assert engine.update(_engine_frame(engine, (index + 1) / 60, 6_000 + 2 * index + 2)) == []
+    assert len(engine.observations) == 1
+
+
+def test_strict_capture_still_rejects_repeated_explicit_gaps_during_preparation():
+    engine = TrainingEngine("speed-flip", strict_capture=True)
+    completed = []
+    for index in range(602):
+        frame = _engine_frame(engine, index / 120, 7_000 + index)
+        frame["packet_gap"] = index % 20 == 0
+        events = engine.update(frame)
+        if events:
+            completed = events
+            break
+
+    assert engine.state == "interrupted"
+    assert engine.preparation["sampled"] is False
+    assert engine.preparation["gaps"] > 0
+    assert len(completed) == 1 and completed[0]["type"] == "completed"
+    assert "continuous telemetry cadence" in completed[0]["summary"]["feedback"].lower()
+    assert engine.update(_engine_frame(engine, (index + 1) / 120, 7_001 + index)) == []
+    assert len(engine.observations) == 1
+
+
 def test_strict_capture_engine_rejects_coarse_samples_and_disables_auto_reset():
     ordinary = TrainingEngine("speed-flip")
     strict = TrainingEngine("speed-flip", strict_capture=True)
