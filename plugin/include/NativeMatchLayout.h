@@ -14,6 +14,7 @@ public:
         confirmingForfeit_ = false;
         confirmation_ = Json::object();
         resetResultsPage();
+        resetGhostPage();
         if (!valid(scope, state) || !advance()) return false;
         scope_ = scope;
         opened_ = true;
@@ -23,7 +24,12 @@ public:
     CareerLayoutView view(const CareerLayoutScope& scope, const Json& state,
                           bool returnPending = false, bool returnHold = false) {
         CareerLayoutView out;
-        if (!current(scope, state)) { confirmingForfeit_ = false; resetResultsPage(); return out; }
+        if (!current(scope, state)) {
+            confirmingForfeit_ = false;
+            resetResultsPage();
+            resetGhostPage();
+            return out;
+        }
         out.offersReplacement = true;
         const auto session = objectValue(state, "session");
         const auto phase = stringValue(session, "state");
@@ -88,6 +94,7 @@ public:
                 add(out, "pause.retry", "Retry lesson", !busy && worker && phase == "training",
                     CareerLayoutEffectKind::Dispatch, "retry_lesson",
                     {{"expected_session_id", stringValue(session, "id")}});
+                buildGhostPractice(out, state, session, kind, busy, worker, phase);
             } else out.body += "Resume your offline activity or return to My Career.";
             add(out, "pause.options", "Game options", true, CareerLayoutEffectKind::PreserveStockRoute,
                 "", Json::object(), StockRoute::Options);
@@ -161,6 +168,10 @@ public:
             if (confirming_ || confirmingForfeit_) confirmation_ = choice.payload;
             if (scope.surface == NativeMenuSurface::Results && choice.kind == CareerLayoutEffectKind::Navigate)
                 navigateResults(choice, finished(state));
+            if (scope.surface == NativeMenuSurface::Pause && choice.kind == CareerLayoutEffectKind::Navigate &&
+                (choice.id == "pause.ghost_prev" || choice.id == "pause.ghost_next") &&
+                choice.payload.value("binding", Json::object()) == ghostBinding_)
+                ghostPage_ = choice.payload.value("page", std::size_t{0});
             return effect;
         }
         return effect;
@@ -322,6 +333,131 @@ private:
         add(out, "results.schedule_back", "Back", true, CareerLayoutEffectKind::Navigate);
     }
 
+    // Local ghost-practice page. It never dispatches; it is bound to the exact
+    // training activity and lesson it was opened from and resets when either
+    // changes. Only saved recording ids reach the bridge, never a path.
+    static constexpr std::size_t kGhostRows = 4;
+    static constexpr std::size_t kGhostScan = 64;
+    // Resume, Retry, toggle, page controls, Options, Return stay reachable.
+    static_assert(kGhostRows + 7 <= NativeCareerLayout::kMaxChoices);
+
+    void resetGhostPage() {
+        ghostPage_ = 0;
+        ghostBinding_ = Json::object();
+    }
+
+    // Saved recordings are stored under canonical lowercase UUID file names.
+    // Anything else is not a recording identity, so no path or free text can
+    // be forwarded to the bridge.
+    static bool safeRecordingId(const std::string& id) {
+        if (id.size() != 36) return false;
+        for (std::size_t index = 0; index < id.size(); ++index) {
+            const char character = id[index];
+            if (index == 8 || index == 13 || index == 18 || index == 23) {
+                if (character != '-') return false;
+            } else if (!((character >= '0' && character <= '9') ||
+                         (character >= 'a' && character <= 'f'))) return false;
+        }
+        return true;
+    }
+
+    struct GhostRow {
+        std::string id;
+        std::string label;
+    };
+
+    void buildGhostPractice(CareerLayoutView& out, const Json& state, const Json& session,
+                            const std::string& kind, bool busy, bool worker, const std::string& phase) {
+        const auto telemetry = objectValue(state, "telemetry");
+        const auto lesson = stringValue(telemetry, "lesson_id");
+        const auto practice = objectValue(telemetry, "ghost_practice");
+        const auto support = objectValue(telemetry, "ghost_practice_support");
+        const bool supported = boolValue(support, "supported", false);
+        const bool available = boolValue(practice, "available", false);
+        const bool enabled = boolValue(practice, "enabled", false);
+        // Agreed contract: telemetry.ghost_practice_pending is a boolean flag.
+        // A boolean is read directly; a non-empty object is also treated as a
+        // pending command so an older publisher cannot unlock a second edge.
+        const auto pendingValue = telemetry.contains("ghost_practice_pending")
+            ? telemetry["ghost_practice_pending"] : Json(false);
+        const bool pending = pendingValue.is_boolean() ? pendingValue.get<bool>() :
+            (pendingValue.is_object() && !pendingValue.empty());
+        const bool live = kind == "training" && worker && !busy && phase == "training" && !lesson.empty();
+        const auto binding = Json{{"session", stringValue(session, "id")}, {"lesson", lesson}};
+        if (!live) { resetGhostPage(); return; }
+        if (binding != ghostBinding_) { resetGhostPage(); ghostBinding_ = binding; }
+        // Support lost while the ghost is on still allows turning it off.
+        if (!supported && !enabled) {
+            out.body += "\nGhost practice is not available for this drill.";
+            return;
+        }
+        const bool canToggle = !pending && (enabled || (supported && available));
+        add(out, "pause.ghost_toggle", enabled ? "Ghost practice: On" : "Ghost practice: Off", canToggle,
+            CareerLayoutEffectKind::Dispatch, "ghost_control",
+            {{"operation", "toggle"}, {"enabled", !enabled}});
+        if (!canToggle)
+            explain(out, pending ? "Wait for the ghost command to finish." :
+                "Choose a saved recording for this lesson first.");
+        if (!supported) {
+            out.body += "\nGhost practice support was lost. You can still turn the ghost off.";
+            return;
+        }
+        std::vector<GhostRow> rows;
+        const auto recordings = arrayValue(state, "recordings");
+        // A recording is offered only for the exact lesson variation the worker
+        // is running. A missing or non-object variant on either side fails closed.
+        const auto variant = telemetry.contains("lesson_variant") ? telemetry["lesson_variant"] : Json();
+        const bool variantKnown = variant.is_object();
+        const auto stop = recordings.is_array() ? (std::min)(recordings.size(), kGhostScan) : std::size_t{0};
+        for (std::size_t index = 0; index < stop && rows.size() < kGhostScan; ++index) {
+            const auto& entry = recordings[recordings.size() - 1 - index];
+            if (!entry.is_object()) continue;
+            if (stringValue(entry, "lesson_id") != lesson) continue;
+            const auto id = stringValue(entry, "id");
+            if (!safeRecordingId(id)) continue;
+            if (!variantKnown || !entry.contains("variant") || !entry["variant"].is_object() ||
+                entry["variant"] != variant) continue;
+            const auto source = stringValue(objectValue(entry, "source"), "kind");
+            const auto outcome = stringValue(entry, "outcome");
+            const std::string origin = source == "local_player" ? "personal" :
+                source.empty() ? "saved" : "imported";
+            GhostRow row;
+            row.id = id;
+            row.label = bounded(stringValue(entry, "label"), 40) + " (" + origin +
+                (outcome.empty() ? ")" : ", " + bounded(outcome, 16) + ")");
+            rows.push_back(std::move(row));
+        }
+        if (rows.empty()) {
+            out.body += "\nNo saved recording matches this lesson and its current variation. "
+                "Complete an attempt or import a permitted recording.";
+            return;
+        }
+        const auto pages = (std::max)(std::size_t{1}, (rows.size() + kGhostRows - 1) / kGhostRows);
+        if (ghostPage_ >= pages) ghostPage_ = pages - 1;
+        out.body += "\nSaved recordings are your own or imported attempts; they are not expert-certified references.";
+        out.body += "\nThe ghost repeats the saved attempt at normal speed, slightly ahead of you. "
+            "The toggle shows or hides the ghost controller.";
+        if (pages > 1)
+            out.body += "\nRecordings page " + std::to_string(ghostPage_ + 1) + " of " + std::to_string(pages) + ".";
+        const auto first = ghostPage_ * kGhostRows;
+        for (std::size_t index = first; index < (std::min)(rows.size(), first + kGhostRows); ++index) {
+            add(out, ("pause.ghost_recording." + rows[index].id).c_str(), rows[index].label.c_str(), !pending,
+                CareerLayoutEffectKind::Dispatch, "play_recording",
+                {{"id", lesson}, {"recording_id", rows[index].id}});
+            explain(out, "Wait for the ghost command to finish.");
+        }
+        if (pages > 1) {
+            add(out, "pause.ghost_prev", "Previous recordings", ghostPage_ > 0,
+                CareerLayoutEffectKind::Navigate, "",
+                {{"page", ghostPage_ > 0 ? ghostPage_ - 1 : 0}, {"binding", binding}});
+            explain(out, "This is the first page of recordings.");
+            add(out, "pause.ghost_next", "More recordings", ghostPage_ + 1 < pages,
+                CareerLayoutEffectKind::Navigate, "",
+                {{"page", ghostPage_ + 1 < pages ? ghostPage_ + 1 : ghostPage_}, {"binding", binding}});
+            explain(out, "This is the last page of recordings.");
+        }
+    }
+
     static void explain(CareerLayoutView& out, const std::string& reason) {
         if (!out.choices.empty() && !out.choices.back().enabled && !reason.empty())
             out.choices.back().reason = bounded(reason, 240);
@@ -393,6 +529,8 @@ private:
     ResultsPage page_ = ResultsPage::Root;
     Json pageBinding_ = Json::object();
     std::size_t schedulePage_ = 0;
+    std::size_t ghostPage_ = 0;
+    Json ghostBinding_ = Json::object();
     std::uint64_t revision_ = 0;
     bool opened_ = false;
     bool confirming_ = false;

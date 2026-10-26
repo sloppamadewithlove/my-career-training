@@ -25,7 +25,7 @@ from .platforms import (ProcessIdentity, detect_installations, game_processes, g
 from .plugin_session import PluginSession, PluginSessionError
 from .storage import Store, default_state
 from .training import (assistance_preferences, catalog, configure_lesson, import_recording,
-                       personal_best, validate_recording)
+                       validate_recording)
 
 
 _MAX_CATALOG_WORKERS = 2
@@ -47,6 +47,12 @@ class Backend(QObject):
         super().__init__(parent)
         self.in_game = False
         self.telemetry = {}
+        self._ghost_practice_enabled = False
+        # Bounded map of command id -> ghost command fields awaiting the worker's
+        # exact acknowledgement. Nothing here is a general protocol queue.
+        self._ghost_pending = {}
+        self._ghost_seq = 0
+        self._ghost_deadline = None
         self.plugin_status = {}
         self.native_community = None
         self.career_draft = {"team_name": "My Career Club"}
@@ -175,7 +181,8 @@ class Backend(QObject):
             "content": community_catalog(), "garage": garage_catalog(),
             "latest_attempt": self.latest_attempt, "latest_result": self.latest_result,
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
-                              lesson_variant=active_lesson["variant"] if active_lesson else None),
+                              lesson_variant=active_lesson["variant"] if active_lesson else None,
+                              ghost_practice_pending=bool(self._ghost_pending)),
             "recordings": self.document["recordings"], "providers": self._providers(),
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
@@ -404,6 +411,7 @@ class Backend(QObject):
             raise ValueError("There is no active game connection. Start a match or lesson first.")
         message = {"id": str(uuid.uuid4()), "type": kind, **fields}
         self.process.write((json.dumps(message, allow_nan=False) + "\n").encode())
+        return message["id"]
 
     def _require_editable(self, *, allow_community_pending=False):
         if self.lifecycle.frozen or self.stop_reason or self.session_state == "Starting Career":
@@ -740,6 +748,9 @@ class Backend(QObject):
                 self.request = None
                 self.session_id = None
                 self.telemetry = {}
+                self._ghost_practice_enabled = False
+                self._ghost_pending = {}
+                self._ghost_deadline = None
                 self.session_state = "Idle"
                 self.session_message = "Career hub ready. Progress saved."
         elif action == "quit_game":
@@ -816,8 +827,19 @@ class Backend(QObject):
             if self._worker_active() and self.request and self.request.get("lesson_id"):
                 self._send("coaching", preferences=prefs)
         elif action in ("stop_ghost", "ghost_control"):
-            self._send("ghost_control", operation="stop" if action == "stop_ghost" else p.get("operation"),
-                       value=p.get("value"))
+            if action == "ghost_control" and p.get("operation") == "toggle":
+                # Validate the real boundary: only the toggle operation and an
+                # optional boolean are accepted here.
+                if set(p) - {"operation", "enabled"}:
+                    raise ValueError("Use the ghost practice toggle without extra fields.")
+                self._ghost_practice_toggle({"enabled": p.get("enabled")})
+            else:
+                operation = "stop" if action == "stop_ghost" else p.get("operation")
+                self._send("ghost_control", operation=operation, value=p.get("value"))
+                if operation == "stop":
+                    # Hide the ghost and its controller depiction now; a packet
+                    # sent before the worker processed Stop must not resurrect it.
+                    self._clear_ghost_practice_state()
         elif action == "new_career":
             if self._worker_active() or (self.document["career"] and self.document["career"]["pending_session"]):
                 raise ValueError("Finish or abandon the current session first.")
@@ -998,35 +1020,177 @@ class Backend(QObject):
                 self._store_recording(recording)
                 self.notice = "Recording imported with its provenance. Imported success claims are not independently certified."
         elif action == "play_recording":
-            if not self._worker_active() or not self.request.get("lesson_id"):
+            if not self._worker_active() or not (self.request or {}).get("lesson_id"):
                 raise ValueError("Start this lesson before playing its recorded ghost.")
-            if p["id"] != self.request["lesson_id"]:
+            if set(p) - {"id", "recording_id"}:
+                raise ValueError("Choose a saved recording for this lesson.")
+            if p.get("id") != self.request["lesson_id"]:
                 raise ValueError("Start the selected lesson before playing its recorded ghost.")
             variant = configure_lesson(p["id"], **self.request.get("variants", {}))["variant"]
-            recordings = [r for r in self._recordings(p["id"]) if r.get("variant") == variant]
             selected_id = p.get("recording_id")
-            if selected_id:
-                entry = next((item for item in self.document["recordings"]
-                              if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
-                if entry is None or Path(entry["filename"]).name != entry["filename"]:
-                    raise ValueError("Choose a recording from this lesson's saved attempts.")
-                best = import_recording(self.store.directory / "recordings" / entry["filename"])
-            else:
-                best = personal_best(recordings)
-            if best is None:
-                # Imported references retain their labels and uncertainty.
-                best = next((r for r in reversed(recordings) if r.get("outcome") == "success"), None)
-            if best is None:
-                raise ValueError("No successful recording exists for this lesson yet. Complete an attempt or import a permitted recording.")
-            if best.get("variant") != configure_lesson(p["id"], **self.request.get("variants", {})).get("variant"):
+            if not selected_id:
+                raise ValueError("Choose a saved recording for this lesson.")
+            entry = next((item for item in self.document["recordings"]
+                          if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
+            if entry is None or Path(entry["filename"]).name != entry["filename"]:
+                raise ValueError("Choose a recording from this lesson's saved attempts.")
+            best = import_recording(self.store.directory / "recordings" / entry["filename"])
+            if best.get("variant") != variant:
                 raise ValueError("This recording uses a different lesson setup. Choose the matching variation.")
             from .training.coach import coaching_preferences
             preferences = coaching_preferences(self.document["settings"].get("training_display", {}))
-            self._send("play_recording", recording=best, mode=p.get("mode", preferences["mode"]),
-                       lead_seconds=float(p.get("lead_seconds", preferences["lead_seconds"])))
-            self.notice = best.get("label", "Imported recording; success claim not independently verified")
+            command_id = self._send("play_recording", recording=best, mode=preferences["mode"],
+                                    lead_seconds=float(preferences["lead_seconds"]))
+            self._remember_ghost_command(command_id, "play_recording", p["id"])
+            # Loading a recording never turns practice on by itself.
+            self._ghost_practice_enabled = False
+            self._clear_ghost_practice_state(lesson_id=p["id"])
+            self.notice = "Loading the saved recording. Ghost practice stays off until you turn it on."
         else:
             raise ValueError(f"Unsupported action: {action}")
+
+    def _ghost_practice_toggle(self, payload):
+        """Lesson-only ghost practice toggle with deterministic UI state.
+
+        Career fixtures cannot toggle or load a ghost. Availability comes from
+        the worker's loaded practice state, not from files on disk, so the UI
+        never claims a ghost the worker cannot actually enable. Repeated presses
+        collapse to one input edge: a request matching the known state is a no-op.
+
+        On is optimistic only until the worker's exact acknowledgement arrives;
+        a rejection or a lost session reverts it to Off.
+        """
+        if set(payload) - {"enabled"}:
+            raise ValueError("Use the ghost practice toggle without extra fields.")
+        enabled = payload.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise ValueError("Ghost practice must be on or off.")
+        if not self._worker_active() or not (self.request or {}).get("lesson_id"):
+            raise ValueError("Ghost practice is available only during a training lesson.")
+        lesson_id = self.request["lesson_id"]
+        practice = self.telemetry.get("ghost_practice") or {}
+        support = self.telemetry.get("ghost_practice_support") or {}
+        if enabled is None:
+            enabled = not self._ghost_practice_enabled
+        if enabled and support.get("supported") is False:
+            raise ValueError(support.get("reason") or "This lesson does not support ghost practice.")
+        if enabled and practice.get("available") is not True:
+            raise ValueError("Choose an available recording before turning on ghost practice.")
+        if enabled == self._ghost_practice_enabled:
+            return  # Single edge; no duplicate command for a repeated press.
+        command_id = self._send("ghost_control", operation="toggle", enabled=enabled)
+        self._remember_ghost_command(command_id, "ghost_control", lesson_id, enabled)
+        self._ghost_practice_enabled = enabled
+        self._sync_ghost_assistance(lesson_id, enabled)
+        if not enabled:
+            self._clear_ghost_practice_state(lesson_id=lesson_id)
+        self.stateChanged.emit()
+
+    def _remember_ghost_command(self, command_id, kind, lesson_id, enabled=None):
+        """Track one bounded ghost command until the worker answers it."""
+        self._ghost_seq += 1
+        self._ghost_pending[command_id] = {"kind": kind, "lesson_id": lesson_id,
+            "enabled": enabled, "session_id": self.session_id, "seq": self._ghost_seq}
+        self._ghost_deadline = time.monotonic() + 5.0
+        while len(self._ghost_pending) > 8:
+            self._ghost_pending.pop(next(iter(self._ghost_pending)))
+
+    def _ghost_ack(self, event):
+        """Apply only the exact acknowledgement for the current session/command.
+
+        The session must be an exact, non-empty match before any pending entry is
+        consumed. An acknowledgement older than a newer command for the same
+        lesson is obsolete and cannot change state, so a late On answer after a
+        local Off never resurrects the ghost.
+        """
+        command_id = event.get("id")
+        session_id = event.get("session_id")
+        if not isinstance(command_id, str) or not command_id:
+            return
+        if not isinstance(session_id, str) or not session_id or session_id != self.session_id:
+            return
+        pending = self._ghost_pending.get(command_id)
+        if pending is None or pending["session_id"] != session_id:
+            return
+        self._ghost_pending.pop(command_id, None)
+        if not self._ghost_pending:
+            self._ghost_deadline = None
+        if any(item["seq"] > pending["seq"] and item["kind"] == pending["kind"]
+               and item["lesson_id"] == pending["lesson_id"]
+               for item in self._ghost_pending.values()):
+            return  # A newer command for this lesson already superseded it.
+        lesson_id = pending["lesson_id"]
+        if event.get("accepted") is not True:
+            # Never leave an optimistic On behind a worker rejection.
+            self._ghost_practice_enabled = False
+            self._clear_ghost_practice_state(lesson_id=lesson_id)
+            self.error = str(event.get("error") or "The game worker did not accept that ghost command.")
+            return
+        if pending["kind"] == "play_recording":
+            # A loaded recording is available but practice stays Off.
+            self._ghost_practice_enabled = False
+            self._clear_ghost_practice_state(lesson_id=lesson_id)
+            self.notice = str(event.get("label") or "Recording loaded. Ghost practice is off.")
+            return
+        if pending["enabled"] is True and not self._ghost_practice_enabled:
+            return  # Local Off already won; a late On answer cannot revive it.
+        self._ghost_practice_enabled = pending["enabled"] is True
+        self._sync_ghost_assistance(lesson_id, self._ghost_practice_enabled)
+        if not self._ghost_practice_enabled:
+            self._clear_ghost_practice_state(lesson_id=lesson_id)
+
+    def _expire_ghost_pending(self):
+        """Bounded wait: a lost worker answer must not leave practice pending."""
+        if not self._ghost_pending or self._ghost_deadline is None:
+            return
+        if time.monotonic() < self._ghost_deadline:
+            return
+        self._ghost_pending = {}
+        self._ghost_deadline = None
+        if self._ghost_practice_enabled:
+            self._ghost_practice_enabled = False
+            self._clear_ghost_practice_state()
+            self.error = "The game worker did not confirm the ghost command. Ghost practice is off."
+            self.stateChanged.emit()
+
+    def _clear_ghost_practice_state(self, *, lesson_id=None):
+        """Hide the ghost, lines and controller depiction immediately.
+
+        Used by both the practice toggle and the legacy stop paths so a packet
+        sent before the worker processed the command cannot resurrect a visible
+        ghost. It sends no worker command and is safe without a recording.
+        """
+        practice = self.telemetry.get("ghost_practice") or {}
+        self._ghost_practice_enabled = False
+        self.telemetry["ghost_practice"] = {
+            "available": practice.get("available") is True, "enabled": False, "playing": False,
+            "visible": False, "status": "off", "pose": None, "lines": [], "coach_actions": None,
+            "controller": {"observed": False, "source": "ghost", "actions": None, "controls": {},
+                           "label": "Controller actions unavailable"},
+            "label": "Ghost practice off", "message": "Ghost practice off",
+            "player_input_applied": False,
+        }
+        if lesson_id is None:
+            lesson_id = (self.request or {}).get("lesson_id")
+        if lesson_id:
+            self._sync_ghost_assistance(lesson_id, False)
+        self.stateChanged.emit()
+
+    def _sync_ghost_assistance(self, lesson_id, enabled):
+        """Keep the persisted lesson assistance ghost setting in step.
+
+        The per-lesson assistance record is what starts and runs the lesson, so
+        it must agree with practice state; the display preferences follow too.
+        """
+        from .training import assistance_preferences, coaching_preferences
+        state = copy.deepcopy(self.document)
+        values = assistance_preferences(state["lesson_preferences"].get(lesson_id))
+        values["ghost"] = enabled
+        state["lesson_preferences"][lesson_id] = values
+        prefs = coaching_preferences(state["settings"].get("training_display", {}))
+        prefs["ghost"] = enabled
+        state["settings"]["training_display"] = prefs
+        self._commit(state)
 
     def _worker_active(self):
         return self.process is not None and self.process.state() != QProcess.NotRunning
@@ -1086,6 +1250,9 @@ class Backend(QObject):
 
     def _launch(self, request):
         self.startup_cancelled_session = None
+        self._ghost_practice_enabled = False
+        self._ghost_pending = {}
+        self._ghost_deadline = None
         self.startup_stop_acknowledged = False
         self.worker_ready = False
         self.native_return_ready = None
@@ -1182,6 +1349,29 @@ class Backend(QObject):
             if cancelled:
                 return
             self.telemetry = {key: value for key, value in event.items() if key not in ("type", "session_id")}
+            practice = self.telemetry.get("ghost_practice")
+            if isinstance(practice, dict):
+                if not self._ghost_practice_enabled and practice.get("visible"):
+                    # A packet sent before the Off command must not resurrect the
+                    # hidden ghost or its controller depiction.
+                    self.telemetry["ghost_practice"] = dict(practice, enabled=False, playing=False,
+                        visible=False, status="off", pose=None, lines=[], coach_actions=None,
+                        controller={"observed": False, "source": "ghost", "actions": None,
+                                    "controls": {}, "label": "Controller actions unavailable"},
+                        label="Ghost practice off", message="Ghost practice off")
+                elif practice.get("enabled") is True and any(
+                        item["kind"] == "ghost_control" and item["enabled"] is True
+                        and item["session_id"] == self.session_id
+                        for item in self._ghost_pending.values()):
+                    # Only an outstanding, acknowledged-pending On may adopt the
+                    # worker's enabled flag; stale telemetry cannot resurrect it.
+                    self._ghost_practice_enabled = True
+                elif practice.get("enabled") is not True and not any(
+                        item["kind"] == "ghost_control" and item["enabled"] is True
+                        for item in self._ghost_pending.values()):
+                    # A loaded-but-off recording (or a worker Off) clears the
+                    # internal flag so no later packet can imply practice is on.
+                    self._ghost_practice_enabled = False
             scores = event.get("scores")
             if event.get("session_id") == self.session_id:
                 self._forfeit_score_observation = None
@@ -1211,6 +1401,10 @@ class Backend(QObject):
             if cancelled:
                 self.error = ""
             self.page = "hub"
+        elif kind == "ghost_ack":
+            if cancelled:
+                return
+            self._ghost_ack(event)
         elif kind == "attempt":
             self.latest_attempt = event["summary"]
             recording = event.get("recording")
@@ -1398,6 +1592,7 @@ class Backend(QObject):
     def _tick(self):
         self._poll_community()
         self._poll_catalog()
+        self._expire_ghost_pending()
         before = (self.lifecycle.state, self.lifecycle.message)
         self.lifecycle.tick()
         if self.stop_reason == "online" and self.lifecycle.state in ("Online Launch Requested", "Error/Recovery"):
@@ -1439,6 +1634,9 @@ class Backend(QObject):
                 self.stop_reason = None
                 self.session_state = "Idle"
                 self.telemetry = {}
+                self._ghost_practice_enabled = False
+                self._ghost_pending = {}
+                self._ghost_deadline = None
                 self.session_message = "Career hub ready. Progress saved."
                 self._finish_native_return()
                 self.request = None

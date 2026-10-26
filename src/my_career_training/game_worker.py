@@ -236,6 +236,9 @@ class GameSession:
         self.map_guard = None
         self.coach = None
         self.coach_snapshot = {}
+        self.practice = None
+        self.practice_snapshot = {}
+        self.practice_support = {"supported": False, "reason": "Start a lesson to use ghost practice."}
         self.coaching_preferences = request.get("coaching", {})
         self.engine = None
         from .review import MatchReview
@@ -406,12 +409,16 @@ class GameSession:
             allowed = {key: variants[key] for key in ("side", "target_zone", "angle", "simplified") if key in variants}
             self.engine = TrainingEngine(self.request["lesson_id"], self.request.get("preferences"),
                                          metadata={"framework_version": adapter.SDK_VERSION}, **allowed)
-        from .training import GhostPlayback
+        from .training import GhostPlayback, GhostPractice, practice_context, practice_support
         from .training import coaching_preferences
         self.coaching_preferences = coaching_preferences(self.coaching_preferences)
         self.coach = GhostPlayback(mode=self.coaching_preferences["mode"],
             lead_seconds=self.coaching_preferences["lead_seconds"],
             speed=self.coaching_preferences["playback_speed"], loop=self.coaching_preferences["loop"])
+        # Ghost practice is lesson-only. A career fixture never gets a ghost.
+        if self.engine is not None:
+            self.practice_support = practice_support(self.request["lesson_id"])
+            self.practice = GhostPractice(context=practice_context(self.engine.lesson, self.engine.metadata))
         if self.request.get("recording") is not None:
             validate_recording(self.request["recording"])
             self.recording = self.request["recording"]
@@ -481,14 +488,60 @@ class GameSession:
             raise RuntimeError("Retry is available during a training lesson.")
         if self.attempt_sent and not self.attempt_acked:
             raise RuntimeError("The previous attempt is still being saved. Wait before retrying.")
-        self.manager.rlbot_interface.send_msg(desired_state(self.engine.reset(), self.human_index))
+        settle_state = self.engine.reset()
+        self.manager.rlbot_interface.send_msg(desired_state(settle_state, self.human_index))
         self.applied_reset = True
         self.attempt_sent = None
         self.attempt_acked = False
         self.playback_origin = None
         if self.coach:
             self.coach.restart()
+        if self.practice is not None and self.practice.available and self.practice.enabled:
+            # A retry restarts the demonstration from its beginning, anchored to
+            # the reset pose the game is about to apply, not the pre-reset pose.
+            reset_car = settle_state["car"]
+            self.practice_snapshot = self.practice.set_enabled(
+                True, player_pose={"position": reset_car.get("position"),
+                                   "rotation": reset_car.get("rotation")})
         self.event("session", state="training", message="Settling the car before the drill.")
+
+    def _player_pose(self):
+        """Current human car pose from the last normalized frame, or None."""
+        frame = self.last_frame
+        car = (frame or {}).get("car")
+        if not isinstance(car, dict):
+            return None
+        return {"position": car.get("position"), "rotation": car.get("rotation")}
+
+    def _toggle_practice(self, enabled):
+        """Deterministic ghost-practice toggle; lesson-only and recording-gated."""
+        if self.practice is None:
+            raise ValueError("Ghost practice is available only during a training lesson.")
+        if enabled is None:
+            enabled = not self.practice.enabled
+        if not isinstance(enabled, bool):
+            raise ValueError("Ghost practice must be on or off.")
+        if enabled and not self.practice_support.get("supported"):
+            raise ValueError(self.practice_support.get("reason")
+                             or "This lesson does not support ghost practice.")
+        if enabled and not self.practice.available:
+            raise ValueError("Choose an available recording before turning on ghost practice.")
+        self.practice_snapshot = self.practice.set_enabled(enabled, player_pose=self._player_pose())
+        # The training assistance ghost setting must agree with practice state.
+        if self.engine is not None and self.engine.preferences.get("ghost") != enabled:
+            self.engine.set_preference("ghost", enabled)
+        return self.practice_snapshot
+
+    def _ack_ghost(self, command, *, accepted, **fields):
+        """Exact per-command acknowledgement for ghost commands.
+
+        The bridge matches this id and session before changing any UI state, so
+        a rejection can never leave an optimistic On behind.
+        """
+        command_id = command.get("id")
+        if not isinstance(command_id, str) or not command_id:
+            return
+        self.event("ghost_ack", id=command_id, accepted=bool(accepted), **fields)
 
     def handle_command(self, command):
         kind = command.get("type", command.get("command"))
@@ -509,6 +562,12 @@ class GameSession:
                 preferences = {command["key"]: command["value"]}
             for key, value in preferences.items():
                 self.engine.set_preference(key, value)
+            # The assistance ghost setting and practice visibility stay in step.
+            if "ghost" in preferences and self.practice is not None:
+                if preferences["ghost"] is False:
+                    self.practice_snapshot = self.practice.set_enabled(False)
+                elif self.practice.available and self.practice_support.get("supported"):
+                    self.practice_snapshot = self.practice.set_enabled(True, player_pose=self._player_pose())
         elif kind == "coaching":
             from .training import coaching_preferences
             self.coaching_preferences = coaching_preferences(command.get("preferences", {}))
@@ -519,12 +578,19 @@ class GameSession:
             if not self.coach:
                 raise ValueError("Start a lesson before controlling its ghost.")
             operation, value = command.get("operation"), command.get("value")
-            if operation == "pause":
+            if operation == "toggle":
+                self._toggle_practice(command.get("enabled"))
+                self._ack_ghost(command, accepted=True, enabled=self.practice_snapshot.get("enabled"))
+                return
+            elif operation == "pause":
                 self.coach.pause()
             elif operation == "resume":
                 self.coach.resume()
             elif operation == "stop":
                 self.coach.stop()
+                if self.practice is not None:
+                    # Refresh immediately so no stale pose/lines/controller render.
+                    self.practice_snapshot = self.practice.set_enabled(False)
             elif operation == "restart":
                 self.coach.restart()
             elif operation == "seek":
@@ -539,6 +605,8 @@ class GameSession:
                 raise ValueError("Unknown ghost playback control.")
         elif kind == "play_recording":
             from .training.recordings import validate_recording
+            if self.engine is None:
+                raise ValueError("Recorded ghosts are available only during a training lesson.")
             validate_recording(command["recording"])
             self.recording = command["recording"]
             self.coach.load(self.recording, kind="personal")
@@ -546,6 +614,20 @@ class GameSession:
                                 float(command.get("lead_seconds", self.coaching_preferences["lead_seconds"])))
             self.coach.resume()
             self.playback_origin = self.last_frame["time"] if self.last_frame else None
+            if self.practice is not None:
+                # Selecting a recording makes practice available but leaves it
+                # off until the player turns it on. A wrong lesson/setup is
+                # refused here, at the worker boundary. The context is rebuilt
+                # from the latest observed metadata, because the start-time
+                # context may still have unknown game/hitbox values.
+                from .training import practice_context
+                self.practice.context = practice_context(self.engine.lesson, self.engine.metadata)
+                self.practice.load(self.recording, kind="personal")
+                self.practice_snapshot = self.practice.snapshot()
+                self.engine.set_preference("ghost", False)
+            self._ack_ghost(command, accepted=True, available=self.practice.available
+                            if self.practice is not None else False,
+                            label=self.practice_snapshot.get("label", "Recording loaded"))
         else:
             raise ValueError("Unknown game-session command.")
 
@@ -638,10 +720,14 @@ class GameSession:
         if self.engine and self.coach and not self.cancel_start.is_set() and not self.stopping:
             self.coach_snapshot = self.coach.update(frame["time"], attempt_seconds=(
                 None if self.engine.started_at is None else frame["time"] - self.engine.started_at))
+        if self.practice is not None and not self.cancel_start.is_set() and not self.stopping:
+            self.practice_snapshot = self.practice.update(frame["time"], player_pose=self._player_pose())
         if now - self.last_telemetry >= 1 / 30:
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
                        scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
+                       ghost_practice=self.practice_snapshot,
+                       ghost_practice_support=dict(self.practice_support),
                        coaching=(self.engine.summary().get("coaching", {}) if self.engine and not self.cancel_start.is_set() and not self.stopping else {}))
             self.last_telemetry = now
 
@@ -672,15 +758,42 @@ class GameSession:
                     self.draw_target(target)
             if preferences["actions"]:
                 labels = [key.title() for key, value in frame["actions"].items() if abs(value) > .2]
-                renderer.draw_string_2d("Actions: " + (", ".join(labels) or "neutral"), .03, .31, 1)
+                renderer.draw_string_2d("You: " + (", ".join(labels) or "neutral"), .03, .31, 1)
             if preferences["timing"]:
                 duration = 0 if self.engine.started_at is None else max(0, frame["time"] - self.engine.started_at)
                 renderer.draw_string_2d(f"{self.engine.state.title()}  {duration:.2f}s", .03, .35, 1)
-            if preferences["ghost"] and self.coach_snapshot.get("visible"):
+            practice = self.practice_snapshot or {}
+            if practice.get("visible"):
+                # Render-only lines; no collision actor is created for the ghost.
+                for line in practice.get("lines", []):
+                    color = renderer.yellow if line["style"] == "front" else renderer.cyan
+                    renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
+                renderer.draw_string_2d("GHOST \u00b7 " + practice.get("label", "Recorded attempt"), .03, .39, .8)
+                self.draw_ghost_actions(practice)
+            elif self.practice is None and preferences["ghost"] and self.coach_snapshot.get("visible"):
                 for line in self.coach_snapshot.get("lines", []):
                     color = renderer.yellow if line["style"] == "front" else renderer.cyan
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
                 renderer.draw_string_2d(self.coach_snapshot.get("label", "Recorded attempt"), .03, .39, .8)
+
+    def draw_ghost_actions(self, practice):
+        """Ghost HUD from recorded logical actions; never raw DS4 axes/buttons."""
+        renderer = self.renderer
+        controller = practice.get("controller") or {}
+        if not controller.get("observed"):
+            renderer.draw_string_2d("GHOST inputs unavailable", .03, .43, .8)
+            return
+        parts = []
+        for item in controller.get("active_actions") or []:
+            # controller_display emits {action,label,control,value} records.
+            if isinstance(item, dict):
+                label, value = item.get("label"), item.get("value")
+                if isinstance(label, str) and isinstance(value, (int, float)):
+                    parts.append(f"{label} {value:+.2f}")
+            elif isinstance(item, str):
+                parts.append(item)
+        renderer.draw_string_2d("GHOST inputs: " + (", ".join(parts) or "neutral"), .03, .43, .8)
+        renderer.draw_string_2d("Recorded logical actions, not raw controller capture", .03, .46, .7)
 
     def draw_target(self, target):
         from rlbot import flat
@@ -758,6 +871,10 @@ class GameSession:
                     try:
                         self.handle_command(value)
                     except (ValueError, RuntimeError, KeyError) as error:
+                        if value.get("type", value.get("command")) in {"ghost_control", "play_recording"}:
+                            # A safe rejection for exactly this command; the
+                            # bridge reverts any optimistic state on it.
+                            self._ack_ghost(value, accepted=False, error=str(error))
                         self.event("error", message=str(error))
                 elif kind == "disconnected" and not self.stopping:
                     raise RuntimeError("The offline game connection ended. Your completed results remain saved.")

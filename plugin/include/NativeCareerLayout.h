@@ -237,7 +237,8 @@ public:
             action == "community_browse" || action == "community_browse_cancel" ||
             action == "community_open_item" || action == "community_select_plugin" ||
             action == "community_open_source" ||
-            action == "training_settings" || action == "quit_game" || action == "abandon_fixture" ||
+            action == "training_settings" || action == "ghost_control" || action == "play_recording" ||
+            action == "quit_game" || action == "abandon_fixture" ||
             action == "retry_lesson" || action == "return_hub" || action == "retry_result_save" ||
             action == "forfeit_match" || action == "prepare_next_match";
     }
@@ -1106,26 +1107,19 @@ private:
             start.reason = canPractice ? "" : "Practice is unavailable until the session is ready and any unfinished match is resolved.";
             start.payload = {{"id", lessonId_}};
             push(view, std::move(start));
-            const char* helpKeys[] = {"ghost", "explanations", "actions", "timing", "auto_reset"};
-            const char* helpLabels[] = {"Ghost demonstration", "Step-by-step explanations", "Action input display",
+            const char* helpKeys[] = {"explanations", "actions", "timing", "auto_reset"};
+            const char* helpLabels[] = {"Step-by-step explanations", "Action input display",
                 "Timing feedback", "Automatic reset"};
-            const bool helpDefaults[] = {true, true, true, true, false};
+            const bool helpDefaults[] = {true, true, true, false};
             const bool canEdit = !busy(state);
-            for (std::size_t i = 0; i < 5; ++i) {
+            for (std::size_t i = 0; i < 4; ++i) {
                 const bool current = assist(state, lessonId_, helpKeys[i], helpDefaults[i]);
                 dispatch(view, std::string("training.help.") + helpKeys[i],
                     std::string(current ? "Turn off " : "Turn on ") + helpLabels[i], canEdit, kWait,
                     "assistance", {{"id", lessonId_}, {"key", helpKeys[i]}, {"value", !current}});
             }
-            struct Speed { const char* id; const char* label; double value; };
-            const Speed speeds[] = {{"quarter", "Practice speed: quarter", 0.25}, {"half", "Practice speed: half", 0.5},
-                {"three-quarter", "Practice speed: three quarters", 0.75}, {"normal", "Practice speed: normal", 1.0}};
-            const auto preferences = objectKey(object(state, "lesson_preferences"), lessonId_);
-            const double selectedSpeed = numberValue(preferences, "playback_speed", 1.0);
-            for (const auto& speed : speeds)
-                dispatch(view, std::string("training.speed.") + speed.id,
-                    std::string(speed.label) + (selectedSpeed == speed.value ? " (selected)" : ""), canEdit, kWait, "assistance",
-                    {{"id", lessonId_}, {"key", "playback_speed"}, {"value", speed.value}});
+            addLine(view.body, "Recorded ghost practice is controlled from the pause menu during practice. "
+                "It plays at normal speed, slightly ahead of your car, and loops. It has no pause or slow-motion option.");
             const bool canVariant = canEdit && !workerLikely(state);
             const char* variantWait = workerLikely(state) ? "Stop the lesson before changing its starting setup." : kWait;
             dispatch(view, "training.side.left", "Start from the left", canVariant, variantWait, "lesson_variant",
@@ -1642,14 +1636,8 @@ private:
         options.stock = StockRoute::Options;
         push(view, std::move(options));
         const bool canEdit = !busy(state);
-        dispatch(view, "settings.mode.lead", "Show the ghost ahead", canEdit, kWait, "training_settings",
-            {{"key", "mode"}, {"value", "lead"}});
-        dispatch(view, "settings.mode.watch", "Watch the ghost", canEdit, kWait, "training_settings",
-            {{"key", "mode"}, {"value", "watch"}});
-        dispatch(view, "settings.loop.on", "Repeat the ghost", canEdit, kWait, "training_settings",
-            {{"key", "loop"}, {"value", true}});
-        dispatch(view, "settings.loop.off", "Play the ghost once", canEdit, kWait, "training_settings",
-            {{"key", "loop"}, {"value", false}});
+        addLine(view.body, "Recorded ghost practice runs at normal speed and loops while you practice. "
+            "It cannot be paused, slowed, or played once from here; turn it on or off in the pause menu.");
         struct ViewChoice { const char* id; const char* label; const char* value; };
         const ViewChoice views[] = {{"player", "Ghost view: from your car", "player"}, {"chase", "Ghost view: chase", "chase"},
             {"side", "Ghost view: side", "side"}, {"top", "Ghost view: above", "top"}};

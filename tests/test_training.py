@@ -320,7 +320,7 @@ def test_pose_interpolation_wraps_yaw_and_does_not_bridge_gaps():
     front = next(x for x in lines if x["style"] == "front")
     # The halfway nose still points toward negative x, not across a 360-degree spin.
     assert front["end"][0] < front["start"][0]
-    assert {line["style"] for line in lines} == {"outline", "front", "roof", "underside"}
+    assert {line["style"] for line in lines} == {"outline", "front", "roof", "underside", "wheel"}
     assert interpolate_pose(value, 1 / 240, speed=0.5)["time"] == pytest.approx(1 / 480)
     value["samples"][1]["packet_gap"] = True
     assert interpolate_pose(value, 1 / 240) is None

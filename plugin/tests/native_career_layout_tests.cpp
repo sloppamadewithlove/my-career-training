@@ -481,12 +481,18 @@ int main() {
         auto staleLesson = choose(layout, practice, scope, removed, true);
         require(!staleLesson.accepted && staleLesson.action.empty() && staleLesson.refusal == CareerLayoutRefusal::StaleChoice, "Removed lesson dispatched");
         require(layout.view(scope, removed).body.find("no longer available") != std::string::npos, "Missing lesson copy");
-        auto help = findChoice(layout.view(scope, state), "training.help.ghost");
-        auto ghost = choose(layout, help, scope, state, true);
-        require(ghost.accepted && ghost.action == "assistance" && ghost.payload == Json({{"id", "speed-flip"}, {"key", "ghost"}, {"value", false}}),
-            "Ghost setting payload");
-        auto speed = choose(layout, findChoice(layout.view(scope, state), "training.speed.quarter"), scope, state, true);
-        require(speed.accepted && speed.payload["key"] == "playback_speed" && speed.payload["value"] == 0.25, "Playback speed payload");
+        auto lessonView = layout.view(scope, state);
+        require(!hasChoice(lessonView, "training.help.ghost") &&
+                !hasChoice(lessonView, "training.speed.quarter"),
+            "Legacy ghost checkbox or speed control remained in the lesson flow");
+        require(NativeCareerLayout::supportedAction("ghost_control") &&
+                NativeCareerLayout::supportedAction("play_recording"),
+            "Pause ghost-practice actions were not allowlisted");
+        auto help = findChoice(lessonView, "training.help.explanations");
+        auto explanations = choose(layout, help, scope, state, true);
+        require(explanations.accepted && explanations.action == "assistance" &&
+                explanations.payload["key"] == "explanations",
+            "Step-by-step explanation setting payload");
         auto side = choose(layout, findChoice(layout.view(scope, state), "training.side.left"), scope, state, true);
         require(side.action == "lesson_variant" && side.payload == Json({{"id", "speed-flip"}, {"key", "side"}, {"value", "left"}}), "Side payload");
         require(!hasChoice(layout.view(scope, state), "training.zone.left") && !hasChoice(layout.view(scope, state), "training.simple.on"), "Wrong lesson settings");
@@ -502,7 +508,8 @@ int main() {
         auto running = state;
         running["session"]["kind"] = "training";
         require(!findChoice(layout.view(scope, running), "training.zone.left").enabled, "In-progress lesson still changes setup");
-        require(findChoice(layout.view(scope, running), "training.help.ghost").enabled, "Lesson help was blocked during practice");
+        require(findChoice(layout.view(scope, running), "training.help.explanations").enabled,
+            "Lesson explanations were blocked during practice");
 
         auto paged = state;
         paged["lessons"] = Json::array();
@@ -670,11 +677,9 @@ int main() {
         auto options = choose(layout, findChoice(settings, "settings.options"), scope, state, true);
         require(options.accepted && options.kind == CareerLayoutEffectKind::PreserveStockRoute && options.stock == StockRoute::Options, "Options route");
         require(options.action.empty() && options.payload.empty(), "Options route dispatched a setting");
-        auto mode = choose(layout, findChoice(settings, "settings.mode.lead"), scope, state, true);
-        require(mode.accepted && mode.action == "training_settings" && mode.payload == Json({{"key", "mode"}, {"value", "lead"}}), "Training mode payload");
-        require(mode.stock == StockRoute::None, "Training setting preserved a stock route");
-        auto loop = choose(layout, findChoice(layout.view(scope, state), "settings.loop.off"), scope, state, true);
-        require(loop.payload == Json({{"key", "loop"}, {"value", false}}), "Loop payload");
+        require(!hasChoice(settings, "settings.mode.lead") && !hasChoice(settings, "settings.mode.watch") &&
+                !hasChoice(settings, "settings.loop.on") && !hasChoice(settings, "settings.loop.off"),
+            "Legacy ghost mode or loop controls remained in settings");
         auto viewName = choose(layout, findChoice(layout.view(scope, state), "settings.view.top"), scope, state, true);
         require(viewName.payload == Json({{"key", "ghost_view"}, {"value", "top"}}), "Ghost view payload");
         require(!hasChoice(settings, "settings.launcher") && !hasChoice(settings, "settings.install_path"), "App setup was exposed as a game setting");
@@ -695,7 +700,8 @@ int main() {
         require(findChoice(stoppingRoot, NativeCareerLayout::kExit).action.empty(), "Busy exit still has an action");
         choose(layout, findChoice(stoppingRoot, NativeCareerLayout::kSettings), scope, stopping, false);
         require(findChoice(layout.view(scope, stopping), "settings.options").enabled, "Game options were disabled while busy");
-        require(!findChoice(layout.view(scope, stopping), "settings.mode.watch").enabled, "Training setting stayed enabled while busy");
+        require(!hasChoice(layout.view(scope, stopping), "settings.mode.watch"),
+            "Legacy ghost mode remained available while busy");
 
         layout.open(scope, state);
         auto exitChoice = findChoice(layout.view(scope, state), NativeCareerLayout::kExit);
