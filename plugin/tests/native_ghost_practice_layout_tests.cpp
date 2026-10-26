@@ -16,6 +16,18 @@ static bool hasAction(const CareerLayoutView& view, const std::string& action) {
     return false;
 }
 
+static bool hasChoice(const CareerLayoutView& view, const std::string& id) {
+    for (const auto& choice : view.choices)
+        if (choice.id == id) return true;
+    return false;
+}
+
+static const CareerLayoutChoice& findChoice(const CareerLayoutView& view, const std::string& id) {
+    for (const auto& choice : view.choices)
+        if (choice.id == id) return choice;
+    throw std::runtime_error("Expected ghost-practice choice missing: id=" + id);
+}
+
 static const CareerLayoutChoice& findAction(const CareerLayoutView& view, const std::string& action,
                                              const Json& payload = Json::object()) {
     for (const auto& choice : view.choices)
@@ -60,8 +72,8 @@ static Json practiceState(const CareerLayoutScope& scope) {
                 {"filename", "other-variant.json"}, {"label", "Other setup"},
                 {"outcome", "success"}, {"variant", {{"side", "left"}, {"angle", "center"}}}},
             {{"id", "123e4567-e89b-12d3-a456-426614174004"}, {"lesson_id", "speed-flip"},
-                {"filename", "unfinished.json"}, {"label", "Unfinished"},
-                {"outcome", "unfinished"}, {"variant", variant}},
+                {"filename", "unfinished.json"}, {"label", "Your Latest Attempt"},
+                {"source", {{"kind", "local_player"}}}, {"outcome", "unfinished"}, {"variant", variant}},
             {{"id", "123e4567-e89b-12d3-a456-426614174005"}, {"lesson_id", "flip-reset"},
                 {"filename", "other-lesson.json"}, {"label", "Another lesson"},
                 {"outcome", "success"}, {"variant", variant}}
@@ -69,16 +81,27 @@ static Json practiceState(const CareerLayoutScope& scope) {
     };
 }
 
-static void selectedRecordingUsesOnlyTheSavedId() {
+static void pauseToggleAndTrainingOptionsKeepRecordingSelectionShort() {
     auto scope = pauseScope();
     auto state = practiceState(scope);
     NativeMatchLayout layout;
     require(layout.open(scope, state), "Training pause scope did not open");
     auto view = layout.view(scope, state);
-    const Json expected = {{"id", "speed-flip"}, {"recording_id", "123e4567-e89b-12d3-a456-426614174002"}};
+    require(!hasAction(view, "play_recording") && !hasChoice(view, "pause.ghost_prev") &&
+            !hasChoice(view, "pause.ghost_next"),
+        "Pause menu exposed recording rows or pagination instead of a short toggle");
+    const Json toggleOn = {{"operation", "toggle"}, {"enabled", true}};
+    const auto& toggle = findAction(view, "ghost_control", toggleOn);
+    require(!toggle.enabled, "Pause menu enabled Ghost On without a loaded recording");
+    const auto& options = findChoice(view, "pause.training_options");
+    require(layout.choose(options, scope, state, false).accepted,
+        "Training options page did not open from the pause menu");
+
+    view = layout.view(scope, state);
+    const Json expected = {{"id", "speed-flip"}, {"recording_id", "123e4567-e89b-12d3-a456-426614174004"}};
     const auto& choice = findAction(view, "play_recording", expected);
     require(choice.kind == CareerLayoutEffectKind::Dispatch && choice.enabled,
-        "Compatible saved recording was not selectable");
+        "Latest compatible personal recording was not selectable in Training options");
     require(!choice.payload.contains("filename") && !choice.payload.contains("path"),
         "Native view exposed a local recording path");
     require(choice.label.find("personal") != std::string::npos &&
@@ -86,9 +109,11 @@ static void selectedRecordingUsesOnlyTheSavedId() {
         "Personal recording was not honestly distinguished from an expert reference");
     for (const auto& row : view.choices) {
         if (row.action != "play_recording") continue;
-        require(row.payload.value("recording_id", "") != "123e4567-e89b-12d3-a456-426614174003",
-            "Native view offered a recording from a different lesson variation");
+        require(row.payload == expected,
+            "Training options offered more than the newest compatible personal recording");
     }
+    require(!hasChoice(view, "pause.ghost_prev") && !hasChoice(view, "pause.ghost_next"),
+        "Training options exposed recording pagination for a single personal replay");
     require(NativeCareerLayout::supportedAction("play_recording"),
         "Native movie host rejected the saved-recording action");
     require(LocalBridge::allowedAction("play_recording"),
@@ -99,10 +124,10 @@ static void selectedRecordingUsesOnlyTheSavedId() {
         "Recording selection dispatched before the original button click was consumed");
     auto selected = layout.choose(choice, scope, state, true);
     require(selected.accepted && selected.action == "play_recording" && selected.payload == expected,
-        "Recording selection did not preserve the exact bridge payload");
+        "Training options recording selection did not preserve the exact bridge payload");
 }
 
-static void recordingScanKeepsTheNewestSixtyFourAttempts() {
+static void trainingOptionsOfferOnlyTheNewestMatchingRecording() {
     auto scope = pauseScope();
     auto state = practiceState(scope);
     state["recordings"] = Json::array();
@@ -115,14 +140,28 @@ static void recordingScanKeepsTheNewestSixtyFourAttempts() {
 
     NativeMatchLayout layout;
     require(layout.open(scope, state), "Training pause scope did not open with recording history");
-    const auto view = layout.view(scope, state);
+    auto view = layout.view(scope, state);
+    require(!hasAction(view, "play_recording"),
+        "Pause menu exposed saved-recording history");
+    const auto& options = findChoice(view, "pause.training_options");
+    require(layout.choose(options, scope, state, false).accepted,
+        "Training options page did not open with recording history");
+    view = layout.view(scope, state);
     const Json latest = {{"id", "speed-flip"}, {"recording_id", recordingId(69)}};
-    findAction(view, "play_recording", latest);
+    const auto& latestChoice = findAction(view, "play_recording", latest);
+    require(latestChoice.label.find("personal") != std::string::npos &&
+            latestChoice.label.find("expert") == std::string::npos,
+        "Newest personal recording was presented as an expert reference");
+    std::size_t recordingChoices = 0;
     for (const auto& choice : view.choices) {
         if (choice.action != "play_recording") continue;
-        require(choice.payload.value("recording_id", "") != recordingId(0),
-            "The bounded native list retained old attempts and skipped the newest history");
+        ++recordingChoices;
+        require(choice.payload == latest,
+            "Training options exposed older personal recording choices");
     }
+    require(recordingChoices == 1 && !hasChoice(view, "pause.ghost_prev") &&
+            !hasChoice(view, "pause.ghost_next"),
+        "Training options did not keep personal recording selection to one row");
 }
 
 static void toggleIsSupportedAvailableAndToggleOnly() {
@@ -210,8 +249,8 @@ static void unsupportedAndNonTrainingActivitiesHidePracticeControls() {
 }
 
 static void runTests() {
-    selectedRecordingUsesOnlyTheSavedId();
-    recordingScanKeepsTheNewestSixtyFourAttempts();
+    pauseToggleAndTrainingOptionsKeepRecordingSelectionShort();
+    trainingOptionsOfferOnlyTheNewestMatchingRecording();
     toggleIsSupportedAvailableAndToggleOnly();
     unsupportedAndNonTrainingActivitiesHidePracticeControls();
 }

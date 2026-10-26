@@ -92,7 +92,8 @@ public:
             return out;
         }
         if (scope.surface == NativeMenuSurface::Pause) {
-            const bool trainingLive = kind == "training" && worker && !busy && phase == "training" &&
+            const bool packLive = loadedTrainingPack(state, session);
+            const bool trainingLive = kind == "training" && !busy && ((worker && phase == "training") || packLive) &&
                 !stringValue(objectValue(state, "telemetry"), "lesson_id").empty();
             syncTrainingOptions(state, session, trainingLive, returnPending);
             if (trainingOptions_) {
@@ -102,11 +103,12 @@ public:
             add(out, "pause.resume", "Resume", true, CareerLayoutEffectKind::PreserveStockRoute,
                 "", Json::object(), StockRoute::Resume);
             if (kind == "training") {
-                out.body += "Practice at your own pace. Retry restarts the drill; Return to My Career saves your completed attempts.";
+                out.body += packLive ? "Use the game's Custom Training controls to retry or change shots." :
+                    "Practice at your own pace. Retry restarts the drill; Return to My Career saves your completed attempts.";
                 add(out, "pause.training_options", "Training options", trainingLive,
                     CareerLayoutEffectKind::Navigate);
                 explain(out, "Training options need a running lesson.");
-                add(out, "pause.retry", "Retry lesson", !busy && worker && phase == "training",
+                if (!packLive) add(out, "pause.retry", "Retry lesson", !busy && worker && phase == "training",
                     CareerLayoutEffectKind::Dispatch, "retry_lesson",
                     {{"expected_session_id", stringValue(session, "id")}});
                 buildGhostPractice(out, state, session, kind, busy, worker, phase);
@@ -195,8 +197,9 @@ public:
                 const auto telemetry = objectValue(state, "telemetry");
                 const auto binding = trainingBinding(session, telemetry);
                 const bool live = stringValue(session, "kind") == "training" &&
-                    boolValue(session, "worker_running", false) && !boolValue(session, "busy", true) &&
-                    stringValue(session, "state") == "training" && !returnPending &&
+                    !boolValue(session, "busy", true) && !returnPending &&
+                    ((boolValue(session, "worker_running", false) && stringValue(session, "state") == "training") ||
+                     loadedTrainingPack(state, session)) &&
                     !stringValue(binding, "session").empty() && !stringValue(binding, "lesson").empty();
                 if (live) {
                     trainingOptions_ = true;
@@ -437,6 +440,9 @@ private:
             out.body += "\nGhost practice support was lost. You can still turn the ghost off.";
             return;
         }
+        // Keep the pause screen short. Personal replay selection belongs with
+        // the lesson's options, and never stands in for a teaching reference.
+        if (!trainingOptions_) return;
         std::vector<GhostRow> rows;
         const auto recordings = arrayValue(state, "recordings");
         // A recording is offered only for the exact lesson variation the worker
@@ -444,7 +450,7 @@ private:
         const auto variant = telemetry.contains("lesson_variant") ? telemetry["lesson_variant"] : Json();
         const bool variantKnown = variant.is_object();
         const auto stop = recordings.is_array() ? (std::min)(recordings.size(), kGhostScan) : std::size_t{0};
-        for (std::size_t index = 0; index < stop && rows.size() < kGhostScan; ++index) {
+        for (std::size_t index = 0; index < stop && rows.empty(); ++index) {
             const auto& entry = recordings[recordings.size() - 1 - index];
             if (!entry.is_object()) continue;
             if (stringValue(entry, "lesson_id") != lesson) continue;
@@ -505,6 +511,13 @@ private:
         trainingOptionsBinding_ = Json::object();
     }
 
+    static bool loadedTrainingPack(const Json& state, const Json& session) {
+        const auto pack = objectValue(state, "native_training_pack");
+        return stringValue(session, "state") == "Training Pack Loaded" &&
+            !boolValue(session, "worker_running", false) && stringValue(pack, "status") == "loaded" &&
+            !stringValue(session, "id").empty() && stringValue(pack, "session_id") == stringValue(session, "id");
+    }
+
     static Json trainingBinding(const Json& session, const Json& telemetry) {
         return {{"session", stringValue(session, "id")},
             {"lesson", stringValue(telemetry, "lesson_id")}};
@@ -537,10 +550,13 @@ private:
                 true, CareerLayoutEffectKind::Dispatch, "assistance",
                 {{"id", lesson}, {"key", key}, {"value", !on}});
         };
-        toggle("pause.training_instructions", "Instructions", "explanations");
         toggle("pause.training_controller", "Controller", "actions");
-        toggle("pause.training_timing", "Timing feedback", "timing");
-        toggle("pause.training_retry_after", "Retry after attempt", "auto_reset");
+        if (!loadedTrainingPack(state, session)) {
+            toggle("pause.training_instructions", "Instructions", "explanations");
+            toggle("pause.training_timing", "Timing feedback", "timing");
+            toggle("pause.training_retry_after", "Retry after attempt", "auto_reset");
+            buildGhostPractice(out, state, session, "training", false, true, "training");
+        }
         add(out, "pause.training_options_back", "Back", true, CareerLayoutEffectKind::Navigate);
     }
 

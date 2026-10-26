@@ -86,6 +86,10 @@ def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedul
     instance.request = {"fixture": {"id": payload["expected_fixture_id"]}}
     instance.session_state = "Error/Recovery"
     assert instance.state["session"]["worker_running"] is False
+    instance.dispatch("assistance", {"id": "power-shots", "key": "actions", "value": False})
+    assert not instance.error and instance.document["lesson_preferences"]["power-shots"]["actions"] is False
+    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": True})
+    assert instance.error  # Custom Training owns retry; no fake worker setting.
     before = json.loads(json.dumps(instance.document["career"]))
     instance.dispatch("abandon_fixture", payload)
     assert instance.error == ""
@@ -1008,6 +1012,20 @@ def test_training_pack_requires_owned_frontend_and_blocks_overlap(backend):
     instance.dispatch("start_lesson", {"id": "speed-flip"})
     assert "Custom Training pack" in instance.error
     assert instance.process is None
+
+
+def test_featured_pack_favorite_resolves_fixed_catalog_and_persists(backend):
+    instance, _, _ = backend
+    payload = {"type": "lesson", "id": "pack:powershot-practice"}
+    instance.dispatch("browser_favorite", payload)
+    assert not instance.error
+    saved = instance.store.load()["browser_favorites"]
+    assert saved[0]["id"] == payload["id"]
+    assert saved[0]["subtitle"] == "Gold | Skogur"
+    instance.dispatch("browser_favorite", {"type": "lesson", "id": "pack:unknown"})
+    assert instance.error and instance.store.load()["browser_favorites"] == saved
+    instance.dispatch("browser_favorite", payload)
+    assert not instance.error and instance.document["browser_favorites"] == []
 
 
 def test_training_pack_exact_ack_preferences_and_return_cleanup(backend):

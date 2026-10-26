@@ -570,8 +570,12 @@ class Backend(QObject):
             item = None
             if kind == "lesson":
                 item = next((entry for entry in catalog() if entry.get("id") == item_id), None)
+                if item_id.startswith("pack:"):
+                    item = next((entry for entry in training_packs()
+                                 if "pack:" + entry["id"] == item_id), None)
                 title = (item or {}).get("title", "")
-                subtitle = "Training lesson"
+                subtitle = ((item["rank"] + " | " + item["author"])
+                            if item_id.startswith("pack:") and item else "Training lesson")
                 detail = (item or {}).get("description", "")
             elif kind == "workshop":
                 self._refresh_workshop()
@@ -719,7 +723,9 @@ class Backend(QObject):
                     allow_community_pending=action in {"quit_game", "stop_session", "return_hub"},
                     allow_training_pack_exit=action == "quit_game",
                     allow_training_pack_return=action == "return_hub",
-                    allow_training_pack_preferences=action == "training_settings")
+                    allow_training_pack_preferences=action == "training_settings" or
+                        (action == "assistance" and isinstance(payload, dict)
+                         and payload.get("id") == "power-shots" and payload.get("key") == "actions"))
                 self._action(action, payload)
         except Exception as exc:
             self.error = str(exc)

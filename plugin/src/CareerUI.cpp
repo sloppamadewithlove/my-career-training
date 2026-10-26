@@ -829,7 +829,12 @@ void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float 
 
 void MyCareerTraining::renderTrainingHud(const Json& state, const MctRuntime& runtime) {
     const auto session = objectValue(state, "session");
-    if (stringValue(session, "state") != "training" || !boolValue(preferences_, "controller", true)) return;
+    const auto pack = objectValue(state, "native_training_pack");
+    const bool packLoaded = stringValue(session, "state") == "Training Pack Loaded" &&
+        stringValue(pack, "status") == "loaded" && !stringValue(session, "id").empty() &&
+        stringValue(pack, "session_id") == stringValue(session, "id");
+    if ((stringValue(session, "state") != "training" && !packLoaded) ||
+        !boolValue(preferences_, "controller", true)) return;
     const auto telemetry = objectValue(state, "telemetry");
     // The active lesson's own Controller option also hides the silhouette. It
     // defaults to on, so only a stored false turns it off.
