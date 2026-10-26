@@ -5,6 +5,26 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
+**Latest live Workshop check (26 October):** source/native candidate `5e3ba56`
+passed 45 native checks and then loaded 30 Steam maps, 16 Bakkes maps and 16
+BakkesMod plugins through actual in-game Browse clicks. More rows, separate
+Maps/Mods catalogs, Back to Mods and a listed plugin's release lookup worked.
+The preceding live run exposed a missing native bridge allowlist; this candidate
+fixes it and preserves the catalog's entry tab independently of stale results.
+Normal Quit restored the checked career, settings, BakkesMod and game files;
+ordinary game-save changes were preserved. This is browsing acceptance only,
+not map installation/launch, plugin activation, final blue-panel design or a new
+frozen release.
+
+**Training limits:** the left-D-pad XInput toggle is implemented and compiled,
+but physical PS4 input remains unverified. The actual speed-flip capture stayed
+in Settling because incoming frames were not consecutive, even after temporary
+120/240 FPS and lower-render-quality tests. All graphics settings were restored.
+The same strict frame gate affects ordinary lessons; 60 FPS practice is not
+accepted. No teaching reference was captured or bundled. Free Play also showed
+Unlimited Boost despite the core acknowledging NormalBoost; settings echoes
+alone are insufficient evidence of actual boost behavior.
+
 **Bot-reference development foundation (26 October):** source `8be3163` adds an
 opt-in copied-profile capture path that drives and records a separate offline
 bot, plus provisional speed-flip and same-setup baseline checks. It passed
@@ -17,8 +37,8 @@ adds normal-speed, looping, render-only ghost practice anchored ahead of the car
 recorded logical input display, and native Training pause recording/toggle controls.
 Worker acknowledgements keep rejected or delayed commands from reviving a hidden
 ghost. Personal/imported recordings retain their labels; no expert reference is
-bundled. Left-D-pad gameplay binding, physical DS4, tutorial video and bot scenarios
-are not implemented/verified by this candidate. Ball/wall-dependent ghost drills
+bundled. Left-D-pad gameplay binding was added in `ebfb728`; physical DS4,
+tutorial video and bot scenarios remain unverified or unimplemented. Ball/wall-dependent ghost drills
 remain unavailable until their spatial relationships can be represented correctly.
 
 Workshop now exposes Training Maps and Mods routes with paginated public Steam

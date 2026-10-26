@@ -1,7 +1,7 @@
 # Training and Workshop implementation checkpoint
 
-26 October 2026. Source implementation; this is not a released or live-game
-acceptance claim. The tested frozen e41 installer remains a separate artifact.
+26 October 2026. Source implementation with the scoped live checks below;
+this is not a released installer. The tested frozen e41 installer remains separate.
 
 ## Training
 
@@ -115,6 +115,26 @@ separately controlled offline bot, captures actual game motion and observed
 inputs, and selects the best measured validated trial for the exact setup.
 It must be labelled as a bot reference, not a world record or professional
 demonstration. Video alone cannot supply a complete replayable physics track.
+
+## Latest Workshop live check
+
+Candidate `5e3ba56` fixes the native command bridge's missing catalog actions,
+keeps Maps and Mods category selection independent of the last backend result,
+hides results from the other category, and returns Back to the entry page.
+Independent Luna tests cover both layout navigation and actual bridge command
+file creation. The full native build passed 32 plugin and 13 launcher checks.
+
+Main's fresh owned Steam run used real menu input and observed successful
+catalog results: 30 Steam maps, 16 Bakkes maps and 16 BakkesMod plugins. More rows
+advanced the map list, Mods did not show the previous map results, Back returned
+to Mods, and selecting a listed plugin found its current release. Normal Quit
+restored checked career/settings/plugin/game files. Game-owned save rotation
+was preserved. No maps/plugins were installed or activated during this check.
+
+The current native pages still use the existing menu presentation. The requested
+blue bordered catalog panel and final Rows/Grid visual design are not accepted
+by these functionality checks. Download/activation, custom map launch, Epic and
+physical controller acceptance remain separate work.
 
 ## Roles and privacy
 

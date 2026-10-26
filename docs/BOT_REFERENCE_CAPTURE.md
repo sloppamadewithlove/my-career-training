@@ -136,3 +136,28 @@ accepting a recording. The development-only capture telemetry exposes the
 observed actor and reset facts to make this diagnosis reviewable.
 
 No speed-flip demonstration or benchmark acceptance is established by this run.
+
+A foreground-only follow-up still observed frame increments of 1, 2 and 3
+after selecting 120 FPS, then 240 FPS, and temporarily lowering render quality.
+Those settings did not establish a consecutive stream; the observed cap alone
+is not proof of delivery frequency. The original 60 FPS, High Quality rendering
+and other graphics settings were restored through the game UI. Normal Quit
+restored the checked installation/configuration and left ordinary saves intact.
+The common training engine currently applies this strict frame gate to Human
+practice as well. Supporting lower delivery rates and explaining a persistent
+Settling state remain product defects to resolve, not reasons to invent frames.
+
+The live Free Play settings also displayed Unlimited Boost while the core's
+configuration acknowledgement reported NormalBoost. Effective gameplay settings
+must therefore be checked against observations before accepting any reference.
+
+Source `f686cdf` records optional observed car boost without inventing it for
+older personal recordings. Candidate and baseline review now require finite
+0..100 readings on every sample and a contiguous boost-held burn segment of
+at least 0.1 seconds at approximately the normal depletion rate. Missing values,
+constant full boost and invalid readings cannot pass from a canonical settings
+acknowledgement alone. Accepted segments cannot cross a refill, empty tank or
+packet gap. The scan advances through samples in linear time, including dense
+inputs. These observations still do not prove every pad/refill/mutator setting;
+main's real-game review and repeated baseline comparisons remain required.
+Independent focused tests passed 80 cases; no actual reference was promoted.
