@@ -254,6 +254,17 @@ package menus
             var cancelButton:Button = null;
             var made:Button = null;
             destroyButtons();
+            if (current() && returnLocked())
+            {
+                // Accepted or provisional Return lock: show only one disabled
+                // status row. The existing title/body status stays in details.
+                // A host rejection, timeout or release ends the lock, and the
+                // next refresh rebuilds the normal recovery controls from the
+                // current view. No extra choice is offered while locked.
+                createButton({label:"Returning to My Career", enabled:false});
+                holdWithoutFocus();
+                return;
+            }
             if (!current())
             {
                 createButton({label:"PAUSED", enabled:false});
@@ -396,6 +407,15 @@ package menus
                 closeLoader();
             }
             if (VIEW_URL.indexOf("file:///") != 0 || SESSION.indexOf("__MCT_") == 0) return;
+            if (returnRequestGeneration != "" && getTimer() - returnRequestStarted >= 2000)
+            {
+                // The provisional click-to-host latch expired without an
+                // accepted hold and without a newer view. Restore the existing
+                // recovery controls from the current view; the intent itself is
+                // untouched and no second exit is offered.
+                returnRequestGeneration = "";
+                if (isFrontMenu()) refreshMenu();
+            }
             loader = new URLLoader();
             loader.addEventListener(Event.COMPLETE, loaded, false, 0, true);
             loader.addEventListener(IOErrorEvent.IO_ERROR, failed, false, 0, true);

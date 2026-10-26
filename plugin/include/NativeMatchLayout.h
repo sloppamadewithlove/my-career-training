@@ -15,6 +15,7 @@ public:
         confirmation_ = Json::object();
         resetResultsPage();
         resetGhostPage();
+        resetTrainingOptions();
         if (!valid(scope, state) || !advance()) return false;
         scope_ = scope;
         opened_ = true;
@@ -28,6 +29,7 @@ public:
             confirmingForfeit_ = false;
             resetResultsPage();
             resetGhostPage();
+            resetTrainingOptions();
             return out;
         }
         out.offersReplacement = true;
@@ -47,6 +49,9 @@ public:
         out.title = scope.surface == NativeMenuSurface::Results ? "Match complete" : "My Career paused";
         const auto error = bounded(stringValue(state, "error"), 320);
         if (returnPending) {
+            // A pending Return ends the local Training options page; the
+            // existing recovery controls below stay available.
+            resetTrainingOptions();
             if (scope.surface == NativeMenuSurface::Pause)
                 add(out, "pause.resume", "Resume", !returnHold, CareerLayoutEffectKind::PreserveStockRoute,
                     "", Json::object(), StockRoute::Resume);
@@ -87,10 +92,20 @@ public:
             return out;
         }
         if (scope.surface == NativeMenuSurface::Pause) {
+            const bool trainingLive = kind == "training" && worker && !busy && phase == "training" &&
+                !stringValue(objectValue(state, "telemetry"), "lesson_id").empty();
+            syncTrainingOptions(state, session, trainingLive, returnPending);
+            if (trainingOptions_) {
+                buildTrainingOptions(out, state, session);
+                return out;
+            }
             add(out, "pause.resume", "Resume", true, CareerLayoutEffectKind::PreserveStockRoute,
                 "", Json::object(), StockRoute::Resume);
             if (kind == "training") {
                 out.body += "Practice at your own pace. Retry restarts the drill; Return to My Career saves your completed attempts.";
+                add(out, "pause.training_options", "Training options", trainingLive,
+                    CareerLayoutEffectKind::Navigate);
+                explain(out, "Training options need a running lesson.");
                 add(out, "pause.retry", "Retry lesson", !busy && worker && phase == "training",
                     CareerLayoutEffectKind::Dispatch, "retry_lesson",
                     {{"expected_session_id", stringValue(session, "id")}});
@@ -172,6 +187,26 @@ public:
                 (choice.id == "pause.ghost_prev" || choice.id == "pause.ghost_next") &&
                 choice.payload.value("binding", Json::object()) == ghostBinding_)
                 ghostPage_ = choice.payload.value("page", std::size_t{0});
+            if (scope.surface == NativeMenuSurface::Pause && choice.kind == CareerLayoutEffectKind::Navigate &&
+                choice.id == "pause.training_options") {
+                // Revalidate the exact activity and lesson binding before the
+                // local page is offered; an empty lesson never opens it.
+                const auto session = objectValue(state, "session");
+                const auto telemetry = objectValue(state, "telemetry");
+                const auto binding = trainingBinding(session, telemetry);
+                const bool live = stringValue(session, "kind") == "training" &&
+                    boolValue(session, "worker_running", false) && !boolValue(session, "busy", true) &&
+                    stringValue(session, "state") == "training" && !returnPending &&
+                    !stringValue(binding, "session").empty() && !stringValue(binding, "lesson").empty();
+                if (live) {
+                    trainingOptions_ = true;
+                    trainingOptionsBinding_ = binding;
+                }
+            } else if (scope.surface == NativeMenuSurface::Pause &&
+                       choice.kind == CareerLayoutEffectKind::Navigate &&
+                       choice.id == "pause.training_options_back") {
+                resetTrainingOptions();
+            }
             return effect;
         }
         return effect;
@@ -458,6 +493,57 @@ private:
         }
     }
 
+    // Local Training options page. It is bound to the exact training activity
+    // and lesson it was opened from, resets when either changes or Return
+    // becomes pending, and only dispatches the existing assistance action.
+    static constexpr std::size_t kTrainingOptionRows = 4;
+    // Resume, Retry, Game options, Return plus the four toggles and Back.
+    static_assert(kTrainingOptionRows + 5 <= NativeCareerLayout::kMaxChoices);
+
+    void resetTrainingOptions() {
+        trainingOptions_ = false;
+        trainingOptionsBinding_ = Json::object();
+    }
+
+    static Json trainingBinding(const Json& session, const Json& telemetry) {
+        return {{"session", stringValue(session, "id")},
+            {"lesson", stringValue(telemetry, "lesson_id")}};
+    }
+
+    // The subpage stays open only while the same owned training activity and
+    // lesson are still running and no Return is pending.
+    void syncTrainingOptions(const Json& state, const Json& session, bool live, bool returnPending) {
+        if (!trainingOptions_) return;
+        const auto telemetry = objectValue(state, "telemetry");
+        const auto binding = trainingBinding(session, telemetry);
+        if (!live || returnPending || binding != trainingOptionsBinding_ ||
+            stringValue(binding, "session").empty() || stringValue(binding, "lesson").empty())
+            resetTrainingOptions();
+    }
+
+    void buildTrainingOptions(CareerLayoutView& out, const Json& state, const Json& session) {
+        const auto telemetry = objectValue(state, "telemetry");
+        const auto lesson = stringValue(telemetry, "lesson_id");
+        const auto preferences = objectValue(objectValue(state, "lesson_preferences"), lesson.c_str());
+        out.title = "Training options";
+        out.body = "These settings apply to this lesson and are saved with your career.";
+        // Defaults are true; a stored false is the only way to show Off.
+        const auto enabled = [&](const char* key) {
+            return !preferences.contains(key) || boolValue(preferences, key, true);
+        };
+        const auto toggle = [&](const char* id, const char* label, const char* key) {
+            const bool on = enabled(key);
+            add(out, id, on ? (std::string(label) + ": On").c_str() : (std::string(label) + ": Off").c_str(),
+                true, CareerLayoutEffectKind::Dispatch, "assistance",
+                {{"id", lesson}, {"key", key}, {"value", !on}});
+        };
+        toggle("pause.training_instructions", "Instructions", "explanations");
+        toggle("pause.training_controller", "Controller", "actions");
+        toggle("pause.training_timing", "Timing feedback", "timing");
+        toggle("pause.training_retry_after", "Retry after attempt", "auto_reset");
+        add(out, "pause.training_options_back", "Back", true, CareerLayoutEffectKind::Navigate);
+    }
+
     static void explain(CareerLayoutView& out, const std::string& reason) {
         if (!out.choices.empty() && !out.choices.back().enabled && !reason.empty())
             out.choices.back().reason = bounded(reason, 240);
@@ -531,6 +617,8 @@ private:
     std::size_t schedulePage_ = 0;
     std::size_t ghostPage_ = 0;
     Json ghostBinding_ = Json::object();
+    bool trainingOptions_ = false;
+    Json trainingOptionsBinding_ = Json::object();
     std::uint64_t revision_ = 0;
     bool opened_ = false;
     bool confirming_ = false;

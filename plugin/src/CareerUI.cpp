@@ -735,91 +735,133 @@ void MyCareerTraining::renderSettings(const Json& state, const MctRuntime& runti
     }
 }
 
+// Draws only the recognizable DualShock 4 silhouette on a transparent
+// background: no card, panel, heading, technical label or hint text. Highlight
+// comes exclusively from the existing logical action bindings; the right stick,
+// touchpad and D-pad stay neutral because the SDK action stream carries no raw
+// look-stick, touch or D-pad telemetry.
 void MyCareerTraining::drawController(const Json& actions, ImVec2 origin, float scale, const char* heading, const Json& bindings) {
+    (void)heading;
     auto draw = ImGui::GetWindowDrawList();
     const bool observed = observedActions(actions);
     const auto point = [&](float x, float y) { return ImVec2(origin.x + x * scale, origin.y + y * scale); };
-    const auto activeColor = IM_COL32(255, 147, 49, 255);
-    const auto idleColor = IM_COL32(102, 130, 151, 255);
-    draw->AddText(point(0, 0), IM_COL32(195, 229, 251, 255), observed ? heading : "CONTROLLER ACTIONS UNAVAILABLE");
-    draw->AddRectFilled(point(7, 48), point(246, 152), IM_COL32(18, 40, 59, 235), 37 * scale);
-    draw->AddCircleFilled(point(52, 144), 42 * scale, IM_COL32(18, 40, 59, 235));
-    draw->AddCircleFilled(point(200, 144), 42 * scale, IM_COL32(18, 40, 59, 235));
+    const ImU32 bodyFill = IM_COL32(12, 18, 26, 185);
+    const ImU32 bodyEdge = IM_COL32(238, 245, 252, 215);
+    const ImU32 detail = IM_COL32(150, 172, 190, 205);
+    const ImU32 activeColor = IM_COL32(255, 147, 49, 255);
+    const ImU32 neutral = IM_COL32(96, 118, 136, 200);
     const auto strengthFor = [&](const std::string& buttonName) {
         double value = 0;
         if (!observed) return value;
         for (const auto& binding : bindings.items()) {
             if (!binding.value().is_string() || binding.value().get<std::string>() != buttonName) continue;
             const auto& key = binding.key();
-            const double observed = key == "reverse" ? std::max(0.0, -actionStrength(actions, "throttle")) :
+            const double observedValue = key == "reverse" ? std::max(0.0, -actionStrength(actions, "throttle")) :
                 key == "throttle" ? std::max(0.0, actionStrength(actions, "throttle")) :
                 key == "air_roll" ? std::abs(actionStrength(actions, "roll")) : std::abs(actionStrength(actions, key));
-            value = std::max(value, observed);
+            value = std::max(value, observedValue);
         }
         return value;
     };
-    for (const auto& trigger : std::array<std::pair<const char*, float>, 4>{{{"L2", 16}, {"L1", 60}, {"R1", 153}, {"R2", 197}}}) {
-        const bool active = strengthFor(trigger.first) > 0.05;
-        draw->AddRectFilled(point(trigger.second, 23), point(trigger.second + 40, 44), active ? activeColor : idleColor, 4 * scale);
-        draw->AddText(point(trigger.second + 7, 25), IM_COL32(0, 15, 25, 255), trigger.first);
+    // Body: the fill is three convex pieces that stay inside the same outline
+    // (core plus the two grips), so no filled shape extends past the silhouette.
+    // The pinned ImGui 1.75 has no concave fill, so the notch between the grips
+    // is left transparent instead of being covered by a rectangle.
+    const ImVec2 core[] = {
+        point(96, 22), point(164, 22), point(196, 30), point(212, 52), point(214, 84),
+        point(206, 112), point(198, 120), point(62, 120), point(54, 112), point(46, 84),
+        point(48, 52), point(64, 30)};
+    const ImVec2 leftGrip[] = {
+        point(54, 112), point(110, 120), point(110, 150), point(92, 168), point(74, 162), point(62, 140)};
+    const ImVec2 rightGrip[] = {
+        point(150, 120), point(206, 112), point(198, 140), point(186, 162), point(168, 168), point(150, 150)};
+    draw->AddConvexPolyFilled(core, static_cast<int>(sizeof(core) / sizeof(core[0])), bodyFill);
+    draw->AddConvexPolyFilled(leftGrip, static_cast<int>(sizeof(leftGrip) / sizeof(leftGrip[0])), bodyFill);
+    draw->AddConvexPolyFilled(rightGrip, static_cast<int>(sizeof(rightGrip) / sizeof(rightGrip[0])), bodyFill);
+    const ImVec2 shell[] = {
+        point(96, 22), point(164, 22), point(196, 30), point(212, 52), point(214, 84),
+        point(206, 112), point(198, 140), point(186, 162), point(168, 168), point(150, 150),
+        point(130, 138), point(110, 150), point(92, 168), point(74, 162), point(62, 140),
+        point(54, 112), point(46, 84), point(48, 52), point(64, 30)};
+    draw->AddPolyline(shell, static_cast<int>(sizeof(shell) / sizeof(shell[0])), bodyEdge, true, 2.0f * scale);
+    // Shoulders and triggers, above the body edge.
+    for (const auto& shoulder : std::array<std::pair<const char*, ImVec2>, 4>{{
+            {"L2", ImVec2(58, 2)}, {"L1", ImVec2(58, 16)}, {"R1", ImVec2(164, 16)}, {"R2", ImVec2(164, 2)}}}) {
+        const bool pressed = strengthFor(shoulder.first) > 0.05;
+        draw->AddRectFilled(point(shoulder.second.x, shoulder.second.y),
+            point(shoulder.second.x + 38, shoulder.second.y + 12), pressed ? activeColor : neutral, 3 * scale);
     }
-    // Left analog stick is an observed steering/pitch projection. Right-stick
-    // camera movement is deliberately neutral because the SDK action stream has
-    // no raw look-stick telemetry.
-    for (float x : {90.0f, 159.0f}) draw->AddCircle(point(x, 135), 19 * scale, idleColor, 24, 2 * scale);
-    draw->AddCircleFilled(point(90 + static_cast<float>(actionStrength(actions, "steer")) * 12,
-        135 + static_cast<float>(actionStrength(actions, "pitch")) * 12), 10 * scale, observed ? activeColor : idleColor);
-    draw->AddCircleFilled(point(159, 135), 10 * scale, idleColor);
-    draw->AddRectFilled(point(36, 77), point(70, 88), idleColor, 2 * scale);
-    draw->AddRectFilled(point(47, 66), point(58, 100), idleColor, 2 * scale);
-    const std::array<std::pair<const char*, ImVec2>, 4> face{{{"Triangle", ImVec2(204, 69)}, {"Circle", ImVec2(225, 91)},
-        {"Cross", ImVec2(204, 113)}, {"Square", ImVec2(183, 91)}}};
+    // Touchpad: neutral, no touch telemetry is available.
+    draw->AddRectFilled(point(104, 34), point(156, 74), IM_COL32(28, 38, 50, 200), 4 * scale);
+    draw->AddRect(point(104, 34), point(156, 74), detail, 4 * scale, 15, 1.2f * scale);
+    // D-pad: neutral, the logical action stream has no D-pad state.
+    draw->AddRectFilled(point(58, 88), point(86, 96), neutral, 2 * scale);
+    draw->AddRectFilled(point(68, 78), point(76, 106), neutral, 2 * scale);
+    // Symmetric sticks. The left knob projects the observed steer/pitch actions;
+    // the right knob stays centered because no look-stick data exists.
+    draw->AddCircle(point(108, 100), 16 * scale, detail, 28, 1.4f * scale);
+    draw->AddCircle(point(152, 100), 16 * scale, detail, 28, 1.4f * scale);
+    draw->AddCircleFilled(point(108 + static_cast<float>(actionStrength(actions, "steer")) * 8,
+        100 + static_cast<float>(actionStrength(actions, "pitch")) * 8), 9 * scale, observed ? activeColor : neutral, 24);
+    draw->AddCircleFilled(point(152, 100), 9 * scale, neutral, 24);
+    // Face buttons in PlayStation colors, brightened only by a real binding.
+    const std::array<std::pair<const char*, ImVec2>, 4> face{{{"Triangle", ImVec2(188, 80)}, {"Circle", ImVec2(200, 92)},
+        {"Cross", ImVec2(188, 104)}, {"Square", ImVec2(176, 92)}}};
+    const std::array<ImU32, 4> faceColor{{IM_COL32(46, 204, 113, 255), IM_COL32(231, 76, 60, 255),
+        IM_COL32(93, 173, 226, 255), IM_COL32(241, 148, 168, 255)}};
     for (size_t index = 0; index < face.size(); ++index) {
         const auto center = point(face[index].second.x, face[index].second.y);
-        const auto color = strengthFor(face[index].first) > 0.05 ? activeColor : idleColor;
-        draw->AddCircle(center, 10 * scale, color, 20, 1.5f * scale);
+        const bool pressed = strengthFor(face[index].first) > 0.05;
+        const ImU32 color = pressed ? activeColor : faceColor[index];
         const float radius = 5 * scale;
-        if (index == 0) draw->AddTriangle(ImVec2(center.x, center.y - radius), ImVec2(center.x - radius, center.y + radius), ImVec2(center.x + radius, center.y + radius), color, scale);
-        if (index == 1) draw->AddCircle(center, radius, color, 20, scale);
+        if (index == 0) draw->AddTriangle(ImVec2(center.x, center.y - radius), ImVec2(center.x - radius, center.y + radius),
+            ImVec2(center.x + radius, center.y + radius), color, 1.4f * scale);
+        if (index == 1) draw->AddCircle(center, radius, color, 20, 1.4f * scale);
         if (index == 2) {
-            draw->AddLine(ImVec2(center.x - radius, center.y - radius), ImVec2(center.x + radius, center.y + radius), color, scale);
-            draw->AddLine(ImVec2(center.x + radius, center.y - radius), ImVec2(center.x - radius, center.y + radius), color, scale);
+            draw->AddLine(ImVec2(center.x - radius, center.y - radius), ImVec2(center.x + radius, center.y + radius), color, 1.4f * scale);
+            draw->AddLine(ImVec2(center.x + radius, center.y - radius), ImVec2(center.x - radius, center.y + radius), color, 1.4f * scale);
         }
-        if (index == 3) draw->AddRect(ImVec2(center.x - radius, center.y - radius), ImVec2(center.x + radius, center.y + radius), color, 0, 15, scale);
+        if (index == 3) draw->AddRect(ImVec2(center.x - radius, center.y - radius), ImVec2(center.x + radius, center.y + radius),
+            color, 0, 15, 1.4f * scale);
     }
-    draw->AddText(point(0, 193), IM_COL32(156, 180, 196, 255), observed ? "Observed actions / your configured labels" : "Waiting for observed game inputs");
-    ImGui::Dummy(ImVec2(260 * scale, 216 * scale));
+    ImGui::Dummy(ImVec2(260 * scale, 176 * scale));
 }
 
 void MyCareerTraining::renderTrainingHud(const Json& state, const MctRuntime& runtime) {
     const auto session = objectValue(state, "session");
     if (stringValue(session, "state") != "training" || !boolValue(preferences_, "controller", true)) return;
+    const auto telemetry = objectValue(state, "telemetry");
+    // The active lesson's own Controller option also hides the silhouette. It
+    // defaults to on, so only a stored false turns it off.
+    const auto lessonId = stringValue(telemetry, "lesson_id");
+    if (!lessonId.empty()) {
+        const auto lessonPreferences = objectValue(objectValue(state, "lesson_preferences"), lessonId.c_str());
+        if (lessonPreferences.contains("actions") && !boolValue(lessonPreferences, "actions", true)) return;
+    }
     const auto screen = ImGui::GetIO().DisplaySize;
     const float scale = static_cast<float>(numberValue(preferences_, "controller_scale", 1));
-    const auto telemetry = objectValue(state, "telemetry");
-    const auto ghost = objectValue(telemetry, "ghost");
-    const bool coachVisible = boolValue(ghost, "visible");
+    // The current teacher publishes telemetry.ghost_practice. The legacy
+    // telemetry.ghost is read only when no practice object exists at all, so a
+    // hidden practice ghost can never fall through to stale legacy data.
+    const auto practice = objectValue(telemetry, "ghost_practice");
+    const auto ghost = practice.empty() ? objectValue(telemetry, "ghost") : practice;
+    // The recorded ghost controller is drawn only when a demonstration is
+    // actually available and the player has it visible.
+    const bool coachVisible = boolValue(ghost, "visible") && boolValue(ghost, "available");
     const float width = (coachVisible ? 568 : 288) * scale;
-    const float height = 286 * scale;
+    const float height = 200 * scale;
     const bool left = numberValue(preferences_, "controller_corner", 1) == 0;
     ImGui::SetNextWindowPos(ImVec2(left ? 20 : std::max(20.0f, screen.x - width - 20), std::max(20.0f, screen.y - height - 20)), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.78f);
     ImGui::Begin("Training controls##hud", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs |
+        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
     const auto bindings = objectValue(preferences_, "bindings");
     auto actions = runtime.actions;
     if (actions.empty()) actions = objectValue(telemetry, "actions");
     const auto start = ImGui::GetCursorScreenPos();
-    drawController(actions, start, scale, "YOU / PLAYSTATION", bindings);
-    if (coachVisible) {
-        ImGui::SetCursorScreenPos(ImVec2(start.x + 280 * scale, start.y));
-        drawController(objectValue(ghost, "coach_actions"), ImVec2(start.x + 280 * scale, start.y), scale, "RECORDED GHOST", bindings);
-    }
-    if (MCT_ENABLE_NATIVE_MOVIE_TRIAL)
-        ImGui::TextColored(ice, "Esc / Start: pause menu");
-    else
-        ImGui::TextColored(ice, "%s  GHOST / WATCH / RETRY / SETTINGS", runtime.toggleKey.c_str());
-    if (!boolValue(ghost, "available")) detail("Coach demo unavailable - record a successful attempt.");
+    drawController(actions, start, scale, "", bindings);
+    if (coachVisible)
+        drawController(objectValue(ghost, "coach_actions"), ImVec2(start.x + 280 * scale, start.y), scale, "", bindings);
     ImGui::End();
 }
