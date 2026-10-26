@@ -85,12 +85,28 @@ remain open. Installed game maps are not replaced. Ball prediction remains off.
   16 plugin rows, with verified title/creator extraction. This is fixture parsing,
   not live-game evidence or proof that every future site layout will parse.
 
-The two source branches were reviewed and combined at `8c7956f`. The integrated
-native plugin compiled in Release with the movie trial enabled and passed all
-31 plugin CTest checks. The first full Python run found the legacy playback
-regression described above (1,152 passed, 15 skipped, one failed); the corrected
-full-suite result is recorded after its final run. No live game or physical
-controller acceptance is claimed.
+The two source branches were reviewed and combined at `8c7956f`; compatibility
+corrections were recorded in `fb0be2e`, then documentation in `c711f8d`.
+The final full Python suite passed **1,164 tests with 15 skipped** against that
+source tree. The explicit native candidate at `c711f8d` compiled in Release,
+passed **31 plugin and 13 launcher/file-view CTest checks**, and staged/verified
+17 runtime files. This is a source developer candidate, not a frozen installer.
+
+A bounded live check did not reach the menu: a private helper interpreted
+`--help` as a launch. No feature controls or screenshots were used. The owned
+game, launcher, app, service and injector were closed normally; the copied-profile
+journal was removed and its status reported temporary-plugin restoration. The
+snapshot was taken after launch, so it does not prove full prelaunch restoration
+acceptance. No saves were overwritten to force a comparison. The private helpers
+now handle help before any launch/staging side effect. Live feature and physical
+controller acceptance remain open; this run is not a pass.
+
+The owner clarified the teaching goal as a racing time-trial ghost: a best
+reference attempt to imitate and improve upon. The next implementation uses a
+separately controlled offline bot, captures actual game motion and observed
+inputs, and selects the best measured validated trial for the exact setup.
+It must be labelled as a bot reference, not a world record or professional
+demonstration. Video alone cannot supply a complete replayable physics track.
 
 ## Roles and privacy
 

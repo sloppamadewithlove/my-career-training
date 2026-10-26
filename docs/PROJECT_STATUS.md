@@ -25,6 +25,9 @@ These controls target the explicit native-menu candidate with
 `MCT_ENABLE_NATIVE_MOVIE_TRIAL=ON`, not the legacy default ImGui build. The source
 changes do not update the previously tested e41 frozen installer. Current test
 evidence and remaining live acceptance are recorded in the implementation note.
+The final source suite passed 1,164 tests with 15 skipped. The explicit `c711f8d`
+native candidate passed 44 native checks and verified 17 runtime files. Its live
+smoke stopped before menu readiness and is not feature acceptance.
 
 **Latest owner direction:** Training/Workshop requirements are
 recorded in [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md).
