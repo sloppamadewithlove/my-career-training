@@ -4,6 +4,86 @@ Owner decisions, 25 October 2026. This is a design/implementation direction,
 not a claim of completed gameplay, downloadable lessons or Epic support.
 Existing acceptance and release status remain in PROJECT_STATUS.md.
 
+## Owner playtest correction — 26 October 2026
+
+This section supersedes the separate Training/Workshop navigation and preview
+choices below. The owner tested the game and rejected the current experience:
+Speed Flip and Power Shot behaved like empty Free Play, with no useful feedback,
+automatic retry or teaching ghost. Catalog navigation checks did not establish
+working training. Treat these as functional failures, not a visual polish pass.
+
+- One **Training** home entry opens a large native blue bordered browser inspired
+  by the supplied Training Browser reference. Four tabs: **Lessons**, **Workshop**,
+  **Mods**, **Favorites**. Favorites combines entries across the first three.
+- Use a scrollable row list with a selected-item detail panel, creator, updated
+  date when available, description/preview, and a clear Play/Download action.
+  Include search and useful filters. Do not replace rows with a vertical list
+  of action buttons or require repeated More/Previous menu pages.
+- Select a lesson and enter it directly. Put assistance and drill options inside
+  the running session's Training options, enabled by default where implemented.
+  No pre-flight list of toggles. Unavailable demonstrations must have an explicit
+  explanation rather than an inert ghost button. Do not manufacture references.
+- Speed Flip offers meaningful **Free practice** and **Kickoff practice** modes.
+  Kickoff practice uses actual kickoff positions, including left/right starts;
+  explain the scenario in the session instead of generic pre-entry Left/Right.
+- Power Shot is a sequence of distinct scoring drills with intentional car/ball
+  positions and ball movement, an actual goal target, success/failure feedback,
+  and automatic retry after a miss/timeout. Goals must count. Left/Right moves
+  between drills; keep lesson navigation separate from the ghost toggle. The
+  older left-D-pad ghost binding needs remapping when shot navigation owns it.
+- Latest Power Shot steering: use existing Psyonix training content or packs
+  published/featured by Psyonix first, instead of building a large replay-scenario
+  database. Group verified shot packs by their documented difficulty/rank;
+  distinguish Psyonix-authored packs from featured community authors. Do not
+  invent Gold/Diamond/Champion/Grand Champion/SSL labels or call a mixed mechanic
+  rank pack a pure power-shot pack. Preserve actual creators and source links.
+  Speed Flip is a mechanic lesson across ranks. Verify the supported in-game
+  pack-loading route before offering Play; catalog metadata alone is not a lesson.
+- Training Return is one action to the home page. No intermediate menu of
+  additional actions may flash or become briefly selectable while leaving.
+  Keep durable attempt saving and cleanup; immediate intent does not authorize
+  dropping a result or claiming the hub was reached before it actually was.
+- The controller display is an optional controller silhouette with animated
+  inputs, no rectangular card or persistent technical labels. Use a simple
+  **Show controller: On/Off** in Training options, no fade mode. Verify real USB
+  DualShock 4 input. A stock Free Play Controls Display setting is not this HUD.
+  Do not replace or relabel stock game settings as though they control our HUD.
+- Keep normal game speed for lessons. Avoid exposing irrelevant development
+  controls. Existing stock game settings are separate from our Training options.
+
+The owner supplied four visual references: one Training Browser with tabs,
+rows and a right detail panel; Garage references show cosmetic slot selection,
+thumbnail inventory and a filtered item grid. Keep raw attachments private.
+Opus 5.5 owns the Garage/controller visual specification and design review.
+The owner permits DeepSeek to help with design **for this revision only**;
+DeepSeek remains the implementation builder. This does not authorize Opus code.
+
+### Garage design requirement for Opus
+
+Replace repeated action-button pages with a searchable, filterable thumbnail
+grid, category/slot tabs, selected-item details and a live car preview. Browse
+the full product catalog available in the installed game, not only the player's
+owned inventory. Include bodies, decals, wheels, boost, trails, toppers, antennas,
+paint finishes/colors, engine audio and goal explosions, with compatible variants.
+Apply supported offline visual overrides without changing account ownership.
+Do not claim every historical/licensed product is present or compatible until
+the installed catalog and actual equip path establish it. Show unsupported
+items clearly; preserve the player's original preset and normal controls.
+
+### Acceptance before the next player handoff
+
+Verify a real Speed Flip attempt at the player's normal frame rate, a real
+Power Shot goal and failed-shot retry, shot switching, visible feedback,
+controller Show/Hide, and single-action Return. Separately verify the unified
+browser, cross-category favorites and search. Tests alone are insufficient.
+The owner subsequently handed the game back to main for restart and testing.
+Use one recorded input owner and suspend automation if the player takes over.
+
+Ranked community packs remain the requested Power Shot direction. The owner
+declined substituting built-in Rookie/Pro/All-Star drills after the offline
+download-service failure. Keep that unresolved capability visible; do not
+present disabled or unverified pack loading as completed training.
+
 ## Training experience
 
 - Players choose the skill they want to learn. Speed flip is the first complete

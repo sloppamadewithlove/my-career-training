@@ -5,6 +5,91 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
+**Owner playtest rejected Training (26 October):** Speed Flip and Power Shot
+provided no useful lesson feedback/reset or available teaching ghost. The
+button-only browser, repeated More pages, boxed controller HUD and Garage
+inventory restriction were also rejected. Workshop catalog reads remain a
+scoped pass, not acceptance of this product experience. The new authoritative
+direction is one Training browser (Lessons/Workshop/Mods/Favorites), real shot
+scenarios and in-session settings; see TRAINING_WORKSHOP_DIRECTION.md and the
+priority Garage/controller assignment in OPUS_DESIGN_BRIEF.md. The owner handed
+the test session back for restart/testing and reconfirmed that handback after an
+input observation. Main owns the recorded isolated test; user takeover still
+suspends automated input.
+
+The ordinary lesson cadence/feedback repair passed 141 focused tests. Live
+Power Shot still failed preparation: Free Play moved the ball but not the Human
+car; the scoring-enabled offline match candidate moved the observed car to its
+requested pose but did not finish preparation. Neither is accepted as working
+training. The owner now prioritizes existing Psyonix-published shot packs with
+honest difficulty labels; pack loading and real shot play remain to be verified.
+The interactive browser preview passes headless interaction checks. Subsequent
+native browser and controller/Return evidence is recorded below; this is still
+not a complete training handoff.
+
+**Subsequent repair check:** ordinary Speed Flip preparation now accepts bounded
+stationary observations without weakening active timing or reference-capture
+cadence checks. The isolated source run reached an active drill, displayed its
+finish target and instructions, recorded a truthful no-dodge timeout, and
+automatically retried when enabled. Return reached a fresh native hub; normal
+Quit restored checked career/config/plugin and installed-file hashes. Normal
+game-save changes were preserved. No successful speed flip or teaching ghost
+was verified by this check.
+
+The native blue Training browser, fixed six-pack Power Shots catalog, exact-code
+Custom Training loader, cross-content favorites and shorter pause options have
+been integrated. Source/native `5b293d2` visibly opened the four-tab browser and
+showed ranked packs and Workshop rows. The Gold pack failed: the game's
+`Training/GetTrainingData` service returned `FeatureDisabled` in offline mode.
+The browser now disables that known-failing load while keeping pack metadata
+and favorites. The owner declined a built-in-drill fallback. Downloading/cache
+availability is not evidence of an offline launch; that route remains unresolved.
+Live rendering also exposed connected blue outline paths and missing glyphs.
+Source/native `a7de7b4` fixed the outlines and fill seams in the actual game.
+Search displayed all six Power Shot packs; a pack favorite persisted through
+restart alongside Workshop favorites; Mods loaded 16 live catalog entries.
+Speed Flip started through its actual primary button, prepared and displayed
+the target, instructions and repeated attempts. Controller Off visibly removed
+the silhouette after Resume. One Return click reached fresh frontend READY,
+actual RootMenuMovie and the visible home page in the same process. Timing
+telemetry still contained gaps; this is not certified technique scoring.
+The controller's current placement overlaps the boost gauge and needs the
+design pass. Source/native `456676a` also passed slow, two-part search entry,
+Escape clearing, Back and normal Quit. `099fad1` bounds automatic search retries,
+limits generation-triggered READY to the frontend, and queues Escape clearing
+during an in-flight search. Its compiled menu passed 87 focused checks (one
+skipped), and its native build passed all 48 checks.
+The final `099fad1` source/native run passed two-part search (`pow`, then `er`),
+showing six matching packs, and typing followed immediately by Escape restored
+the empty query and all 13 lesson rows without leaving the browser. One capture
+during a redraw showed incomplete panel geometry before the settled display;
+smooth redraw is not certified by these functional checks.
+Back reached the visible home page, and normal Quit closed the final owned game.
+After cleanup, checked career files, game settings, BakkesMod configuration and
+plugin, and installed executable/menu hashes matched the baseline. The game's
+own save directory had one changed save and one replaced filename with a new
+same-size save present; those game-written files were left intact and the private
+baseline retained. This is not a claim of byte-identical game-save restoration.
+Gold, Diamond, Champion and Grand Champion are the source's difficulty labels;
+there is no invented Supersonic Legend pack. These are community-authored packs
+featured by Psyonix, with no pack files or game assets bundled.
+
+**Privacy review:** the local reachable-history scan covered 266 commits,
+1,280 blob versions and 394 current tracked files, with no supplied API-key,
+credential-signature, private-key-block or protected-key-blob matches. This is
+pattern evidence, not a guarantee. An actual historical home path and an
+unclassified non-anonymous author email remain in history. A subsequent focused
+reachability check found the email in 29 commits on both the remote branch and
+HEAD; the historical path is also already reachable from the remote branch.
+Neither finding was introduced by this outgoing repair. Current path detector hits are static examples/tests and require
+classification, not an automatic clean label. Vendor/test email literals are
+not treated as leaked credentials. No history was rewritten; GitHub issues,
+CI logs and release artifacts were outside this scan. The final narrow recheck
+covered 30 changed-blob snapshots, four dirty documents, 16 ActionScript sources
+and three compiled movies, including the new 33,506-byte movie. It found no key
+signatures or private-profile paths in those scopes; the new movie has no email
+literals. Two existing source email literals have unclassified provenance.
+
 **Latest live Workshop check (26 October):** source/native candidate `5e3ba56`
 passed 45 native checks and then loaded 30 Steam maps, 16 Bakkes maps and 16
 BakkesMod plugins through actual in-game Browse clicks. More rows, separate
@@ -20,8 +105,9 @@ frozen release.
 but physical PS4 input remains unverified. The actual speed-flip capture stayed
 in Settling because incoming frames were not consecutive, even after temporary
 120/240 FPS and lower-render-quality tests. All graphics settings were restored.
-The same strict frame gate affects ordinary lessons; 60 FPS practice is not
-accepted. No teaching reference was captured or bundled. Free Play also showed
+Ordinary lesson preparation was subsequently repaired as described above;
+strict reference capture still has not passed. No teaching reference was
+captured or bundled. Free Play also showed
 Unlimited Boost despite the core acknowledging NormalBoost; settings echoes
 alone are insufficient evidence of actual boost behavior.
 

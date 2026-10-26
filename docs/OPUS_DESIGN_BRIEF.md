@@ -4,6 +4,40 @@
 Training iteration. This file is a handoff prompt; it does not mean Opus has
 reviewed the project or that the live game integration has passed.
 
+## Priority assignment — owner playtest, 26 October 2026
+
+The owner rejected the button-only Training/Workshop and Garage navigation.
+Follow the latest correction in TRAINING_WORKSHOP_DIRECTION.md over historical
+instructions below. Design only; builders author code and interactive previews.
+
+1. **Unified Training browser:** one home entry; Lessons, Workshop, Mods and
+   Favorites tabs. Large navy panel with a blue border, scrollable rows on the
+   left and selected-item details/preview on the right, matching the structure
+   of the supplied Rocket League Training Browser reference. Search, filters,
+   one primary action and controller focus; no repeated More/Previous pages.
+2. **Garage:** highest-priority visual assignment for Opus. Category tabs,
+   searchable/filterable thumbnail grid for the full available installed
+   cosmetic catalog, compatible paint variants, live car preview and compact
+   selection details. The three supplied Garage references establish slot
+   selection and visual item browsing. Avoid ownership/inventory-only lists.
+   Do not promise unsupported cosmetics or account unlocks.
+3. **USB DualShock 4 display:** controller silhouette only, transparent around
+   it, responsive buttons/sticks/triggers, no box or always-visible observation
+   labels. Training options has a Show controller On/Off switch. Assess an
+   existing compatible BakkesMod controller plugin before duplicating it.
+   The latest live silhouette overlaps the stock boost gauge; provide a clear
+   placement that avoids stock HUD elements at the tested window size.
+4. **In-session Training options:** start lessons directly with useful defaults;
+   put assistance and scenario controls inside the session. Return is one
+   action to the home page, with no transient extra action layout.
+
+Deliver visual/layout specifications and design review, not implementation.
+DeepSeek may help design this particular revision by explicit owner exception;
+it and the other approved builders still own all code. Do not infer a permanent
+role change. Main owns the isolated acceptance session following the owner's
+handback. Designers inspect supplied references or recorded evidence without
+sending game input or reloading installed assets.
+
 ## Current assignment update — 25 October 2026
 
 **Design-only boundary, explicitly corrected by the owner:** Opus supplies visual

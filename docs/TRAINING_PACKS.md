@@ -15,9 +15,9 @@ six selected community training packs from the official news post
   `featured_date` is `2020-04-30`.
 - This is a six-pack excerpt of the article's nine entries. It omits "Power
   shot basic", "Power Aerials" and "Powershots - Saves".
-- We make **no SSL or transport claim** about the source page. The official
-  post does not publish a machine-readable list, so nothing here is scraped,
-  downloaded or refreshed automatically.
+- The excerpt has no **Supersonic Legend (SSL)** difficulty entry. Do not
+  relabel a Grand Champion pack as SSL. The catalog is fixed public metadata,
+  rather than an automatically refreshed list.
 - No proprietary game assets, pack files or replays are copied or bundled.
   The module stores only public metadata: title, author, listed difficulty, code and a
   short description.
@@ -50,19 +50,25 @@ Every record also carries `lesson_id: "power-shots"`, `source_url`,
   digits in four hyphenated groups (`XXXX-XXXX-XXXX-XXXX`). It returns `False`
   for anything else, including non-strings, and never raises.
 
-## Native launch (pending live verification)
+## Native launch (blocked by the offline service)
 
-A native implementation is expected to launch a pack through the BakkesMod
-`load_training` route. That route is **not yet verified in a live game
-session**; treat it as pending until real-game evidence is recorded. The
-intended design is a fixed allowlist mapping pack id to code, with no
-user-supplied text interpolated into a console command.
+The native implementation submits a fixed allowlisted code through BakkesMod's
+`load_training` route. The actual Gold-pack click on source/native `5b293d2`
+reached Rocket League's `Training/GetTrainingData` service, which returned
+`FeatureDisabled` in the owned offline session. The game stayed at the frontend;
+the exact-code confirmation timed out. No pack loaded and no shot was played.
 
-Two caveats to keep visible in the UI and in evidence notes:
+The browser therefore keeps metadata and favorites but disables pack launch with
+an explicit offline-unavailable explanation. The loader remains development
+code, not a verified player capability. The owner declined a Rookie/Pro/All-Star
+built-in-drill fallback; do not substitute it or invent competitive rank labels.
 
-- A pack that is already cached offline may open without a network lookup,
-  while a first-time lookup may require the game's normal online path. Offline
-  and first-lookup behaviour must be reported separately.
+Evidence limits:
+
+- Normal Rocket League Custom Training can be used to obtain packs. Whether a
+  downloaded pack can reopen in this offline session remains unverified. The
+  SDK's existing-editor `Load2` declaration is not a documented frontend loader.
+  Do not claim that caching alone solves this failure.
 - This document is reference material, not in-product messaging. The UI should
   show the pack title, rank and actual creator, and should not present this
   page as promotional copy.
