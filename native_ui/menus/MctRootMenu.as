@@ -533,6 +533,15 @@ package menus
             if (filled) target.endFill();
         }
 
+        // Explicit closed paths avoid Scaleform's rounded-rectangle fill seams.
+        private function drawBrowserRect(target:Graphics, x:Number, y:Number, width:Number, height:Number) : void
+        {
+            target.moveTo(x, y);
+            target.lineTo(x + width, y);
+            target.lineTo(x + width, y + height);
+            target.lineTo(x, y + height);
+            target.lineTo(x, y);
+        }
         private function renderBrowser() : void
         {
             if (browserLayer == null || !browserLayer.visible || view == null || view.browser == null) return;
@@ -553,10 +562,10 @@ package menus
             var selected:Object = selectedBrowserRow();
             var g:* = browserLayer.graphics;
 
-            g.beginFill(0x050B18, 0.82); g.moveTo(0, 0); g.drawRect(0, 0, screenWidth, screenHeight); g.endFill();
+            g.beginFill(0x050B18, 0.82); g.moveTo(0, 0); drawBrowserRect(g, 0, 0, screenWidth, screenHeight); g.endFill();
             g.lineStyle(3, 0x2E8BFF, 1); g.beginFill(0x0B1A33, 0.97);
             g.moveTo(panelX, panelY);
-            g.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12); g.endFill();
+            drawBrowserRect(g, panelX, panelY, panelWidth, panelHeight); g.endFill();
 
             browserText(browserLayer, "TRAINING", panelX + 30, panelY + 18, 280, 42, 28, 0xFFFFFF, true);
             browserText(browserLayer, "Offline library · selections stay on this computer", panelX + 250, panelY + 25,
@@ -576,11 +585,11 @@ package menus
                     browserZone == "tabs" && browserTabFocus == t ? 0xFFFFFF : 0x12305C, 1);
                 tab.graphics.moveTo(0, 0);
                 tab.graphics.beginFill(String(browser.tab) == tabs[t] ? 0x12305C : 0x0D2140, 1);
-                tab.graphics.drawRoundRect(0, 0, tabWidth - 6, 46, 7, 7); tab.graphics.endFill();
+                drawBrowserRect(tab.graphics, 0, 0, tabWidth - 6, 46); tab.graphics.endFill();
                 if (String(browser.tab) == tabs[t])
                 {
                     tab.graphics.beginFill(0x2E8BFF, 1); tab.graphics.moveTo(0, 41);
-                    tab.graphics.drawRect(0, 41, tabWidth - 6, 5); tab.graphics.endFill();
+                    drawBrowserRect(tab.graphics, 0, 41, tabWidth - 6, 5); tab.graphics.endFill();
                 }
                 browserText(tab, labels[t], 8, 10, tabWidth - 22, 27, 15, 0xFFFFFF, true, "center");
                 tab.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
@@ -593,7 +602,7 @@ package menus
             searchFrame.graphics.lineStyle(browserZone == "search" ? 2 : 1,
                 browserZone == "search" ? 0xFFFFFF : 0x2E8BFF, 1);
             searchFrame.graphics.beginFill(0x07152B, 1); searchFrame.graphics.moveTo(0, 0);
-            searchFrame.graphics.drawRoundRect(0, 0, 360, 42, 6, 6);
+            drawBrowserRect(searchFrame.graphics, 0, 0, 360, 42);
             searchFrame.graphics.endFill();
             browserLayer.addChild(searchFrame);
             browserSearch = new TextField();
@@ -628,7 +637,7 @@ package menus
                         browserZone == "tools" && browserToolFocus == u ? 0xFFFFFF : 0x2E8BFF, 0.9);
                     toolSprite.graphics.moveTo(0, 0);
                     toolSprite.graphics.beginFill(tool.enabled === true && !busy ? 0x12305C : 0x16243B, 1);
-                    toolSprite.graphics.drawRoundRect(0, 0, toolWidth, 36, 6, 6); toolSprite.graphics.endFill();
+                    drawBrowserRect(toolSprite.graphics, 0, 0, toolWidth, 36); toolSprite.graphics.endFill();
                     browserText(toolSprite, String(tool.label), 5, 8, toolWidth - 10, 22, 11,
                         tool.enabled === true && !busy ? 0xFFFFFF : 0x5A6E8F, true, "center");
                     toolSprite.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
@@ -653,7 +662,7 @@ package menus
                     String(browser.tab) == "favorites" ? "No favorites yet." : "No items are available.";
                 g.lineStyle(1, 0x2E8BFF, 0.7); g.beginFill(0x07152B, 1);
                 g.moveTo(panelX + 30, bodyY);
-                g.drawRoundRect(panelX + 30, bodyY, listWidth, bodyHeight, 8, 8); g.endFill();
+                drawBrowserRect(g, panelX + 30, bodyY, listWidth, bodyHeight); g.endFill();
                 browserText(browserLayer, stateText, panelX + 60, bodyY + bodyHeight / 2 - 20,
                     listWidth - 60, 48, 18, state == "error" ? 0xFF5A5A : 0x9FB4D4, true, "center");
             }
@@ -671,10 +680,10 @@ package menus
                     rowSprite.graphics.lineStyle(rowSelected ? 3 : 1, rowSelected ? 0xFFFFFF : 0x173A69, 1);
                     rowSprite.graphics.moveTo(0, 0);
                     rowSprite.graphics.beginFill(rowSelected ? 0x1A4A8C : ((r & 1) == 0 ? 0x10264A : 0x0D2140), 1);
-                    rowSprite.graphics.drawRoundRect(0, 0, listWidth - 12, rowHeight, 7, 7); rowSprite.graphics.endFill();
+                    drawBrowserRect(rowSprite.graphics, 0, 0, listWidth - 12, rowHeight); rowSprite.graphics.endFill();
                     rowSprite.graphics.lineStyle(2, 0x2E8BFF, 0.9); rowSprite.graphics.beginFill(0x08162D, 1);
                     rowSprite.graphics.moveTo(10, 4);
-                    rowSprite.graphics.drawRoundRect(10, 4, 78, rowHeight - 8, 5, 5); rowSprite.graphics.endFill();
+                    drawBrowserRect(rowSprite.graphics, 10, 4, 78, rowHeight - 8); rowSprite.graphics.endFill();
                     rowSprite.graphics.moveTo(22, rowHeight - 8); rowSprite.graphics.lineTo(42, 8);
                     rowSprite.graphics.lineTo(57, rowHeight - 10); rowSprite.graphics.lineTo(76, 7);
                     var compactRow:Boolean = rowHeight < 48;
@@ -693,25 +702,25 @@ package menus
                 {
                     var trackX:Number = panelX + 30 + listWidth - 7;
                     g.beginFill(0x13284A, 1); g.moveTo(trackX, bodyY);
-                    g.drawRoundRect(trackX, bodyY, 6, bodyHeight, 6, 6); g.endFill();
+                    drawBrowserRect(g, trackX, bodyY, 6, bodyHeight); g.endFill();
                     var thumbHeight:Number = Math.max(34, bodyHeight * BROWSER_ROWS / Number(browser.total));
                     var maximum:Number = Math.max(1, Number(browser.total) - BROWSER_ROWS);
                     var scroll:Number = Math.min(maximum, Number(browser.offset) + browserTop);
                     var thumbY:Number = bodyY + (bodyHeight - thumbHeight) * scroll / maximum;
                     g.beginFill(0x2E8BFF, 1); g.moveTo(trackX, thumbY);
-                    g.drawRoundRect(trackX, thumbY, 6, thumbHeight, 6, 6); g.endFill();
+                    drawBrowserRect(g, trackX, thumbY, 6, thumbHeight); g.endFill();
                 }
             }
 
             g.lineStyle(1, 0x2E8BFF, 0.8); g.beginFill(0x07152B, 0.96);
             g.moveTo(detailX, bodyY);
-            g.drawRoundRect(detailX, bodyY, detailWidth, bodyHeight, 8, 8); g.endFill();
+            drawBrowserRect(g, detailX, bodyY, detailWidth, bodyHeight); g.endFill();
             if (selected != null)
             {
                 var previewHeight:Number = Math.max(64, Math.min(124, bodyHeight * 0.22));
                 g.lineStyle(2, 0x2E8BFF, 0.8); g.beginFill(0x10264A, 1);
                 g.moveTo(detailX + 18, bodyY + 18);
-                g.drawRoundRect(detailX + 18, bodyY + 18, detailWidth - 36, previewHeight, 7, 7); g.endFill();
+                drawBrowserRect(g, detailX + 18, bodyY + 18, detailWidth - 36, previewHeight); g.endFill();
                 g.moveTo(detailX + 42, bodyY + previewHeight + 8); g.lineTo(detailX + 118, bodyY + 34);
                 g.lineTo(detailX + 188, bodyY + previewHeight - 2); g.lineTo(detailX + detailWidth - 42, bodyY + 30);
                 var titleY:Number = bodyY + previewHeight + 29;
@@ -738,7 +747,7 @@ package menus
                 favorite.graphics.lineStyle(browserZone == "favorite" ? 2 : 1,
                     browserZone == "favorite" ? 0xFFFFFF : 0xFF8A1F, 1);
                 favorite.graphics.beginFill(0x10264A, 1); favorite.graphics.moveTo(0, 0);
-                favorite.graphics.drawRoundRect(0, 0, 42, 42, 6, 6);
+                drawBrowserRect(favorite.graphics, 0, 0, 42, 42);
                 favorite.graphics.endFill();
                 drawStar(favorite.graphics, 21, 21, 14, 6, selected.favorite === true, 0xFF8A1F);
                 favorite.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
@@ -752,7 +761,7 @@ package menus
                     browserZone == "primary" ? 0xFFFFFF : 0x2E8BFF, 1);
                 primary.graphics.beginFill(selected.primary_enabled === true && !busy ? 0x2E8BFF : 0x263A59, 1);
                 primary.graphics.moveTo(0, 0);
-                primary.graphics.drawRoundRect(0, 0, 215, 55, 8, 8); primary.graphics.endFill();
+                drawBrowserRect(primary.graphics, 0, 0, 215, 55); primary.graphics.endFill();
                 browserText(primary, String(selected.primary_label), 10, 15, 195, 27, 16,
                     selected.primary_enabled === true && !busy ? 0xFFFFFF : 0x5A6E8F, true, "center");
                 primary.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
