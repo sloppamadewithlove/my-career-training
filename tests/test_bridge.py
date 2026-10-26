@@ -939,6 +939,130 @@ def test_pending_community_load_blocks_other_activity_but_keeps_exit_available(b
     assert not instance.error and stops == ["exit"]
 
 
+class _TrainingPackCapability:
+    def __init__(self):
+        from types import SimpleNamespace
+        self.scope = SimpleNamespace(
+            nonce="45234854-6e9c-4af5-9c50-e9347f375140", pid=888,
+            start_identity="1234567890.125", frontend=True)
+        self.heartbeat = {}
+        self.available = True
+
+    def _observation(self, require_frontend=True):
+        if not self.available or (require_frontend and not self.scope.frontend):
+            raise RuntimeError("not owned frontend")
+        return self.scope, object(), self.heartbeat
+
+    def state(self):
+        return {"busy": False, "requires_restart": False}
+
+    def request(self):
+        return None
+
+
+def _load_training_pack(instance, capability, pack_id="powershot-practice"):
+    instance.native_community = capability
+    instance.session_state = "Idle"
+    instance.dispatch("start_training_pack", {"id": pack_id})
+    request = instance.state["training_pack_request"]
+    capability.heartbeat = {"native_training_pack": dict(
+        request, status="loaded", code=instance.state["native_training_pack"]["training_pack"]["code"],
+        reason="exact_code_confirmed")}
+    instance._tick()
+    return request
+
+
+def test_native_training_pack_is_workerless_exact_catalog_activity(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "unknown"})
+    assert "Unknown training pack" in instance.error
+    instance.dispatch("start_training_pack", {"id": "powershot-practice", "code": "arbitrary"})
+    assert "featured Custom Training" in instance.error
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert not instance.error and instance.process is None
+    state = instance.state
+    assert state["session"]["kind"] == "training"
+    assert state["session"]["worker_running"] is False
+    assert state["session"]["busy"] is True
+    assert state["native_training_pack"]["status"] == "pending"
+    assert state["training_pack_request"]["pack_id"] == "powershot-practice"
+    assert state["session"]["id"] == state["training_pack_request"]["session_id"]
+    assert state["training_packs"][0]["code"] == "C9E4-0F05-B71A-C322"
+
+
+def test_training_pack_requires_owned_frontend_and_blocks_overlap(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    capability.scope.frontend = False
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert "verified native" in instance.error
+    capability.scope.frontend = True
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    assert not instance.error
+    instance.dispatch("new_career", {"team_name": "Overlap", "format": 1})
+    assert "Custom Training pack" in instance.error
+    assert instance.document["career"] is None
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert "Custom Training pack" in instance.error
+    assert instance.process is None
+
+
+def test_training_pack_exact_ack_preferences_and_return_cleanup(backend):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    request = _load_training_pack(instance, capability)
+    assert instance.state["native_training_pack"]["status"] == "loaded"
+    assert instance.state["training_pack_request"]["request_id"] == request["request_id"]
+    assert instance.state["session"]["busy"] is False
+    assert instance.state["session"]["worker_running"] is False
+    # A loaded pack is returnable but continues to lock out overlapping work.
+    instance.dispatch("start_training_pack", {"id": "powershots"})
+    assert "Finish or return" in instance.error
+    assert instance.session_id == request["session_id"]
+    instance.dispatch("training_settings", {"key": "controller_position", "value": "bottom_left"})
+    assert not instance.error and instance.process is None
+    instance.in_game = True
+    instance.dispatch("return_hub", {"expected_session_id": request["session_id"],
+                                      "expected_fixture_id": "", "abandon": False})
+    assert not instance.error
+    assert instance.native_return_ready == {"session_id": request["session_id"], "fixture_id": ""}
+    assert instance.request is None and instance.session_id is None
+    state = instance.state
+    assert state["training_pack_request"] is None
+    assert state["session"]["id"] is None
+    assert state["native_training_pack"]["status"] == "idle"
+    assert state["native_training_pack"]["active"] is False
+    assert state["session"]["state"] == "Idle"
+
+
+def test_training_pack_forged_ack_timeout_lock_and_exit(backend, monkeypatch):
+    instance, _, _ = backend
+    capability = _TrainingPackCapability()
+    instance.native_community = capability
+    instance.dispatch("start_training_pack", {"id": "powershot-practice"})
+    request = instance.state["training_pack_request"]
+    capability.heartbeat = {"native_training_pack": dict(
+        request, request_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        status="loaded", code="C9E4-0F05-B71A-C322", reason="forged")}
+    instance._tick()
+    assert instance.state["native_training_pack"]["status"] == "pending"
+    instance.native_training_pack._requested_at -= 21
+    instance._tick()
+    state = instance.state
+    assert state["native_training_pack"]["status"] == "failed"
+    assert state["native_training_pack"]["requires_restart"] is True
+    assert state["session"]["busy"] is True and state["session"]["can_exit"] is True
+    instance.dispatch("new_career", {"team_name": "Blocked", "format": 1})
+    assert "Close this My Career session" in instance.error
+    stops = []
+    monkeypatch.setattr(instance, "_begin_stop", stops.append)
+    instance.dispatch("quit_game", {})
+    assert not instance.error and stops == ["exit"]
+
+
 @pytest.mark.parametrize("value", ["", "x" * 41, "club\nname", "club\x7fname"])
 def test_native_career_name_rejects_bad_clipboard(backend, monkeypatch, value):
     from PySide6.QtGui import QGuiApplication
