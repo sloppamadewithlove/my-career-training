@@ -985,6 +985,19 @@ class GameSession:
                 capture_telemetry = capture_telemetry_event(
                     self.capture, active=self.capture_aborted is None and self.capture_ready,
                     target_index=self.capture["target_index"], aborted=self.capture_aborted)
+                # Development-only observed facts for diagnosing a blocked
+                # reset. These do not relax the lesson's verification gates.
+                capture_telemetry.update(
+                    engine_state=self.engine.state if self.engine else None,
+                    applied_reset=self.applied_reset,
+                    packet_gap=frame["packet_gap"], dt=frame["dt"],
+                    frame_step=((frame["frame_num"] - prior["frame_num"]) % (2**32)
+                                if prior is not None else None),
+                    settle_start=getattr(self.engine, "settle_start", None),
+                    actor={key: actor[key] for key in (
+                        "position", "velocity", "rotation", "angular_velocity",
+                        "boost", "wheel_contact", "air_state", "has_jumped",
+                        "has_double_jumped", "has_dodged", "actions") if key in actor})
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
                        scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
