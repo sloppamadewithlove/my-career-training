@@ -113,20 +113,21 @@ Community entry points checked on 25 October:
 ## Delivery order and open dependencies
 
 1. Record these decisions and the agent roles in DEVELOPMENT_WORKFLOW.md.
-2. Opus supplies visual mockups and layout specifications only. Main or DeepSeek
+2. Opus supplies visual mockups and layout specifications only. A builder
    implements the HTML/CSS/JavaScript preview and fixes its behavior. Main reviews
    the result; Luna tests it. Opus can review rendered visuals. Owner selects/
    refines before native UI implementation. Calling code a preview does not make
    it an Opus design-only assignment.
-3. RunInfra's official documentation confirms the intended model and endpoint;
-   configure private credentials and verify an actual bounded request before
-   delegating paid building work. No supplied/configured API key at this point.
+3. RunInfra's official documentation confirms the intended model and endpoint.
+   A bounded authenticated request and subsequent builder runs returned the exact
+   requested model. The credential is protected outside the repository; no other
+   provider credentials or global login configuration were changed.
 4. Build one complete speed-flip teaching path using a real validated reference;
    verify left D-pad input and ghost visibility in the actual game when available.
 5. Expand Workshop discovery and on-demand acquisition, then test supported
    loading and Training-only mod lifecycle. Add Epic only after its own evidence.
 
-The other session's demo recording must finish before this session acts inside
-the game or alters installed runtime files. Observing a process does not convey
-input ownership. Keep research, HTML previews and source documentation independent
-of that session; arrange a handoff before live testing.
+The owner confirmed that the other demo session finished. Observing a process
+does not convey input ownership: establish fresh ownership and follow the testing
+skill before live testing or installed runtime changes. The source implementation
+and its unverified parts are tracked in TRAINING_WORKSHOP_IMPLEMENTATION.md.

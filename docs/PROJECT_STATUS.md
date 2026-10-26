@@ -1,11 +1,32 @@
 # Current project status
 
-Updated 25 October 2026. Start here; older research and validation notes describe
+Updated 26 October 2026. Start here; older research and validation notes describe
 individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
-**Latest owner direction (25 October):** Training/Workshop requirements are now
+**Training/Workshop source candidate (26 October):** the reviewed implementation
+adds normal-speed, looping, render-only ghost practice anchored ahead of the car,
+recorded logical input display, and native Training pause recording/toggle controls.
+Worker acknowledgements keep rejected or delayed commands from reviving a hidden
+ghost. Personal/imported recordings retain their labels; no expert reference is
+bundled. Left-D-pad gameplay binding, physical DS4, tutorial video and bot scenarios
+are not implemented/verified by this candidate. Ball/wall-dependent ghost drills
+remain unavailable until their spatial relationships can be represented correctly.
+
+Workshop now exposes Training Maps and Mods routes with paginated public Steam
+and BakkesPlugins catalogs, current-row source links, cancellation and the existing
+plugin release/download-to-private-library route. Browsing adds no map bundles to
+the installer. This does not add general plugin activation, automatic map downloads,
+certified custom-map launch or Epic acceptance. See
+[TRAINING_WORKSHOP_IMPLEMENTATION.md](TRAINING_WORKSHOP_IMPLEMENTATION.md).
+
+These controls target the explicit native-menu candidate with
+`MCT_ENABLE_NATIVE_MOVIE_TRIAL=ON`, not the legacy default ImGui build. The source
+changes do not update the previously tested e41 frozen installer. Current test
+evidence and remaining live acceptance are recorded in the implementation note.
+
+**Latest owner direction:** Training/Workshop requirements are
 recorded in [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md).
 Speed flip comes first; a ghost slightly ahead repeats until left D-pad hides it,
 with its controller inputs visible, plus optional tutorial video and later bot
@@ -13,23 +34,24 @@ scenarios. HTML Rows/Grid previews precede native implementation. Workshop shoul
 discover community maps and Training-only mods with downloads on demand. Agent
 roles now use RunInfra/DeepSeek V4.1 Flash 1017 for building, main for independent
 review/integration, Luna max for research/testing and Opus 5.5 high for design;
-see [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md). Provider docs are verified;
-no API key or live builder connection is configured. Another session owns the
-demo recording, so game interaction/installed runtime changes remain on hold.
-These documentation changes do not alter the tested e41 binaries or acceptance.
+see [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md). RunInfra returned the exact
+requested model in authenticated builder runs; the credential is protected outside
+the repository. The owner confirmed the demo session finished. Fresh process/input
+ownership and a coherent candidate are still required before any live game test.
 
 **Role correction:** the owner explicitly restricts Opus to visual design and
 design review. Main and DeepSeek own all implementation, including interactive
 HTML previews and behavioral fixes; Luna researches/tests. The separate HTML
 prototype was authored by Opus before this correction, including input logic;
 that assignment crossed the intended role boundary and is not a precedent.
-No game source or installed runtime was changed. Preview work is stopped at the
-owner's correction; current assignments must follow DEVELOPMENT_WORKFLOW.md.
+The owner subsequently resumed implementation with DeepSeek as preferred builder,
+Luna for independent testing, and main for review/integration. Current assignments
+must follow DEVELOPMENT_WORKFLOW.md.
 
 The owner paused on 25 October and requested a fresh session. Read
 [SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) first. The next
 product direction is **Training and Workshop**: inspect their existing
-capabilities, then ask the owner which concrete improvements they want. The
+capabilities using the now-recorded owner requirements. The
 continuation performance target is now **12 seconds**, versus about 26 seconds
 observed in the e41 package; it has not been achieved.
 
@@ -51,7 +73,7 @@ normally for the pause. See the handoff for final cleanup and remaining checks.
 Physical USB DualShock 4 acceptance stays deferred; no replacement release or
 website download has been published.
 
-Current coherent source candidate: `e41ad45`. **Play Next Match now starts the
+Previously tested gameplay candidate: `e41ad45`. **Play Next Match now starts the
 next fixture from one results click, using the saved lineup, without a preview
 or another Start confirmation.** A controlled copied-career source test observed
 the exact save acknowledgement, typed navigation, fresh actual `RootMenuMovie`

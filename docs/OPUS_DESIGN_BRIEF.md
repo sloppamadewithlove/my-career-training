@@ -18,7 +18,7 @@ The owner has now specified the Training/Workshop direction in
 [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md). This supersedes
 older requests below for pause/slow playback, ghost placement beside the player,
 or another broad requirements interview. First provide visual layouts for
-Rows/Grid comparison; main or DeepSeek turns them into self-contained HTML
+Rows/Grid comparison; a builder turns them into self-contained HTML
 previews before native implementation. The ghost is
 slightly ahead, left D-pad toggles it, its own controller inputs are visible,
 and speed flip is the first lesson. Tutorial video and controlled bot scenarios
@@ -28,7 +28,7 @@ prediction stays off. Do not claim sample preview motions are real lessons.
 
 Opus owns visual design only for the game and website. DeepSeek via RunInfra
 is the preferred implementation builder once its connection is verified;
-main may implement, reviews DeepSeek work and integrates; Luna max researches/tests. Existing login-based
+main coordinates, reviews builder work and integrates; Luna max researches/tests. Existing login-based
 design access needs no new API key. See DEVELOPMENT_WORKFLOW.md for exact roles.
 Another session currently owns a demo recording: no game input or installed
 asset/plugin changes until its completion and an ownership handoff are verified.

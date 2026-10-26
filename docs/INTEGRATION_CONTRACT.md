@@ -22,6 +22,13 @@ Context object `backend` has `state` QVariantMap and `dispatch(action, payload)`
 
 ## Community plugin downloads
 
+The separate public catalog and normal-speed ghost-practice contracts are
+documented in [TRAINING_WORKSHOP_IMPLEMENTATION.md](TRAINING_WORKSHOP_IMPLEMENTATION.md).
+Catalog rows do not grant installation or activation capability. The native
+pause ghost controls use command/session acknowledgements and remain separate
+from legacy recording playback. Do not remove either action from the native
+host allowlist when merging independent Training and Workshop patches.
+
 `community_plugins.py` owns official metadata lookup and bounded download into
 the app's private `community-plugins` cache. It does not extract, execute, install
 or load third-party plugins. `Backend` runs one cancellable background request at

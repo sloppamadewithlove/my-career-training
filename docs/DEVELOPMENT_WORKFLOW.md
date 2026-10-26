@@ -1,6 +1,6 @@
 # Development and testing workflow
 
-Updated 25 October 2026. This is the working agreement for faster implementation
+Updated 26 October 2026. This is the working agreement for faster implementation
 and useful evidence. Current product/release truth remains in
 [PROJECT_STATUS.md](PROJECT_STATUS.md). The reusable
 [game-state skill](../skills/my-career-training-testing/SKILL.md) records routes,
@@ -18,36 +18,47 @@ then exposed a real unhandled screen; the release stayed on hold.
 
 | Role | Requested model / route | Concrete output and boundary |
 | --- | --- | --- |
-| Main interviewer, builder, reviewer and integrator | Current main agent | Clarify requirements, define contracts, implement as needed, independently review DeepSeek patches, return defects for correction, integrate and own acceptance |
-| Research, exploration and testing | GPT-6 Luna, max reasoning, Codex CLI | Bounded source/web research, test plans and exact-candidate evidence; game input only after an explicit handoff from main |
-| Builder and hard implementation problems | DeepSeek V4.1 Flash 1017 via RunInfra, paid using the owner's private API key | Scoped implementation patches against an immutable base, rationale and focused verification; no independent merge/publish authority; connection is not yet configured or verified |
+| Main interviewer, reviewer and integrator | Current main agent | Clarify requirements, define contracts, independently review builder patches, return defects for correction, integrate and own acceptance |
+| Research, exploration and testing | GPT-6 Luna, max reasoning, visible Codex agents or Codex CLI | Bounded source/web research, test plans and exact-candidate evidence; game input only after an explicit handoff from main |
+| Preferred builder | DeepSeek V4.1 Flash 1017 via RunInfra, paid using the owner's private API key | Scoped implementation patches, working previews, behavior and bug fixes against an immutable base; authenticated request returned the intended model; no independent merge/publish authority |
+| Additional builders by problem depth | GPT-5.6 Sol high through Codex CLI; Grok 4.7 high through Cursor CLI | Difficult implementation, integration or fixes when main judges escalation useful; existing login access, no additional API keys |
 | Designer only | Claude Opus 5.5 high, Cursor CLI or a verified existing Anthropic authenticated session | Visual mockups, layout/appearance specifications and design reviews for game and website; no implementation/code edits, input logic, bug fixes, scripts or builds; stop designer on quota exhaustion |
-| Independent workflow reviewer | GPT-6 Astra, low reasoning | Check a bounded checkpoint's assignments, receipts, unresolved defects, privacy and claims; do not duplicate every code review |
 
 These owner-selected roles supersede the earlier Grok-primary / Sol-fallback
-building arrangement. DeepSeek is the preferred builder now; do not silently
-replace an unavailable builder or designer with another paid model. The main
+building arrangement. DeepSeek is preferred for most problems. The owner now
+authorizes choosing Sol or Grok by problem depth; quota exhaustion is no longer
+the only reason to use these named builders. Record the actual assignment and
+model; do not silently substitute an unapproved model or designer. The main
 agent remains accountable for correctness and sends a rejected patch back with
 specific defects and acceptance criteria. Luna verifies the corrected behavior;
 main reviews the resulting diff and evidence before integration.
 
+Use parallel agents for independent work, as explicitly requested by the owner.
+Keep file ownership separate, make active assignments visible, and hand game
+input to only one operator. Prefer small implementation slices with a concrete
+first edit; do not spend an entire builder budget repeatedly exploring the same
+files. Main checks integration contracts while Luna tests and builders correct
+identified failures. Stop redundant testing once the relevant checks pass.
+
 **Strict owner clarification:** a working HTML preview is implementation. Opus
-provides the visual design; main or DeepSeek writes its HTML/CSS/JavaScript and
+provides the visual design; a builder writes its HTML/CSS/JavaScript and
 all event handling. Keyboard/controller behavior, state management, downloads,
 runtime fixes, asset compilation and native integration belong to builders.
 Afterward Opus may review screenshots and request visual adjustments; a builder
 implements those adjustments. Do not send behavioral defects back to Opus merely
-because it designed the screen. Main may build directly and remains responsible
-for reviewing DeepSeek output. Luna owns research and test work. This clarification
+because it designed the screen. Main reviews and integrates the builders' output.
+Luna owns research and test work. This clarification
 overrides older assignments that called Opus a design engineer or asset builder.
 
 The owner identified RunInfra's model page. Its [official model documentation](https://runinfra.ai/inference-api/deepseek-v4-1-flash-1017)
 documents the request ID `deepseek-v4-1-flash-1017`, upstream name
 `deepseek-ai/DeepSeek-V4.1-Flash-1017`, API base `https://api.runinfra.ai/v1`,
 Chat Completions and Anthropic-compatible Messages, and tool calling. These are
-provider-documented capabilities, not a successful authenticated integration.
-No key has been supplied or configured at this checkpoint. Record requested and
-returned provider/model identity without claiming more than the API exposes.
+provider-documented capabilities. On 26 October a bounded authenticated request
+returned `deepseek-v4-1-flash-1017`; subsequent source jobs use the same pinned
+model through scoped file tools. The credential is protected locally outside
+the checkout and is not included in prompts or agent-readable source. Record
+requested and returned identity without claiming more than the API exposes.
 If using an agent harness through the Messages API, configure only that child
 process; it remains a DeepSeek builder, not an Opus designer. Do not change the
 main agent's provider or replace existing Cursor/Codex sign-in settings.
