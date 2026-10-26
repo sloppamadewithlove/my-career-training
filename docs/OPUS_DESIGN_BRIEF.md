@@ -6,6 +6,24 @@ reviewed the project or that the live game integration has passed.
 
 ## Current assignment update — 25 October 2026
 
+The owner has now specified the Training/Workshop direction in
+[TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md). This supersedes
+older requests below for pause/slow playback, ghost placement beside the player,
+or another broad requirements interview. First deliver self-contained HTML
+previews with Rows/Grid comparison before native implementation. The ghost is
+slightly ahead, left D-pad toggles it, its own controller inputs are visible,
+and speed flip is the first lesson. Tutorial video and controlled bot scenarios
+are separate lesson actions. Workshop has Training Maps and Mods tabs; content
+is downloaded on demand. Gameplay-changing mods remain out of Career and ball
+prediction stays off. Do not claim sample preview motions are real lessons.
+
+Opus owns in-game and website design. DeepSeek via the requested Run Infra
+provider is the preferred implementation builder once its connection is verified;
+main reviews and integrates, and Luna max researches/tests. Existing login-based
+design access needs no new API key. See DEVELOPMENT_WORKFLOW.md for exact roles.
+Another session currently owns a demo recording: no game input or installed
+asset/plugin changes until its completion and an ownership handoff are verified.
+
 Use Claude Opus 5.5 **high** through Cursor CLI for new design assignments and
 verify the actual model/reasoning output. Earlier ExtraHigh work is historical.
 On quota exhaustion stop the designer role; retain unfinished work here instead
@@ -24,8 +42,8 @@ Pause update, 25 October: the five results controls and direct one-click
 continuation are implemented at e41. Source live checks covered local presets,
 Back and Exit; the exact frozen package completed a normal fixture, direct next
 fixture and confirmed Forfeit. Do not rebuild those controls from scratch.
-The owner's next product focus is Training and Workshop. Inspect current
-capabilities and ask for their priorities before assigning design work. The
+The owner's next product focus is Training and Workshop. Their latest choices
+are recorded in TRAINING_WORKSHOP_DIRECTION.md. The
 12-second continuation target is a performance goal, not a current claim.
 
 - Preserve the owner's results order: Play Next Match, Schedule, Change Preset,

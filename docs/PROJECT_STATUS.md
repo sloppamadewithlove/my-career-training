@@ -5,6 +5,19 @@ individual checkpoints, not the current player's complete experience.
 
 ## Resume here
 
+**Latest owner direction (25 October):** Training/Workshop requirements are now
+recorded in [TRAINING_WORKSHOP_DIRECTION.md](TRAINING_WORKSHOP_DIRECTION.md).
+Speed flip comes first; a ghost slightly ahead repeats until left D-pad hides it,
+with its controller inputs visible, plus optional tutorial video and later bot
+scenarios. HTML Rows/Grid previews precede native implementation. Workshop should
+discover community maps and Training-only mods with downloads on demand. Agent
+roles now use RunInfra/DeepSeek V4.1 Flash 1017 for building, main for independent
+review/integration, Luna max for research/testing and Opus 5.5 high for design;
+see [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md). Provider docs are verified;
+no API key or live builder connection is configured. Another session owns the
+demo recording, so game interaction/installed runtime changes remain on hold.
+These documentation changes do not alter the tested e41 binaries or acceptance.
+
 The owner paused on 25 October and requested a fresh session. Read
 [SESSION_HANDOFF_2026-10-25.md](SESSION_HANDOFF_2026-10-25.md) first. The next
 product direction is **Training and Workshop**: inspect their existing

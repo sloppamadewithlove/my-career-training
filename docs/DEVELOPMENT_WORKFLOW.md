@@ -18,19 +18,48 @@ then exposed a real unhandled screen; the release stayed on hold.
 
 | Role | Requested model / route | Concrete output and boundary |
 | --- | --- | --- |
-| Main integrator | Current main agent | Architecture, shared contracts, bounded assignments, integration, privacy review, GitHub checkpoints and release acceptance |
-| Game tester | GPT-6 Luna, max reasoning, Codex CLI | Test plan and exact-candidate evidence; only operates the game after an explicit input handoff from main |
-| Code reviewer | Grok 4.7 High, Cursor CLI; GPT-5.6 Sol high after actual quota exhaustion | Review an immutable commit/range, report actionable defects or no findings with scope; no production edits in a review job |
-| Designer | Claude Opus 5.5 high, Cursor CLI | Scoped native button/layout/focus/copy changes, rebuilt assets where assigned, visual acceptance checklist; stop designer on quota exhaustion |
+| Main interviewer, reviewer and integrator | Current main agent | Clarify requirements, define shared contracts, review builder patches independently, return defects for correction, integrate, protect privacy and own acceptance |
+| Research, exploration and testing | GPT-6 Luna, max reasoning, Codex CLI | Bounded source/web research, test plans and exact-candidate evidence; game input only after an explicit handoff from main |
+| Builder and hard implementation problems | DeepSeek V4.1 Flash 1017 via RunInfra, paid using the owner's private API key | Scoped implementation patches against an immutable base, rationale and focused verification; no independent merge/publish authority; connection is not yet configured or verified |
+| Designer | Claude Opus 5.5 high, Cursor CLI or a verified existing Anthropic authenticated session | In-game and website design, HTML previews, scoped layout/focus/assets; stop designer on quota exhaustion |
 | Independent workflow reviewer | GPT-6 Astra, low reasoning | Check a bounded checkpoint's assignments, receipts, unresolved defects, privacy and claims; do not duplicate every code review |
+
+These owner-selected roles supersede the earlier Grok-primary / Sol-fallback
+building arrangement. DeepSeek is the preferred builder now; do not silently
+replace an unavailable builder or designer with another paid model. The main
+agent remains accountable for correctness and sends a rejected patch back with
+specific defects and acceptance criteria. Luna verifies the corrected behavior;
+main reviews the resulting diff and evidence before integration.
+
+The owner identified RunInfra's model page. Its [official model documentation](https://runinfra.ai/inference-api/deepseek-v4-1-flash-1017)
+documents the request ID `deepseek-v4-1-flash-1017`, upstream name
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, API base `https://api.runinfra.ai/v1`,
+Chat Completions and Anthropic-compatible Messages, and tool calling. These are
+provider-documented capabilities, not a successful authenticated integration.
+No key has been supplied or configured at this checkpoint. Record requested and
+returned provider/model identity without claiming more than the API exposes.
+If using an agent harness through the Messages API, configure only that child
+process; it remains a DeepSeek builder, not an Opus designer. Do not change the
+main agent's provider or replace existing Cursor/Codex sign-in settings.
+
+Only this builder uses an additional paid API key. Other agents use existing
+subscription/login sessions; do not request additional API keys or change global
+authentication. Keep builder credentials in a private OS-protected local store
+outside the checkout. Load them only into the bounded builder process/request;
+never place them in prompts, command-line arguments, source, tracked config,
+HTML previews, raw HTTP logs, GitHub, release files or public evidence. A chat
+paste is not repository content and must not be copied into the project. Send
+only the source/task context necessary for the assignment, excluding private
+game evidence, saves, unrelated files and credential stores. Track usage and
+actual provider-reported costs; do not claim price or speed savings without
+measurement. Set a per-job request/token bound rather than unlimited retries.
 
 The latest designer preference is **high**. Historical ExtraHigh work is not a
 claim that the current model setting has been exercised. Verify requested model
 and reasoning in CLI/session output before accepting a task receipt; a command
 line request by itself is insufficient. Keep raw output private. If the exact
 model is unavailable, report it and follow only the user's specified fallback.
-On a Grok quota failure, record the failure without retrying it in a loop and
-switch the next useful review to Sol high. On an Opus quota failure, disable
+The prior Grok-to-Sol quota rule is historical. On an Opus quota failure, disable
 that role and maintain [the design handoff](OPUS_DESIGN_BRIEF.md). Do not silently
 substitute another designer. Spend available quota on useful work; do not create
 busywork just to consume it.
