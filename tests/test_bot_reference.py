@@ -3,6 +3,7 @@
 from copy import deepcopy
 import inspect
 import math
+import time
 
 import pytest
 
@@ -11,6 +12,7 @@ from my_career_training.training.bot_reference import (
     DEFAULT_PARAMETERS,
     NEUTRAL_ACTIONS,
     SpeedFlipTrialController,
+    _observed_boost,
     controller_plan,
     evaluate_bot_baseline,
     evaluate_bot_trial,
@@ -152,7 +154,9 @@ def _fixture(
                 "velocity": velocity,
                 "angular_velocity": angular_velocity,
                 "wheel_contact": time < 0.30 or time >= 1.50,
-                "boost": 100.0,
+                # Synthetic normal-boost evidence: the controller holds boost,
+                # and the observed reservoir burns at the canonical rate.
+                "boost": max(0.0, 100.0 - 33.3 * time),
             },
             "ball": {
                 "position": [0.0, 0.0, 93.15],
@@ -408,6 +412,82 @@ def test_packet_gap_in_samples_or_summary_invalidates_candidate():
     recording, summary = _fixture()
     summary["metrics"]["packet_gaps"] = 1
     assert evaluate_bot_trial(recording, summary)["eligible"] is False
+
+
+@pytest.mark.parametrize("profile", ["cancel", "baseline"])
+def test_canonical_mutator_ack_does_not_replace_observed_normal_boost(profile):
+    recording, summary = _fixture(profile)
+    acknowledged_boost = recording["metadata"]["mutators"]["acknowledged"]["mutators"]["boost_amount"]
+    assert acknowledged_boost == "NormalBoost"
+    for sample in recording["samples"]:
+        sample["boost"] = 100.0
+
+    evaluate = evaluate_bot_trial if profile == "cancel" else evaluate_bot_baseline
+    result = evaluate(recording, summary)
+
+    assert result["eligible"] is False
+    assert "normal boost behavior not observed" in _reasons(result)
+
+
+@pytest.mark.parametrize("profile", ["cancel", "baseline"])
+def test_reference_rejects_missing_or_invalid_observed_boost(profile):
+    evaluate = evaluate_bot_trial if profile == "cancel" else evaluate_bot_baseline
+    recording, summary = _fixture(profile)
+    recording["samples"][10].pop("boost")
+    result = evaluate(recording, summary)
+    assert result["eligible"] is False
+    assert "boost" in _reasons(result)
+
+    for invalid in (-0.1, 100.1, math.nan, True):
+        recording, summary = _fixture(profile)
+        recording["samples"][10]["boost"] = invalid
+        result = evaluate(recording, summary)
+        assert result["eligible"] is False
+        assert "boost" in _reasons(result)
+
+
+def test_reference_needs_consecutive_boost_held_depletion_without_refill():
+    recording, summary = _fixture()
+    # Refill every five packets, so no boost-held segment can last 0.1 seconds.
+    for index in range(5, len(recording["samples"]), 5):
+        recording["samples"][index]["boost"] = 100.0
+    result = evaluate_bot_trial(recording, summary)
+    assert result["eligible"] is False
+    assert "normal boost behavior not observed" in _reasons(result)
+
+    recording, summary = _fixture()
+    for sample in recording["samples"]:
+        sample["actions"]["boost"] = False
+    result = evaluate_bot_trial(recording, summary)
+    assert result["eligible"] is False
+    assert "normal boost behavior not observed" in _reasons(result)
+
+
+def test_dense_short_boost_run_is_rejected_with_bounded_scan_time():
+    # Exercise the pathological case for a rescanning implementation: 36k
+    # monotonically decreasing, boost-held samples whose entire run is shorter
+    # than the required 0.1 seconds. The generous ceiling catches quadratic
+    # regressions without relying on a tight microbenchmark threshold.
+    sample_count = 36_000
+    duration = 0.09
+    samples = [
+        {
+            "time": duration * index / (sample_count - 1),
+            "boost": 100.0 - 33.3 * duration * index / (sample_count - 1),
+            "actions": {"boost": True},
+        }
+        for index in range(sample_count)
+    ]
+
+    started = time.perf_counter()
+    found, problems = _observed_boost({"samples": samples}, DEFAULT_GATES)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 10.0
+    assert found["boost_samples"] == sample_count
+    assert found["boost_observed"] is False
+    assert found["boost_held_segments"] == 0
+    assert any("0.1 seconds" in problem for problem in problems)
 
 
 def test_sample_clock_has_120hz_evidence_and_cancel_tolerance_is_one_packet():

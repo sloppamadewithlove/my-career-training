@@ -114,6 +114,12 @@ DEFAULT_GATES = {
     "metric_tolerance_alignment": 0.10,
     "metric_tolerance_angular_speed": 0.5,
     "event_tolerance_seconds": 0.10,
+    # Observed normal-boost burn. The canonical NormalBoost mutator burns about
+    # 33.3 units/second; the tolerance absorbs telemetry quantization only.
+    "boost_depletion_units_per_second": 33.3,
+    "boost_depletion_tolerance_units_per_second": 8.0,
+    "min_boost_held_seconds": 0.1,
+    "min_boost_held_intervals": 2,
 }
 
 LABEL_UNVALIDATED = "Bot trial (unvalidated)"
@@ -675,6 +681,113 @@ def _corroborate(recording, gates):
     return found, problems
 
 
+def _observed_boost(recording, gates):
+    """Check that the recorded samples show an actual normal-boost burn.
+
+    Every sample must carry a finite observed car boost between 0 and 100. The
+    accepted evidence is a bounded contiguous subsegment of a boost-held run: at
+    least ``min_boost_held_intervals`` consecutive sample intervals, spanning at
+    least ``min_boost_held_seconds``, with no rise or refill inside the accepted
+    subsegment and an observed depletion near the canonical NormalBoost rate
+    within the quantization tolerance. A run that later empties to zero or is
+    refilled is not rejected as a whole: the valid early burn subsegment is
+    accepted, while no accepted subsegment may cross the zero or refill point.
+    Any invalid value rejects the whole trial.
+
+    The scan is a two-pointer pass: ``end`` advances once per sample and
+    ``start`` only ever moves forward (reset to ``end`` at a break, or shrunk
+    forward to the minimal window that still meets both minimums, or advanced to
+    ``end`` after an accepted window). Neither pointer is ever rewound, so the
+    work is O(n) in the number of samples.
+
+    This is conservative evidence only. A normal fuel decline with no increase
+    is consistent with a burn, but it is not proof that the pad amount, refill
+    rules or every unlimited mode were configured as declared; the canonical
+    acknowledgement is not physical evidence. Review by main is still required.
+    """
+    samples = recording["samples"]
+    found = {
+        "boost_samples": 0,
+        "boost_held_segments": 0,
+        "boost_held_intervals": 0,
+        "boost_depletion_rates": [],
+        "boost_depletion_units_per_second": None,
+        "boost_observed": False,
+    }
+    problems = []
+    values = []
+    for sample in samples:
+        value = sample.get("boost")
+        if not _finite(value) or not 0 <= value <= 100:
+            problems.append(
+                "Normal boost behavior not observed: every sample must carry a finite "
+                "observed car boost between 0 and 100."
+            )
+            return found, problems
+        values.append(value)
+    found["boost_samples"] = len(values)
+
+    expected = gates["boost_depletion_units_per_second"]
+    tolerance = gates["boost_depletion_tolerance_units_per_second"]
+    minimum_seconds = gates["min_boost_held_seconds"]
+    minimum_intervals = gates["min_boost_held_intervals"]
+    rates = []
+    intervals = 0
+    count = len(samples)
+    start = 0
+    for end in range(count):
+        if not samples[end]["actions"]["boost"] or samples[end].get("packet_gap"):
+            # A released boost or a capture gap ends the run; a fresh search
+            # starts after it.
+            start = end + 1
+            continue
+        if start < end:
+            # Continue the run only while it stays a monotone burn: a rise
+            # (refill) or an empty tank ends it, and no accepted window may
+            # cross that point.
+            if values[end] > values[end - 1] or values[end] <= 0:
+                start = end
+        else:
+            start = end
+        # Shrink forward to the minimal window that still meets both minimums.
+        while (
+            end - start > minimum_intervals
+            and samples[end]["time"] - samples[start + 1]["time"] >= minimum_seconds
+        ):
+            start += 1
+        if end - start < minimum_intervals:
+            continue
+        span = samples[end]["time"] - samples[start]["time"]
+        if span < minimum_seconds:
+            continue
+        decrease = values[start] - values[end]
+        if decrease <= 0:
+            continue
+        rate = decrease / span
+        if abs(rate - expected) > tolerance:
+            # Slide the window forward by one sample; the next end regrows it.
+            start += 1
+            continue
+        rates.append(rate)
+        intervals += end - start
+        start = end
+
+    found["boost_held_segments"] = len(rates)
+    found["boost_held_intervals"] = intervals
+    found["boost_depletion_rates"] = rates
+    if rates:
+        found["boost_depletion_units_per_second"] = sum(rates) / len(rates)
+    if not rates:
+        problems.append(
+            "Normal boost behavior not observed: the samples do not show consecutive "
+            "boost-held intervals with an actual depletion near "
+            f"{expected} units/second across at least {minimum_seconds} seconds."
+        )
+        return found, problems
+    found["boost_observed"] = True
+    return found, problems
+
+
 def _evaluate(recording, summary, gates, *, require_cancel):
     reasons = []
     notes = []
@@ -781,6 +894,17 @@ def _evaluate(recording, summary, gates, *, require_cancel):
     summary_metrics = summary.get("metrics") or {}
     if summary_metrics.get("packet_gaps") not in (0, None):
         reasons.append("The engine summary reports packet gaps.")
+
+    # Normal-boost behavior must be observed in the samples themselves. The
+    # canonical mutator acknowledgement is not physical evidence.
+    boost_found, boost_problems = _observed_boost(recording, gates)
+    reasons.extend(boost_problems)
+    if boost_found["boost_observed"]:
+        notes.append(
+            "Observed boost depletion is consistent with a normal-boost burn; it does not "
+            "prove the pad amount, refill rules or every unlimited mode, so main's real-game "
+            "review is still required."
+        )
 
     profile = _profile_of(recording, summary)
     expected_profile = "cancel" if require_cancel else "baseline"
@@ -932,11 +1056,19 @@ def _evaluate(recording, summary, gates, *, require_cancel):
             "landing_ground_contact": found["landing_ground_contact"],
             "packet_gaps": summary_metrics.get("packet_gaps"),
             "duration": recording.get("duration"),
+            "boost_samples": boost_found["boost_samples"],
+            "boost_held_intervals": boost_found["boost_held_intervals"],
+            "boost_depletion_units_per_second": boost_found["boost_depletion_units_per_second"],
+            "boost_observed": boost_found["boost_observed"],
         }
     )
     result["eligible"] = not reasons
     result["label"] = LABEL_PASSING if result["eligible"] else LABEL_UNVALIDATED
     notes.append("Provisional gates only; this is not an expert or world-record certification.")
+    notes.append(
+        "Observed boost depletion is conservative evidence of a normal-boost burn, not proof "
+        "that all mutators are physically validated or that every unlimited mode is excluded."
+    )
     return result
 
 

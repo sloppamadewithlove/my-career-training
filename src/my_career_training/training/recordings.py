@@ -89,6 +89,10 @@ def validate_recording(value, *, require_reference=False):
             raise ValueError("Invalid packet gap marker.")
         if "wheel_contact" in sample and not isinstance(sample["wheel_contact"], bool):
             raise ValueError("Invalid observed wheel contact in recording.")
+        if "boost" in sample and (not _finite(sample["boost"]) or not 0 <= sample["boost"] <= 100):
+            raise ValueError(
+                "Invalid observed car boost in recording; normal boost behavior is not observed."
+            )
     if len(json.dumps(value, allow_nan=False).encode("utf-8")) > MAX_RECORDING_BYTES:
         raise ValueError("Recording exceeds the supported file size.")
     warnings = []
@@ -248,7 +252,9 @@ class Recorder:
         }
         # Optional observed physics for validating new bot references. Older
         # personal recordings remain readable; missing evidence is not invented.
-        for key in ("angular_velocity", "wheel_contact"):
+        # ``boost`` is the observed car boost amount (0..100), never the intended
+        # controller action, so a normal-boost burn can be checked from samples.
+        for key in ("angular_velocity", "wheel_contact", "boost"):
             if key in car:
                 sample[key] = deepcopy(car[key])
         self.samples.append(sample)
