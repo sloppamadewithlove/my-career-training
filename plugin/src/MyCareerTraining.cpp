@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <windows.h>
 #include <shellapi.h>
+#include <Xinput.h>
 
 // The SDK normally embeds __FILE__, including the builder's private home path.
 // Keep the same public metadata field and ABI with a repository-relative name.
@@ -706,6 +707,78 @@ void MyCareerTraining::communityExecute(const std::string& command) {
 }
 #endif
 
+namespace {
+// The foreground window must belong to this game process. Reading the window
+// identity never takes focus and never touches the player's controls.
+bool foregroundIsThisProcess() {
+    const HWND window = GetForegroundWindow();
+    if (!window) return false;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    return pid != 0 && pid == GetCurrentProcessId();
+}
+
+// Development reference capture owns the only ghost control path while it is
+// active, so the local toggle must stay inert. The bridge publishes no capture
+// flag for ordinary sessions; a missing flag is not capture.
+bool referenceCaptureActive(const mct::Json& state) {
+    const auto telemetry = mct::objectValue(state, "telemetry");
+    if (!telemetry.is_object()) return false;
+    for (const char* key : {"capture", "reference_capture"}) {
+        if (!telemetry.contains(key)) continue;
+        const auto& value = telemetry[key];
+        if (value.is_boolean() && value.get<bool>()) return true;
+        if (value.is_object() && !value.empty()) return true;
+    }
+    return false;
+}
+}  // namespace
+
+void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRuntime& runtime) {
+    // Observe only: one XInput sample per existing tick, no new thread, no
+    // binding, no consumption and no vehicle input. Exactly one connected
+    // controller slot is required; zero or several slots produce no toggle.
+    mct::TrainingGhostInput::Pad pad;
+    int connected = 0;
+    int slot = -1;
+    bool dpadLeft = false;
+    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
+        XINPUT_STATE sample{};
+        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
+        ++connected;
+        slot = static_cast<int>(index);
+        dpadLeft = (sample.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0;
+    }
+    if (connected == 1) {
+        pad.slot = slot;
+        pad.dpadLeft = dpadLeft;
+    }
+
+    mct::TrainingGhostInput::Scope scope;
+    scope.owned = offlineReady_.load() && ownedOfflineNow();
+    scope.fresh = bridge_ && bridge_->fresh();
+    scope.foreground = foregroundIsThisProcess();
+    scope.inGame = runtime.inGame;
+    scope.online = runtime.online;
+    scope.replay = runtime.replay;
+    scope.paused = runtime.paused;
+    scope.matchEnded = runtime.matchEnded;
+    scope.nativeMenuActive = menuOpen_ || ShouldBlockInput() || nativeDialogActive_.load() || nativeProbe_.active() ||
+        lower(runtime.menu).find("pause") != std::string::npos;
+    scope.referenceCaptureActive = referenceCaptureActive(state);
+
+    // The helper samples the button edge before any eligibility test, so a
+    // held button across a career/training, pause/resume, focus or session
+    // transition can never become a new press.
+    const auto decision = trainingGhostInput_.observe(scope, state, pad, mct::unixTime());
+    if (!decision.toggle) return;
+    // Same ACK path as the native pause menu: no direct file write and no
+    // worker bypass. The local latch inside the helper suppresses duplicates
+    // until the observed pending flag clears, the enabled state changes or the
+    // five-second deadline expires.
+    bridge_->send("ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.enabled}});
+}
+
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
     try {
@@ -845,11 +918,16 @@ void MyCareerTraining::tick() {
             next.probeEvents = 0;
             next.probeMessage = probeMessage_;
         }
+        // Sampled on every tick, after the offline branch has refreshed the
+        // runtime and enforceCareer has updated matchEnded. The helper decides
+        // eligibility itself and always tracks the button edge.
+        pollTrainingGhostToggle(publishedState, next);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        trainingGhostInput_.reset();
         restoreCosmetics();
         nativeProbe_.clear();
         removeProbeHooks();

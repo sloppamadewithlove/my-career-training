@@ -11,6 +11,7 @@
 #endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
+#include "TrainingGhostInput.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -116,6 +117,7 @@ private:
     bool scanningProducts_ = true;
     std::vector<MctProduct> productScan_;
     mct::CosmeticOverrideState cosmeticOverride_;
+    mct::TrainingGhostInput trainingGhostInput_;
     bool resumePending_ = false;
     bool resumeEscapeSent_ = false;
     bool pauseCaptureSuppressed_ = false;
@@ -163,6 +165,7 @@ private:
     void removeProbeHooks();
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
+    void pollTrainingGhostToggle(const mct::Json& state, const MctRuntime& runtime);
     void processLocalRequests(MctRuntime& result);
     bool restoreCosmetics();
     void advanceResume(MctRuntime& result);
