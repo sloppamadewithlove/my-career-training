@@ -48,6 +48,9 @@ class Backend(QObject):
         self.in_game = False
         self.telemetry = {}
         self._ghost_practice_enabled = False
+        # True only while a legacy (no explicit recording_id) play command owns
+        # the coach rendering. The new practice flow never falls back to it.
+        self._legacy_playback = False
         # Bounded map of command id -> ghost command fields awaiting the worker's
         # exact acknowledgement. Nothing here is a general protocol queue.
         self._ghost_pending = {}
@@ -1022,30 +1025,57 @@ class Backend(QObject):
         elif action == "play_recording":
             if not self._worker_active() or not (self.request or {}).get("lesson_id"):
                 raise ValueError("Start this lesson before playing its recorded ghost.")
-            if set(p) - {"id", "recording_id"}:
+            if set(p) - {"id", "recording_id", "kind", "mode", "lead_seconds"}:
                 raise ValueError("Choose a saved recording for this lesson.")
             if p.get("id") != self.request["lesson_id"]:
                 raise ValueError("Start the selected lesson before playing its recorded ghost.")
-            variant = configure_lesson(p["id"], **self.request.get("variants", {}))["variant"]
-            selected_id = p.get("recording_id")
-            if not selected_id:
+            # Legacy callers send kind:"personal_best"; nothing else is accepted.
+            if "kind" in p and p["kind"] != "personal_best":
                 raise ValueError("Choose a saved recording for this lesson.")
-            entry = next((item for item in self.document["recordings"]
-                          if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
-            if entry is None or Path(entry["filename"]).name != entry["filename"]:
-                raise ValueError("Choose a recording from this lesson's saved attempts.")
-            best = import_recording(self.store.directory / "recordings" / entry["filename"])
-            if best.get("variant") != variant:
-                raise ValueError("This recording uses a different lesson setup. Choose the matching variation.")
             from .training.coach import coaching_preferences
             preferences = coaching_preferences(self.document["settings"].get("training_display", {}))
+            if "mode" in p:
+                if p["mode"] not in ("watch", "lead"):
+                    raise ValueError("Ghost mode must be watch or lead.")
+                preferences["mode"] = p["mode"]
+            if "lead_seconds" in p:
+                preferences["lead_seconds"] = p["lead_seconds"]
+            # Re-validate the whole display preference set, including the bound
+            # on lead_seconds, before any worker command is sent.
+            preferences = coaching_preferences(preferences)
+            variant = configure_lesson(p["id"], **self.request.get("variants", {}))["variant"]
+            selected_id = p.get("recording_id")
+            if selected_id:
+                entry = next((item for item in self.document["recordings"]
+                              if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
+                if entry is None or Path(entry["filename"]).name != entry["filename"]:
+                    raise ValueError("Choose a recording from this lesson's saved attempts.")
+                best = import_recording(self.store.directory / "recordings" / entry["filename"])
+                if best.get("variant") != variant:
+                    raise ValueError("This recording uses a different lesson setup. Choose the matching variation.")
+                practice = True
+            else:
+                # Legacy automatic best selection, scoped to the active lesson
+                # and its exact variant. No arbitrary path is ever read.
+                from .training.recordings import personal_best
+                best = personal_best([item for item in self._recordings(p["id"])
+                                      if item.get("variant") == variant])
+                if best is None:
+                    raise ValueError("No successful recording matches this lesson setup yet.")
+                practice = False
             command_id = self._send("play_recording", recording=best, mode=preferences["mode"],
-                                    lead_seconds=float(preferences["lead_seconds"]))
-            self._remember_ghost_command(command_id, "play_recording", p["id"])
-            # Loading a recording never turns practice on by itself.
-            self._ghost_practice_enabled = False
-            self._clear_ghost_practice_state(lesson_id=p["id"])
-            self.notice = "Loading the saved recording. Ghost practice stays off until you turn it on."
+                                    lead_seconds=float(preferences["lead_seconds"]), practice=practice)
+            self._remember_ghost_command(command_id, "play_recording", p["id"], practice=practice)
+            self._legacy_playback = not practice
+            if practice:
+                # Loading a recording never turns practice on by itself.
+                self._ghost_practice_enabled = False
+                self._clear_ghost_practice_state(lesson_id=p["id"])
+                self.notice = "Loading the saved recording. Ghost practice stays off until you turn it on."
+            else:
+                # Legacy playback keeps the original watch/lead transport and the
+                # ghost display preference; it never touches practice state.
+                self.notice = "Loading your best recorded attempt for this lesson."
         else:
             raise ValueError(f"Unsupported action: {action}")
 
@@ -1081,16 +1111,20 @@ class Backend(QObject):
         command_id = self._send("ghost_control", operation="toggle", enabled=enabled)
         self._remember_ghost_command(command_id, "ghost_control", lesson_id, enabled)
         self._ghost_practice_enabled = enabled
+        # The new practice toggle takes over from any legacy playback; Off must
+        # never fall back to the legacy coach ghost.
+        self._legacy_playback = False
         self._sync_ghost_assistance(lesson_id, enabled)
         if not enabled:
             self._clear_ghost_practice_state(lesson_id=lesson_id)
         self.stateChanged.emit()
 
-    def _remember_ghost_command(self, command_id, kind, lesson_id, enabled=None):
+    def _remember_ghost_command(self, command_id, kind, lesson_id, enabled=None, practice=None):
         """Track one bounded ghost command until the worker answers it."""
         self._ghost_seq += 1
         self._ghost_pending[command_id] = {"kind": kind, "lesson_id": lesson_id,
-            "enabled": enabled, "session_id": self.session_id, "seq": self._ghost_seq}
+            "enabled": enabled, "practice": practice,
+            "session_id": self.session_id, "seq": self._ghost_seq}
         self._ghost_deadline = time.monotonic() + 5.0
         while len(self._ghost_pending) > 8:
             self._ghost_pending.pop(next(iter(self._ghost_pending)))
@@ -1127,6 +1161,11 @@ class Backend(QObject):
             self.error = str(event.get("error") or "The game worker did not accept that ghost command.")
             return
         if pending["kind"] == "play_recording":
+            if pending.get("practice") is False:
+                # Legacy playback owns the coach transport only; practice state
+                # and the ghost display preference are left exactly as they were.
+                self.notice = str(event.get("label") or "Recording loaded.")
+                return
             # A loaded recording is available but practice stays Off.
             self._ghost_practice_enabled = False
             self._clear_ghost_practice_state(lesson_id=lesson_id)
@@ -1162,6 +1201,7 @@ class Backend(QObject):
         """
         practice = self.telemetry.get("ghost_practice") or {}
         self._ghost_practice_enabled = False
+        self._legacy_playback = False
         self.telemetry["ghost_practice"] = {
             "available": practice.get("available") is True, "enabled": False, "playing": False,
             "visible": False, "status": "off", "pose": None, "lines": [], "coach_actions": None,
@@ -1251,6 +1291,7 @@ class Backend(QObject):
     def _launch(self, request):
         self.startup_cancelled_session = None
         self._ghost_practice_enabled = False
+        self._legacy_playback = False
         self._ghost_pending = {}
         self._ghost_deadline = None
         self.startup_stop_acknowledged = False

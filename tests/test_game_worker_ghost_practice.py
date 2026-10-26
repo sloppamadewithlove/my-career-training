@@ -4,7 +4,10 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 import uuid
+from contextlib import nullcontext
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -136,6 +139,151 @@ def test_worker_acknowledges_only_after_toggle_and_recording_state_is_applied():
     assert session.practice_snapshot["available"] is True
     assert session.practice_snapshot["enabled"] is False
     assert session.engine.preferences["ghost"] is False
+
+
+class FakeRenderer:
+    can_render = True
+    yellow = "yellow"
+    cyan = "cyan"
+
+    def __init__(self):
+        self.text = []
+        self.lines = []
+
+    def context(self, _name):
+        return nullcontext()
+
+    def draw_string_2d(self, value, *_args):
+        self.text.append(value)
+
+    def draw_line_3d(self, start, end, color):
+        self.lines.append((start, end, color))
+
+
+def _render_with_fake_renderer(monkeypatch, session):
+    monkeypatch.setitem(sys.modules, "rlbot", SimpleNamespace(
+        flat=SimpleNamespace(Vector3=lambda *values: tuple(values))))
+    renderer = FakeRenderer()
+    session.renderer = renderer
+    session.engine.preferences.update({"explanations": False, "actions": False,
+                                       "timing": False, "ghost": True})
+    session.render({})
+    return renderer
+
+
+def test_explicit_practice_off_never_falls_back_to_legacy_ghost(monkeypatch):
+    session, _ = lesson_session()
+    session.last_frame["time"] = 10.0
+    session.handle_command({"type": "play_recording", "recording": recording(), "mode": "watch"})
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": True})
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": False})
+    # Simulate a stale legacy snapshot and a persisted old preference. Explicit
+    # practice Off must not reveal the independently maintained coach timeline.
+    session.coach_snapshot = {"visible": True, "lines": [], "label": "Legacy fallback ghost"}
+
+    renderer = _render_with_fake_renderer(monkeypatch, session)
+
+    assert session.practice is not None and session.practice_snapshot["visible"] is False
+    assert "Legacy fallback ghost" not in renderer.text
+    assert renderer.lines == []
+
+
+def test_legacy_recording_command_still_renders_the_coach_ghost(monkeypatch):
+    session, _ = lesson_session()
+    session.practice = GhostPractice(
+        context=practice_context(session.engine.lesson, session.engine.metadata))
+    session.practice_snapshot = session.practice.snapshot()
+    session.last_frame["time"] = 10.0
+
+    session.handle_command({"type": "play_recording", "recording": recording(),
+                            "practice": False, "mode": "watch", "lead_seconds": 0.75})
+    session.coach_snapshot = session.coach.update(10.0)
+
+    renderer = _render_with_fake_renderer(monkeypatch, session)
+
+    assert session.practice is not None and session.practice.available is False
+    assert session.coach_snapshot["visible"] is True
+    assert any("Your recorded attempt" in item for item in renderer.text)
+
+
+def test_legacy_load_after_practice_on_renders_only_the_legacy_ghost(monkeypatch):
+    session, _ = lesson_session()
+    session.last_frame["time"] = 10.0
+    session.handle_command({"type": "play_recording", "recording": recording(),
+                            "practice": True, "mode": "watch"})
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": True})
+    assert session.practice_snapshot["visible"] is True
+
+    session.handle_command({"type": "play_recording", "recording": recording(),
+                            "practice": False, "mode": "watch", "lead_seconds": 0.75})
+    session.coach_snapshot = session.coach.update(10.0)
+    renderer = _render_with_fake_renderer(monkeypatch, session)
+
+    assert session.practice_snapshot["enabled"] is False
+    assert session.practice_snapshot["visible"] is False
+    assert session.coach_snapshot["visible"] is True
+    assert "Your recorded attempt" in renderer.text
+    assert not any(item.startswith("GHOST ") for item in renderer.text)
+
+
+@pytest.mark.parametrize("practice_mode", [None, "false", 0])
+def test_worker_rejects_non_boolean_recording_mode_before_loading(practice_mode):
+    session, _ = lesson_session()
+    session.last_frame["time"] = 10.0
+    before_recording = session.recording
+    before_coach = session.coach.recording
+    before_practice = session.practice.recording
+    before_snapshot = json.loads(json.dumps(session.practice_snapshot))
+
+    with pytest.raises(ValueError, match="practice"):
+        session.handle_command({"id": str(uuid.uuid4()), "type": "play_recording",
+                                "recording": recording(), "practice": practice_mode,
+                                "mode": "watch", "lead_seconds": 0.75})
+
+    assert session.recording is before_recording
+    assert session.coach.recording is before_coach
+    assert session.practice.recording is before_practice
+    assert session.practice_snapshot == before_snapshot
+
+
+@pytest.mark.parametrize("practice_mode", [True, False])
+def test_rejected_incompatible_recording_load_leaves_all_prior_state_unchanged(practice_mode):
+    session, events = lesson_session()
+    session.last_frame["time"] = 10.0
+    session.handle_command({"id": str(uuid.uuid4()), "type": "play_recording",
+                            "recording": recording(), "practice": True,
+                            "mode": "watch", "lead_seconds": 0.75})
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": True})
+    before = {
+        "recording": json.loads(json.dumps(session.recording)),
+        "coach_recording": json.loads(json.dumps(session.coach.recording)),
+        "coach_snapshot": json.loads(json.dumps(session.coach_snapshot)),
+        "coach_state": json.loads(json.dumps(session.coach.snapshot())),
+        "practice_recording": json.loads(json.dumps(session.practice.recording)),
+        "practice_snapshot": json.loads(json.dumps(session.practice_snapshot)),
+        "practice_context": json.loads(json.dumps(session.practice.context)),
+        "playback_origin": session.playback_origin,
+        "ghost_preference": session.engine.preferences["ghost"],
+        "event_count": len(events),
+    }
+    incompatible = recording()
+    incompatible["metadata"]["starting_state"]["car"]["position"][0] = 900
+
+    with pytest.raises(ValueError, match="starting_state"):
+        session.handle_command({"id": str(uuid.uuid4()), "type": "play_recording",
+                                "recording": incompatible, "practice": practice_mode,
+                                "mode": "watch", "lead_seconds": 0.75})
+
+    assert session.recording == before["recording"]
+    assert session.coach.recording == before["coach_recording"]
+    assert session.coach_snapshot == before["coach_snapshot"]
+    assert session.coach.snapshot() == before["coach_state"]
+    assert session.practice.recording == before["practice_recording"]
+    assert session.practice_snapshot == before["practice_snapshot"]
+    assert session.practice.context == before["practice_context"]
+    assert session.playback_origin == before["playback_origin"]
+    assert session.engine.preferences["ghost"] is before["ghost_preference"]
+    assert len(events) == before["event_count"]
 
 
 def test_career_worker_refuses_ghost_toggle_and_recording_load():
@@ -351,6 +499,7 @@ def test_loading_a_recording_turns_off_an_already_enabled_ghost(backend):
     command = json.loads(backend.process.writes[-1])
     assert command["type"] == "play_recording"
     assert command["recording"]["lesson_id"] == "speed-flip"
+    assert command["practice"] is True
     assert backend._ghost_practice_enabled is False
     assert backend.document["lesson_preferences"]["speed-flip"]["ghost"] is False
     assert backend.telemetry["ghost_practice"]["visible"] is False

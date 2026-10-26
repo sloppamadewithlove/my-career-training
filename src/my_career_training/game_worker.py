@@ -239,6 +239,9 @@ class GameSession:
         self.practice = None
         self.practice_snapshot = {}
         self.practice_support = {"supported": False, "reason": "Start a lesson to use ghost practice."}
+        # True only while a legacy (no explicit recording_id) play command owns
+        # the coach rendering. The new practice flow never falls back to it.
+        self.legacy_playback = False
         self.coaching_preferences = request.get("coaching", {})
         self.engine = None
         from .review import MatchReview
@@ -527,6 +530,9 @@ class GameSession:
         if enabled and not self.practice.available:
             raise ValueError("Choose an available recording before turning on ghost practice.")
         self.practice_snapshot = self.practice.set_enabled(enabled, player_pose=self._player_pose())
+        # The new practice toggle takes over from any legacy playback; Off must
+        # never fall back to drawing the legacy coach ghost.
+        self.legacy_playback = False
         # The training assistance ghost setting must agree with practice state.
         if self.engine is not None and self.engine.preferences.get("ghost") != enabled:
             self.engine.set_preference("ghost", enabled)
@@ -566,6 +572,7 @@ class GameSession:
             if "ghost" in preferences and self.practice is not None:
                 if preferences["ghost"] is False:
                     self.practice_snapshot = self.practice.set_enabled(False)
+                    self.legacy_playback = False
                 elif self.practice.available and self.practice_support.get("supported"):
                     self.practice_snapshot = self.practice.set_enabled(True, player_pose=self._player_pose())
         elif kind == "coaching":
@@ -588,6 +595,7 @@ class GameSession:
                 self.coach.resume()
             elif operation == "stop":
                 self.coach.stop()
+                self.legacy_playback = False
                 if self.practice is not None:
                     # Refresh immediately so no stale pose/lines/controller render.
                     self.practice_snapshot = self.practice.set_enabled(False)
@@ -607,27 +615,53 @@ class GameSession:
             from .training.recordings import validate_recording
             if self.engine is None:
                 raise ValueError("Recorded ghosts are available only during a training lesson.")
-            validate_recording(command["recording"])
-            self.recording = command["recording"]
-            self.coach.load(self.recording, kind="personal")
-            self.coach.set_mode(command.get("mode", self.coaching_preferences["mode"]),
-                                float(command.get("lead_seconds", self.coaching_preferences["lead_seconds"])))
+            # The bridge adds this internal flag: True only for an explicit
+            # native recording_id, False for the legacy automatic best attempt.
+            # Direct worker callers that omit it keep the new practice flow.
+            practice = command.get("practice", True)
+            if not isinstance(practice, bool):
+                raise ValueError("Ghost practice must be on or off.")
+            recording = command["recording"]
+            validate_recording(recording)
+            mode = command.get("mode", self.coaching_preferences["mode"])
+            lead_seconds = float(command.get("lead_seconds", self.coaching_preferences["lead_seconds"]))
+            # Validate the complete recording and its context on temporary
+            # players first, so a rejection leaves both previously loaded
+            # players and the practice snapshot exactly as they were.
+            from .training import GhostPlayback, GhostPractice, practice_context
+            context = practice_context(self.engine.lesson, self.engine.metadata)
+            coach = GhostPlayback(mode=self.coach.mode if self.coach else "watch",
+                lead_seconds=self.coach.lead_seconds if self.coach else .75,
+                speed=self.coach.speed if self.coach else 1.0,
+                loop=self.coach.loop if self.coach else False)
+            coach.load(recording, kind="personal", context=context)
+            coach.set_mode(mode, lead_seconds)
+            practice_player = None
+            if practice:
+                practice_player = GhostPractice(context=context)
+                practice_player.load(recording, kind="personal")
+            self.recording = recording
+            self.coach = coach
             self.coach.resume()
             self.playback_origin = self.last_frame["time"] if self.last_frame else None
-            if self.practice is not None:
+            self.legacy_playback = not practice
+            if practice_player is not None:
                 # Selecting a recording makes practice available but leaves it
-                # off until the player turns it on. A wrong lesson/setup is
-                # refused here, at the worker boundary. The context is rebuilt
-                # from the latest observed metadata, because the start-time
-                # context may still have unknown game/hitbox values.
-                from .training import practice_context
-                self.practice.context = practice_context(self.engine.lesson, self.engine.metadata)
-                self.practice.load(self.recording, kind="personal")
+                # off until the player turns it on. The context is rebuilt from
+                # the latest observed metadata, because the start-time context
+                # may still have unknown game/hitbox values.
+                self.practice = practice_player
                 self.practice_snapshot = self.practice.snapshot()
                 self.engine.set_preference("ghost", False)
-            self._ack_ghost(command, accepted=True, available=self.practice.available
-                            if self.practice is not None else False,
-                            label=self.practice_snapshot.get("label", "Recording loaded"))
+            elif self.practice is not None:
+                # Selecting legacy playback must not leave the previously active
+                # practice recording in front of the newly selected coach.
+                self.practice_snapshot = self.practice.set_enabled(False)
+            self._ack_ghost(command, accepted=True,
+                            available=self.practice.available
+                            if practice and self.practice is not None else False,
+                            label=(self.practice_snapshot.get("label", "Recording loaded")
+                                   if practice else self.coach.snapshot().get("label", "Recording loaded")))
         else:
             raise ValueError("Unknown game-session command.")
 
@@ -770,7 +804,7 @@ class GameSession:
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
                 renderer.draw_string_2d("GHOST \u00b7 " + practice.get("label", "Recorded attempt"), .03, .39, .8)
                 self.draw_ghost_actions(practice)
-            elif self.practice is None and preferences["ghost"] and self.coach_snapshot.get("visible"):
+            elif (self.practice is None or self.legacy_playback) and preferences["ghost"] and self.coach_snapshot.get("visible"):
                 for line in self.coach_snapshot.get("lines", []):
                     color = renderer.yellow if line["style"] == "front" else renderer.cyan
                     renderer.draw_line_3d(flat.Vector3(*line["start"]), flat.Vector3(*line["end"]), color)
