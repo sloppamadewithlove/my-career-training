@@ -26,6 +26,8 @@ from .plugin_session import PluginSession, PluginSessionError
 from .storage import Store, default_state
 from .training import (assistance_preferences, catalog, configure_lesson, import_recording,
                        validate_recording)
+from .training.packs import training_packs
+from .training.native_packs import NativeTrainingPackController
 
 
 _MAX_CATALOG_WORKERS = 2
@@ -69,6 +71,7 @@ class Backend(QObject):
         self._ghost_deadline = None
         self.plugin_status = {}
         self.native_community = None
+        self.native_training_pack = NativeTrainingPackController(self._training_pack_observation)
         self.career_draft = {"team_name": "My Career Club"}
         self.workshop_state = {}
         self.community_state = {"catalog": community_plugins.curated_catalog(), "downloaded": [],
@@ -167,6 +170,7 @@ class Backend(QObject):
     @Property("QVariantMap", notify=stateChanged)
     def state(self):
         career = self.document["career"]
+        training_pack_state = self.native_training_pack.state()
         variants = self.document.get("lesson_variants", {}).get(self.selected_id, {})
         selected = configure_lesson(self.selected_id, **variants)
         active_lesson = (configure_lesson(self.request["lesson_id"], **self.request.get("variants", {}))
@@ -181,6 +185,7 @@ class Backend(QObject):
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
                 bool(self.native_community and any(self.native_community.state().get(key)
                      for key in ("busy", "requires_restart"))) or
+                (training_pack_state["active"] and training_pack_state["status"] != "loaded") or
                 self.session_state in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker"),
                 "kind": ("training" if (self.request or {}).get("lesson_id") else "workshop" if (self.request or {}).get("workshop") else "calibration" if (self.request or {}).get("calibration") else "career" if (self.request or {}).get("fixture") else "hub"),
                 "fixture_id": (self.request or {}).get("fixture", {}).get("id"),
@@ -208,6 +213,9 @@ class Backend(QObject):
             "career_draft": dict(self.career_draft),
             "native_community_trial": self.native_community.state() if self.native_community else {},
             "native_community_request": self.native_community.request() if self.native_community else None,
+            "training_packs": training_packs(),
+            "native_training_pack": training_pack_state,
+            "training_pack_request": self.native_training_pack.request(),
             "owned_game": self.owned_game.as_dict() if self.owned_game else None,
             "offline": self.in_game, "human_team": (0 if not self.request or
                 not self.request.get("fixture") or self.request["fixture"].get("home") == "human" else 1)}
@@ -618,7 +626,17 @@ class Backend(QObject):
         self.process.write((json.dumps(message, allow_nan=False) + "\n").encode())
         return message["id"]
 
-    def _require_editable(self, *, allow_community_pending=False):
+    def _training_pack_observation(self, require_frontend):
+        if self.native_community is None:
+            raise ValueError("The native offline capability is unavailable.")
+        scope, _runtime, heartbeat = self.native_community._observation(require_frontend)
+        return {"nonce": scope.nonce, "pid": scope.pid,
+                "start_identity": scope.start_identity, "frontend": scope.frontend,
+                "heartbeat": heartbeat}
+
+    def _require_editable(self, *, allow_community_pending=False,
+                          allow_training_pack_exit=False, allow_training_pack_return=False,
+                          allow_training_pack_preferences=False):
         if self.lifecycle.frozen or self.stop_reason or self.session_state == "Starting Career":
             raise ValueError("Wait for the current game transition to finish.")
         if not allow_community_pending and self.native_community:
@@ -627,6 +645,17 @@ class Backend(QObject):
                 raise ValueError("The plugin could not be confirmed. Close this My Career session before starting another activity.")
             if trial.get("busy"):
                 raise ValueError("Wait for the community plugin confirmation before starting another activity.")
+        pack = self.native_training_pack.state()
+        if pack["active"]:
+            if allow_training_pack_exit:
+                return
+            if allow_training_pack_return and pack["status"] == "loaded":
+                return
+            if allow_training_pack_preferences and pack["status"] == "loaded":
+                return
+            if pack["requires_restart"]:
+                raise ValueError("Close this My Career session before starting another activity.")
+            raise ValueError("Finish or return from the current Custom Training pack before starting another activity.")
 
     @Slot(str, "QVariantMap")
     def dispatch(self, action, payload):
@@ -686,7 +715,11 @@ class Backend(QObject):
                 self._cancel_prepared_next()
                 self._begin_stop("exit")
             else:
-                self._require_editable(allow_community_pending=action in {"quit_game", "stop_session", "return_hub"})
+                self._require_editable(
+                    allow_community_pending=action in {"quit_game", "stop_session", "return_hub"},
+                    allow_training_pack_exit=action == "quit_game",
+                    allow_training_pack_return=action == "return_hub",
+                    allow_training_pack_preferences=action == "training_settings")
                 self._action(action, payload)
         except Exception as exc:
             self.error = str(exc)
@@ -936,6 +969,12 @@ class Backend(QObject):
                         or not self.session_id or p["expected_session_id"] != self.session_id
                         or p["expected_fixture_id"] != (self.request or {}).get("fixture", {}).get("id", "")):
                     raise ValueError("The activity changed. Open its menu again before returning to My Career.")
+            pack_activity = self.native_training_pack.state()
+            if pack_activity["active"]:
+                if (set(p) != {"expected_session_id", "expected_fixture_id", "abandon"}
+                        or p["expected_session_id"] != pack_activity["session_id"]
+                        or p["expected_fixture_id"] != "" or type(p["abandon"]) is not bool):
+                    raise ValueError("The Custom Training activity changed. Open its pause menu again.")
             pending = self.document["career"] and self.document["career"]["pending_session"]
             if pending and not p.get("abandon"):
                 raise ValueError("This match is unfinished. Confirm leaving it; it will restart from kickoff.")
@@ -950,6 +989,8 @@ class Backend(QObject):
                 if self.document["career"] and self.document["career"]["pending_session"]:
                     self._career_change(domain.abandon_fixture)
                 self._finish_native_return()
+                if pack_activity["active"]:
+                    self.native_training_pack.clear_for_return(self.session_id)
                 self.request = None
                 self.session_id = None
                 self.telemetry = {}
@@ -1013,6 +1054,18 @@ class Backend(QObject):
             self.native_community.prepare(self.community_state["selected"])
         elif action == "community_library":
             self._community_job("library")
+        elif action == "start_training_pack":
+            if not isinstance(p, dict) or set(p) != {"id"}:
+                raise ValueError("Choose a featured Custom Training pack.")
+            if (self._worker_active() or self.request is not None or self.session_id is not None
+                    or self.pending_launch is not None or self.stop_reason or self.lifecycle.frozen
+                    or self.session_state != "Idle"):
+                raise ValueError("Finish the current activity before starting Custom Training.")
+            request = self.native_training_pack.start(p["id"])
+            self.request = request
+            self.session_id = request["session_id"]
+            self.session_state = "Training Pack Pending"
+            self.session_message = self.native_training_pack.state()["message"]
         elif action == "workshop_favorite":
             from .workshop import toggle_favorite
             self._refresh_workshop()
@@ -1451,6 +1504,8 @@ class Backend(QObject):
         return self.process is not None and self.process.state() != QProcess.NotRunning
 
     def _prepare_launch(self, action, payload):
+        if self.native_training_pack.active():
+            raise ValueError("Finish or exit the current Custom Training pack before starting another activity.")
         if sys.platform != "win32":
             raise ValueError("Game sessions require the Windows package on your gaming PC. Career management works here.")
         if self.setup_required:
@@ -1849,6 +1904,15 @@ class Backend(QObject):
         self._poll_community()
         self._poll_catalog()
         self._expire_ghost_pending()
+        if self.native_training_pack.refresh():
+            pack = self.native_training_pack.state()
+            if pack["status"] == "loaded":
+                self.session_state = "Training Pack Loaded"
+            elif pack["status"] == "failed":
+                self.session_state = "Training Pack Failed"
+                self.error = pack["message"]
+            self.session_message = pack["message"]
+            self.stateChanged.emit()
         before = (self.lifecycle.state, self.lifecycle.message)
         self.lifecycle.tick()
         if self.stop_reason == "online" and self.lifecycle.state in ("Online Launch Requested", "Error/Recovery"):
@@ -1920,6 +1984,7 @@ class Backend(QObject):
                 self._native_return_request = None
                 self.request = None
                 self.session_id = None
+                self.native_training_pack.clear_after_exit()
                 self.stopping_worker = False
                 self.session_state = "Idle"
                 self.session_message = "Game session closed. Progress is saved."

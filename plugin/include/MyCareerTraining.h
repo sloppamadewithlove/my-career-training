@@ -8,6 +8,7 @@
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
 #include "NativeWorkshopLauncher.h"
 #include "NativeCommunityHost.h"
+#include "NativeTrainingPackHost.h"
 #endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
@@ -70,6 +71,7 @@ private:
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     std::unique_ptr<mct::NativeWorkshopLauncher> workshopLauncher_;
     std::unique_ptr<mct::NativeCommunityHost> communityHost_;
+    std::unique_ptr<mct::NativeTrainingPackHost> trainingPackHost_;
     std::string workshopSession_;
     std::uint64_t workshopGeneration_ = 1;
     mct::NativeCommunityObservation communityObservation() const;
@@ -78,6 +80,8 @@ private:
     bool communityReadCvar(const std::string& name, double& value) const;
     bool communityWriteCvar(const std::string& name, double value) const;
     void communityExecute(const std::string& command);
+    mct::NativeTrainingPackObservation trainingPackObservation() const;
+    void trainingPackExecute(const std::string& command);
 #endif
     std::atomic<bool> nativeMovieReady_{false};
     std::atomic<bool> menuOpen_{!MCT_ENABLE_NATIVE_MOVIE_TRIAL};
@@ -179,8 +183,10 @@ private:
     void dispatchWorkshopCommand(const std::string& command);
     void maintainWorkshop();
     void maintainCommunity();
+    void maintainTrainingPack();
     void shutdownCommunity();
     mct::Json communityStatus() const;
+    mct::Json trainingPackStatus() const;
     void loadPreferences();
     void savePreferences();
     bool command(const std::string& action, mct::Json payload = mct::Json::object());

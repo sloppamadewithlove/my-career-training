@@ -125,6 +125,8 @@ void MyCareerTraining::onLoad() {
             [this](const std::string& command) { communityExecute(command); },
             [this](const std::string& name, double& value) { return communityReadCvar(name, value); },
             [this](const std::string& name, double value) { return communityWriteCvar(name, value); });
+        trainingPackHost_ = std::make_unique<mct::NativeTrainingPackHost>(
+            [this](const std::string& command) { trainingPackExecute(command); });
 #endif
         nativeMovie_ = std::make_unique<mct::NativeMovieHost>(gameWrapper, *bridge_, [this] { return ownedOfflineNow(); },
             [this] { return nativeCosmeticContext(); },
@@ -177,6 +179,7 @@ void MyCareerTraining::onUnload() {
     workshopLauncher_.reset();
     shutdownCommunity();
     if (communityHost_) communityHost_.reset();
+    if (trainingPackHost_) trainingPackHost_.reset();
 #endif
     if (!restoreCosmetics())
         cvarManager->log("My Career: the original cosmetic overrides could not be fully restored.");
@@ -577,6 +580,17 @@ void MyCareerTraining::maintainCommunity() {
 #endif
 }
 
+void MyCareerTraining::maintainTrainingPack() {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (!trainingPackHost_ || !bridge_) return;
+    try {
+        trainingPackHost_->tick(bridge_->state(), [this] { return trainingPackObservation(); });
+    } catch (...) {
+        cvarManager->log("My Career: the Custom Training pack tick stopped.");
+    }
+#endif
+}
+
 void MyCareerTraining::shutdownCommunity() {
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
     if (communityHost_) communityHost_->shutdown(cvarManager != nullptr && gameWrapper != nullptr);
@@ -588,6 +602,13 @@ mct::Json MyCareerTraining::communityStatus() const {
     if (communityHost_) return communityHost_->status();
 #endif
     return {{"status", "idle"}, {"reason", "trial_compiled_out"}, {"game_verified", false}, {"production_allowed", false}};
+}
+
+mct::Json MyCareerTraining::trainingPackStatus() const {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+    if (trainingPackHost_) return trainingPackHost_->status();
+#endif
+    return {{"status", "idle"}, {"reason", "native_movie_trial_compiled_out"}};
 }
 
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
@@ -705,6 +726,51 @@ void MyCareerTraining::communityExecute(const std::string& command) {
         throw std::runtime_error("The community trial command is not the derived load.");
     cvarManager->executeCommand(command, false);
 }
+
+mct::NativeTrainingPackObservation MyCareerTraining::trainingPackObservation() const {
+    mct::NativeTrainingPackObservation observation;
+    observation.now = mct::unixTime();
+    observation.pid = GetCurrentProcessId();
+    observation.created = processScope_.created;
+    observation.processAvailable = cvarManager != nullptr && gameWrapper != nullptr;
+    observation.ownedOffline = ownedOfflineNow();
+    observation.fresh = bridge_ && bridge_->fresh();
+    observation.movieReady = nativeMovie_ && nativeMovie_->movieReady();
+    std::string sha;
+    std::string core;
+    std::string build;
+    observation.buildVerified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, core, build);
+    if (bridge_) observation.nonce = mct::stringValue(bridge_->state(), "bridge_session");
+    if (!gameWrapper) return observation;
+    try {
+        observation.online = gameWrapper->IsInOnlineGame();
+        observation.replay = gameWrapper->IsInReplay();
+        observation.frontend = !gameWrapper->IsInGame() && !observation.replay && !observation.online;
+        observation.inCustomTraining = gameWrapper->IsInCustomTraining();
+        if (observation.inCustomTraining) {
+            auto server = gameWrapper->GetGameEventAsServer();
+            if (server) {
+                TrainingEditorWrapper editor(server.memory_address);
+                auto save = editor.GetTrainingData();
+                auto training = save.GetTrainingData();
+                auto code = training.GetCode();
+                observation.loadedCode = code.ToString();
+            }
+        }
+    } catch (...) {
+        observation.loadedCode.clear();
+    }
+    return observation;
+}
+
+void MyCareerTraining::trainingPackExecute(const std::string& command) {
+    if (!cvarManager) throw std::runtime_error("The Custom Training command manager is unavailable.");
+    bool allowed = false;
+    for (const auto& pack : mct::kNativeTrainingPacks)
+        if (command == std::string("load_training ") + pack.code) allowed = true;
+    if (!allowed) throw std::runtime_error("The Custom Training command is not in the fixed catalog.");
+    cvarManager->executeCommand(command, false);
+}
 #endif
 
 namespace {
@@ -804,6 +870,7 @@ void MyCareerTraining::tick() {
             nativeMovie_->tick();
             nativeMovieReady_ = offlineReady_ && nativeMovie_->movieReady();
         } else nativeMovieReady_ = false;
+        maintainTrainingPack();
         maintainCommunity();
         if (nativeDialogActive_ && (!offlineReady_ || next.inGame || next.replay ||
             nativeNonce_ != stringValue(publishedState, "bridge_session"))) closeNativeMenu();
@@ -884,6 +951,7 @@ void MyCareerTraining::tick() {
                     {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"native_community_status", communityStatus()},
+                    {"native_training_pack", trainingPackStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
@@ -901,10 +969,13 @@ void MyCareerTraining::tick() {
             menuLifecycle_.observe({});
             menuOpen_ = false;
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
-            if (communityHost_ && communityHost_->active() && bridge_ && mct::unixTime() - lastStatus_ >= 0.5) {
+            if (((communityHost_ && communityHost_->active()) ||
+                 (trainingPackHost_ && trainingPackHost_->active())) &&
+                bridge_ && mct::unixTime() - lastStatus_ >= 0.5) {
                 Json status = {{"version", "0.3.0"}, {"online", next.online}, {"in_game", next.inGame},
                     {"in_replay", next.replay}, {"frontend", !next.inGame && !next.replay && !next.online},
                     {"pid", GetCurrentProcessId()}, {"native_community_status", communityStatus()},
+                    {"native_training_pack", trainingPackStatus()},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"runtime_verified", false}, {"production_ready", false}};
                 bridge_->publishStatus(std::move(status));

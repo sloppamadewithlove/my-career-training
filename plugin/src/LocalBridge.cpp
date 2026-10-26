@@ -225,7 +225,7 @@ bool LocalBridge::allowedAction(const std::string& action) {
         "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
         "community_browse", "community_browse_more", "community_browse_cancel", "community_open_source", "community_open_item",
         "community_select_plugin",
-        "community_trial_prepare", "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data"
+        "community_trial_prepare", "start_training_pack", "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data"
     };
     return actions.count(action) != 0;
 }
