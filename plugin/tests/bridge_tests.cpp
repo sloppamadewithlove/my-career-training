@@ -1,6 +1,7 @@
 #include "LocalBridge.h"
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #ifdef _WIN32
 #include <chrono>
@@ -49,17 +50,35 @@ int main() {
         require(bridge.poll(), "Fresh state did not recover after cached expiry");
         require(!bridge.send("online_request"), "Online command accepted");
         require(!bridge.send("execute", {{"command", "bad"}}), "Arbitrary execution accepted");
+        require(!bridge.send("unknown_catalog_action", {{"source", "steam_maps"}}),
+                "Unknown catalog action accepted");
         require(!bridge.send("play_match", "not-an-object"), "Invalid payload accepted");
-        require(bridge.send("play_match"), "Offline fixture command rejected");
+        std::map<std::string, Json> expectedCommands = {
+            {"play_match", Json::object()},
+            {"community_browse", {{"source", "steam_maps"}, {"page", 1}, {"query", ""}}},
+            {"community_browse_cancel", Json::object()},
+            {"community_open_source", {{"source", "bakkes_maps"}}},
+            {"community_open_item", {{"source", "steam_maps"}, {"id", 1520915243}}},
+            {"community_select_plugin", {{"source", "bakkes_plugins"}, {"id", 1520915243}}},
+        };
+        for (const auto& [action, payload] : expectedCommands)
+            require(bridge.send(action, payload), "Allowed offline bridge command rejected");
         size_t commands = 0;
+        std::map<std::string, size_t> observedActions;
         for (const auto& entry : std::filesystem::directory_iterator(root / "commands")) {
             require(entry.path().extension() == ".json", "Partial command leaked");
             std::ifstream file(entry.path()); Json command; file >> command;
-            require(command["session"] == valid["bridge_session"] && command["action"] == "play_match", "Command identity mismatch");
+            const auto action = stringValue(command, "action");
+            require(command["session"] == valid["bridge_session"], "Command bridge session mismatch");
+            require(expectedCommands.count(action) == 1, "Unexpected command was written");
+            require(command["payload"] == expectedCommands.at(action), "Command payload changed while writing");
             require(stringValue(command, "id").size() == 36, "Canonical UUID missing");
+            ++observedActions[action];
             ++commands;
         }
-        require(commands == 1, "Wrong command count");
+        require(commands == expectedCommands.size(), "Wrong command count");
+        for (const auto& [action, _payload] : expectedCommands)
+            require(observedActions[action] == 1, "Expected bridge action was not written exactly once");
         bridge.publishStatus({{"online", false}});
         require(std::filesystem::exists(root / "plugin-status.json"), "Runtime status missing");
 #ifdef _WIN32

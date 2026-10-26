@@ -62,6 +62,21 @@ Json readyState(const CareerLayoutScope& scope) {
     };
 }
 
+Json backendReadyState(const CareerLayoutScope& scope) {
+    auto state = readyState(scope);
+    // Match Backend.catalog_state's actual startup default. The current source
+    // is Steam Maps even though no page has been fetched yet.
+    state["community_catalog"] = {
+        {"source", "steam_maps"}, {"page", 1}, {"query", ""}, {"busy", false},
+        {"loading", false}, {"status", "idle"},
+        {"message", "Choose a catalog source, then browse one public page."},
+        {"items", Json::array()}, {"has_next", false}, {"source_url", ""},
+        {"page_item_count", 0}, {"query_scope", "none"}, {"remote_query", false},
+        {"truncated", false}, {"fetched", false}, {"generation", 0},
+        {"catalog_only", true}, {"can_download", false}, {"can_activate", false}
+    };
+    return state;
+}
 Json catalogItem(const std::string& source, std::int64_t sourceId, const std::string& title,
                  const std::string& creator = "Creator", bool includeCreator = true) {
     Json item = {
@@ -431,8 +446,8 @@ void testMaxChoicesBackAndActivationStayDisabled() {
                     "The last row inside the public row cap was unreachable");
             require(!hasChoice(view, "catalog.open.2060"), "Rows beyond the public cap were exposed");
             const auto back = choose(layout, view, "nav.back", scope, state, false);
-            require(back.accepted && back.page == CareerLayoutPage::Workshop,
-                    "Back was not selectable at the choice limit");
+            require(back.accepted && back.page == CareerLayoutPage::WorkshopMods,
+                    "Back from the plugin catalog did not return to Mods at the choice limit");
         }
     }
     require(reachable.size() == 60 && std::adjacent_find(reachable.begin(), reachable.end()) == reachable.end(),
@@ -450,6 +465,107 @@ void testMaxChoicesBackAndActivationStayDisabled() {
             "Existing Community activation control was enabled");
 }
 
+void testWorkshopCatalogPreservesEntryCategoryAndFiltersOtherSources() {
+    const auto scope = ownedScope();
+    const auto fresh = backendReadyState(scope);
+
+    // Starting from the real backend default source must not turn the Mods
+    // destination into a Training Maps catalog or expose map rows.
+    NativeCareerLayout freshMods;
+    enterCatalogFromMods(freshMods, scope, fresh);
+    const auto freshModsView = freshMods.view(scope, fresh);
+    audit(freshModsView);
+    require(freshModsView.page == CareerLayoutPage::WorkshopCatalog &&
+            freshModsView.title == "Workshop - Mods catalog",
+            "Mods entry inherited the fresh backend's default Maps category");
+    require(countPrefix(freshModsView, "catalog.open.") == 0 &&
+            countPrefix(freshModsView, "catalog.plugin.") == 0,
+            "Fresh Mods catalog displayed rows before a plugin source was selected");
+    require(hasChoice(freshModsView, "catalog.source.bakkes_plugins"),
+            "Mods catalog did not offer its BakkesMod plugin source");
+
+    // A successful prior Maps read may still be in backend state. Its rows
+    // stay hidden on the Mods route until the plugin-source result replaces it.
+    auto staleMaps = catalogState(fresh, "steam_maps", 1, true, true, "ok",
+        Json::array({catalogItem("steam_maps", 91, "Stale map result")}));
+    NativeCareerLayout mods;
+    enterCatalogFromMods(mods, scope, staleMaps);
+    auto modsView = mods.view(scope, staleMaps);
+    require(modsView.title == "Workshop - Mods catalog" &&
+            !hasChoice(modsView, "catalog.open.91"),
+            "Stale Steam map row leaked into the Mods catalog");
+
+    const auto& pluginSource = findChoice(modsView, "catalog.source.bakkes_plugins");
+    const auto browsePlugins = choose(mods, modsView, pluginSource.id, scope, staleMaps, true);
+    require(browsePlugins.accepted && browsePlugins.action == "community_browse" &&
+            browsePlugins.payload == Json({{"source", "bakkes_plugins"}, {"page", 1}, {"query", ""}}),
+            "Mods catalog did not request its own source");
+    modsView = mods.view(scope, staleMaps);
+    require(!hasChoice(modsView, "catalog.open.91"),
+            "Stale Maps rows appeared while the plugin-source request was pending");
+
+    const auto pluginState = catalogState(staleMaps, "bakkes_plugins", 1, true, true, "ok",
+        Json::array({catalogItem("bakkes_plugins", 223, "Training Plugin")}));
+    const auto pluginView = mods.view(scope, pluginState);
+    audit(pluginView);
+    require(pluginView.title == "Workshop - Mods catalog" &&
+            hasChoice(pluginView, "catalog.open.223") && hasChoice(pluginView, "catalog.plugin.223"),
+            "BakkesPlugins result did not populate the Mods catalog");
+    require(!hasChoice(pluginView, "catalog.open.91"),
+            "A stale Maps row remained beside plugin results");
+
+    const auto modsBack = choose(mods, pluginView, "nav.back", scope, pluginState, false);
+    require(modsBack.accepted && modsBack.page == CareerLayoutPage::WorkshopMods,
+            "Back from the plugin catalog did not return to Mods");
+    const auto returnedMods = mods.view(scope, pluginState);
+    require(returnedMods.page == CareerLayoutPage::WorkshopMods &&
+            returnedMods.title == "Workshop - Mods",
+            "Plugin catalog Back returned to a different Workshop category");
+
+    // Switching to Training Maps after plugin results must keep plugin rows
+    // out of the Maps catalog until a map source is read.
+    const auto workshopBack = choose(mods, returnedMods, "nav.back", scope, pluginState, false);
+    require(workshopBack.accepted && workshopBack.page == CareerLayoutPage::Workshop,
+            "Back from Mods did not return to Workshop");
+    const auto workshop = mods.view(scope, pluginState);
+    const auto mapsNav = choose(mods, workshop, "workshop.catalog.open", scope, pluginState, false);
+    require(mapsNav.accepted && mapsNav.page == CareerLayoutPage::WorkshopCatalog,
+            "Training Maps catalog could not be opened after plugin results");
+    const auto mapsView = mods.view(scope, pluginState);
+    audit(mapsView);
+    require(mapsView.title == "Workshop - Training Maps catalog" &&
+            !hasChoice(mapsView, "catalog.open.223") && !hasChoice(mapsView, "catalog.plugin.223"),
+            "Plugin rows leaked into the Training Maps catalog");
+    require(hasChoice(mapsView, "catalog.source.steam_maps") &&
+            hasChoice(mapsView, "catalog.source.bakkes_maps"),
+            "Training Maps catalog lost its map-source choices");
+
+    const auto mapsBack = choose(mods, mapsView, "nav.back", scope, pluginState, false);
+    require(mapsBack.accepted && mapsBack.page == CareerLayoutPage::Workshop,
+            "Back from Training Maps catalog did not return to Workshop maps");
+
+    // The existing Community entry is another Maps route, but Back must return
+    // to Community rather than detouring through Workshop.
+    NativeCareerLayout community;
+    require(community.open(scope, pluginState), "Could not open layout for Community-origin route");
+    const auto root = community.view(scope, pluginState);
+    require(choose(community, root, NativeCareerLayout::kCommunity, scope, pluginState, false).page ==
+            CareerLayoutPage::Community, "Could not open the existing Community page");
+    const auto communityView = community.view(scope, pluginState);
+    const auto communityCatalog = choose(community, communityView, "community.catalog", scope,
+                                         pluginState, false);
+    require(communityCatalog.accepted && communityCatalog.page == CareerLayoutPage::WorkshopCatalog,
+            "Community did not enter the shared catalog");
+    const auto communityCatalogView = community.view(scope, pluginState);
+    require(communityCatalogView.title == "Workshop - Training Maps catalog" &&
+            !hasChoice(communityCatalogView, "catalog.open.223") &&
+            !hasChoice(communityCatalogView, "catalog.plugin.223"),
+            "Community Maps route inherited stale plugin results");
+    const auto communityBack = choose(community, communityCatalogView, "nav.back", scope,
+                                      pluginState, false);
+    require(communityBack.accepted && communityBack.page == CareerLayoutPage::Community,
+            "Back from Community catalog did not return to its entry page");
+}
 } // namespace
 
 int main() {
@@ -462,6 +578,7 @@ int main() {
         testRowsPaginationPayloadAndSanitization();
         testFallbackLoadingAndStaleChoices();
         testMaxChoicesBackAndActivationStayDisabled();
+        testWorkshopCatalogPreservesEntryCategoryAndFiltersOtherSources();
     } catch (const std::exception& error) {
         std::cerr << "FAIL " << error.what() << "\n";
         return 1;

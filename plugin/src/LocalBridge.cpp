@@ -223,6 +223,8 @@ bool LocalBridge::allowedAction(const std::string& action) {
         "restore_explanations", "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
         "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording",
         "community_lookup", "community_paste_link", "community_download", "community_library", "community_cancel",
+        "community_browse", "community_browse_cancel", "community_open_source", "community_open_item",
+        "community_select_plugin",
         "community_trial_prepare", "career_name_clipboard", "rename_recruit_clipboard", "backup_save", "open_data"
     };
     return actions.count(action) != 0;

@@ -48,6 +48,20 @@ inline CatalogSource catalogSourceOf(const std::string& name) {
     return CatalogSource::None;
 }
 
+// Which Workshop entry opened the catalog. The backend community_catalog.source
+// is shared and may still hold the other entry's result, so the intended
+// category is kept in layout navigation state instead.
+enum class CatalogCategory { None, Maps, Plugins };
+
+inline bool catalogCategoryHas(CatalogCategory category, CatalogSource source) {
+    if (source == CatalogSource::None) return false;
+    if (category == CatalogCategory::Maps)
+        return source == CatalogSource::SteamMaps || source == CatalogSource::BakkesMaps;
+    if (category == CatalogCategory::Plugins) return source == CatalogSource::BakkesPlugins;
+    // No category was recorded (legacy Community entry): any fixed source is allowed.
+    return true;
+}
+
 enum class CareerLayoutEffectKind {
     None, Navigate, PreserveStockRoute, Dispatch, Unavailable, LocalCosmetic, LocalWorkshop
 };
@@ -120,6 +134,11 @@ struct CareerLayoutChoice {
     // Local workshop binding. The movie never receives the path or command.
     NativeWorkshopRequest workshop;
     std::uint64_t workshopStamp = 0;
+    // Catalog navigation state. Set on a Navigate choice that opens the catalog
+    // so the intended category and Back target do not depend on the backend
+    // community_catalog.source, which is shared between entries.
+    CatalogCategory catalog = CatalogCategory::None;
+    CareerLayoutPage catalogBack = CareerLayoutPage::Workshop;
     // Monotonic render generation. Logical ids stay stable; this value does not.
     std::uint64_t revision = 0;
 };
@@ -256,6 +275,8 @@ public:
         cosmeticProductId_ = 0;
         workshopPage_ = 0;
         catalogPage_ = 0;
+        catalogCategory_ = CatalogCategory::None;
+        catalogBack_ = CareerLayoutPage::Workshop;
         opened_ = false;
         if (!scopeOk(scope) || !stateMatches(state, scope)) return false;
         // Advance even when the supplied scope is unchanged, so a choice captured
@@ -550,6 +571,10 @@ private:
     std::size_t workshopPage_ = 0;
     bool workshopMods_ = false;
     std::size_t catalogPage_ = 0;
+    // Intended catalog category and Back target, captured when the catalog was
+    // entered. Never derived from the shared backend community_catalog.source.
+    CatalogCategory catalogCategory_ = CatalogCategory::None;
+    CareerLayoutPage catalogBack_ = CareerLayoutPage::Workshop;
     bool opened_ = false;
     CareerLayoutScope openedScope_{};
     std::uint64_t revision_ = 0;
@@ -608,6 +633,12 @@ private:
             if (choice->target == CareerLayoutPage::WorkshopCatalog) {
                 workshopMods_ = true;
                 catalogPage_ = choice->page;
+                // Only an entry choice carries a category. Local row paging
+                // keeps the category and Back target captured on entry.
+                if (choice->catalog != CatalogCategory::None) {
+                    catalogCategory_ = choice->catalog;
+                    catalogBack_ = choice->catalogBack;
+                }
             }
             if (choice->target == CareerLayoutPage::CosmeticItems) {
                 cosmeticSlot_ = choice->cosmetic.slot;
@@ -679,6 +710,7 @@ private:
             a.fixtureId == b.fixtureId && a.recruitId == b.recruitId && a.itemId == b.itemId &&
             a.cosmetic == b.cosmetic && a.cosmeticStamp == b.cosmeticStamp &&
             a.workshop == b.workshop && a.workshopStamp == b.workshopStamp &&
+            a.catalog == b.catalog && a.catalogBack == b.catalogBack &&
             a.revision == b.revision;
     }
 
@@ -846,6 +878,22 @@ private:
 
     static void back(CareerLayoutView& view, CareerLayoutPage target, std::size_t page = 0) {
         navigate(view, "nav.back", "Back", target, page);
+    }
+
+    // Catalog entry navigation. The intended category and Back target travel in
+    // the choice so they survive a stale or shared backend catalog source.
+    static void navigateCatalog(CareerLayoutView& view, const char* id, const std::string& label,
+                                CatalogCategory category, CareerLayoutPage backTarget) {
+        CareerLayoutChoice choice;
+        choice.id = id;
+        choice.label = label;
+        choice.enabled = true;
+        choice.kind = CareerLayoutEffectKind::Navigate;
+        choice.target = CareerLayoutPage::WorkshopCatalog;
+        choice.page = 0;
+        choice.catalog = category;
+        choice.catalogBack = backTarget;
+        push(view, std::move(choice));
     }
 
     static Json sessionOf(const Json& state) { return object(state, "session"); }
@@ -1332,7 +1380,8 @@ private:
         navigate(view, "workshop.tab.mods", "Mods", CareerLayoutPage::WorkshopMods);
         const bool canEdit = !busy(state);
         dispatch(view, "workshop.refresh", "Refresh library", canEdit, kWait, "refresh_workshop", Json::object());
-        navigate(view, "workshop.catalog.open", "Browse online maps", CareerLayoutPage::WorkshopCatalog, 0);
+        navigateCatalog(view, "workshop.catalog.open", "Browse online maps", CatalogCategory::Maps,
+            CareerLayoutPage::Workshop);
         const auto items = array(library, "items");
         const auto stop = (std::min)(items.size(), workshop.bound ? kMaxWorkshopRows : kScanCap);
         std::vector<std::size_t> rows;
@@ -1479,29 +1528,45 @@ private:
         activate.kind = CareerLayoutEffectKind::Unavailable;
         activate.reason = kActivationReason;
         push(view, std::move(activate));
-        navigate(view, "mods.catalog", "Browse plugin catalog", CareerLayoutPage::WorkshopCatalog, 0);
+        navigateCatalog(view, "mods.catalog", "Browse plugin catalog", CatalogCategory::Plugins,
+            CareerLayoutPage::WorkshopMods);
         back(view, CareerLayoutPage::Workshop);
     }
 
     void buildWorkshopCatalog(CareerLayoutView& view, const Json& state) const {
         const auto catalog = catalogOf(state);
-        const auto source = catalogSourceOf(text(catalog, "source"));
-        const bool plugins = source == CatalogSource::BakkesPlugins;
+        const auto backendSource = catalogSourceOf(text(catalog, "source"));
+        const bool plugins = catalogCategory_ == CatalogCategory::Plugins;
+        // The backend catalog source is shared between the Maps and Mods entries.
+        // A result that does not belong to this entry's category is not this
+        // catalog's result: no rows, no download, and no check actions.
+        const bool matching = catalogCategoryHas(catalogCategory_, backendSource);
+        const auto source = matching ? backendSource : CatalogSource::None;
         view.title = plugins ? "Workshop - Mods catalog" : "Workshop - Training Maps catalog";
         const auto status = text(catalog, "status");
         const bool waiting = catalogBusy(catalog);
         int onlinePage = 1;
         if (!whole(catalog, "page", onlinePage, 1, kMaxCatalogPage)) onlinePage = 1;
         addLine(view.body, "Catalog links only. Nothing is downloaded, installed, or enabled.");
-        addLine(view.body, "Details open the creator's own page in your browser.");        const auto message = text(catalog, "message");
+        addLine(view.body, "Details open the creator's own page in your browser.");
+        // A message from the other entry's read is not this catalog's message.
+        const auto message = matching ? text(catalog, "message") : std::string();
         if (!message.empty()) addLine(view.body, message);
         if (waiting) addLine(view.body, "Reading one public catalog page. Cancel stops it.");
+        else if (backendSource != CatalogSource::None && !matching)
+            addLine(view.body, "The last catalog read was for a different source. Choose a source, then Browse.");
         else if (status == "error") addLine(view.body, "The catalog page could not be read. Nothing was downloaded.");
         else if (status == "cancelled") addLine(view.body, "The catalog read was cancelled. Nothing was downloaded.");
         else if (status == "empty_page") addLine(view.body, "This catalog page listed no items.");
         else if (!flag(catalog, "fetched", false)) addLine(view.body, "Choose a source, then Browse to read one page.");
-        pushCatalogSource(view, CatalogSource::SteamMaps, "Steam Maps", source, waiting);
-        pushCatalogSource(view, CatalogSource::BakkesMaps, "Bakkes Maps", source, waiting);
+        // Only this entry's own sources are offered. Browsing one page is an
+        // explicit click; building the view never dispatches a network read.
+        if (plugins) {
+            pushCatalogSource(view, CatalogSource::BakkesPlugins, "BakkesMod plugins", source, waiting);
+        } else {
+            pushCatalogSource(view, CatalogSource::SteamMaps, "Steam Maps", source, waiting);
+            pushCatalogSource(view, CatalogSource::BakkesMaps, "Bakkes Maps", source, waiting);
+        }
         if (source != CatalogSource::None) {
             dispatch(view, "catalog.browse", "Browse page " + std::to_string(onlinePage), !waiting, kWait,
                 "community_browse", {{"source", catalogSourceName(source)}, {"page", onlinePage}, {"query", ""}});
@@ -1542,7 +1607,9 @@ private:
         if (source != CatalogSource::None && flag(catalog, "has_next", false) && onlinePage < kMaxCatalogPage)
             dispatch(view, "catalog.page.online", "Next catalog page", !waiting, kWait, "community_browse",
                 {{"source", catalogSourceName(source)}, {"page", onlinePage + 1}, {"query", ""}});
-        back(view, CareerLayoutPage::Workshop);
+        // Back returns to the entry that opened this catalog, not to whatever
+        // source the shared backend catalog currently holds.
+        back(view, catalogBack_);
     }
 
     void buildCommunity(CareerLayoutView& view, const Json& state) const {
@@ -1553,7 +1620,8 @@ private:
         if (!message.empty()) addLine(view.body, message);
         const bool waiting = flag(plugins, "busy", false) || busy(state);
         addLine(view.body, "Copy a plugin page link, then choose Paste plugin link.");
-        navigate(view, "community.catalog", "Browse online maps", CareerLayoutPage::WorkshopCatalog, 0);
+        navigateCatalog(view, "community.catalog", "Browse online maps", CatalogCategory::Maps,
+            CareerLayoutPage::Community);
         dispatch(view, "community.paste", "Paste plugin link", !waiting, kWait,
             "community_paste_link", Json::object());
         const auto catalog = array(plugins, "catalog");
