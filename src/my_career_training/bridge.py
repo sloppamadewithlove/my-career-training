@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QFileDialog
 from . import __version__, career as domain
 from .adapter import CORE_VERSION, SDK_VERSION
 from .content import community_catalog, garage_catalog, import_map, validate_loadout
-from . import community_plugins
+from . import community_discovery, community_plugins
 from .lifecycle import Lifecycle
 from .platforms import (ProcessIdentity, detect_installations, game_processes, graceful_close,
                         is_alive, launch_online, native_launcher_pending)
@@ -26,6 +26,9 @@ from .plugin_session import PluginSession, PluginSessionError
 from .storage import Store, default_state
 from .training import (assistance_preferences, catalog, configure_lesson, import_recording,
                        personal_best, validate_recording)
+
+
+_MAX_CATALOG_WORKERS = 2
 
 
 def validate_document(state):
@@ -53,6 +56,21 @@ class Backend(QObject):
             "can_activate": False}
         self._community_results = queue.SimpleQueue()
         self._community_cancel = threading.Event()
+        # Public catalog browsing is separate from the plugin download state.
+        # Nothing here performs network access until an explicit browse action.
+        self.catalog_state = {
+            "source": "steam_maps", "page": 1, "query": "", "busy": False, "loading": False,
+            "status": "idle", "message": "Choose a catalog source, then browse one public page.",
+            "items": [], "has_next": False, "source_url": "", "page_item_count": 0,
+            "query_scope": "none", "remote_query": False, "truncated": False,
+            "fetched": False, "generation": 0, "catalog_only": True,
+            "sources": list(community_discovery.SOURCES),
+            "can_download": False, "can_activate": False,
+        }
+        self._catalog_results = queue.SimpleQueue()
+        self._catalog_cancel = threading.Event()
+        self._catalog_generation = 0
+        self._catalog_outstanding = 0
         self.store = Store(directory, validate_document)
         self.error = ""
         try:
@@ -162,6 +180,7 @@ class Backend(QObject):
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
             "community_plugins": self.community_state,
+            "community_catalog": self.catalog_state,
             "career_draft": dict(self.career_draft),
             "native_community_trial": self.native_community.state() if self.native_community else {},
             "native_community_request": self.native_community.request() if self.native_community else None,
@@ -253,6 +272,122 @@ class Backend(QObject):
             self.error = result
         self.stateChanged.emit()
 
+    # -- public catalog browsing ------------------------------------------- #
+
+    def _catalog_job(self, source, page, query):
+        """Start one bounded public catalog read for an explicit browse action.
+
+        The worker only reads one public HTML page. It never touches Qt, the
+        save, BakkesMod, the game, or the plugin cache. Exactly one terminal
+        result is consumed on the main thread's existing timer.
+        """
+        request = community_discovery.validate_request(source, query=query, page=page)
+        if self.catalog_state["busy"]:
+            raise ValueError("Wait for the current catalog page or cancel it first.")
+        if self._catalog_outstanding >= _MAX_CATALOG_WORKERS:
+            raise ValueError("Two catalog reads are still finishing. Wait a moment, then browse again.")
+        self._catalog_generation += 1
+        generation = self._catalog_generation
+        cancelled = threading.Event()
+        self._catalog_cancel = cancelled
+        self._catalog_outstanding += 1
+        results = self._catalog_results
+        self.catalog_state.update(
+            source=request["source"], page=request["page"], query=request["query"],
+            busy=True, loading=True, status="loading", generation=generation,
+            message="Reading one public catalog page\u2026",
+            items=[], has_next=False, source_url="", page_item_count=0,
+            query_scope="none", remote_query=False, truncated=False, fetched=False)
+
+        def run():
+            try:
+                result = community_discovery.fetch_catalog(
+                    request["source"], query=request["query"], page=request["page"],
+                    cancel=cancelled.is_set)
+                results.put(("ok", generation, result))
+            except community_discovery.CatalogCancelled:
+                results.put(("cancelled", generation, None))
+            except community_discovery.CommunityCatalogError as error:
+                results.put(("error", generation, str(error)))
+            except Exception:
+                results.put(("error", generation,
+                             "Could not read the public catalog page. Try again."))
+
+        threading.Thread(target=run, name="community-catalog-read", daemon=True).start()
+
+    def _catalog_cancel_current(self):
+        """Invalidate the current read immediately, without waiting for its thread.
+
+        The generation bump makes any late result stale, so the tab is free at
+        once and the abandoned worker can only be discarded by the timer.
+        """
+        self._catalog_generation += 1
+        self._catalog_cancel.set()
+        if self.catalog_state["busy"] or self.catalog_state["loading"]:
+            self.catalog_state.update(
+                busy=False, loading=False, status="cancelled", items=[], has_next=False,
+                source_url="", page_item_count=0, fetched=False,
+                message="Catalog read cancelled. Nothing was downloaded or enabled.")
+            self.stateChanged.emit()
+
+    def _poll_catalog(self):
+        try:
+            status, generation, result = self._catalog_results.get_nowait()
+        except queue.Empty:
+            return
+        self._catalog_outstanding = max(0, self._catalog_outstanding - 1)
+        if generation != self._catalog_generation:
+            # A newer browse request or a cancel already replaced this tab; drop
+            # the stale response instead of overwriting the newer catalog.
+            return
+        self.catalog_state.update(busy=False, loading=False)
+        if status == "ok":
+            self.catalog_state.update(
+                items=result["items"], has_next=result["has_next"],
+                source_url=result["source_url"], page_item_count=result["page_item_count"],
+                query_scope=result["query_scope"], remote_query=result["remote_query"],
+                truncated=result["truncated"], fetched=result["fetched"],
+                status=result["status"], message=result["message"])
+        elif status == "cancelled":
+            self.catalog_state.update(
+                status="cancelled", items=[], has_next=False, source_url="",
+                page_item_count=0, fetched=False,
+                message="Catalog read cancelled. Nothing was downloaded or enabled.")
+        else:
+            self.catalog_state.update(
+                status="error", items=[], has_next=False, source_url="",
+                page_item_count=0, fetched=False, message=result)
+            self.error = result
+        self.stateChanged.emit()
+
+    def _catalog_item(self, source, item_id):
+        """Return one currently displayed catalog row, or refuse the request."""
+        if type(source) is not str or type(item_id) is not int or isinstance(item_id, bool):
+            raise ValueError("Choose a catalog item from the displayed list.")
+        for item in self.catalog_state["items"]:
+            if item.get("source") == source and item.get("source_id") == item_id:
+                return item
+        raise ValueError("That item is not in the displayed catalog page. Browse again first.")
+
+    def _catalog_open(self, payload):
+        """Open the canonical public page for one displayed catalog row."""
+        if not isinstance(payload, dict) or set(payload) != {"source", "id"}:
+            raise ValueError("Choose a catalog item from the displayed list.")
+        item = self._catalog_item(payload["source"], payload["id"])
+        url = community_discovery.item_details_url(item["source"], item["source_id"])
+        if url != item.get("details_url"):
+            raise ValueError("That catalog link is not allowed.")
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _catalog_select_plugin(self, payload):
+        """Route one displayed BakkesPlugins row into the existing lookup."""
+        if not isinstance(payload, dict) or set(payload) != {"source", "id"}:
+            raise ValueError("Choose a plugin from the displayed catalog list.")
+        if payload["source"] != "bakkes_plugins":
+            raise ValueError("Only BakkesPlugins catalog rows can be checked as plugins.")
+        item = self._catalog_item(payload["source"], payload["id"])
+        self._community_job("lookup", str(item["source_id"]))
+
     def _commit(self, document):
         self.store.save(document)
         self.document = document
@@ -288,7 +423,8 @@ class Backend(QObject):
                 raise ValueError("My Career runs offline. Online features are not part of this mode.")
             if self._prepared_next and action not in {
                     "prepare_next_match", "start_prepared_match", "quit_game", "retry_result_save",
-                    "navigate", "diagnostics", "open_data", "community_cancel"}:
+                    "navigate", "diagnostics", "open_data", "community_cancel",
+                    "community_browse_cancel"}:
                 raise ValueError("The next match is being prepared. Wait for it to start, or choose Quit My Career.")
             if action == "navigate":
                 self.page = payload["page"]
@@ -610,6 +746,23 @@ class Backend(QObject):
             self._begin_stop("exit")
         elif action == "refresh_workshop":
             self._refresh_workshop()
+        elif action == "community_browse":
+            if not isinstance(p, dict) or set(p) - {"source", "page", "query"}:
+                raise ValueError("Choose a catalog source, page, and optional search text.")
+            self._catalog_job(p.get("source"), p.get("page", 1), p.get("query", ""))
+        elif action == "community_browse_cancel":
+            if p:
+                raise ValueError("Cancel the catalog read using the Catalog button.")
+            self._catalog_cancel_current()
+        elif action == "community_open_source":
+            if not isinstance(p, dict) or set(p) != {"source"}:
+                raise ValueError("Choose one catalog source to open in a browser.")
+            url = community_discovery.catalog_page_url(p["source"], 1)
+            QDesktopServices.openUrl(QUrl(url))
+        elif action == "community_open_item":
+            self._catalog_open(p)
+        elif action == "community_select_plugin":
+            self._catalog_select_plugin(p)
         elif action == "community_lookup":
             self._community_job("lookup", p.get("id"))
         elif action == "community_paste_link":
@@ -1244,6 +1397,7 @@ class Backend(QObject):
 
     def _tick(self):
         self._poll_community()
+        self._poll_catalog()
         before = (self.lifecycle.state, self.lifecycle.message)
         self.lifecycle.tick()
         if self.stop_reason == "online" and self.lifecycle.state in ("Online Launch Requested", "Error/Recovery"):
@@ -1349,6 +1503,7 @@ class Backend(QObject):
 
     def close(self):
         self._community_cancel.set()
+        self._catalog_cancel.set()
         self._save_current()
         if self._worker_active():
             self._send("shutdown")

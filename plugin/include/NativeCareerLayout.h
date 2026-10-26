@@ -26,8 +26,27 @@ namespace mct {
 enum class CareerLayoutPage {
     Root, Career, Training, Lesson, Schedule, Standings, Squad, Garage, Workshop, Community, Settings,
     Appearance, CosmeticItems, CosmeticPaints, CosmeticColors, CosmeticPrimary, CosmeticAccent,
-    CreateCareer, CareerRules, RecoverCareer
+    CreateCareer, CareerRules, RecoverCareer, WorkshopMods, WorkshopCatalog
 };
+
+// Fixed public catalog sources. There is no string parser and no arbitrary URL.
+enum class CatalogSource { None, SteamMaps, BakkesMaps, BakkesPlugins };
+
+inline const char* catalogSourceName(CatalogSource source) {
+    switch (source) {
+    case CatalogSource::SteamMaps: return "steam_maps";
+    case CatalogSource::BakkesMaps: return "bakkes_maps";
+    case CatalogSource::BakkesPlugins: return "bakkes_plugins";
+    default: return "";
+    }
+}
+
+inline CatalogSource catalogSourceOf(const std::string& name) {
+    if (name == "steam_maps") return CatalogSource::SteamMaps;
+    if (name == "bakkes_maps") return CatalogSource::BakkesMaps;
+    if (name == "bakkes_plugins") return CatalogSource::BakkesPlugins;
+    return CatalogSource::None;
+}
 
 enum class CareerLayoutEffectKind {
     None, Navigate, PreserveStockRoute, Dispatch, Unavailable, LocalCosmetic, LocalWorkshop
@@ -165,6 +184,14 @@ public:
     static constexpr std::size_t kMaxSquad = 4;
     static constexpr std::size_t kScanCap = 64;
     static constexpr std::size_t kMaxWorkshopRows = 512;
+    // Local page slice for one online catalog page. Previous/Next rows move
+    // within this slice; the online page itself only changes on an explicit
+    // Browse button, never while building a view.
+    static constexpr std::size_t kCatalogRowsPerPage = 6;
+    static constexpr std::size_t kMaxCatalogRows = 60;
+    static constexpr int kMaxCatalogPage = 50;
+    // The discovery parser accepts source ids from 1 to 9999999999.
+    static constexpr std::int64_t kMaxCatalogSourceId = 9999999999LL;
     static constexpr const char* kCareer = "career.open";
     static constexpr const char* kTraining = "training.open";
     static constexpr const char* kGarage = "garage.open";
@@ -192,6 +219,8 @@ public:
     static_assert(kNativeCosmeticPaintCount + 2 <= static_cast<int>(kMaxChoices));
     static_assert(kNativeCosmeticPaletteCount + 1 <= static_cast<int>(kMaxChoices));
     static_assert(kNativeCosmeticCategoryCount + 4 <= static_cast<int>(kMaxChoices));
+    // One catalog page: 6 rows + source buttons + page rows + Back.
+    static_assert(kCatalogRowsPerPage + 12 <= kMaxChoices);
 
     // Actions this layout may put on an effect. A subset of the bridge allowlist.
     // play_workshop and any activation command are intentionally absent.
@@ -205,6 +234,9 @@ public:
             action == "community_lookup" || action == "community_paste_link" ||
             action == "community_download" || action == "community_library" ||
             action == "community_cancel" || action == "community_trial_prepare" ||
+            action == "community_browse" || action == "community_browse_cancel" ||
+            action == "community_open_item" || action == "community_select_plugin" ||
+            action == "community_open_source" ||
             action == "training_settings" || action == "quit_game" || action == "abandon_fixture" ||
             action == "retry_lesson" || action == "return_hub" || action == "retry_result_save" ||
             action == "forfeit_match" || action == "prepare_next_match";
@@ -222,6 +254,7 @@ public:
         cosmeticPage_ = 0;
         cosmeticProductId_ = 0;
         workshopPage_ = 0;
+        catalogPage_ = 0;
         opened_ = false;
         if (!scopeOk(scope) || !stateMatches(state, scope)) return false;
         // Advance even when the supplied scope is unchanged, so a choice captured
@@ -263,6 +296,8 @@ public:
         case CareerLayoutPage::CosmeticPrimary: buildCosmeticChannel(out, cosmetics, true); break;
         case CareerLayoutPage::CosmeticAccent: buildCosmeticChannel(out, cosmetics, false); break;
         case CareerLayoutPage::Workshop: buildWorkshop(out, state, workshop); break;
+        case CareerLayoutPage::WorkshopMods: buildWorkshopMods(out, state); break;
+        case CareerLayoutPage::WorkshopCatalog: buildWorkshopCatalog(out, state); break;
         case CareerLayoutPage::Community: buildCommunity(out, state); break;
         case CareerLayoutPage::Settings: buildSettings(out, state); break;
         case CareerLayoutPage::CreateCareer: buildCreate(out, state); break;
@@ -309,7 +344,8 @@ public:
                 !shown.workshop.rowId.empty() ||
                 shown.target == CareerLayoutPage::Appearance || shown.target == CareerLayoutPage::CosmeticItems ||
                 shown.target == CareerLayoutPage::CosmeticPaints || shown.target == CareerLayoutPage::CosmeticColors ||
-                shown.target == CareerLayoutPage::CosmeticPrimary || shown.target == CareerLayoutPage::CosmeticAccent;
+                shown.target == CareerLayoutPage::CosmeticPrimary || shown.target == CareerLayoutPage::CosmeticAccent ||
+                shown.target == CareerLayoutPage::WorkshopMods || shown.target == CareerLayoutPage::WorkshopCatalog;
             return refuse(effect, wasSpecific ? CareerLayoutRefusal::StaleChoice : CareerLayoutRefusal::UnknownControl,
                 wasSpecific ? kStaleChoice : kUnknown);
         }
@@ -511,6 +547,8 @@ private:
     std::size_t cosmeticPage_ = 0;
     int cosmeticProductId_ = 0;
     std::size_t workshopPage_ = 0;
+    bool workshopMods_ = false;
+    std::size_t catalogPage_ = 0;
     bool opened_ = false;
     CareerLayoutScope openedScope_{};
     std::uint64_t revision_ = 0;
@@ -564,6 +602,12 @@ private:
             page_ = choice->target;
             if (choice->target == CareerLayoutPage::Training) lessonPage_ = choice->page;
             if (choice->target == CareerLayoutPage::Workshop) workshopPage_ = choice->page;
+            if (choice->target == CareerLayoutPage::Workshop) workshopMods_ = false;
+            if (choice->target == CareerLayoutPage::WorkshopMods) workshopMods_ = true;
+            if (choice->target == CareerLayoutPage::WorkshopCatalog) {
+                workshopMods_ = true;
+                catalogPage_ = choice->page;
+            }
             if (choice->target == CareerLayoutPage::CosmeticItems) {
                 cosmeticSlot_ = choice->cosmetic.slot;
                 cosmeticPage_ = choice->page;
@@ -1289,8 +1333,12 @@ private:
             "that preserves your Steam game is being developed.";
         if (workshop.bound && !workshop.status.empty()) addLine(view.body, workshop.status);
         else addLine(view.body, note == published ? published : "Browse installed maps and save favorites.");
+        // Workshop has exactly two content tabs: Training Maps and Mods.
+        navigate(view, "workshop.tab.maps", "Training Maps", CareerLayoutPage::Workshop, 0);
+        navigate(view, "workshop.tab.mods", "Mods", CareerLayoutPage::WorkshopMods);
         const bool canEdit = !busy(state);
         dispatch(view, "workshop.refresh", "Refresh library", canEdit, kWait, "refresh_workshop", Json::object());
+        navigate(view, "workshop.catalog.open", "Browse online maps", CareerLayoutPage::WorkshopCatalog, 0);
         const auto items = array(library, "items");
         const auto stop = (std::min)(items.size(), workshop.bound ? kMaxWorkshopRows : kScanCap);
         std::vector<std::size_t> rows;
@@ -1346,6 +1394,163 @@ private:
         back(view, CareerLayoutPage::Root);
     }
 
+    // ---- Workshop Mods tab and public catalog browsing ------------------- //
+
+    static Json catalogOf(const Json& state) { return object(state, "community_catalog"); }
+
+    static bool catalogBusy(const Json& catalog) {
+        return flag(catalog, "busy", false) || flag(catalog, "loading", false);
+    }
+
+    // Strict JSON integer for a catalog source id. Booleans, floating point
+    // numbers, and out-of-range values are refused. The parser accepts ids up
+    // to 9999999999, so a 32-bit int would drop real Steam map ids.
+    static bool catalogId(const Json& value, const char* key, std::int64_t& out) {
+        if (!value.is_object()) return false;
+        const auto it = value.find(key);
+        if (it == value.end() || !it->is_number_integer()) return false;
+        std::int64_t number = 0;
+        if (it->is_number_unsigned()) {
+            const auto wide = it->get<std::uint64_t>();
+            if (wide > static_cast<std::uint64_t>(kMaxCatalogSourceId)) return false;
+            number = static_cast<std::int64_t>(wide);
+        } else {
+            number = it->get<std::int64_t>();
+        }
+        if (number < 1 || number > kMaxCatalogSourceId) return false;
+        out = number;
+        return true;
+    }
+
+    // One displayed catalog row. Only rows the backend marked catalog-only and
+    // non-activatable are accepted, and the numeric source id must be present.
+    static bool catalogRow(const Json& item, CatalogSource source, std::int64_t& sourceId) {
+        if (!item.is_object()) return false;
+        if (catalogSourceOf(text(item, "source")) != source || source == CatalogSource::None) return false;
+        if (!flag(item, "catalog_only", false) || flag(item, "can_activate", true)) return false;
+        if (!catalogId(item, "source_id", sourceId)) return false;
+        if (text(item, "id") != std::string(catalogSourceName(source)) + ":" + std::to_string(sourceId)) return false;
+        return !text(item, "title").empty();
+    }
+
+    static std::size_t catalogPages(std::size_t count) {
+        return count == 0 ? 1 : (count + kCatalogRowsPerPage - 1) / kCatalogRowsPerPage;
+    }
+
+    void pushCatalogSource(CareerLayoutView& view, CatalogSource source, const char* label,
+                           CatalogSource current, bool waiting) const {
+        const bool selected = source == current;
+        dispatch(view, std::string("catalog.source.") + catalogSourceName(source),
+            std::string(selected ? "Selected: " : "Browse ") + label, !waiting, kWait, "community_browse",
+            {{"source", catalogSourceName(source)}, {"page", 1}, {"query", ""}});
+    }
+
+    void buildWorkshopMods(CareerLayoutView& view, const Json& state) const {
+        view.title = "Workshop - Mods";
+        addLine(view.body, "Mods lists community plugins and maps. Listing is not a compatibility claim.");
+        addLine(view.body, "Downloaded plugins stay in this private cache and are not enabled.");
+        const auto plugins = object(state, "community_plugins");
+        const auto message = text(plugins, "message");
+        if (!message.empty()) addLine(view.body, message);
+        const bool waiting = flag(plugins, "busy", false) || busy(state);
+        const auto catalog = catalogOf(state);
+        const auto catalogWaiting = catalogBusy(catalog) || waiting;
+        pushCatalogSource(view, CatalogSource::BakkesPlugins, "BakkesMod plugins", CatalogSource::None, catalogWaiting);
+        dispatch(view, "mods.paste", "Paste plugin link", !waiting, kWait, "community_paste_link", Json::object());
+        const auto known = array(plugins, "catalog");
+        std::size_t shown = 0;
+        const auto stop = (std::min)(known.size(), kScanCap);
+        for (std::size_t i = 0; i < stop && shown < kMaxRows; ++i) {
+            const auto id = text(known[i], "id");
+            if (!pluginId(id)) continue;
+            const auto title = plain(text(known[i], "title", "Plugin"), 48);
+            dispatch(view, "community.lookup." + id, "Check " + title, !waiting, kWait, "community_lookup", {{"id", id}});
+            ++shown;
+        }
+        const auto selected = object(plugins, "selected");
+        const auto selectedId = text(selected, "id");
+        const bool selectedOk = !selected.empty() && pluginId(selectedId) && !flag(selected, "can_activate", false);
+        std::string downloadReason = "Check a plugin's current release before downloading it.";
+        if (waiting) downloadReason = kWait;
+        else if (!selected.empty() && flag(selected, "can_activate", false)) downloadReason = kActivationReason;
+        dispatch(view, "community.download", "Download to library", selectedOk && !waiting, downloadReason,
+            "community_download", Json::object());
+        dispatch(view, "community.library", "Check downloaded files", !waiting, kWait, "community_library", Json::object());
+        dispatch(view, "community.cancel", "Cancel download", flag(plugins, "busy", false), "Nothing is downloading.",
+            "community_cancel", Json::object());
+        CareerLayoutChoice activate;
+        activate.id = "community.activate";
+        activate.label = "Enable in game";
+        activate.enabled = false;
+        activate.kind = CareerLayoutEffectKind::Unavailable;
+        activate.reason = kActivationReason;
+        push(view, std::move(activate));
+        navigate(view, "mods.catalog", "Browse plugin catalog", CareerLayoutPage::WorkshopCatalog, 0);
+        back(view, CareerLayoutPage::Workshop);
+    }
+
+    void buildWorkshopCatalog(CareerLayoutView& view, const Json& state) const {
+        const auto catalog = catalogOf(state);
+        const auto source = catalogSourceOf(text(catalog, "source"));
+        const bool plugins = source == CatalogSource::BakkesPlugins;
+        view.title = plugins ? "Workshop - Mods catalog" : "Workshop - Training Maps catalog";
+        const auto status = text(catalog, "status");
+        const bool waiting = catalogBusy(catalog);
+        int onlinePage = 1;
+        if (!whole(catalog, "page", onlinePage, 1, kMaxCatalogPage)) onlinePage = 1;
+        addLine(view.body, "Catalog links only. Nothing is downloaded, installed, or enabled.");
+        addLine(view.body, "Details open the creator's own page in your browser.");        const auto message = text(catalog, "message");
+        if (!message.empty()) addLine(view.body, message);
+        if (waiting) addLine(view.body, "Reading one public catalog page. Cancel stops it.");
+        else if (status == "error") addLine(view.body, "The catalog page could not be read. Nothing was downloaded.");
+        else if (status == "cancelled") addLine(view.body, "The catalog read was cancelled. Nothing was downloaded.");
+        else if (status == "empty_page") addLine(view.body, "This catalog page listed no items.");
+        else if (!flag(catalog, "fetched", false)) addLine(view.body, "Choose a source, then Browse to read one page.");
+        pushCatalogSource(view, CatalogSource::SteamMaps, "Steam Maps", source, waiting);
+        pushCatalogSource(view, CatalogSource::BakkesMaps, "Bakkes Maps", source, waiting);
+        if (source != CatalogSource::None) {
+            dispatch(view, "catalog.browse", "Browse page " + std::to_string(onlinePage), !waiting, kWait,
+                "community_browse", {{"source", catalogSourceName(source)}, {"page", onlinePage}, {"query", ""}});
+            dispatch(view, "catalog.source.open", "Open official page", !waiting, kWait, "community_open_source",
+                {{"source", catalogSourceName(source)}});
+        }
+        dispatch(view, "catalog.cancel", "Cancel catalog read", waiting, "Nothing is loading.", "community_browse_cancel",
+            Json::object());
+        // Local page slice over the rows of the one online page that was read.
+        std::vector<Json> rows;
+        if (source != CatalogSource::None) {
+            const auto items = array(catalog, "items");
+            const auto stop = (std::min)(items.size(), kMaxCatalogRows);
+            for (std::size_t index = 0; index < stop; ++index) {
+                std::int64_t sourceId = 0;
+                if (catalogRow(items[index], source, sourceId)) rows.push_back(items[index]);
+            }
+        }
+        const auto pages = catalogPages(rows.size());
+        const auto page = catalogPage_ < pages ? catalogPage_ : pages - 1;
+        if (!rows.empty())
+            addLine(view.body, "Page " + std::to_string(page + 1) + " of " + std::to_string(pages) + " on this catalog page.");
+        const auto first = page * kCatalogRowsPerPage;
+        const auto last = (std::min)(first + kCatalogRowsPerPage, rows.size());
+        for (std::size_t index = first; index < last; ++index) {
+            std::int64_t sourceId = 0;
+            if (!catalogRow(rows[index], source, sourceId)) continue;
+            const auto title = plain(text(rows[index], "title", "Item"), 48);
+            const auto creator = plain(text(rows[index], "creator", "Unknown creator"), 32);
+            dispatch(view, "catalog.open." + std::to_string(sourceId), "Open " + title + " by " + creator, !waiting, kWait,
+                "community_open_item", {{"source", catalogSourceName(source)}, {"id", sourceId}});
+            if (source == CatalogSource::BakkesPlugins)
+                dispatch(view, "catalog.plugin." + std::to_string(sourceId), "Check " + title, !waiting, kWait,
+                    "community_select_plugin", {{"source", catalogSourceName(source)}, {"id", sourceId}});
+        }
+        if (page > 0) navigate(view, "catalog.page.previous", "Previous rows", CareerLayoutPage::WorkshopCatalog, page - 1);
+        if (page + 1 < pages) navigate(view, "catalog.page.next", "More rows", CareerLayoutPage::WorkshopCatalog, page + 1);
+        if (source != CatalogSource::None && flag(catalog, "has_next", false) && onlinePage < kMaxCatalogPage)
+            dispatch(view, "catalog.page.online", "Next catalog page", !waiting, kWait, "community_browse",
+                {{"source", catalogSourceName(source)}, {"page", onlinePage + 1}, {"query", ""}});
+        back(view, CareerLayoutPage::Workshop);
+    }
+
     void buildCommunity(CareerLayoutView& view, const Json& state) const {
         view.title = "Community";
         addLine(view.body, "Core lessons work without community downloads.");
@@ -1354,6 +1559,7 @@ private:
         if (!message.empty()) addLine(view.body, message);
         const bool waiting = flag(plugins, "busy", false) || busy(state);
         addLine(view.body, "Copy a plugin page link, then choose Paste plugin link.");
+        navigate(view, "community.catalog", "Browse online maps", CareerLayoutPage::WorkshopCatalog, 0);
         dispatch(view, "community.paste", "Paste plugin link", !waiting, kWait,
             "community_paste_link", Json::object());
         const auto catalog = array(plugins, "catalog");
