@@ -36,7 +36,7 @@ the same model bytes; this app adapts the original explicitly licensed source.
 
 Models and adapted observation/action code are a separate
 **CC BY-NC-SA 4.0** component, attributed to Rolv-Arild and the RLGym/Necto
-contributors. The app's MIT license does not relicense these components or
+contributors. The project's rights notice and earlier MIT grants do not relicense these components or
 grant commercial permission. Full license and attribution are shipped under
 `bots/_vendor/` and `bots/resources/`.
 
