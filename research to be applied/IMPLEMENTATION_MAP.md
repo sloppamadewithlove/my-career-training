@@ -115,3 +115,10 @@ map will be updated as new evidence arrives.
 - [Stock pack browser](campaign/native-pack-browser-01.md) traces code search, favorites, update and Play requests and numeric-index selection on refresh. Preserve MCT stable IDs and the requested Lessons/Workshop/Mods/Favorites tabs; native API dispatch does not prove content transfer or arrival.
 - [Garage ownership](campaign/garage-restore-01.md) found that cosmetic restore can overwrite later user edits. Track ownership per written field and handle conflicts; a saved design draft is not a durable restore baseline. Return-to-hub currently keeps the offline local appearance.
 - [Actor visibility wrapper](campaign/sdk-actor-visibility-01.md) forwards SetHidden2 to Engine.Actor.SetHidden without the replay check seen in ball fade wrappers. Its engine effects/restoration remain unverified; raw self-hidden field writes are a distinct operation, not an equivalent effect.
+
+
+## Lesson grading and restore reproducer
+
+The [eight-lesson matrix](LESSON_EVIDENCE_MATRIX.md) now links an exact outcome/evidence audit for every lesson. Several instructional technique claims exceed the completion rules; define intended outcome versus technique grading, event ordering, confidence and deadline behavior before adding rank profiles. The individual reports distinguish tested predicates from physically reachable gameplay.
+
+[Cosmetic restore diagnostic](campaign/cosmetic-restore-probe-01.md) compiled and ran against the unchanged production transaction class: six cases and six control checks passed. Later fake-host code/enabled edits were overwritten by Restore, confirming the source behavior. The folder includes the reviewed reproducer, header, CMake input and observed output; no actual cosmetic/game operation occurred.

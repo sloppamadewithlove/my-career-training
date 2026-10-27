@@ -71,35 +71,36 @@ traces from static declarations or UI controls alone.
 | PACKAGE-02 | Stock training package metadata and portable tool discovery | Complete; Luna; current browser movie byte identity checked |
 | MENU-INSPECTOR-01 | Small private FFDec bridge for two exact training movies | Complete; separate DeepSeek build/review; coordinator executed two movies/fourteen selected classes |
 | MOD-MEASUREMENT-01 | Helper effects on scored-attempt comparability | Complete; DeepSeek research reconciled against native consumers and import selection |
-
 | HUD-PACKAGE-01 | Training HUD versus match-clock movie metadata | Complete; Luna; exact exports identified, no HUD code/runtime claim |
 | IMPORT-IDENTITY-01 | Imported claims reaching personal-best selection | Complete; Luna; source reachability, no diagnostic run yet |
 | NATIVE-TRAINING-FLOW-01 | Stock lesson-to-difficulty menu route | Complete; Luna; current movie source, helper inventory failure disclosed |
 | NATIVE-NAVIGATION-01 | Inherited Back, focus, controller navigation | Complete; stock focus path traced; current candidate separate-rank route missing |
-
-| CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | Complete; eleven selected classes trace zero-based dispatch and one-based display |
-| BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | Complete; source-only; targeted SDK cleanup follow-up underway |
-
+| CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | Complete; twelve selected classes trace zero-based dispatch and one-based display |
+| BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | Complete; source trace; SDK-DRAWABLE-01 leaves host cleanup scope unresolved |
 | SDK-DRAWABLE-01 | Installed SDK unregister-drawables body and ownership scope | Complete; indirect host interface leaves cleanup scope unresolved |
 | HUD-INVENTORY-01 | Exact training HUD movie script names | Complete; reviewed helper executed; fifteen selected source classes exported |
-
 | HUD-FLOW-01 | HUD timer, progress, visibility and action prompts | Complete; twenty-eight selected classes; timer/control/safe-zone flow traced |
 | GAMEINFO-METADATA-01 | Training Editor and Tutorial package class/function boundaries | Complete; object metadata, no Function/State exports |
 | IMPORT-PROBE-01 | Actual bridge import-to-personal-best diagnostic | Complete; DeepSeek build/review; coordinator executed four cases/twelve checks |
-
 | ATTEMPT-END-01 | Current MCT terminal ball/HUD/save/retry behavior | Complete; no terminal ball write in traced path |
 | HUD-TIMELINE-01 | Authored label coordinates and parent transform | Complete; clip-local geometry; screen-space placement unproven |
-| BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | Complete; named fade pair is a candidate, Soccar effects unverified |
-
+| BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | Complete; header candidate superseded by SDK-FADE-01 replay restriction |
 | STOCK-TRAINING-SETTINGS-01 | Checkbox value/input/help/native request route | Complete; seventeen selected current-movie classes, runtime effects unknown |
 | SHOT-DATA-01 | Legacy BakkesMod shot JSON format and import limits | Complete; parser defects reconciled against pinned source |
 | LESSON-ACCEPTANCE-TESTS-01 | Selected engine and attempt acknowledgement checks | Complete; one existing offline run, forty passed |
 | GHOST-PLAYBACK-01 | Playback clocks, terminal visibility and cleanup | Complete; source trace, no live renderer acceptance |
 | MAP-ARRIVAL-01 | Selected Workshop request to confirmed map boundary | Complete; missing request-bound arrival proof |
 | SDK-FADE-01 | Installed fade wrappers and context restrictions | Complete; replay guard withdraws Soccar fade proposal |
-
 | RESET-READY-01 | Ball/actor setup, settle, observed launch and timer start | Complete; source gates and physics limits documented |
 | SCENARIO-ACCEPTANCE-TESTS-01 | Existing roster/readiness/reset tests | Complete; 130 selected offline cases passed, no game proof |
 | NATIVE-PACK-BROWSER-01 | Stock pack search/favorite/update/play/list route | Complete; seven selected dependencies, native effects unverified |
 | GARAGE-RESTORE-01 | Cosmetic lease, partial failure and user-edit preservation | Complete; external edits can be overwritten by restore |
 | SDK-ACTOR-VISIBILITY-01 | Generic hidden API versus raw self-hidden field | Complete; engine dispatch established, visual/physics effects unknown |
+| FLIP-RESET-01 | Regained-flip inference and profile identity | Complete; source/test inventory audit, no game proof |
+| AERIAL-LESSON-01 | Fast Aerial target outcome versus instructed technique | Complete; source/test inventory audit, no game proof |
+| DRIBBLE-FLICK-01 | Carry proxy, flick evidence and target event ordering | Complete; source/test inventory audit, no game proof |
+| SPEED-FLIP-01 | Ordered input/flag evidence versus physical cancellation | Complete; source/test inventory audit, no game proof |
+| AIR-ROLL-LESSON-01 | Ordered gate spheres and landing requirements | Complete; source/test inventory audit, no game proof |
+| FLIGHT-RECOVERY-01 | Recovery rectangle, metrics and gap policy | Complete; source/test inventory audit, no game proof |
+| SHOT-PLACEMENT-01 | Contact confidence, target rectangle and score boundary | Complete; source/test inventory audit, no game proof |
+| COSMETIC-RESTORE-PROBE-01 | Current transaction with later external edits | Complete; separate DeepSeek build/review; compiled/run six cases/six controls |

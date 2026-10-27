@@ -1,0 +1,521 @@
+// research_cosmetic_restore_probe.cpp
+//
+// SYNTHETIC, IN-MEMORY DIAGNOSTIC ONLY.
+//
+// This probe links the unchanged production header
+// plugin/include/CosmeticOverrideState.h and drives only its public
+// apply()/restore()/restorationPending() API. The Read/WriteCode/WriteEnabled
+// callbacks are fakes that mutate two in-memory values (a std::string code and
+// a bool enabled) and record every write. There is no cvar access, no game
+// call, no file/network/subprocess I/O, and no production fix here.
+//
+// Purpose: expose what the current transaction does when a player or another
+// tool edits the two cvars while an MCT lease is still pending. The reported
+// "preserved"/"overwritten" observations describe CURRENT behavior; they are
+// NOT asserted as desired correctness. Only structural/control invariants
+// (baseline restore, no-lease no-write, partial-failure safe outcome) are
+// asserted, and a broken control makes the process exit nonzero.
+//
+// Output: one JSON document on stdout. Source/compiler hashes are added by the
+// orchestrating main, not by this probe.
+
+#include "CosmeticOverrideState.h"
+
+#include <cstddef>
+#include <iostream>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+using State = mct::CosmeticOverrideState;
+using Values = mct::CosmeticOverrideValues;
+
+std::string jsonEscape(const std::string& in) {
+    std::string out;
+    out.reserve(in.size() + 8);
+    for (char c : in) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    out += '?';
+                } else {
+                    out += c;
+                }
+        }
+    }
+    return out;
+}
+
+std::string quoted(const std::string& in) { return "\"" + jsonEscape(in) + "\""; }
+
+const char* resultName(State::ApplyResult r) {
+    switch (r) {
+        case State::ApplyResult::Applied: return "Applied";
+        case State::ApplyResult::HostUnavailable: return "HostUnavailable";
+        case State::ApplyResult::FailedRestored: return "FailedRestored";
+        case State::ApplyResult::RestorePending: return "RestorePending";
+    }
+    return "Unknown";
+}
+
+// Fake host: the only "cvar storage" in this probe.
+struct FakeHost {
+    std::string code;
+    bool enabled = false;
+    bool available = true;
+    bool failEnabledOnce = false;
+    // Attempts are recorded before the possible throw, so this list is a list
+    // of write ATTEMPTS, not of effective writes.
+    std::vector<std::string> writes;
+    // Observed stage for the partial-failure case: the code value present when
+    // the enabled setter threw (the setter itself never applied its value).
+    bool enabledSetterThrew = false;
+    std::optional<std::string> codeAtEnabledThrow;
+
+    Values snapshot() const { return Values{code, enabled}; }
+
+    State::Read read() {
+        return [this]() -> std::optional<Values> {
+            if (!available) return std::nullopt;
+            return snapshot();
+        };
+    }
+    State::WriteCode writeCode() {
+        return [this](const std::string& next) {
+            writes.push_back("writeCode(" + next + ")");
+            code = next;
+        };
+    }
+    State::WriteEnabled writeEnabled() {
+        return [this](bool next) {
+            writes.push_back(std::string("writeEnabled(") + (next ? "true" : "false") + ")");
+            if (failEnabledOnce) {
+                failEnabledOnce = false;
+                // Record the stage actually observed at the throw: the code
+                // value present now, and the fact the setter never applied.
+                enabledSetterThrew = true;
+                codeAtEnabledThrow = code;
+                throw std::runtime_error("synthetic enabled-setter failure");
+            }
+            enabled = next;
+        };
+    }
+};
+
+struct FieldObservation {
+    std::string field;
+    // Value observed immediately after the apply attempt (post-attempt, not
+    // necessarily the requested value: it may be rolled back or never applied).
+    std::string postApplySnapshotValue;
+    std::string externalValue;
+    std::string finalValue;
+    bool externallyEdited = false;
+    bool preserved = false;  // current behavior: external value survived restore
+};
+
+struct CaseReport {
+    std::string name;
+    std::string description;
+    std::string originalCode;
+    bool originalEnabled = false;
+    // Requested apply input; only meaningful when applyCalled is true.
+    std::string requestedApplyCode;
+    bool requestedApplyEnabled = false;
+    bool applyCalled = false;
+    bool externalEditCode = false;
+    std::string externalCode;
+    bool externalEditEnabled = false;
+    bool externalEnabled = false;
+    bool failEnabledSetter = false;
+    std::string applyResult;
+    // Sampled immediately after apply() and before any external host mutation.
+    bool pendingBeforeExternalEdit = false;
+    std::string restoreResult;  // "true"/"false"/"not-called"
+    bool pendingAfter = false;
+    Values finalValues;
+    std::vector<std::string> writes;  // write attempts, recorded pre-throw
+    // Partial-failure stage observation.
+    bool enabledSetterThrew = false;
+    std::optional<std::string> codeAtEnabledThrow;
+    std::vector<FieldObservation> observations;
+    std::string note;
+};
+
+std::string boolStr(bool b) { return b ? "true" : "false"; }
+
+std::string writesJson(const std::vector<std::string>& writes) {
+    std::ostringstream os;
+    os << "[";
+    for (size_t i = 0; i < writes.size(); ++i) {
+        if (i) os << ", ";
+        os << quoted(writes[i]);
+    }
+    os << "]";
+    return os.str();
+}
+
+std::string observationsJson(const std::vector<FieldObservation>& obs) {
+    std::ostringstream os;
+    os << "[";
+    for (size_t i = 0; i < obs.size(); ++i) {
+        const auto& o = obs[i];
+        if (i) os << ", ";
+        os << "{"
+           << "\"field\": " << quoted(o.field)
+           << ", \"post_apply_snapshot_value\": " << quoted(o.postApplySnapshotValue)
+           << ", \"external_value\": " << quoted(o.externalValue)
+           << ", \"final_value\": " << quoted(o.finalValue)
+           << ", \"externally_edited\": " << boolStr(o.externallyEdited)
+           << ", \"current_behavior\": "
+           << quoted(!o.externallyEdited ? "not-edited"
+                                         : (o.preserved ? "preserved" : "overwritten"))
+           << "}";
+    }
+    os << "]";
+    return os.str();
+}
+
+std::string caseJson(const CaseReport& c) {
+    std::ostringstream os;
+    os << "  {\n"
+       << "    \"case\": " << quoted(c.name) << ",\n"
+       << "    \"description\": " << quoted(c.description) << ",\n"
+       << "    \"inputs\": {\n"
+       << "      \"original\": {\"code\": " << quoted(c.originalCode)
+       << ", \"enabled\": " << boolStr(c.originalEnabled) << "},\n"
+       << "      \"requested_apply\": ";
+    if (c.applyCalled) {
+        os << "{\"code\": " << quoted(c.requestedApplyCode)
+           << ", \"enabled\": " << boolStr(c.requestedApplyEnabled) << "},\n";
+    } else {
+        os << "null,\n";
+    }
+    os << "      \"external_edit\": {\"code_edited\": " << boolStr(c.externalEditCode)
+       << ", \"code\": " << quoted(c.externalCode)
+       << ", \"enabled_edited\": " << boolStr(c.externalEditEnabled)
+       << ", \"enabled\": " << boolStr(c.externalEnabled) << "},\n"
+       << "      \"fail_enabled_setter\": " << boolStr(c.failEnabledSetter) << "\n"
+       << "    },\n"
+       << "    \"apply_called\": " << boolStr(c.applyCalled) << ",\n"
+       << "    \"apply_result\": " << quoted(c.applyResult) << ",\n"
+       << "    \"pending_before_external_edit\": " << boolStr(c.pendingBeforeExternalEdit) << ",\n"
+       << "    \"restore_result\": " << quoted(c.restoreResult) << ",\n"
+       << "    \"restoration_pending_after\": " << boolStr(c.pendingAfter) << ",\n"
+       << "    \"final_pair\": {\"code\": " << quoted(c.finalValues.code)
+       << ", \"enabled\": " << boolStr(c.finalValues.enabled) << "},\n"
+       << "    \"write_attempts\": " << writesJson(c.writes) << ",\n"
+       << "    \"partial_failure_stage\": {\"enabled_setter_threw\": "
+       << boolStr(c.enabledSetterThrew) << ", \"code_at_enabled_throw\": ";
+    if (c.codeAtEnabledThrow) {
+        os << quoted(*c.codeAtEnabledThrow);
+    } else {
+        os << "null";
+    }
+    os << "},\n"
+       << "    \"field_observations\": " << observationsJson(c.observations) << ",\n"
+       << "    \"note\": " << quoted(c.note) << "\n"
+       << "  }";
+    return os.str();
+}
+
+// Runs one case. `externalEdit` is applied directly to the fake host (not via
+// the state's setters) to model a player/other-tool change during the lease.
+CaseReport runCase(const std::string& name, const std::string& description,
+                   const Values& original, const std::string& appliedCode,
+                   bool externalEditCode, const std::string& externalCode,
+                   bool externalEditEnabled, bool externalEnabled,
+                   bool failEnabledSetter, bool doApply, bool doRestore) {
+    CaseReport c;
+    c.name = name;
+    c.description = description;
+    c.originalCode = original.code;
+    c.originalEnabled = original.enabled;
+    c.applyCalled = doApply;
+    c.requestedApplyCode = appliedCode;
+    c.requestedApplyEnabled = true;  // apply() always requests enabled=true
+    c.externalEditCode = externalEditCode;
+    c.externalCode = externalCode;
+    c.externalEditEnabled = externalEditEnabled;
+    c.externalEnabled = externalEnabled;
+    c.failEnabledSetter = failEnabledSetter;
+
+    FakeHost host;
+    host.code = original.code;
+    host.enabled = original.enabled;
+    host.failEnabledOnce = failEnabledSetter;
+
+    State lease;
+    auto read = host.read();
+    auto writeCode = host.writeCode();
+    auto writeEnabled = host.writeEnabled();
+
+    if (doApply) {
+        c.applyResult = resultName(lease.apply(appliedCode, read, writeCode, writeEnabled));
+    } else {
+        c.applyResult = "not-called";
+    }
+
+    // Sample the lease state immediately after the apply attempt and BEFORE any
+    // external host mutation, so an active-lease observation is distinguishable
+    // from a case where apply never took a lease.
+    c.pendingBeforeExternalEdit = lease.restorationPending();
+    c.enabledSetterThrew = host.enabledSetterThrew;
+    c.codeAtEnabledThrow = host.codeAtEnabledThrow;
+
+    // External edit during the active lease: bypasses the state's setters.
+    Values postApplyPair = host.snapshot();
+    if (externalEditCode) host.code = externalCode;
+    if (externalEditEnabled) host.enabled = externalEnabled;
+    Values externalPair = host.snapshot();
+
+    if (doRestore) {
+        c.restoreResult = lease.restore(read, writeCode, writeEnabled) ? "true" : "false";
+    } else {
+        c.restoreResult = "not-called";
+    }
+
+    c.pendingAfter = lease.restorationPending();
+    c.finalValues = host.snapshot();
+    c.writes = host.writes;
+
+    FieldObservation codeObs;
+    codeObs.field = "code";
+    codeObs.postApplySnapshotValue = postApplyPair.code;
+    codeObs.externalValue = externalPair.code;
+    codeObs.finalValue = c.finalValues.code;
+    codeObs.externallyEdited = externalEditCode && externalPair.code != postApplyPair.code;
+    codeObs.preserved = codeObs.externallyEdited && c.finalValues.code == externalPair.code;
+    c.observations.push_back(codeObs);
+
+    FieldObservation enabledObs;
+    enabledObs.field = "enabled";
+    enabledObs.postApplySnapshotValue = boolStr(postApplyPair.enabled);
+    enabledObs.externalValue = boolStr(externalPair.enabled);
+    enabledObs.finalValue = boolStr(c.finalValues.enabled);
+    enabledObs.externallyEdited = externalEditEnabled && externalPair.enabled != postApplyPair.enabled;
+    enabledObs.preserved = enabledObs.externallyEdited && c.finalValues.enabled == externalPair.enabled;
+    c.observations.push_back(enabledObs);
+
+    return c;
+}
+
+struct SelfCheck {
+    std::string name;
+    bool passed = false;
+    std::string detail;
+};
+
+}  // namespace
+
+int main() {
+    std::vector<CaseReport> cases;
+    std::vector<SelfCheck> checks;
+    std::string failure;
+
+    try {
+        // Distinct values everywhere so any overwrite is detectable.
+        const Values original{"orig-code", true};
+        // Partial-failure case uses an originally-disabled baseline so the
+        // rollback writeEnabled(false) is observable rather than a no-op.
+        const Values originalDisabled{"orig-code", false};
+        const std::string applied = "applied-code";
+        const std::string externalCode = "external-code";
+
+        // 1. Baseline: apply then restore, no external edit.
+        cases.push_back(runCase(
+            "baseline_apply_then_restore",
+            "Apply a design, then restore with no external edit.",
+            original, applied, false, "", false, false, false, true, true));
+
+        // 2. External code-only edit during the active lease.
+        cases.push_back(runCase(
+            "external_code_only_during_lease",
+            "Player/other tool changes only the code while the lease is pending.",
+            original, applied, true, externalCode, false, false, false, true, true));
+
+        // 3. External enabled-only edit (false) during the active lease.
+        cases.push_back(runCase(
+            "external_enabled_only_during_lease",
+            "Player/other tool disables the override while the lease is pending.",
+            original, applied, false, "", true, false, false, true, true));
+
+        // 4. External edit of both fields during the active lease.
+        cases.push_back(runCase(
+            "external_both_fields_during_lease",
+            "Player/other tool changes code and enabled while the lease is pending.",
+            original, applied, true, externalCode, true, false, false, true, true));
+
+        // 5. Partial apply failure at the enabled setter after the code write.
+        cases.push_back(runCase(
+            "partial_apply_failure_enabled_setter",
+            "Enabled setter throws after the code write; apply must roll back.",
+            originalDisabled, applied, false, "", false, false, true, true, false));
+
+        // 6. Restore with no lease ever taken.
+        cases.push_back(runCase(
+            "restore_without_lease",
+            "Restore on a fresh state that never applied anything.",
+            original, applied, false, "", false, false, false, false, true));
+
+        // ---- Structural / control assertions (not behavior desiderata) ----
+        {
+            const auto& c = cases[0];
+            SelfCheck s;
+            s.name = "baseline_restores_original";
+            s.passed = c.applyCalled && c.applyResult == "Applied" &&
+                       c.pendingBeforeExternalEdit && c.restoreResult == "true" &&
+                       c.finalValues == original && !c.pendingAfter;
+            s.detail = "apply=" + c.applyResult + " restore=" + c.restoreResult +
+                       " final={" + c.finalValues.code + "," + boolStr(c.finalValues.enabled) + "}";
+            checks.push_back(s);
+        }
+        {
+            const auto& c = cases[5];
+            SelfCheck s;
+            s.name = "no_lease_restore_writes_nothing";
+            s.passed = !c.applyCalled && c.applyResult == "not-called" &&
+                       !c.pendingBeforeExternalEdit && c.restoreResult == "true" &&
+                       c.writes.empty() && !c.pendingAfter && c.finalValues == original;
+            s.detail = "apply=" + c.applyResult + " restore=" + c.restoreResult +
+                       " write_attempts=" + std::to_string(c.writes.size());
+            checks.push_back(s);
+        }
+        {
+            // Precondition for the active-lease observations: each external-edit
+            // case must actually have applied, still held a pending lease at the
+            // edit, and actually changed the field(s) it intends to edit. The
+            // preserved/overwritten outcome is deliberately NOT asserted.
+            const char* names[3] = {"external_code_only_during_lease",
+                                    "external_enabled_only_during_lease",
+                                    "external_both_fields_during_lease"};
+            const bool wantCode[3] = {true, false, true};
+            const bool wantEnabled[3] = {false, true, true};
+            for (int i = 0; i < 3; ++i) {
+                const auto& c = cases[static_cast<size_t>(i) + 1];
+                SelfCheck s;
+                s.name = std::string("active_lease_precondition:") + names[i];
+                const bool codeEdited = c.observations[0].externallyEdited;
+                const bool enabledEdited = c.observations[1].externallyEdited;
+                s.passed = c.applyCalled && c.applyResult == "Applied" &&
+                           c.pendingBeforeExternalEdit &&
+                           codeEdited == wantCode[i] && enabledEdited == wantEnabled[i];
+                s.detail = "apply=" + c.applyResult +
+                           " pending_before_edit=" + boolStr(c.pendingBeforeExternalEdit) +
+                           " code_edited=" + boolStr(codeEdited) +
+                           " enabled_edited=" + boolStr(enabledEdited);
+                checks.push_back(s);
+            }
+        }
+        {
+            // Partial failure must be genuinely partial: the code write attempt
+            // happened first, the enabled setter threw, and rollback returned the
+            // originally-disabled baseline.
+            const auto& c = cases[4];
+            SelfCheck s;
+            s.name = "partial_failure_safe_outcome";
+            const bool codeWrittenFirst = !c.writes.empty() &&
+                c.writes[0] == "writeCode(" + applied + ")";
+            const bool codeAtThrowIsApplied =
+                c.codeAtEnabledThrow && *c.codeAtEnabledThrow == applied;
+            s.passed = c.applyCalled && c.applyResult == "FailedRestored" &&
+                       c.enabledSetterThrew && codeWrittenFirst && codeAtThrowIsApplied &&
+                       !c.pendingAfter && c.finalValues == originalDisabled;
+            s.detail = "apply=" + c.applyResult +
+                       " setter_threw=" + boolStr(c.enabledSetterThrew) +
+                       " code_written_first=" + boolStr(codeWrittenFirst) +
+                       " pending=" + boolStr(c.pendingAfter) +
+                       " final={" + c.finalValues.code + "," +
+                       boolStr(c.finalValues.enabled) + "}";
+            checks.push_back(s);
+        }
+
+        // Observations only: current external-edit handling is reported, not
+        // asserted as correct.
+        cases[1].note =
+            "Observation only: current restore writes the pre-apply code over the "
+            "external code edit; not asserted as desired behavior.";
+        cases[2].note =
+            "Observation only: current restore re-applies the original enabled flag "
+            "over the external disable; not asserted as desired behavior.";
+        cases[3].note =
+            "Observation only: current restore overwrites both externally edited "
+            "fields; not asserted as desired behavior.";
+        cases[4].note =
+            "Control case: enabled setter throws once after the code write; apply "
+            "rolls back to the originally-disabled pair and reports FailedRestored.";
+        cases[5].note =
+            "Control case: no lease means restore is a no-op success with no writes.";
+        cases[0].note = "Control case: baseline apply/restore round-trips exactly.";
+
+        for (const auto& s : checks) {
+            if (!s.passed) {
+                failure = "self-check failed: " + s.name + " (" + s.detail + ")";
+                break;
+            }
+        }
+    } catch (const std::exception& e) {
+        failure = std::string("exception: ") + e.what();
+    } catch (...) {
+        failure = "exception: unknown";
+    }
+
+    std::ostringstream out;
+    out << "{\n"
+        << "  \"probe\": \"research_cosmetic_restore_probe\",\n"
+        << "  \"synthetic_in_memory\": true,\n"
+        << "  \"header\": \"plugin/include/CosmeticOverrideState.h\",\n"
+        << "  \"header_identity_verified_by\": \"main\",\n"
+        << "  \"status\": " << quoted(failure.empty() ? "ok" : "failed") << ",\n";
+    if (!failure.empty()) {
+        out << "  \"failure\": " << quoted(failure) << ",\n";
+    }
+    out << "  \"cases\": [\n";
+    for (size_t i = 0; i < cases.size(); ++i) {
+        out << caseJson(cases[i]);
+        if (i + 1 < cases.size()) out << ",";
+        out << "\n";
+    }
+    out << "  ],\n"
+        << "  \"self_checks\": [\n";
+    for (size_t i = 0; i < checks.size(); ++i) {
+        out << "    {\"name\": " << quoted(checks[i].name)
+            << ", \"passed\": " << boolStr(checks[i].passed)
+            << ", \"detail\": " << quoted(checks[i].detail) << "}";
+        if (i + 1 < checks.size()) out << ",";
+        out << "\n";
+    }
+    out << "  ],\n"
+        << "  \"limitations\": [\n"
+        << "    \"Fake setters mutate in-memory strings/bools; no cvar, game, or BakkesMod call.\",\n"
+        << "    \"No rendering, session, ownership, or crash-recovery behavior is exercised.\",\n"
+        << "    \"External edits are simulated by direct fake-host mutation, not a real notifier.\",\n"
+        << "    \"Preserved/overwritten labels describe current code behavior, not desired policy.\",\n"
+        << "    \"Only public apply/restore/restorationPending are driven; no private mutation.\",\n"
+        << "    \"Coverage limits: no case reaches RestorePending (restore returning false), "
+        << "HostUnavailable (read returning nullopt), a re-apply while pending, or an "
+        << "external enabled=true edit over an originally-disabled baseline.\",\n"
+        << "    \"No cvar, BakkesMod, game, session, or rendering call is made; no real "
+        << "notifier observes the external edits.\",\n"
+        << "    \"write_attempts records attempts before a possible throw, so an attempt "
+        << "may not have taken effect.\",\n"
+        << "    \"JSON escaping covers quote/backslash/CR/LF/TAB and substitutes '?' for "
+        << "other C0 controls; bytes >= 0x80 pass through unescaped (all literals here "
+        << "are ASCII).\",\n"
+        << "    \"Source and compiler hashes are added by the orchestrating main, not here.\"\n"
+        << "  ],\n"
+        << "  \"hashes\": {\"source_sha256\": null, \"compiler\": null, "
+        << "\"note\": \"added by main\"}\n"
+        << "}\n";
+
+    std::cout << out.str();
+    return failure.empty() ? 0 : 1;
+}

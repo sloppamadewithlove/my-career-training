@@ -1,0 +1,454 @@
+{
+  "observed_at_utc": "2026-10-27T10:42:48.481142+00:00",
+  "scope": "Single standalone in-memory C++ diagnostic against unchanged production transaction class; no BakkesMod/game/cvar call or installed component change.",
+  "configure": {
+    "exit_code": 0,
+    "elapsed_seconds": 7.0041732,
+    "generator": "Visual Studio 17 2022",
+    "architecture": "x64"
+  },
+  "build": {
+    "exit_code": 0,
+    "elapsed_seconds": 5.3145059,
+    "configuration": "Release",
+    "target": "research_cosmetic_restore_probe",
+    "parallel_jobs": 1
+  },
+  "run": {
+    "exit_code": 0,
+    "cases": 6,
+    "control_checks": 6,
+    "raw_stdout_sha256": "e56367528ca2fc74780b363be5b68f5b1778cbd116f60946778f2cfa820b6bdf"
+  },
+  "compiler": {
+    "id": "MSVC",
+    "version": "19.44.35229.0",
+    "binary_sha256": "fe251ef50a1545b1b0835ee17b1e785459712b38d79e45b5c1d3d28970a36619"
+  },
+  "sources": [
+    {
+      "path": "tools/research_cosmetic_restore_probe.cpp",
+      "bytes": 22770,
+      "sha256": "8c24f36e7899b61602614ec4d88d2f2d8f31974624e9ea45ae55a8889d406445"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 707,
+      "sha256": "7ed64e834f025071aa26d6a404fa60a4264b2c6b9a5631c6ad871f3807c65e90"
+    },
+    {
+      "path": "plugin/include/CosmeticOverrideState.h",
+      "bytes": 2830,
+      "sha256": "dc2e5183d2b0b8f96b18696dfcd6b509c7a2bf8a9daf03e1f4861cb07382dab7"
+    }
+  ],
+  "executable": {
+    "bytes": 74240,
+    "sha256": "ea06186f594770b1ff4579c84e458261c86d237a4d96e5d7db264364e5507069"
+  },
+  "review": "Separate DeepSeek builder/reviewer; three reporting/precondition blockers corrected and source reaccepted before compilation. Coordinator checked header/review-copy identity and observed run.",
+  "program_output": {
+    "probe": "research_cosmetic_restore_probe",
+    "synthetic_in_memory": true,
+    "header": "plugin/include/CosmeticOverrideState.h",
+    "header_identity_verified_by": "main",
+    "status": "ok",
+    "cases": [
+      {
+        "case": "baseline_apply_then_restore",
+        "description": "Apply a design, then restore with no external edit.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": true
+          },
+          "requested_apply": {
+            "code": "applied-code",
+            "enabled": true
+          },
+          "external_edit": {
+            "code_edited": false,
+            "code": "",
+            "enabled_edited": false,
+            "enabled": false
+          },
+          "fail_enabled_setter": false
+        },
+        "apply_called": true,
+        "apply_result": "Applied",
+        "pending_before_external_edit": true,
+        "restore_result": "true",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": true
+        },
+        "write_attempts": [
+          "writeCode(applied-code)",
+          "writeEnabled(true)",
+          "writeCode(orig-code)",
+          "writeEnabled(true)"
+        ],
+        "partial_failure_stage": {
+          "enabled_setter_threw": false,
+          "code_at_enabled_throw": null
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "applied-code",
+            "external_value": "applied-code",
+            "final_value": "orig-code",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "true",
+            "external_value": "true",
+            "final_value": "true",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          }
+        ],
+        "note": "Control case: baseline apply/restore round-trips exactly."
+      },
+      {
+        "case": "external_code_only_during_lease",
+        "description": "Player/other tool changes only the code while the lease is pending.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": true
+          },
+          "requested_apply": {
+            "code": "applied-code",
+            "enabled": true
+          },
+          "external_edit": {
+            "code_edited": true,
+            "code": "external-code",
+            "enabled_edited": false,
+            "enabled": false
+          },
+          "fail_enabled_setter": false
+        },
+        "apply_called": true,
+        "apply_result": "Applied",
+        "pending_before_external_edit": true,
+        "restore_result": "true",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": true
+        },
+        "write_attempts": [
+          "writeCode(applied-code)",
+          "writeEnabled(true)",
+          "writeCode(orig-code)",
+          "writeEnabled(true)"
+        ],
+        "partial_failure_stage": {
+          "enabled_setter_threw": false,
+          "code_at_enabled_throw": null
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "applied-code",
+            "external_value": "external-code",
+            "final_value": "orig-code",
+            "externally_edited": true,
+            "current_behavior": "overwritten"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "true",
+            "external_value": "true",
+            "final_value": "true",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          }
+        ],
+        "note": "Observation only: current restore writes the pre-apply code over the external code edit; not asserted as desired behavior."
+      },
+      {
+        "case": "external_enabled_only_during_lease",
+        "description": "Player/other tool disables the override while the lease is pending.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": true
+          },
+          "requested_apply": {
+            "code": "applied-code",
+            "enabled": true
+          },
+          "external_edit": {
+            "code_edited": false,
+            "code": "",
+            "enabled_edited": true,
+            "enabled": false
+          },
+          "fail_enabled_setter": false
+        },
+        "apply_called": true,
+        "apply_result": "Applied",
+        "pending_before_external_edit": true,
+        "restore_result": "true",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": true
+        },
+        "write_attempts": [
+          "writeCode(applied-code)",
+          "writeEnabled(true)",
+          "writeCode(orig-code)",
+          "writeEnabled(true)"
+        ],
+        "partial_failure_stage": {
+          "enabled_setter_threw": false,
+          "code_at_enabled_throw": null
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "applied-code",
+            "external_value": "applied-code",
+            "final_value": "orig-code",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "true",
+            "external_value": "false",
+            "final_value": "true",
+            "externally_edited": true,
+            "current_behavior": "overwritten"
+          }
+        ],
+        "note": "Observation only: current restore re-applies the original enabled flag over the external disable; not asserted as desired behavior."
+      },
+      {
+        "case": "external_both_fields_during_lease",
+        "description": "Player/other tool changes code and enabled while the lease is pending.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": true
+          },
+          "requested_apply": {
+            "code": "applied-code",
+            "enabled": true
+          },
+          "external_edit": {
+            "code_edited": true,
+            "code": "external-code",
+            "enabled_edited": true,
+            "enabled": false
+          },
+          "fail_enabled_setter": false
+        },
+        "apply_called": true,
+        "apply_result": "Applied",
+        "pending_before_external_edit": true,
+        "restore_result": "true",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": true
+        },
+        "write_attempts": [
+          "writeCode(applied-code)",
+          "writeEnabled(true)",
+          "writeCode(orig-code)",
+          "writeEnabled(true)"
+        ],
+        "partial_failure_stage": {
+          "enabled_setter_threw": false,
+          "code_at_enabled_throw": null
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "applied-code",
+            "external_value": "external-code",
+            "final_value": "orig-code",
+            "externally_edited": true,
+            "current_behavior": "overwritten"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "true",
+            "external_value": "false",
+            "final_value": "true",
+            "externally_edited": true,
+            "current_behavior": "overwritten"
+          }
+        ],
+        "note": "Observation only: current restore overwrites both externally edited fields; not asserted as desired behavior."
+      },
+      {
+        "case": "partial_apply_failure_enabled_setter",
+        "description": "Enabled setter throws after the code write; apply must roll back.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": false
+          },
+          "requested_apply": {
+            "code": "applied-code",
+            "enabled": true
+          },
+          "external_edit": {
+            "code_edited": false,
+            "code": "",
+            "enabled_edited": false,
+            "enabled": false
+          },
+          "fail_enabled_setter": true
+        },
+        "apply_called": true,
+        "apply_result": "FailedRestored",
+        "pending_before_external_edit": false,
+        "restore_result": "not-called",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": false
+        },
+        "write_attempts": [
+          "writeCode(applied-code)",
+          "writeEnabled(true)",
+          "writeCode(orig-code)",
+          "writeEnabled(false)"
+        ],
+        "partial_failure_stage": {
+          "enabled_setter_threw": true,
+          "code_at_enabled_throw": "applied-code"
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "orig-code",
+            "external_value": "orig-code",
+            "final_value": "orig-code",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "false",
+            "external_value": "false",
+            "final_value": "false",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          }
+        ],
+        "note": "Control case: enabled setter throws once after the code write; apply rolls back to the originally-disabled pair and reports FailedRestored."
+      },
+      {
+        "case": "restore_without_lease",
+        "description": "Restore on a fresh state that never applied anything.",
+        "inputs": {
+          "original": {
+            "code": "orig-code",
+            "enabled": true
+          },
+          "requested_apply": null,
+          "external_edit": {
+            "code_edited": false,
+            "code": "",
+            "enabled_edited": false,
+            "enabled": false
+          },
+          "fail_enabled_setter": false
+        },
+        "apply_called": false,
+        "apply_result": "not-called",
+        "pending_before_external_edit": false,
+        "restore_result": "true",
+        "restoration_pending_after": false,
+        "final_pair": {
+          "code": "orig-code",
+          "enabled": true
+        },
+        "write_attempts": [],
+        "partial_failure_stage": {
+          "enabled_setter_threw": false,
+          "code_at_enabled_throw": null
+        },
+        "field_observations": [
+          {
+            "field": "code",
+            "post_apply_snapshot_value": "orig-code",
+            "external_value": "orig-code",
+            "final_value": "orig-code",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          },
+          {
+            "field": "enabled",
+            "post_apply_snapshot_value": "true",
+            "external_value": "true",
+            "final_value": "true",
+            "externally_edited": false,
+            "current_behavior": "not-edited"
+          }
+        ],
+        "note": "Control case: no lease means restore is a no-op success with no writes."
+      }
+    ],
+    "self_checks": [
+      {
+        "name": "baseline_restores_original",
+        "passed": true,
+        "detail": "apply=Applied restore=true final={orig-code,true}"
+      },
+      {
+        "name": "no_lease_restore_writes_nothing",
+        "passed": true,
+        "detail": "apply=not-called restore=true write_attempts=0"
+      },
+      {
+        "name": "active_lease_precondition:external_code_only_during_lease",
+        "passed": true,
+        "detail": "apply=Applied pending_before_edit=true code_edited=true enabled_edited=false"
+      },
+      {
+        "name": "active_lease_precondition:external_enabled_only_during_lease",
+        "passed": true,
+        "detail": "apply=Applied pending_before_edit=true code_edited=false enabled_edited=true"
+      },
+      {
+        "name": "active_lease_precondition:external_both_fields_during_lease",
+        "passed": true,
+        "detail": "apply=Applied pending_before_edit=true code_edited=true enabled_edited=true"
+      },
+      {
+        "name": "partial_failure_safe_outcome",
+        "passed": true,
+        "detail": "apply=FailedRestored setter_threw=true code_written_first=true pending=false final={orig-code,false}"
+      }
+    ],
+    "limitations": [
+      "Fake setters mutate in-memory strings/bools; no cvar, game, or BakkesMod call.",
+      "No rendering, session, ownership, or crash-recovery behavior is exercised.",
+      "External edits are simulated by direct fake-host mutation, not a real notifier.",
+      "Preserved/overwritten labels describe current code behavior, not desired policy.",
+      "Only public apply/restore/restorationPending are driven; no private mutation.",
+      "Coverage limits: no case reaches RestorePending (restore returning false), HostUnavailable (read returning nullopt), a re-apply while pending, or an external enabled=true edit over an originally-disabled baseline.",
+      "No cvar, BakkesMod, game, session, or rendering call is made; no real notifier observes the external edits.",
+      "write_attempts records attempts before a possible throw, so an attempt may not have taken effect.",
+      "JSON escaping covers quote/backslash/CR/LF/TAB and substitutes '?' for other C0 controls; bytes >= 0x80 pass through unescaped (all literals here are ASCII).",
+      "Source and compiler hashes are added by the orchestrating main, not here."
+    ],
+    "hashes": {
+      "source_sha256": null,
+      "compiler": null,
+      "note": "added by main"
+    }
+  }
+}

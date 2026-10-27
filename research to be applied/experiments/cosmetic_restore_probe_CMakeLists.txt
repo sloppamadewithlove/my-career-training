@@ -1,0 +1,17 @@
+# Standalone, offline diagnostic build for tools/research_cosmetic_restore_probe.cpp
+#
+# One executable, no dependencies, no network, no plugin build. It compiles the
+# unchanged production header plugin/include/CosmeticOverrideState.h via a
+# relative include path. Nothing here is part of the plugin target.
+cmake_minimum_required(VERSION 3.16)
+project(research_cosmetic_restore_probe LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_executable(research_cosmetic_restore_probe
+    tools/research_cosmetic_restore_probe.cpp)
+
+target_include_directories(research_cosmetic_restore_probe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin/include)
