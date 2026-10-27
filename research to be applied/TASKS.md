@@ -122,3 +122,4 @@ traces from static declarations or UI controls alone.
 | MAP-GEOMETRY-01 | Standard-field assumptions and custom arena contract | Complete; fixed planes, telemetry omissions and map-specific acceptance requirements |
 | GHOST-VISUAL-01 | Richer ghost rendering and actor/mesh boundaries | Complete; supported visual primitives; textured mesh and live cleanup remain unresolved |
 | INPUT-PROMPT-ROUTE-01 | Stock action-to-binding-to-glyph route | Complete; native resolver boundary and refresh limitations; no device test |
+| REQUIREMENTS-COVERAGE-01 | Requested features, evidence level and remaining acceptance | Complete snapshot; indirect historical game summaries distinguished from this campaign's static/offline evidence |
