@@ -1,0 +1,72 @@
+My Career Training — concrete benefits from the research
+27 October 2026
+
+Preserve the agreed product
+Lessons, Workshop, Mods and Favorites stay. Selecting a lesson should open its
+separate Bronze-through-Supersonic-Legend menu. The reviewed candidate currently
+does that for Power Shots; the seven other lessons still need meaningful rank
+profiles and the corresponding route. The rank names describe intended challenge,
+not certified competitive ability. Existing lesson content should be retained.
+
+1. Make a shot behave consistently from setup through retry
+Keep title, situation/shot count, selected rank, readable clock and current controls
+in one compact HUD. Establish the actual clock and timer start trigger before
+connecting timeout to ball visibility. A retry must restore the ball, car, opponents,
+timer and current situation together; exit must leave normal gameplay intact.
+Official v2.49 notes identify early ball disappearance as a bug in Aerial/Striker.
+The reviewed observer provides a starting measurement tool, not a completed fix.
+Source: https://www.rocketleague.com/news/rocket-league-patch-notes-season-18-live?lang=en
+
+2. Match useful native navigation and progress behavior
+Custom Training officially supports next/previous, hold-to-select, shuffle, mirror,
+out-of-order completion and saved pack progress. Its Reset Progress action is
+separate from retrying the current shot. In our mod, keep those concepts distinct:
+current-shot reset, shot selection, and persistent progress reset should not share
+ambiguous actions. Display only actually observed completion. Proposed progress
+identity should distinguish lesson, rank, situation and setup revision so changing
+the exercise does not silently inherit old mastery.
+Source: https://www.rocketleague.com/news/season-7-changes-coming-to-custom-training
+
+3. Add controlled variation after repeatable drills work
+The 2026 native settings document variation in ball speed/position/height and car
+position/rotation, grounded spawn, goal-replay skipping and an input-start delay.
+The later expansion adds starting car velocity/pitch and starting boost. These are
+useful future lesson controls. Proposed mod behavior: keep a repeatable default,
+offer explicit variation settings, and record the actual setup/seed for retry and
+replay. Rank difficulty should adjust meaningful mechanic-specific constraints;
+randomizing everything is not a substitute for a useful rank profile.
+Sources:
+https://www.rocketleague.com/news/rocket-league-patch-notes-v2-66?lang=en
+https://www.rocketleague.com/news/rocket-league-patch-notes-v270-season-23-live
+
+4. Use prompts that match real input and bindings
+Private native UI exports show device-dependent glyph and localization helpers.
+The public SDK exposes binding lists. Confirm the authored movie can resolve the
+native symbols before adopting them; a label saying CROSS is not device detection.
+Verify keyboard, Xbox and PlayStation focus/prompt changes at supported UI scales.
+Keep extracted proprietary assets out of the repository.
+Evidence: native-input-prompt-research.txt and native-clock-research.txt.
+
+5. Make every checkbox control a proven compatible feature
+Use the nine-plugin matrix to choose one aid at a time. BallPrediction is a promising
+read-only candidate, pending actual context and cleanup proof. Input filters and
+ball/car generators need explicit lesson ownership or separate practice modes.
+For each adapter, prove enabled/disabled readback, actual effect, preservation of
+later user edits and restoration on exit. Downloaded does not mean enabled.
+Evidence: plugin-compatibility-matrix.txt.
+
+6. Complete content routes, not just their cards
+Source identities and Favorites are already separate from saved display metadata.
+Retain canonical ID resolution and honest unavailable rows. Add focused evidence
+for remote favorite lookup after restart/page eviction. Workshop needs real map
+arrival and Return/restoration proof before production launch is enabled. Native
+training-pack metadata alone does not overcome the recorded offline FeatureDisabled
+response. Keep these distinct from the already-tested stock-opened Workshop Return.
+Evidence: browser-identity-research.txt.
+
+Implementation order
+Reconcile the separate rank/settings work with the other chat's HUD/stock-input/
+native-entry work; compile and stage one candidate when parallel timing tests are
+resolved. Observe native timeout/reset, then implement the proven lifecycle change.
+Validate one full lesson flow before expanding rank profiles or enabling more mods.
+Heavy compilation and game input remain deferred per the owner's latest instruction.

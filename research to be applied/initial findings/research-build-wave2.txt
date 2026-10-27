@@ -1,0 +1,84 @@
+My Career Training — research and build handoff, 27 October 2026
+
+Worker assignments
+One researcher owns each research task. GPT-6 Luna with max reasoning performs
+research and existing-test execution only. DeepSeek builders and independent
+DeepSeek reviewers use separate identities and isolated source snapshots.
+
+Completed implementation
+The isolated codex/native-training-rank-settings worktree now includes the reviewed
+development-only lifecycle observer, on top of the earlier separate rank menu and
+Training-first settings changes. Three source/test files changed. It records ball
+presence, fade-out/end-hidden flags, round state and the raw game clock; absent
+balls produce explicit rows with null flags. Unchanged state is sampled once per
+elapsed-second bucket; transitions are sampled immediately, up to 128 rows.
+Existing session/nonce/offline/timeout guards and geometry capture remain.
+No ball mutation, controller input, launch repair, or production plugin toggle was
+added. This provides measurement; it does not implement stock ball disappearance.
+
+Evidence
+- Release mct_builtin_training_probe_tests compiled and CTest builtin_training_probe
+  passed (1/1). Coverage includes fade/absence/reappearance, repeated same-round
+  transitions, cap/reset/stop, invalid values and backwards-clock rejection.
+- A separate DeepSeek reviewer accepted the immutable three-file patch.
+- New flag getters and wrapper bool declarations exist in the pinned SDK headers.
+- Exact source hashes, baseline blobs and patch SHA-256 are in
+  lifecycle-observer-receipt.json; the additive delta is lifecycle-observer.patch.
+- The earlier 18-file rank/settings patch and receipt remain unchanged.
+
+Limits and next acceptance
+The complete plugin DLL has not yet been compiled for this delta or loaded into
+Rocket League. Wrapper runtime behavior and actual timeout/retry transitions remain
+unverified. The raw GetGameTimeRemaining reading is not established as the native
+shot countdown. Existing geometry/session termination may end a capture before
+60 seconds, and rapid transitions can fill the 128-row cap. Polling cannot attribute
+a state change to a particular native function. Later expansion may compare other
+clock/fade fields, ball identity and geometry, only if the first capture needs them.
+
+The owner does not know whether the other chat is measuring timing/physics and
+requested continued research. Heavy compilation is therefore deferred. Once that
+activity is resolved, compile one reconciled candidate.
+Preserve its native-entry and HUD/stock-control changes when merging shared files.
+Stage the reviewed authored movies before packaging. After a fresh game ownership
+handoff, observe one built-in drill from setup through timeout, retry, next shot and
+exit; compare visible ball behavior with the recorded flags and clocks.
+No active checkout runtime source, loaded DLL or movie was replaced by this wave.
+
+Research conclusions for builders
+1. Installed artifact inspection: REA completed PE imports for TrainingPlugin and
+   MyCareerTraining, and a bounded Ghidra string query on TrainingPlugin. These
+   identify interfaces; they do not recover the stock timeout implementation.
+   See shot-lifecycle-rea-wave2.txt for identities, evidence IDs and limits.
+2. Nine public plugin scopes now have a compatibility matrix. BallPrediction is
+   the strongest read-only aid candidate, subject to actual context and cleanup
+   checks. Mechanical changes player input. Defender/Training/Workshop/Recovery
+   have their own ball/car control or timing. Redirect/Rebound/Dribble are deliberate
+   one-shot actions, not honest universal enable checkboxes. See the matrix.
+3. Native prompt research found input-type/glyph/localization helpers and SDK
+   binding-list APIs. Their presence in private source does not establish that the
+   authored movie can resolve the stock symbols. Verify symbol availability and
+   current device/bindings before implementing native glyph reuse. Do not copy
+   proprietary extracted assets into the repository.
+4. Workshop launch is intentionally development-gated. A preparation acknowledgement
+   does not prove map arrival. A generic workshop_refused result does not identify
+   a missing command: several readiness/scope conditions can produce refusal.
+   Keep the production gate until actual launch/arrival/Return/restoration pass.
+5. Lesson and favorite identity routing is mapped in browser-identity-research.txt.
+   Selected existing favorites tests passed: five tests (four favorite-focused,
+   one incidental storage import), 115 deselected. Restart/page-eviction fallback
+   remains unverified. Only Power Shots currently has eight rank profiles; expanding
+   all other lessons requires mechanic-specific setups and gameplay acceptance.
+6. Official Psyonix v2.49 notes confirm an early ball-disappearance bug relative to
+   the shot timer in Aerial/Striker. Separate official Custom Training documentation
+   establishes navigation, progress and newer setup options. See
+   stock-training-modes-research.txt and training-research-priorities.txt.
+7. The native clock declaration model is mapped in native-clock-research.txt.
+   Tutorial and TrainingEditor share Soccar ancestry; both expose common clocks.
+   The controlling shot clock and exact event order still need actual observation.
+
+Where the research benefits the mod next
+First establish timeout/reset behavior, then make the timer, ball lifecycle and
+whole-scenario retry consistent. Next verify stock input prompts in the authored
+movie, complete actual Workshop launch/Return, and add one proven compatible aid
+with snapshot/readback/restoration. Broader lesson ranks follow observed drill
+geometry and useful shooting windows, rather than copying rank labels.

@@ -1,0 +1,48 @@
+STOCK TRAINING MODES VS. CUSTOM TRAINING PACKS
+27 October 2026
+
+Scope
+
+This note separates current official product documentation from inferences drawn from the local BakkesMod SDK declarations. It does not inspect or launch Rocket League, and does not establish the behavior of any installed DLL.
+
+Officially documented behavior
+
+| Area | Stock training / tutorials | Custom Training packs |
+|---|---|---|
+| Names and route | Psyonix calls out an in-game “Aerial Training” mode separately from player-made Custom Training packs. Official patch notes refer to a shot timer in Aerial and Striker training. The official material reviewed here does not document the full current menu route for built-in Aerial/Goalie/Striker or prove which built-in drills offer all three tiers. | The 2016 creation article describes custom sequences with a type (Striker or Goalie), difficulty (Rookie, Pro, All-Star), tags, an editable shot list, and per-shot car/ball placement and ball trajectory. The Psyonix article refers to the Custom Training menu and its Browse tab; the full current click path was not confirmed from an accessible official page. The tier labels therefore also apply to Custom Training metadata; they are not documented as exclusive to stock drills. |
+| Shot timer and reset | Psyonix’s March 14, 2025 v2.49 patch note says: “Fixed the ball vanishing before the shot timer in Aerial and Striker training.” This establishes a shot timer exists in those two named stock modes. The note does not say when it starts (input, touch, or another event), its duration, or what expiry/reset does. It does not mention Goalie. | The 2022 Custom Training update describes saved pack progress and a Pause-menu “Reset Progress” action. That resets pack progress; the documentation does not say it resets the live ball or a per-shot timer. The March 2026 Custom Training settings add a 0–0.1 s “Round Start Input Delay,” described as changing how soon a round begins after player input. That is a round-start delay, not a documented in-shot timer. |
+| Shot navigation, shuffle, mirroring, progress | The official sources reviewed do not document pack-style Next/Previous/Select, Shuffle, Mirroring, or saved per-shot progress for stock Aerial/Goalie/Striker drills. | The June 2022 update explicitly assigns Next/Previous, Select Shot, Shuffle Shots, and Shot Mirroring to Custom Training packs. Pack progress can be completed out of order, saved, reset in Pause, and reviewed at End Training. The update says mirror support covers arenas then available in Custom Training. |
+| Binding customization | No stock-drill-specific binding customization is documented in the sources reviewed. | While inside a Custom Training pack, the official instructions are Settings → Controls → View/Change Bindings; the new Shuffle/Mirroring controls are at the bottom. Existing packs use the controls without pack edits. |
+| Other settings | The 2023 Training settings tab is visible in Custom Training and Free Play. General settings (Game Speed and Controls Display) apply to both; Free Play options (Disable Goal Reset and boost behavior) apply only to Free Play. These notes do not assign them to built-in drills. | The 2026 v2.66 pack settings include randomized ball speed/location/height and vehicle location/rotation, spawn-on-ground, Skip Goal Replay, and Round Start Input Delay. The v2.70 expansion adds creator-controlled starting car velocity and pitch, plus a starting-boost slider when playing a training pack. |
+
+Mode boundary and API mapping (inference from declarations)
+
+The native plugin CMake FetchContent declaration pins BakkesModSDK to commit `479e8f571cf554b25f4eeb64d611dec4133edcaf` with archive SHA-256 `e4072d2884a432bedfd7a7e8474000137b1649deeea3346de4f1b2a0cb9dd866`. The cached `_deps/mct_sdk-src` headers consumed by that build are an archive extraction, not a Git checkout with an independent revision. They define separate `TutorialWrapper` and `TrainingEditorWrapper` classes, and `GfxDataTrainingWrapper` exposes distinct `SetTrainingGameEvent(TutorialWrapper)` and `SetTrainingEditorGameEvent(TrainingEditorWrapper)` signatures. This supports keeping tutorial-like events separate from editor/playtest events; it does not by itself map every stock UI item to a wrapper. In particular, do not infer that `TrainingEditorWrapper` is the built-in tutorial event.
+
+At signature level, the headers expose tutorial `Redo`, `ResetBalls`, and `ResetRoundTime`; TrainingEditor round-time limits, `ResetBalls`, `SwitchToRoundNumber`, `RestartPlayTest`, and round/time change events; and UI methods for `PlayTraining(type,difficulty)`, `PlayTutorial`, per-shot progress, tutorial/training completion, shuffle/mirroring capability checks, and progress reset. These names suggest API coverage for both flows, but the public headers do not implement them. `GameWrapper.h` also comments out direct `IsInTutorial()` and `GetGameEventAsTutorial()` accessors. Treat exact mode mapping, API availability at runtime, timer start/expiry behavior, and reset side effects as unverified.
+
+Source references
+
+Official sources:
+
+- [Customize Your Training Soon (Nov. 18, 2016)](https://www.rocketleague.com/news/customize-your-training-soon?lang=en): Custom Training type/difficulty metadata, shot list, car/ball placement and trajectory, browsing.
+- [Community Spotlight: Improving Air Control (Aug. 8, 2017)](https://www.rocketleague.com/news/community-spotlight-improving-air-control): distinguishes in-game Aerial Training from player-made Custom Training packs.
+- [Rocket League Patch Notes v2.49 (Mar. 14, 2025)](https://www.rocketleague.com/news/rocket-league-patch-notes-season-18-live?lang=en): exact shot-timer bug-fix wording above; no start trigger or timer duration/expiry semantics.
+- [Season 7: Changes Coming to Custom Training (June 13, 2022)](https://www.rocketleague.com/news/season-7-changes-coming-to-custom-training): pack navigation, shuffle, mirror, saved progress/reset, binding instructions.
+- [Patch Notes v2.25 (Jan. 24, 2023)](https://www.rocketleague.com/news/patch-notes-v2-25?lang=en): Training-tab visibility and the separation of Free Play-only settings.
+- [Patch Notes v2.66 (Mar. 10, 2026)](https://www.rocketleague.com/news/rocket-league-patch-notes-v2-66?lang=en): custom-pack randomization, replay, and round-start-delay settings.
+- [Patch Notes v2.70 (June 9, 2026)](https://www.rocketleague.com/news/rocket-league-patch-notes-v270-season-23-live): custom pack starting car velocity, pitch, and boost.
+- The Epic Support result surfaced during discovery now redirects to a generic help index, so its title is not used as evidence for built-in mode names or tiers.
+
+Local SDK declarations (signatures only):
+
+- Build pin: `plugin/CMakeLists.txt:26-29` in the My Career Training tree (URL commit and archive SHA-256 above).
+- `include/bakkesmod/wrappers/GameEvent/TutorialWrapper.h:14-24,53-60,115-127`
+- `include/bakkesmod/wrappers/GameEvent/TrainingEditorWrapper.h:12-38,51-99`
+- `include/bakkesmod/wrappers/gfx/GfxDataTrainingWrapper.h:8-43`
+- `include/bakkesmod/wrappers/GameWrapper.h:52-70`
+- `include/bakkesmod/wrappers/GameEvent/GameEventWrapper.h:26-33,89`
+- `include/bakkesmod/wrappers/GameEvent/SaveData/GameEditorSaveDataWrapper.h:15-22`
+- `include/bakkesmod/wrappers/wrapperstructs.h:1061-1064`
+
+No official source reviewed states whether the v2.49 Aerial/Striker shot timer begins on player input, ball touch, or another event; specifies its duration; explains its expiry/reset path; or says the same timer applies to Goalie. Those are still runtime/game-source questions.

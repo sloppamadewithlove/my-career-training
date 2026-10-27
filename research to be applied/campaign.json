@@ -1,0 +1,12 @@
+{
+  "started_at_utc": "2026-10-27T06:54:12Z",
+  "ends_at_utc": "2026-10-27T14:54:12Z",
+  "timezone": "America/New_York",
+  "status": "active",
+  "heartbeat_interval_seconds": 3600,
+  "heartbeat_kind": "local document-activity monitor; not Codex wakeup",
+  "heavy_compilation": "deferred",
+  "game_input": "not owned by this campaign",
+  "task_policy": "one researcher per task; Luna research/tests only; separate DeepSeek builders/reviewers",
+  "publication_scope": "research to be applied only"
+}

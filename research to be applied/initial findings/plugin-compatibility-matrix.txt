@@ -1,0 +1,43 @@
+TRAINING PLUGIN COMPATIBILITY MATRIX
+27 October 2026
+
+Evidence boundary
+
+This is source-only analysis of the local public BakkesMod2-Plugins tree pinned at f412cd66ce0735be4aeb21ca41325337eb959aa0. It does not establish which DLLs are installed or whether they match this revision. No game, plugin, or input was launched or activated. “Coexists” below means the source does not take ownership of the lesson’s ball or timer; runtime hook ordering and actual compatibility remain untested.
+
+| Scope | Declared context and real control | Source-visible writes / ownership | Cleanup and fit with a lesson-owned ball/timer |
+|---|---|---|---|
+| BallPrediction | Freeplay + Custom Training. `cl_soccar_predictball` (default 0); steps and step size are separate cvars. | Reads ball position/velocity/spin, advances a local prediction model, and draws the trajectory. It hooks `SetVehicleInput` as a physics-tick trigger but does not write ball, car, or controller input in the reviewed handler. | Game-event destroy and turning the cvar off unhook and unregister drawables; `onUnload` is empty. **Best ambient candidate**, subject to confirming the TrainingEditor event wrapper works in the target lesson. `UnregisterDrawables()` cleanup scope is unverified; test effects on other overlays. |
+| Defender | Freeplay only. `defender_active` is the real Boolean; `defender_start`/`defender_stop` are wrappers. | Repeatedly generates shots and writes ball velocity; on goal it relocates the ball. Uses server elapsed time for cooldown and sets `sv_freeplay_enablegoal 0` on activation. | Disabling stops its recurring check and unhooks `EventHitBall`; unload sets inactive. Source does not restore the prior goal-enable cvar. **Separate goalie practice mode**: owns ball delivery and its own shot cadence. |
+| Training | Freeplay + Custom Training declaration. No master enable cvar; `shot_load`, `shot_generate`, `shot_reset` are the controls. | `shot_reset` writes ball position/velocity/spin/rotation and may reposition/rotate/velocity-reset cars. It explicitly refuses to reset or generate while `IsInCustomTraining()`. `shot_generate` loads parameters into cvars; it is not itself the game-state reset. | `onUnload` is empty; no restoration path is visible. **Separate shot practice workflow**. Despite the Custom Training declaration, the reset/generate path is guarded out there. |
+| Workshop | Freeplay + Custom Training + Replay. No master enable; shot/playlist notifiers; `workshop_shot_random` controls playlist selection. | Shot loading chains into Training’s `shot_load` → `shot_generate` → `shot_reset`, so it inherits their ball/car writes and Custom Training guard. Replay snapshot commands read replay state and write JSON files, not gameplay state. | `onUnload` is empty. **Separate shot/playlist workflow**; replay snapshot alone is read-only with respect to gameplay. |
+| Mechanical | Freeplay only. `mech_enabled` is the real Boolean; other cvars clamp or disable/hold input actions. | Hooks `SetVehicleInput` and edits the input struct: steer/throttle/yaw/pitch/roll, handbrake, jump, and boost. No ball or car transform writes. | On freeplay destruction or disable it unhooks; `onUnload` is empty. **Can preserve ball/timer ownership as an optional input filter**, but it changes player controls and may invalidate lesson input/outcome assumptions. It is not declared for Custom Training. |
+| Redirect | Freeplay only. No enable cvar; `redirect_shoot` is the action. | Computes a pass toward the player and writes ball velocity once. It does not set car state or run a timer. | `onUnload` is empty; no state restore. **Only use as an explicitly delegated one-shot** in a redirect lesson where the lesson runner owns when the ball is seeded; otherwise it competes with lesson ball ownership. |
+| Rebound | Freeplay only. No enable cvar; `rebound_shoot` is the action. | If two goals and a car are present, computes a backboard shot; optionally stops the ball, then writes ball velocity and angular velocity. | `onUnload` is empty; no state restore. **One-shot action only** for a deliberate rebound setup. It declines many workshop maps because of its goals-count guard. |
+| Recovery | Freeplay only. `recovery_start`/`recovery_stop` control an internal Boolean; bump speeds and cooldown are settings, not an enable cvar. | Recurring timeout loop waits for the car to land, then writes car linear and angular velocity. Uses game elapsed time for its own cooldown; no ball writes. | Stop/unload clear the Boolean; an already-scheduled timeout is not explicitly cancelled but checks the Boolean before further work. **Dedicated recovery practice is the safer fit**: it does not own the ball, but intentionally takes over car motion and adds its own timing loop. |
+| Dribble | Freeplay only. No enable cvar; `ballontop` and `shootatme` are one-shot notifiers. | `ballontop` sets ball position above the car and copies car velocity; `shootatme` sets ball velocity toward a randomized point near the car. Neither writes car state. | `onUnload` is empty; no state restore. **One-shot setup only** when a dribble lesson explicitly delegates ball seeding; otherwise it competes with the lesson’s ball owner. |
+
+Source references
+
+All paths below are relative to `work/research/bakkesmod-default-plugins/` at the pinned revision above.
+
+- BallPrediction: `BallPredictionPlugin/BallPredictionPlugin.cpp:7,19-33,36-61,97-196,243`.
+- Defender: `DefenderPlugin/defenderplugin.cpp:7,12-16,26-39,44-65,67-117,125-159`.
+- Training: `TrainingPlugin/TrainingPlugin.cpp:10,103-141,151-198,213-230`; JSON parameter generation is in `TrainingPlugin/JsonShot.cpp:145-212`.
+- Workshop: `WorkshopPlugin/WorkshopPlugin.cpp:14,23-41,43-92,104-190`.
+- Mechanical: `MechanicalPlugin/mechanicalplugin.cpp:8,15-46,49-130`.
+- Redirect: `RedirectPlugin/redirectplugin.cpp:8,10-61`.
+- Rebound: `ReboundPlugin/ReboundPlugin.cpp:8,10-71`.
+- Recovery: `RecoveryPlugin/RecoveryPlugin.cpp:7,10-98`.
+- Dribble: `DribblePlugin/DribblePlugin.cpp:6,8-60`.
+
+Priority adapter candidates
+
+1. BallPrediction: strongest read-only overlay candidate. First establish the actual lesson context, plugin identity, toggle readback, event support, drawable cleanup, and whether global drawable unregistration interferes with other overlays.
+2. Mechanical: optional Freeplay-only input modifier for lessons that explicitly want input clamping/holding. Snapshot and restore the exact prior `mech_*` values; verify that user control and lesson scoring still behave as intended.
+3. Redirect, Rebound, Dribble: consider only as deliberate one-shot lesson actions whose scenario controller remains the sole authority for timing and calls the ball seed at a defined transition.
+4. Defer Defender, Training, Workshop, and Recovery to separate practice modes unless the lesson is deliberately designed around their ball/car ownership and timing behavior.
+
+Unknown / untested
+
+Pinned-source facts do not prove that the user’s installed DLLs match, that these commands or cvars are exposed in the target build, that the target lesson’s game-event wrappers accept these hooks, or that cleanup behaves as expected at runtime. No compatibility was exercised. In particular, verify exact cvar values before/after toggles, later user changes, plugin/game-event teardown, timer boundaries, and the actual effect on the lesson before presenting any adapter as supported.

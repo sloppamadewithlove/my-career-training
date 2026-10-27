@@ -1,0 +1,61 @@
+Native training clocks and ball visibility — research synthesis
+27 October 2026
+
+What the source establishes
+The generated native declarations distinguish Tutorial and TrainingEditor events.
+Both share Soccar ancestry: Tutorial -> Soccar; TrainingEditor -> GameEditor ->
+Soccar. The public SDK mirrors this with TutorialWrapper -> ServerWrapper and
+TrainingEditorWrapper -> GameEditorWrapper -> ServerWrapper. Therefore the editor
+does inherit the common clock getters. A different immediate parent does not imply
+a different clock implementation or make GetGameTimeRemaining invalid by itself.
+
+The training UI data has distinct SetTrainingGameEvent(Tutorial) and
+SetTrainingEditorGameEvent(TrainingEditor) methods, along with type, difficulty,
+current/total round, tip and progress data. This supports observing the mode before
+interpreting its state. Exact instantiated classes for each current menu choice
+remain a runtime check; generated signatures do not prove that mapping.
+
+Useful declared public observations
+- Common: GetGameTimeRemaining, GetSecondsRemaining, GetWaitTimeRemaining,
+  GetbRoundActive, GetbUnlimitedTime; game-state and replicated game-state clocks.
+- Tutorial: GetEventStartTime, GetDifficulty, GetGameEventRounds, GetWaveIndex,
+  GetRedoCount/GetRedoTotal, plus UI round/tip/progress getters.
+- TrainingEditor: configured MinRoundTime/MaxRoundTime, shot attempt, playtest type,
+  and inherited GameEditor active round. Limits are not live countdown readings.
+- Ball: presence first, then GetbFadeIn/GetbFadeOut/GetbEndOfGameHidden and geometry.
+  Actor hidden state is another declared observation. Flags and visual disappearance
+  must be correlated; an object can exist while not visibly rendered.
+
+The generated event names provide specific research leads: common game-time update,
+ball reset/spawn, tutorial round finished, and editor round-time/round-attempt/reset.
+These are not recovered event order or function implementations. ResetRoundTime,
+FadeOutBall, FadeInBall and setters are mutations, not observer reads.
+
+Next useful experiment
+Use the existing scoped observer after native-entry repair and a fresh owned-game
+handoff. Compare the raw clock with the displayed shot timer at setup, first input,
+active shot, timeout, retry, next shot and exit. If it does not match, add the other
+declared clock readings through a separate reviewed observer change. Capture ball
+presence/fade/hidden and visible behavior together. Prove that retry restores the
+ball and all scenario actors. Do not infer function causation from polling.
+
+The current reviewed observer records only one raw clock, presence, fade-out,
+end-hidden and round state. Other fields above are research leads, not implemented
+or tested observations. Third-party layouts must not be assumed to match this game
+build; the proposed integration uses pinned public SDK accessors first.
+
+Evidence
+- Third-party rlsdk commit 99c4330f8e26e037f7f343dbe75b6dd5c08c4a01,
+  packages/steam/classes/TAGame.ts: Tutorial 21497-21647, GameEditor ancestry 21150,
+  TrainingEditor 21708 onward, GFxData_Training 30849-30929. These are generated
+  declarations, not official game source or decompiled method bodies.
+- Cached public BakkesMod headers consumed through plugin/CMakeLists.txt's
+  479e8f571cf554b25f4eeb64d611dec4133edcaf pin: GameEditorWrapper.h:11;
+  TutorialWrapper.h:14,61,125; TrainingEditorWrapper.h:12;
+  GfxDataTrainingWrapper.h:31-42; GameEventWrapper.h:73-76;
+  ServerWrapper.h:61-72; BallWrapper.h:23-38; ActorWrapper.h:25-28.
+- DeepSeek research was checked against the missing ancestor header; unsupported
+  claims that TrainingEditor lacked the common clock ancestry were rejected.
+- Installed-artifact REA results are separate in shot-lifecycle-rea-wave2.txt.
+
+No process was attached, game driven, native clock changed or ball operation invoked.

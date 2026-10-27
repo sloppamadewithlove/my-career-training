@@ -1,0 +1,38 @@
+Initial training-aid adapter research — 27 October 2026
+
+Evidence: public BakkesMod2-Plugins source pinned at
+f412cd66ce0735be4aeb21ca41325337eb959aa0, already cloned privately.
+These source observations are not proof of the installed DLL's version or behavior.
+
+BallPredictionPlugin
+- Declares Free Play and Custom Training plugin types.
+- cl_soccar_predictball is a real Boolean enable setting; its value-change callback
+  registers/unregisters a drawable and a Car_TA.SetVehicleInput hook.
+- Init/StartPlayTest and game-event destruction are lifecycle hooks.
+- Prediction runs on vehicle-input events; steps and step size are configurable.
+- Potential player benefit: an optional trajectory aid, with clear distinction
+  from the lesson's success detection and from a ghost demonstration.
+- Required next proof: installed plugin identity, behavior in the mod's actual
+  game-event type, enable/disable readback, hook/drawable cleanup, prior-setting
+  restoration, and measured effect on lesson timing. Do not call it supported yet.
+
+DefenderPlugin
+- Declares Free Play only. defender_active is the actual enable setting.
+- defender_start/defender_stop wrap that setting; start is Free Play restricted.
+- CheckForShot explicitly disables the plugin when IsInFreeplay is false.
+- It changes ball delivery and checks goal availability before firing a shot.
+- Potential player benefit: a separate goalie/defender practice mode.
+- Integration constraint: this is not a generic checkbox that can be added to an
+  arbitrary RLBot lesson. It may conflict with the lesson's own ball ownership,
+  scenario timer and reset path. Establish a compatible mode and sole ball owner
+  before enabling it; do not combine two shot generators.
+
+Next adapter acceptance contract
+1. Identify the installed implementation and supported game context.
+2. Snapshot only the exact settings the adapter owns.
+3. Apply one requested change and verify actual effect/readback.
+4. Respect later user changes rather than overwriting them on cleanup.
+5. Restore on disable, retry where applicable, next lesson, Return and failure.
+6. Prove that lesson actors, timer, saves and other enabled aids still work.
+
+This report adds research candidates; it adds no plugin activation or product code.

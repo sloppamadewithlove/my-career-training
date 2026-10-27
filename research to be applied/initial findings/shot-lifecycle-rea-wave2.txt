@@ -1,0 +1,43 @@
+# Shot lifecycle artifact evidence — REA wave 2
+
+Read-only inspection of installed PE artifacts and pinned BakkesMod SDK declarations. No game process was opened, attached, driven, or instrumented. No product code or tests were changed. The Ghidra session used only the small installed `TrainingPlugin.dll` and was closed after string search.
+
+## Artifact identity and static evidence
+
+| Artifact | Bytes | SHA-256 | Static scope |
+| --- | ---: | --- | --- |
+| `<BakkesMod installation>/plugins/TrainingPlugin.dll` | 399,872 | `C0C88D617C4B00FBA246A414EC2D1BC6E0EB635687A29B351F6E5AE0847655FE` | Complete PE import table: 2 DLLs / 126 imports. |
+| `<Rocket League installation>/Binaries/Win64/bakkesmod/plugins/TrainingPlugin.dll` | 399,872 | `C0C88D617C4B00FBA246A414EC2D1BC6E0EB635687A29B351F6E5AE0847655FE` | Byte-identical to the roaming copy. |
+| `<BakkesMod installation>/plugins/MyCareerTraining.dll` | 1,428,992 | `4FEAC143CFE117AB7AE1FE2B6CED5C1BA6ED0DFCBD1E75B9CD4828EE1863366A` | Complete PE import table: 18 DLLs / 350 imports. |
+
+All three are x64 PE32+ files. The TrainingPlugin version-resource fields (FileVersion/ProductVersion/OriginalFilename) are empty, so SHA-256 and path are the useful exact identities here. REA import Evidence: TrainingPlugin `ev_3ccfaa87c5834e1ed97cff27270dc6b25b7ed2c86787d6179d29e1de152880a4`; MyCareerTraining `ev_7b2547a557f50d625d955e091c8e4cf32fdfcf8b0b22c93332022a31e06a687c`. Complete CLI JSON is retained at `work/trainingplugin-pe-imports.json` and `work/mycareertraining-pe-imports.json`.
+
+REA 6.8.0 CLI was resolved at `<global npm>/rea.ps1`. I read the command help/schema before use (`rea inspect-pe-imports --help/--schema`; `rea search --help/--schema`). PE imports were read by REA’s target-free `inspect_pe_imports`. The connected REA server then reported Ghidra 12.1.4 available; I opened only the 399,872-byte TrainingPlugin PE with `open_binary(provider_id="ghidra")`, ran one bounded `search_strings` regex, and closed the session. Search Evidence: `ev_160523992a8c89c5444a1ca5fdf1ce9c16a77a370b3e941a09085af37750f597`.
+
+### What these artifacts establish
+
+- The older `TrainingPlugin.dll` imports `bakkesmod.dll` wrappers including `ServerWrapper::GetBall`, `ServerWrapper::GenerateShot`, actor location/velocity/rotation/stop setters/getters, `GameWrapper::IsInCustomTraining`, and `GameWrapper::SetTimeout`. Its strings include `shot_initial_ball_*`, `shot_waitbeforeshot`, `shot_countdowntime`, `shot_reset`, `shot_load`, and `shot_generate`; the reset/load/generate command descriptions in this artifact say “deprecated.” This is evidence of a BakkesMod workshop-shot plugin surface, not the stock in-game TrainingEditor timeout path.
+- The current `MyCareerTraining.dll` imports `pluginsdk.dll` wrappers for `GetBall`, `GetGameTimeRemaining`, `GetbRoundActive`, `GetGameStateTimeRemaining`, `GetReplicatedGameStateTimeRemaining`, `IsFinished`, `SetGameStateTimeRemaining2`, `GameWrapper::SetTimeout`, and Gfx training methods including `PlayTraining`, `GetTrainingType`, `GetCurrentRound`, `GetTotalRounds`, and `GetDifficulty`. It also imports `XInputGetState` and `USER32!SendInput`. The import table shows names present in the PE; it does not show that any are reached in a particular shot or timeout path. `SetGameStateTimeRemaining2` is a setter and must not be used by an observation probe.
+- MyCareerTraining strings include its own `mct_training_next`, `mct_training_retry`, `retry_lesson`, `training_scenario_step`, `timeout_seconds`, `training_progress`, and `pause.training_*` labels. They identify app-owned controls/state labels, not proof of the native TrainingEditor UI or ball-timeout behavior.
+- Neither complete import table contains a named `FadeOutBall`, `FadeInBall`, fade/hide getter, `DestroyBall`, `ResetBalls`, `HandleNextGame`, `StartNewRound`, or playtest lifecycle import. A bounded printable ASCII/UTF-16LE scan of those same two DLLs found none of the exact fade/hide/reset identifiers either. That does not exclude inline/reflection paths or prove these APIs are unused elsewhere.
+- REA’s Ghidra-defined string inventory for TrainingPlugin matched only `shot_waitbeforeshot`, `shot_countdowntime`, `shot_reset`, `shot_load` and `shot_generate` from the requested pattern; it found no fade/hide/reset identifiers. Its limitation is explicit: only Ghidra-defined string data is observed, so empty search results do not prove the bytes or call paths are absent. Ghidra reported a `TrainingPlugin.pdb` reference but load state unknown; no PDB was supplied or loaded.
+
+## What the SDK names do and do not prove
+
+Pinned declarations are in `<private research>/BakkesModSDK/include/bakkesmod/wrappers`:
+
+- `GameObject/BallWrapper.h:23-24` declares `void FadeOutBall()` and `void FadeInBall()`. These are mutation methods; their declarations show that a caller can request ball fade operations, not that stock timeout calls either one.
+- `BallWrapper.h:33-38` declares getters/setters for `bEndOfGameHidden`, `bFadeIn`, and `bFadeOut`. The getters return `unsigned long`. Their names suggest state fields, but the header alone does not establish the meaning, timing, visibility result, replication, or relationship to shot timeout. `BallWrapper.h:92-94,103` separately declares `SetEndOfGameHidden`, `DoDestroy`, and `TurnOff`; these are also not evidence of the stock timeout route.
+- A safe observer can check `ActorWrapper::IsNull`/`operator bool`, then read `GetLocation`, `GetVelocity`, `GetRotation`, and `GetbHidden` (`Engine/ActorWrapper.h:14-27,56-58`). `ServerWrapper::GetBall`, `GetGameTimeRemaining`, and `GetbRoundActive` are declared at `GameEvent/ServerWrapper.h:21,61-72`. Game-event clocks and completion are `GetGameStateTimeRemaining`, `GetReplicatedGameStateTimeRemaining`, and `IsFinished` (`GameEvent/GameEventWrapper.h:73-76,125`). The SDK does not say which clock is the stock shot countdown.
+- Built-in training context is available through `gfx/GfxDataTrainingWrapper.h:35-42`: training type, score, current/total round, difficulty, tutorial tip, and per-shot progress. These are context getters, not a documented stock shot timer.
+- The separate editor lifecycle surface declares `DestroyBall` (`GameEvent/TrainingEditorWrapper.h:52`), `SetRoundTimeLimit`, `HandleNextGame`, and `ResetBalls` (`:62-64`), round increment/spawn/setup/switch (`:76,79-81`), and restart/end/start playtest plus `StartNewRound` (`:83-89`). No artifact evidence here maps a stock UI action to those methods or establishes call order.
+
+## Minimum read-only timeout/reset probe
+
+For one selected built-in training/shot, sample only getters and event metadata at a monotonic timestamp. Record a baseline on entry, ball setup, launch/active play, immediately before and after the countdown reaches zero, any hide/fade transition, retry/reset, next shot, and teardown:
+
+1. Training context: type, difficulty, current/total round, progress-per-shot; capture both available time values (`ServerWrapper::GetGameTimeRemaining` and `GameEventWrapper` game-state/replicated time) plus `GetbRoundActive`/`IsFinished`. This distinguishes clocks without assuming one drives the shot timeout.
+2. Ball presence and identity: `GetBall` result and `IsNull`/validity first; if present, preserve a stable object identity if the observer can expose one, then sample `GetbHidden`, `GetbEndOfGameHidden`, `GetbFadeIn`, `GetbFadeOut`, location, velocity, and rotation. Log explicit “ball unavailable” rows rather than skipping those samples.
+3. At retry/reset and next-shot boundaries, capture the same fields before and after. This reveals whether the ball remains the same object, is moved/restored, disappears, or is replaced, and whether the relevant timer/round state resets.
+
+Getter polling can prove state changes and ordering relative to observed events; it cannot prove that a particular native function caused them. If call attribution is required, a separate passive function-entry trace for the specific fade/hide/destroy and editor-transition methods must be captured and kept distinct from the getter snapshots. Do not call fade, setters, destroy, reset, playtest, or time-changing APIs during the observer run. No stock TrainingEditor launch/timeout/retry/next runtime trace was captured in this wave.
