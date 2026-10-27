@@ -1,0 +1,72 @@
+{
+  "checkpoint": 2,
+  "scheduled_utc": "2026-10-27T08:54:12+00:00",
+  "recorded_utc": "2026-10-27T08:54:12.000919+00:00",
+  "coordinator_checked_utc": "2026-10-27T08:55:52.326308+00:00",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "files": 56,
+    "total_bytes": 519027,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "TASKS.md",
+      "campaign/accessibility-01.md",
+      "campaign/artifact-01.md",
+      "campaign/build-01.md",
+      "campaign/content-01.md",
+      "campaign/favorites-02.md",
+      "campaign/ghost-02.md",
+      "campaign/input-collisions-01.md",
+      "campaign/map-01.md",
+      "campaign/native-config-01.md",
+      "campaign/native-events-01.md",
+      "campaign/outcome-probe-01.md",
+      "campaign/package-02.md",
+      "campaign/performance-01.md",
+      "campaign/replay-01.md",
+      "campaign/restore-01.md",
+      "campaign/sdk-03.md",
+      "campaign/settings-01.md",
+      "campaign/stats-01.md",
+      "checkpoints/hour-01.json",
+      "evidence/candidate-menu-identity.json",
+      "evidence/outcome-probe-01.json",
+      "evidence/steam-notice-visibility.json",
+      "experiments/research_outcome_probe.py.txt"
+    ],
+    "truncated": false
+  },
+  "publication_commit_at_check": "939039a6336124227fb4abfd9ae2b4295a479e6c",
+  "approved_campaign_reports": 34,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running",
+    "luna_hud_package_01": "completed; bounded metadata inventory and report delivered",
+    "luna_import_identity_01": "running; collaboration status observed",
+    "deepseek_menu_inspector_review": "running; execution session 84513 observed live",
+    "deepseek_mod_measurement_01": "completed exit 0; corrected report pending main integration"
+  },
+  "source_freshness": {
+    "selected_paths_checked": 21,
+    "active_checkout_changed_since_provenance": [],
+    "research_snapshot_changed_since_provenance": [],
+    "scope": "selected paths only; comparison does not validate whole checkout or built artifacts"
+  },
+  "verification_this_hour": [
+    "Four installed SDK timer/ball-visibility getters inspected with REA; direct field/flag reads, no lifecycle causality",
+    "Two stock training-menu packages inventoried; private browser movie matched current installed payload hash",
+    "Isolated defender-touch diagnostic independently source-reviewed; six synthetic cases and 33 checks passed",
+    "Twelve selected authored candidate source/ABC hashes matched their manifests",
+    "New menu-inspector callback order, real input pins and existing-output refusal checked; FFDec not yet executed",
+    "Research-only publication scope and 63 local document links checked"
+  ],
+  "limits": [
+    "Document monitor cannot wake Codex and is not continuous worker activity proof",
+    "No live game input/attachment, deployed-build acceptance, or heavy native compilation",
+    "Synthetic scoring diagnostic establishes source behavior, not physical reachability or game reproduction",
+    "Candidate/source/hash identity is not runtime feature acceptance"
+  ],
+  "next_checkpoint_utc": "2026-10-27T09:54:12Z"
+}

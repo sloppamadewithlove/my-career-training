@@ -77,3 +77,8 @@ map will be updated as new evidence arrives.
 - [Replay integration](campaign/replay-01.md): current attempt JSON versus native replay files and a bounded future adapter.
 - [Native event hooks](campaign/native-events-01.md): confirmed public source hooks versus unverified callback candidates.
 - [Package inspection](campaign/package-02.md): both stock training menus inventoried; existing portable tools found; browser movie hash matches the current installed artifact.
+
+- [Stock difficulty route](campaign/native-training-flow-01.md): a child menu receives the selected training mode; adapt this pattern to MCT lesson and practice-tier IDs. Stock labels map to Easy/Medium/Hard, not the eight requested tiers.
+- [HUD package evidence](campaign/hud-package-01.md): exact training-view and match-info movies identified; positions, timers and controller legends still need focused source tracing.
+- [Imported attempt identity](campaign/import-identity-01.md): imported JSON claims can enter automatic personal-best selection; persist application-owned capture origin and filter compatibility before choosing a best.
+- [Modifier measurement](campaign/mod-measurement-01.md): distinguish requested settings, applied effects, assistance context and imported claims.

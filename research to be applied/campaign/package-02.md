@@ -45,7 +45,7 @@ The files are in the private research tree `<private research root>/private-work
 | `apache-flex-sdk-4.16.1/bin/mxmlc.bat` | SDK directory/archive is 4.16.1 | 1,261 / `2831CFDBD2D707D8A7E2E4369B07868AF2FE9ED4F29C73373029FCA0488C18D9` |
 
 
-The current repo’s `scripts/native_menu_patch.py:890-915` is the existing FFDec export caller for its owned `menus.RootMenu` candidate: it invokes Java headless with explicit Java/JAR/home paths, then `-config`, `-format`, `-selectclass menus.RootMenu`, `-export script`, output directory, and movie path. The AS check uses `-format script`; the pcode pass uses `-format script:pcode`; method-id export adds `showMethodBodyId=true`. `docs/NATIVE_MENU_PATCH.md:1-9,50` limits that script to the MainMenu candidate. The separate builder note `<private builder notes>/native-menu-patch.txt` records the same explicit portable Java/FFDec path and RootMenu export flow. Neither is a recorded TrainingBrowser extraction receipt. No tool was installed or executed for this follow-up. The checked-in composer handles only narrow, hash-pinned ABC/string operations, so it cannot replace FFDec’s class/pcode export for the two unknown movies.
+The current repo’s `scripts/native_menu_patch.py:890-915` is the existing FFDec export caller for its owned `menus.RootMenu` candidate: it invokes Java headless with explicit Java/JAR/home paths, then `-config`, `-format`, `-selectclass menus.RootMenu`, `-export script`, output directory, and movie path. The AS check uses `-format script:as`; the pcode pass uses `-format script:pcode`; method-id export adds `showMethodBodyId=true`. `docs/NATIVE_MENU_PATCH.md:1-9,50` limits that script to the MainMenu candidate. The separate builder note `<private builder notes>/native-menu-patch.txt` records the same explicit portable Java/FFDec path and RootMenu export flow. Neither is a recorded TrainingBrowser extraction receipt. No tool was installed or executed for this follow-up. The checked-in composer handles only narrow, hash-pinned ABC/string operations, so it cannot replace FFDec’s class/pcode export for the two unknown movies.
 
 ## Smallest route to answer the menu questions
 
@@ -54,3 +54,7 @@ The current repo’s `scripts/native_menu_patch.py:890-915` is the existing FFDe
 3. Query `CustomTrainingSelectShotMenu` only if comparison with the custom-pack flow is useful. Inspect package imports before widening to a `GameInfo_*` package; do not scan the whole game tree.
 
 Metadata inspection can answer which movie/export and dependencies belong to each package. A targeted FFDec pass could answer which menu classes, labels, navigation callbacks, and difficulty/shot-selection path the movie implements. Neither route proves runtime menu invocation, actual controller focus, nor shot-timer/ball lifecycle; those remain runtime questions.
+
+## Tooling correction from the first inspector run
+
+The first private inspector run read the exact Training movie but FFDec refused an incorrectly shortened format argument. Its own CLI help and the existing caller at `native_menu_patch.py:295` require `-format script:as`. The earlier report said `-format script`; that claim is withdrawn. No ActionScript was exported by that failed invocation.

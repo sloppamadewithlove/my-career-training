@@ -14,3 +14,9 @@ missed checkpoints and no inventory truncation. The monitor's initial startup
 observation was at 07:04:03 UTC; no earlier monitor samples are fabricated.
 Game functionality and actual native clock/ball behavior remain unverified in
 this research session. See the receipt for exact evidence scope and limitations.
+
+## Hour 2
+
+The local monitor recorded the 08:54:12 UTC checkpoint at 2026-10-27T08:54:12.000919+00:00, with no missed checks. It saw 56 documents and 26 changed paths. The coordinator separately checked worker states, selected-source freshness and the published diagnostic. [Checkpoint evidence](checkpoints/hour-02.json).
+
+The six-case scoring experiment passed 33 checks and received independent source review. Native training-menu and HUD package inventories progressed; the new private movie inspector remains under review before execution. No live game acceptance occurred.
