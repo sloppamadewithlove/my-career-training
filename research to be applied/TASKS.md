@@ -112,3 +112,5 @@ traces from static declarations or UI controls alone.
 | MECHANICAL-PLUGIN-01 | Input transforms and Human scoping | Complete; Hook ignores caller; assistance absent from recording compatibility; source-only |
 | WORKSHOP-PLUGIN-01 | Legacy shot exchange versus Steam map loading | Complete; delegated delayed state writes and scripts; no map loader |
 | GARAGE-CATALOG-01 | Catalog, compatibility, preview and ownership boundaries | Complete; 15 browse categories/11 local slots; no live inventory or appearance proof |
+| PAUSE-CLOCK-01 | Overlay visibility versus actual pause and worker clocks | Complete; source default/trial paths distinguished; runtime unmeasured |
+| NATIVE-FEATURE-DELTA-01 | Current official feedback features and regression leads | Complete; primary documentation checked; API and runtime applicability pending |

@@ -132,3 +132,9 @@ The [control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) maps six newly audi
 [Legacy WorkshopPlugin](campaign/workshop-plugin-01.md) is a deprecated shot/playlist exchange, not a Steam map loader. Its TrainingPlugin reset can execute a script and schedules a mutable, unbound delayed ball write. Do not reuse that command chain as MCT Workshop loading or inert data import.
 
 [Garage catalog coverage](campaign/garage-catalog-01.md) distinguishes 15 browse categories from 11 local-code slots, with bodies catalog-only. The scanner reads catalog templates, not owned instances, and supplies neither equipability/paint-family validation nor visual preview proof. Its 100,000-entry ceiling lacks a truncation signal. Broader cosmetic support needs a build-bound coverage receipt and slot-specific compatibility/appearance checks; current source does not establish all skins available.
+
+## Pause semantics and current native feedback
+
+[Pause and settings](campaign/pause-clock-01.md) distinguishes the default ImGui overlay from the opt-in native pause menu. Opening the overlay does not send a worker pause command; real pause telemetry can interrupt an active Power Shots attempt. Test shortcut Settings and native Pause → Settings separately against the actual deployed build.
+
+[Current native feature leads](campaign/native-feature-delta-01.md) identifies official reset cues, velocity graphs, offline-Freeplay hitbox display, configurable stat counts and updated controls as candidates for integration research. Their publication does not establish a local API or a supported MCT context. Historical reset-indicator and mirrored-spawn fixes strengthen the need for observed state and separate visual/result evidence.
