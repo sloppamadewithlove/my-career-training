@@ -184,3 +184,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Render transport](campaign/render-message-budget-01.md) establishes a 65,535-byte serialized client-packet ceiling and explains why an oversized rejected replacement can leave the previous group visible. Measure packed bytes and clear ownership; the conservative primitive count does not prove a game-side no-drop budget.
 
 [Boost/resource reset](campaign/boost-resource-reset-01.md) distinguishes the observed 100-boost ready gate from the requested Normal Boost mutator and unreset pad cooldowns. Scenario bots can use active pads, so identical poses, start meters and random seeds do not prove identical pressure. Ordinary recordings currently carry empty mutator metadata; preserve that uncertainty in comparisons.
+
+[Rank transitions](campaign/rank-transition-01.md) use Return, confirmed worker cleanup, idle rank selection and a fresh session for every rank pair. In-match situation stepping retains the current rank. Reuse this lifecycle when adding profiles to the other seven lessons, preserving independent career state and versioned attempt identity.
