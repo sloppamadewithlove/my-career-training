@@ -1,6 +1,6 @@
 # Eight-hour research task board
 
-Window: 27 October 2026, 06:54:12ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“14:54:12 UTC / 02:54:12ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“10:54:12 Eastern.
+Window: 27 October 2026, 06:54:12ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ14:54:12 UTC / 02:54:12ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ10:54:12 Eastern.
 One researcher per task. Main validates and integrates evidence. No task's source
 analysis substitutes for actual gameplay verification.
 
@@ -143,5 +143,6 @@ traces from static declarations or UI controls alone.
 | BRIDGE-WAITER-ARTIFACT01 | Pinned Bridge waiter, sender allowance and queue reset | Complete static artifact inspection; 65,535 payload bytes per reset window and normal-return rejection/queue clearing traced; staged native runtime equivalence unverified |
 | REPRODUCIBILITY-HANDOFF-01 | Reconstruct published diagnostic inputs | Complete source archive and five successful offline invocations across four diagnostics; installed dependencies reused, no clean-environment or game claim |
 | COSMETIC-CONFLICT-PROTOTYPE-01 | Proposed coupled-pair ownership policy | Separately DeepSeek-built/reviewed; standalone compile and 22-scenario/44-record run passed; unresolved production policy and caller integration |
-| RANK-PROFILE-PROPAGATION-01 | Power Shots 12Ã—8 parameter propagation | 96 definitions independently enumerated; pressure varies, grading thresholds do not; projected window is unused metadata, not measured rank calibration |
+| RANK-PROFILE-PROPAGATION-01 | Power Shots 12Ãƒâ€”8 parameter propagation | 96 definitions independently enumerated; pressure varies, grading thresholds do not; projected window is unused metadata, not measured rank calibration |
 | SETTINGS-RESTART-BOUNDARIES-01 | File recovery, cvar leases and ACK restart boundaries | Source-only; durable files/preferences differ from volatile cvar baselines and attempt ACKs; lost ACK alone does not start telemetry recovery |
+| STOCK-COMPONENT-REUSE-01 | MainMenu widget definitions and dependency closure | Exact ABC/XML metadata verified; legend/category/list definitions present, training rows absent locally; external symbol resolution and rendering unverified |

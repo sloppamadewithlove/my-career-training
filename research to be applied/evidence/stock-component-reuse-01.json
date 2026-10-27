@@ -1,0 +1,194 @@
+{
+  "schema": 1,
+  "task": "STOCK-COMPONENT-REUSE-01 MainMenu follow-up",
+  "evidence_level": "offline static; read-only package inspection; no runtime",
+  "source_package": {
+    "name": "GFX_MainMenu_SF.upk",
+    "bytes": 3418271,
+    "sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65"
+  },
+  "class_inventory": {
+    "ffdec_dumpas3_script_names": 712,
+    "xml_script_info_records": 712,
+    "xml_instance_info_class_records": 714,
+    "xml_class_info_class_records": 714,
+    "xml_trait_class_references": 714,
+    "xml_distinct_trait_class_references": 714,
+    "xml_trait_method_getter_setter_references": 2,
+    "class_traits_per_script_record": {
+      "0": 2,
+      "1": 706,
+      "2": 4
+    },
+    "first_two_dump_names": [
+      {
+        "name": "LOCTEXT",
+        "script_index": 0,
+        "xml_trait_type": "TraitMethodGetterSetter",
+        "class_trait": false
+      },
+      {
+        "name": "NSLOCTEXT",
+        "script_index": 1,
+        "xml_trait_type": "TraitMethodGetterSetter",
+        "class_trait": false
+      }
+    ],
+    "count_difference_resolved_as_distinct_tables": true,
+    "present_in_mainmenu_class_table": [
+      "tagame.controls.ButtonLegend",
+      "tagame.controls.CategoryButton",
+      "tagame.controls.ModalScrollingList",
+      "projectx.controls.StateTweenButton",
+      "scaleform.clik.controls.Button",
+      "scaleform.clik.core.UIComponent",
+      "scaleform.clik.controls.ScrollingList",
+      "scaleform.clik.controls.CoreList",
+      "projectx.controls.StateTweenListItemRenderer",
+      "scaleform.clik.controls.ListItemRenderer",
+      "tagame.menus.BranchingMenu"
+    ],
+    "absent_from_xml_instance_class_name_table_and_zero_selectclass_exports": [
+      "TrainingSequenceListItemMovie",
+      "controls.TrainingSequenceListItem",
+      "tagame.controls.ModalListItemRenderer"
+    ],
+    "modal_list_default_names_absent_from_class_table_and_symbolclass": [
+      "ModalListItemRendererMovie",
+      "BasicScrollBar"
+    ],
+    "external_runtime_resolution_of_default_names": "unknown"
+  },
+  "imports": [
+    {
+      "swf_tag_item": 52,
+      "type": "ImportAssets2",
+      "url": "../GFX_Fonts/gfxfontlib.swf",
+      "named_import_count": 0,
+      "xml_line": 73
+    },
+    {
+      "swf_tag_item": 63,
+      "type": "ImportAssets2",
+      "url": "../GFX_Shared/SharedComponents.swf",
+      "named_import_count": 0,
+      "xml_line": 151
+    }
+  ],
+  "symbol_class": {
+    "entry_count": 95,
+    "selected": [
+      {
+        "name": "MainMenuScreen",
+        "character_id": 0
+      },
+      {
+        "name": "RootMenuMovie",
+        "character_id": 83
+      },
+      {
+        "name": "GarageMainMenuMovie",
+        "character_id": 92
+      },
+      {
+        "name": "CareerMenuMovie",
+        "character_id": 93
+      }
+    ],
+    "requested_widget_names_bound": false,
+    "checked_names_absent": [
+      "tagame.controls.ButtonLegend",
+      "ButtonLegend",
+      "tagame.controls.CategoryButton",
+      "CategoryButton",
+      "tagame.controls.ModalScrollingList",
+      "ModalScrollingList",
+      "TrainingSequenceListItemMovie",
+      "ModalListItemRendererMovie",
+      "BasicScrollBar"
+    ],
+    "xml_tag_line": 247525
+  },
+  "exports": [
+    {
+      "class": "tagame.controls.ButtonLegend",
+      "bytes": 18451,
+      "sha256": "ba4e6303f4e1a6f22b04c4b33c4baa1416694d188523a292e35cd48b330570b4"
+    },
+    {
+      "class": "tagame.controls.CategoryButton",
+      "bytes": 2401,
+      "sha256": "9f0d1ea1f13e17a838ab6c68c24390ad23d3c8afe20e84a15d02d0a5654eddf7"
+    },
+    {
+      "class": "tagame.controls.ModalScrollingList",
+      "bytes": 1234,
+      "sha256": "f6d6cea2703be29a81956f2aed96037a457df3468877020c7462f2b8f6072107"
+    },
+    {
+      "class": "projectx.controls.StateTweenButton",
+      "bytes": 13401,
+      "sha256": "f6bc50573643d3ff08b1481f643d4d643e0a07f00aa2179695152519c6512798"
+    },
+    {
+      "class": "projectx.controls.StateTweenListItemRenderer",
+      "bytes": 10183,
+      "sha256": "4a885b784bc1bf1e92611747ab107dfde1cc4df2fa47c4ddb32ba062a6dd34eb"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollingList",
+      "bytes": 20223,
+      "sha256": "e57a334072ca14fabd7f3b8ae63b890573b127930afdf232b0cc855cf16b8c8b"
+    },
+    {
+      "class": "scaleform.clik.controls.CoreList",
+      "bytes": 22626,
+      "sha256": "3ed5c413be9ac3acac0ae34026807946146c250b39fedcbfdf553f0e047108c4"
+    },
+    {
+      "class": "scaleform.clik.controls.ListItemRenderer",
+      "bytes": 1980,
+      "sha256": "e5550ba7fa0728fe2903138a5e81c5b9e26c10bd62786fec1856440c90775eb6"
+    },
+    {
+      "class": "scaleform.clik.controls.Button",
+      "bytes": 30432,
+      "sha256": "c0a6641226bb9376a580ef3d851cd6c924fa6a3a2cf9dd6d8d5e7b0ce479d015"
+    },
+    {
+      "class": "scaleform.clik.core.UIComponent",
+      "bytes": 16908,
+      "sha256": "b8a2a581cf098b0659f873b80f53bd69062f6ac60fd3c95ade21d1ff69194be8"
+    }
+  ],
+  "limits": [
+    "The 712 FFDec dumpAS3 names are script_info records; they are not the 714 instance_info/class_info class records.",
+    "FFDec warned that external movie asset imports were ignored while exporting scripts.",
+    "Absence from the MainMenu class and SymbolClass tables does not rule out external/shared runtime resolution.",
+    "No runtime class lookup, visual check, or ApplicationDomain behavior was tested."
+  ],
+  "movie": {
+    "export_name": "MainMenu",
+    "bytes": 1136465,
+    "sha256": "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0",
+    "signature": "GFX"
+  },
+  "toolchain": {
+    "ffdec": {
+      "version": "26.4.0",
+      "jar_bytes": 5271501,
+      "jar_sha256": "80f8ced0bfde98b434c28e9807e91fe5558255b2f712051a0e65221519bd392a"
+    },
+    "java": {
+      "version": "Temurin JRE 21.0.9",
+      "exe_bytes": 50344,
+      "exe_sha256": "5f6248f9c0f32b38ffaba813819bf3331536a48c7ddc45b18e73acd15a6cf7ef"
+    }
+  },
+  "coordinator_verification": {
+    "at_utc": "2026-10-27T14:31:23.452463+00:00",
+    "checks": "movie/XML and all ten selected export hashes; all 714 instance class names; 712 script records; all 714 distinct class trait references; imports and selected bindings independently parsed",
+    "raw_xml_sha256": "43f112bdf1a896a61e1fdb6d2a8d6b18908db2399c16c41d821af92ed68f5f0b",
+    "private_receipt_sha256": "85ba6b58a2e09034b80dd62398629398a9e9902cbbed4ce5645c1759167fd382"
+  }
+}

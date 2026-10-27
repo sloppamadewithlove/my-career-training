@@ -25,7 +25,7 @@ The frozen candidate already opens a separate Power Shots rank surface via `Less
 
 Start in `NativeCareerLayout.h`, authored menu actions, `bridge.py`, `training/catalog.py` and scenario/profile selection. Carry stable lesson/tier/situation/version IDs rather than row indices. Evidence: [navigation](campaign/native-navigation-01.md), [curriculum](campaign/curriculum-01.md), [eight-lesson matrix](LESSON_EVIDENCE_MATRIX.md), [shot picker](campaign/custom-shot-flow-01.md).
 
-Acceptance: all eight rank choices per supported lesson, Back/reopen/favorite routes, matching setup and grading, one qualifying example and a meaningful near miss for each declared profile. An unavailable profile must remain visibly unavailable until authored; labels alone are insufficient.
+Acceptance: all eight rank choices per supported lesson, Back/reopen/favorite routes, and matching setup and grading. Track each authored situation/tier cell separately: 96 per lesson, 768 planned across eight lessons. Cover a qualifying example and meaningful near miss for each cell; shared parameterized checks must identify which cells and criteria they actually cover. Keep unexecuted game cases pending rather than extrapolating a representative pass. An unavailable profile must remain visibly unavailable until authored; labels alone are insufficient.
 
 Every rank change follows the idle/new-session route, including rank pairs with the same bot roster. Situation changes within a session retain its rank. The [transition contract](campaign/rank-transition-01.md) and [eight existing offline lifecycle checks](campaign/rank-lifecycle-tests-01.md) cover selected cleanup and career-preservation conditions; they do not establish live menu traversal or complete profile coverage.
 
