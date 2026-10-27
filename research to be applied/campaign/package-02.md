@@ -58,3 +58,7 @@ Metadata inspection can answer which movie/export and dependencies belong to eac
 ## Tooling correction from the first inspector run
 
 The first private inspector run read the exact Training movie but FFDec refused an incorrectly shortened format argument. Its own CLI help and the existing caller at `native_menu_patch.py:295` require `-format script:as`. The earlier report said `-format script`; that claim is withdrawn. No ActionScript was exported by that failed invocation.
+
+## Selected-class inspection result
+
+The corrected helper then exported only explicit class names using the documented `-selectclass` option. Independent DeepSeek source review accepted the narrowing change; the coordinator ran it with the existing pinned toolchain. Both FFDec invocations and the helper exited successfully: ten TrainingMenu files and four CustomTrainingSelectShotMenu files, 64,293 bytes total. The [receipt](../evidence/stock-menu-export-01.json) contains hashes and relative names only. No extracted movie or proprietary source is published. See the [official CLI reference](https://github.com/jindrapetrik/jpexs-decompiler/wiki/Commandline-arguments) for class selection and `script:as` syntax. The same class name can have different bytes in different embedded movies: `tagame.api.Training` differs between these two packages, so evidence must preserve owning-movie identity.

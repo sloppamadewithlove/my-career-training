@@ -1,0 +1,150 @@
+{
+  "bounds": {
+    "export_file_bytes": 10485760,
+    "export_files": 500,
+    "export_total_bytes": 52428800,
+    "movie_bytes": 16777216,
+    "note": "post-hoc checks on files and buffers, not live process limits",
+    "package_bytes": 67108864,
+    "timeout_seconds": 90
+  },
+  "reader": {
+    "bytes": 38287,
+    "name": "scripts/native_package_reader.py",
+    "sha256": "89a408904fa3b824c074ab9fb4ff1fad92cd51e667a46e3683e2ed01cff4c90a"
+  },
+  "status": "ok",
+  "targets": [
+    {
+      "export": "TrainingMenu",
+      "export_files": [
+        {
+          "bytes": 286,
+          "name": "scripts/DifficultyMenuMovie.as",
+          "sha256": "5a0d19156c20d5acf9a9894691a949d24fcfed5682509851be421d69d4df44f2"
+        },
+        {
+          "bytes": 12367,
+          "name": "scripts/menus/DifficultyMenu.as",
+          "sha256": "fc01be9f86540ee67679b58b98a585e73ce809537eb5f3cf2a28abd723563a7a"
+        },
+        {
+          "bytes": 8078,
+          "name": "scripts/menus/TrainingMenu.as",
+          "sha256": "215ce7675fa7785ac68ca271482d6aac82bb877c24e577783d4c675a4b59c273"
+        },
+        {
+          "bytes": 10998,
+          "name": "scripts/tagame/api/Training.as",
+          "sha256": "ec806f97bca48e655cc8e9500b5b8815de50e3c8d0b4997504b7b0ecb9cd6ad2"
+        },
+        {
+          "bytes": 7930,
+          "name": "scripts/tagame/constants/MenuName.as",
+          "sha256": "bc19f3699382c3bcbe447cf28862419e93c649130bbf59dca12d2524fb9ed218"
+        },
+        {
+          "bytes": 294,
+          "name": "scripts/TrainingIconButton.as",
+          "sha256": "bd026d5587ff37a89c5d4d64cc86cf1a836093981cf0f95ed6e76a4e057ed1f5"
+        },
+        {
+          "bytes": 302,
+          "name": "scripts/TrainingIconButtonWide.as",
+          "sha256": "8c3d2ceb7fa4f6657fbf7b8acc463462de466653610c939da09d2da589db1ad0"
+        },
+        {
+          "bytes": 278,
+          "name": "scripts/TrainingMenuMovie.as",
+          "sha256": "ad02109c6c9117063661576f56f825428a7f08954a69ec671c7b586c090ba357"
+        },
+        {
+          "bytes": 296,
+          "name": "scripts/TrainingMenuMovie_NoCustom.as",
+          "sha256": "8b539ffc33fe22d1d42617e4585e7576ad097fea5498a958337492a13be1eb21"
+        },
+        {
+          "bytes": 1897,
+          "name": "scripts/TrainingMenuScreen.as",
+          "sha256": "c96cd5f7004418d6164de307164c30063a17cbe0a5d5185219a0662af8a356bf"
+        }
+      ],
+      "export_total_bytes": 42726,
+      "movie": "TrainingMenu.gfx",
+      "movie_bytes": 894001,
+      "movie_sha256": "a216ae0b061340bda02ccf713ddac556909f88e96213baf1c99d42bd5561fcc1",
+      "package": "GFX_TrainingMenu_SF.upk",
+      "package_bytes": 1146549,
+      "package_sha256": "bf9baa4238d077f35f8041204ea4aec8e9e7c9bb943d1e3df2da07dd07a57663",
+      "primary_script": "scripts/menus/TrainingMenu.as",
+      "returncode": 0,
+      "selected_classes": [
+        "menus.TrainingMenu",
+        "menus.DifficultyMenu",
+        "TrainingMenuScreen",
+        "tagame.api.Training",
+        "tagame.constants.MenuName",
+        "TrainingIconButton",
+        "TrainingIconButtonWide",
+        "DifficultyMenuMovie",
+        "TrainingMenuMovie",
+        "TrainingMenuMovie_NoCustom"
+      ]
+    },
+    {
+      "export": "CustomTrainingSelectShotMenu",
+      "export_files": [
+        {
+          "bytes": 2582,
+          "name": "scripts/CustomTrainingSelectShotMenuScreen.as",
+          "sha256": "cdf14698c470ff7f943d2c6a1530de217ef2a1226248ac61e2427558650ec068"
+        },
+        {
+          "bytes": 1517,
+          "name": "scripts/menus/CustomTrainingSelectShotMenu.as",
+          "sha256": "690abf24f75dea8115d0dc546d0648cf731733ee457d18c436b677fe9a5e4789"
+        },
+        {
+          "bytes": 9802,
+          "name": "scripts/tagame/api/Training.as",
+          "sha256": "b7328796d817758bae712c556135c331b0cc86a37dd4a2b0bfab2de2482c2bea"
+        },
+        {
+          "bytes": 7666,
+          "name": "scripts/tagame/constants/MenuName.as",
+          "sha256": "1830f29e84c6700d6fe7ebcc2abc4e30fdecaa0e71a2374b283da0b3cb570120"
+        }
+      ],
+      "export_total_bytes": 21567,
+      "movie": "CustomTrainingSelectShotMenu.gfx",
+      "movie_bytes": 871352,
+      "movie_sha256": "5c8507cf9b0543ce778d8c71854c9e88d6b96aceaa9f762e050138427e2280d7",
+      "package": "GFx_CustomTrainingSelectShotMenu_SF.upk",
+      "package_bytes": 384325,
+      "package_sha256": "ce5407b03ed248171493575532c29dab47fbeed09e2adef842deb35b4409b567",
+      "primary_script": "scripts/menus/CustomTrainingSelectShotMenu.as",
+      "returncode": 0,
+      "selected_classes": [
+        "menus.CustomTrainingSelectShotMenu",
+        "CustomTrainingSelectShotMenuScreen",
+        "tagame.constants.MenuName",
+        "tagame.api.Training"
+      ]
+    }
+  ],
+  "tools": {
+    "ffdec": {
+      "bytes": 5271501,
+      "sha256": "80f8ced0bfde98b434c28e9807e91fe5558255b2f712051a0e65221519bd392a"
+    },
+    "java": {
+      "bytes": 50344,
+      "sha256": "5f6248f9c0f32b38ffaba813819bf3331536a48c7ddc45b18e73acd15a6cf7ef"
+    }
+  },
+  "research_helper": {
+    "sha256": "acf72877f8e89bcbb76d3ae09c09ca0bf8d4acec0e45a0875cd7bcf2b1d055f6",
+    "review": "separate DeepSeek source review accepted; root executed",
+    "observed_exit_code": 0
+  }
+}

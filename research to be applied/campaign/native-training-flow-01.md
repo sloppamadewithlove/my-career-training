@@ -48,3 +48,7 @@ For My Career Training, the corresponding child screen should carry a stable les
 ## Limits
 
 This report covers only the named exported classes. It does not inspect inherited `DynamicMenu`, `UIMenu`, `XPLevelMenuButton`, or host/native code, so it cannot establish controller focus traversal, back-button restoration, tier locks, or timeline layout. It does not establish runtime invocation, input, lesson completion, or timer/ball behavior. The FFDec per-command export succeeded, but the enclosing 508-versus-500 inventory cap prevented a passing helper receipt; a later exact-class receipt is still needed for stronger provenance.
+
+## Focused export addendum
+
+A later independently reviewed helper run succeeded: both target movies exported with exit code 0, producing fourteen selected ActionScript files totaling 64,293 bytes. All ten selected TrainingMenu files match the earlier private export byte for byte, including both menu classes and the API route. The [sanitized receipt](../evidence/stock-menu-export-01.json) records exact package, movie, tool, reader and selected-file hashes. This resolves the export receipt gap for those ten files. The two label-symbol wrappers in the identity table were not selected in this later run; their evidence remains the earlier export. No game behavior was exercised.

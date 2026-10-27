@@ -69,10 +69,13 @@ traces from static declarations or UI controls alone.
 | FAVORITES-02 | Saved identity and unavailable item recovery | Complete; Luna; legacy removal claim reconciled by main |
 | INPUT-COLLISIONS-01 | Menu/game/Workshop/mod key ownership | Complete; Luna; live routing and crash persistence explicitly unknown |
 | PACKAGE-02 | Stock training package metadata and portable tool discovery | Complete; Luna; current browser movie byte identity checked |
-| MENU-INSPECTOR-01 | Small private FFDec bridge for two exact training movies | In progress; DeepSeek build; independent review before execution |
+| MENU-INSPECTOR-01 | Small private FFDec bridge for two exact training movies | Complete; separate DeepSeek build/review; coordinator executed two movies/fourteen selected classes |
 | MOD-MEASUREMENT-01 | Helper effects on scored-attempt comparability | Complete; DeepSeek research reconciled against native consumers and import selection |
 
 | HUD-PACKAGE-01 | Training HUD versus match-clock movie metadata | Complete; Luna; exact exports identified, no HUD code/runtime claim |
 | IMPORT-IDENTITY-01 | Imported claims reaching personal-best selection | Complete; Luna; source reachability, no diagnostic run yet |
 | NATIVE-TRAINING-FLOW-01 | Stock lesson-to-difficulty menu route | Complete; Luna; current movie source, helper inventory failure disclosed |
 | NATIVE-NAVIGATION-01 | Inherited Back, focus, controller navigation | In progress; Luna; bounded private source analysis |
+
+| CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | In progress; Luna; four selected classes |
+| BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | In progress; Luna; pinned public source |
