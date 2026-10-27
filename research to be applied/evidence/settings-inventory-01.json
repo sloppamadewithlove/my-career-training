@@ -1,0 +1,165 @@
+{
+  "action_script_export": false,
+  "bounds": {
+    "class_list_bytes": 1048576,
+    "class_list_lines": 20000,
+    "movie_bytes": 16777216,
+    "note": "post-hoc checks on files and buffers, not live process limits",
+    "package_bytes": 67108864,
+    "timeout_seconds": 90
+  },
+  "mode": "class_inventory_only",
+  "reader": {
+    "bytes": 38287,
+    "name": "scripts/native_package_reader.py",
+    "sha256": "89a408904fa3b824c074ab9fb4ff1fad92cd51e667a46e3683e2ed01cff4c90a"
+  },
+  "status": "class_inventory_only",
+  "target_choice": "settings",
+  "targets": [
+    {
+      "class_list": {
+        "bytes": 20344,
+        "dump_entries": 567,
+        "name": "private/logs/SettingsMenu.classes.txt",
+        "nonblank_lines": 568,
+        "sha256": "cfc5515f1433c36503364e00a0fef8442555f1da93c1008c41c52d4856254541"
+      },
+      "export": "SettingsMenu",
+      "movie": "SettingsMenu.gfx",
+      "movie_bytes": 1745158,
+      "movie_sha256": "25f346b66e93219e5e22bbd43129aca801f43ea906cbb4ad07e9eca4799c9c24",
+      "package": "GFX_SettingsMenu_SF.upk",
+      "package_bytes": 689160,
+      "package_sha256": "237bd62421434cb0e285ec88e42a93a9b8bb277ad5ec561059a3bc86178bbb95",
+      "returncode": 0,
+      "target": "settings"
+    }
+  ],
+  "tools": {
+    "ffdec": {
+      "bytes": 5271501,
+      "sha256": "80f8ced0bfde98b434c28e9807e91fe5558255b2f712051a0e65221519bd392a"
+    },
+    "java": {
+      "bytes": 50344,
+      "sha256": "5f6248f9c0f32b38ffaba813819bf3331536a48c7ddc45b18e73acd15a6cf7ef"
+    }
+  },
+  "scope": "Static SettingsMenu inventory and four focused source batches; raw assets and source remain private.",
+  "helper": {
+    "sha256": "f642f8a4315480badd6361e2004ac34d92d6b3d5d550212a6bb5961fdaff1790",
+    "review": "Separate DeepSeek builder/reviewer; coordinator inspected bounded target-selection diff and ran settings inventory."
+  },
+  "source_batches": [
+    {
+      "batch": "settings-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "menus/GroupedSettingsMenuBase.as",
+          "bytes": 8351,
+          "sha256": "e97ea558c0b252227a4548d41815fec0309ac425501f1a8dc4f995bd9042e4d0"
+        },
+        {
+          "class_path": "menus/SettingsMenu.as",
+          "bytes": 45097,
+          "sha256": "fd2dbbbab4acacb8bf291518aa98a52556574dcadca12997af3ba2b54f8b31b5"
+        },
+        {
+          "class_path": "menus/TrainingSettingsMenu.as",
+          "bytes": 4218,
+          "sha256": "4fa036e32b5b82aa6f602d149a872520f6a62043325b8af93f61a3d72693808f"
+        },
+        {
+          "class_path": "SettingsMenuScreen.as",
+          "bytes": 5858,
+          "sha256": "c4ad79cee7228d8873e5efc391771a25a7661fd58f5d4ca7991897a27bd90be4"
+        },
+        {
+          "class_path": "tagame/constants/SettingsGroupName.as",
+          "bytes": 2011,
+          "sha256": "bda98b89e18f165a7dcccc463b8501a36fd5f1a9dcdecbc238d470b3e0dd273d"
+        },
+        {
+          "class_path": "tagame/controls/OptionsCheckBox.as",
+          "bytes": 2479,
+          "sha256": "7930ddee20fe3f91a9652c5d1ac6a9b6ba356a2d2d3b553953d63d9299dd31e3"
+        },
+        {
+          "class_path": "tagame/controls/UserSettingsGroup.as",
+          "bytes": 4332,
+          "sha256": "d1869f0e582e8adf714d45f8d47b007e7380ad9c3398d52359442f31d9d0d4fa"
+        },
+        {
+          "class_path": "TrainingMenuSettingsMovie.as",
+          "bytes": 310,
+          "sha256": "e89099c35824ad4c7b252a546318aa6c7e7823760952e8c88e52e35830a00db9"
+        }
+      ]
+    },
+    {
+      "batch": "settings-dependencies-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "menus/SettingsSubMenu.as",
+          "bytes": 9248,
+          "sha256": "4e4a856f741ec5896164f8a8052388695a233b7665bf404c1537f6a2dc380add"
+        },
+        {
+          "class_path": "projectx/controls/StateTweenButton.as",
+          "bytes": 13803,
+          "sha256": "2978ab5a6f8f5e278feb5235b9c7366cf0af72c1592d7a41273c118cb4992a12"
+        },
+        {
+          "class_path": "tagame/api/EUserSettingType.as",
+          "bytes": 425,
+          "sha256": "d713ac525e75ff5f4b6d63fe0aaa96c48baf347d296f884d94098bd517e0c5c9"
+        },
+        {
+          "class_path": "tagame/api/UserSettings.as",
+          "bytes": 5672,
+          "sha256": "25269ee95d9c460a1fa6a951ea2cc6d7488455a577eb09c79c49ec4d85a77c99"
+        },
+        {
+          "class_path": "tagame/api/UserSettingsRow.as",
+          "bytes": 5004,
+          "sha256": "042cc0b89aa8a58ad1a07a61b071a719a0f911b46b5d3681acf7e21aa1f6edc2"
+        },
+        {
+          "class_path": "tagame/controls/UserSetting.as",
+          "bytes": 13104,
+          "sha256": "0997702a9c62ff798d66815f40ddadd98cb4791d5511392cf9544d03481d34ba"
+        },
+        {
+          "class_path": "UserSettingMovie.as",
+          "bytes": 2639,
+          "sha256": "0db513c4e40150b9adef9cbdd3bc3961b69fe4f84d073ba01d8f9a497b1b6e71"
+        }
+      ]
+    },
+    {
+      "batch": "settings-button-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "scaleform/clik/controls/Button.as",
+          "bytes": 30590,
+          "sha256": "cc232a2c35d0f3dd7bb84b67d0a506963a79f1a00195c6fe65eb95e448575c02"
+        }
+      ]
+    },
+    {
+      "batch": "settings-api-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "tagame/api/Settings.as",
+          "bytes": 4807,
+          "sha256": "85a3ce3ca8dbcecc967b17ed5984ae4c41423b503a321cade55dde1ea58d129a"
+        }
+      ]
+    }
+  ]
+}

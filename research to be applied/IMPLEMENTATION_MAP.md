@@ -97,4 +97,13 @@ map will be updated as new evidence arrives.
 
 [Import-selection diagnostic](campaign/import-probe-01.md) reproduces imported claims entering automatic best selection using four offline bridge cases and twelve checks. [HUD timeline geometry](campaign/hud-timeline-01.md) supplies authored label positions within the training clip, while leaving runtime screen placement separate.
 
-[Ball visibility options](campaign/ball-visibility-01.md) proposes testing the ball-specific fade pair with current session/attempt/actor identity and explicit restoration. The declarations do not establish fade duration, collisions or support in MCT Soccar; retain those as game-acceptance gates.
+[Installed fade-wrapper analysis](campaign/sdk-fade-01.md) supersedes the earlier [header-only candidate](campaign/ball-visibility-01.md): both fade operations are replay-gated in the inspected installed DLL. Do not implement that pair as a Power Shots Soccar timeout effect. FadeIn also does not establish exact restoration of the previous material or fade flag.
+
+
+## Settings, playback and arrival follow-up
+
+- [Stock Training settings](campaign/stock-training-settings-01.md): seventeen selected classes connect Boolean row values, checkbox activation, native write requests, descriptions and reset defaults. Render MCT row help and keep requested/observed values separate.
+- [Lesson acceptance checks](campaign/lesson-acceptance-tests-01.md): one offline run passed forty selected tests. Catalog shape and selected variants are not all-lesson game proof.
+- [Ghost playback](campaign/ghost-playback-01.md): Watch/Lead/Practice use distinct clock rules; ghost rendering continues after terminal attempts, and an ended clip can retain its last outline. Choose an explicit terminal policy and verify renderer cleanup.
+- [Workshop arrival](campaign/map-arrival-01.md): callback return and generic external activity do not prove the requested map arrived; require request-bound map/geometry/roster validation before lesson state writes.
+- [BakkesMod shot format](campaign/shot-data-01.md): a legacy JSON supplies partial launch physics, not a full drill. Correctly map rotation/angular velocity, reject executable script, and author MCT targets/outcomes/rank separately.

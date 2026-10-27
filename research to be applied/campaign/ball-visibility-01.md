@@ -1,10 +1,14 @@
 # BALL-VISIBILITY-01 — Power Shots timeout ball disappearance
 
-## Scope and finding
+## Superseding installed-runtime evidence
+
+[SDK-FADE-01](sdk-fade-01.md) subsequently inspected the installed wrapper bodies and found both fade operations gated on replay type. The proposed fade pair below is therefore withdrawn for ordinary MCT Soccar. Keep this report as the header/options investigation and historical contract; its apparent inverse-name reasoning is not an implementation recommendation. The installed FadeIn body also replaces a default material rather than proving exact restoration.
+
+## Original header investigation
 
 Read-only comparison of the BakkesMod SDK headers consumed by the frozen MCT build, its Soccar adapter, RLBot's pinned desired-state fields, and the pinned public default-plugin sources. The MCT CMake file pins BakkesModSDK archive commit `479e8f571cf554b25f4eeb64d611dec4133edcaf` with SHA-256 `e4072d2884a432bedfd7a7e8474000137b1649deeea3346de4f1b2a0cb9dd866` (`work/reviewed-training/plugin/CMakeLists.txt:26–29`). This identifies the declaration source consumed by CMake; it does not establish an installed runtime DLL match.
 
-**Best candidate:** on an explicitly reported Power Shots `timeout`, use the ball-scoped `BallWrapper::FadeOutBall()` and pair it with `FadeInBall()` when the next attempt is reset or the owned session is leaving. Its ball-specific API and named inverse make it a focused candidate among the inspected declarations; they do not prove its actual physical or lifecycle effects. The header does not document fade duration, whether it changes collision/physics, whether it works in RLBot-managed Soccar, or whether its call is idempotent. Those remain game acceptance questions; “fade out” in a method name is not proof of a particular visual or physics effect.
+**Historical candidate, withdrawn for Soccar by SDK-FADE-01:** on an explicitly reported Power Shots `timeout`, use the ball-scoped `BallWrapper::FadeOutBall()` and pair it with `FadeInBall()` when the next attempt is reset or the owned session is leaving. Its ball-specific API and named inverse make it a focused candidate among the inspected declarations; they do not prove its actual physical or lifecycle effects. The header does not document fade duration, whether it changes collision/physics, whether it works in RLBot-managed Soccar, or whether its call is idempotent. Those remain game acceptance questions; “fade out” in a method name is not proof of a particular visual or physics effect.
 
 ## Declared mutation options
 
@@ -24,7 +28,7 @@ There is one read-only MCT use of this wrapper path: `MyCareerTraining.cpp:465�
 
 The current Power Shots source itself has no native visibility writer (`work/campaign/attempt-end-01.md`). Its Python worker controls the ball through RLBot state writes, while the BakkesMod plugin renders the card. Crossing those two owners needs an explicit bridge message; it should not retain a `BallWrapper` across packets. `ObjectWrapper` exposes `memory_address`, but the inspected object/ball headers provide no stable actor ID. Re-query and validate the current wrapper for each operation; session ID, attempt ID, server identity, and wrapper address together can guard against stale effects, but address reuse remains a runtime risk.
 
-## One future adapter contract
+## Historical adapter sketch — operation choice withdrawn
 
 1. **Scope:** apply only while the existing offline ownership and freshness checks pass, the game is in an unpaused non-replay/non-online match, and session state is `kind=training`, `state=training`, `worker_running=true`, `lesson_id=power-shots`. `TrainingLessonInput::lessonScope` already encodes those lesson/session gates (`plugin/include/TrainingLessonInput.h:154–164`); also use the plugin's `offlineReady_` / `ownedOfflineNow()` checks (`plugin/src/MyCareerTraining.cpp:580–589, 1285`). Do not key off `IsInGame()` alone.
 2. **Trigger:** send a terminal message containing the bridge/session identity, attempt ID, and outcome. Fade only for `outcome=timeout`; preserve the scored-ball behavior on success. A distinct message is better than polling `latest_attempt`, which is retained as history and does not appear in the coaching phase with a current attempt ID. This event is separate from `attempt_ack`.

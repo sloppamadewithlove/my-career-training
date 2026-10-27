@@ -90,3 +90,10 @@ traces from static declarations or UI controls alone.
 | ATTEMPT-END-01 | Current MCT terminal ball/HUD/save/retry behavior | Complete; no terminal ball write in traced path |
 | HUD-TIMELINE-01 | Authored label coordinates and parent transform | Complete; clip-local geometry; screen-space placement unproven |
 | BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | Complete; named fade pair is a candidate, Soccar effects unverified |
+
+| STOCK-TRAINING-SETTINGS-01 | Checkbox value/input/help/native request route | Complete; seventeen selected current-movie classes, runtime effects unknown |
+| SHOT-DATA-01 | Legacy BakkesMod shot JSON format and import limits | Complete; parser defects reconciled against pinned source |
+| LESSON-ACCEPTANCE-TESTS-01 | Selected engine and attempt acknowledgement checks | Complete; one existing offline run, forty passed |
+| GHOST-PLAYBACK-01 | Playback clocks, terminal visibility and cleanup | Complete; source trace, no live renderer acceptance |
+| MAP-ARRIVAL-01 | Selected Workshop request to confirmed map boundary | Complete; missing request-bound arrival proof |
+| SDK-FADE-01 | Installed fade wrappers and context restrictions | Complete; replay guard withdraws Soccar fade proposal |
