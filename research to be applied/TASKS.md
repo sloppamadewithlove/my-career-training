@@ -117,3 +117,4 @@ traces from static declarations or UI controls alone.
 | CONTROLLER-EVIDENCE-01 | Physical device, logical action and prompt identity | Complete; separate display/event thresholds, fixed skin and unused profile routing documented |
 | NATIVE-RESET-SIGNAL-01 | Per-wheel/contact-time candidates versus inferred reset | Complete; seven pinned SDK headers; runtime semantics unverified |
 | NATIVE-PACK-ROW-01 | Row content, states, enum mapping and authored layout | Complete; seven same-movie classes plus local sprite metadata; imported art/fonts unresolved |
+| CVAR-SEMANTICS-01 | Numeric range helpers versus installed host getters | Complete; wrapper forwarding established; core analysis incomplete, parser semantics unresolved |
