@@ -1,0 +1,131 @@
+{
+  "method": "Direct pinned FFDec CLI exact-class selections; no helper code changes",
+  "format": "script:as",
+  "autoDeobfuscate": 0,
+  "limits": "Private research exports; not gameplay or host-call acceptance",
+  "tools_receipt": "stock-menu-export-01.json",
+  "targets": [
+    {
+      "selection": "navigation-export",
+      "movie": "TrainingMenu.gfx",
+      "movie_sha256": "a216ae0b061340bda02ccf713ddac556909f88e96213baf1c99d42bd5561fcc1",
+      "observed_exit_code": 0,
+      "files": [
+        {
+          "name": "scripts/controls/XPLevelMenuButton.as",
+          "bytes": 2673,
+          "sha256": "1e12c7909b7dfc76c82b6ec20c308dfa2acd1abdf04205c2e1f0742be3777a1f"
+        },
+        {
+          "name": "scripts/projectx/api/InputTypes.as",
+          "bytes": 526,
+          "sha256": "0ee9c21e6c63688e2e388d80d96698e5e4fe01ed71cb780804c0a2903133b747"
+        },
+        {
+          "name": "scripts/projectx/core/UIMenu.as",
+          "bytes": 24746,
+          "sha256": "2145e5ab8f27b73e3a51792008dbeae4f9255c5fa9f4cff10c5ed0d03995122a"
+        },
+        {
+          "name": "scripts/projectx/core/UIScreen.as",
+          "bytes": 11700,
+          "sha256": "9e26e1599db761f62c018aa16e73f8dc21195a85557cabfcbe01d4755cf556ab"
+        },
+        {
+          "name": "scripts/projectx/events/ButtonLegendEvent.as",
+          "bytes": 1063,
+          "sha256": "29465ac2df50abe7736078837e5205eb73f37a3098313158a2edcd22364c2eca"
+        },
+        {
+          "name": "scripts/projectx/managers/SystemIconManager.as",
+          "bytes": 17107,
+          "sha256": "384e8cdf3b6c309dfadab4be245c80bae7d6eafa8e1d148fc17bb7734efbde39"
+        },
+        {
+          "name": "scripts/projectx/menus/DynamicMenu.as",
+          "bytes": 6446,
+          "sha256": "dd5bb00c9521eab931c3f44375a2c144a79857ecf23f9bbb59320a04c069cd9a"
+        },
+        {
+          "name": "scripts/scaleform/clik/events/InputEvent.as",
+          "bytes": 983,
+          "sha256": "8b5d540345c2f7d6bb6d3160ca2633f56602bedb54159a7a44eaa546e0624346"
+        },
+        {
+          "name": "scripts/tagame/controls/ButtonLegend.as",
+          "bytes": 18451,
+          "sha256": "ba4e6303f4e1a6f22b04c4b33c4baa1416694d188523a292e35cd48b330570b4"
+        },
+        {
+          "name": "scripts/tagame/controls/LegendElement.as",
+          "bytes": 7733,
+          "sha256": "d151a773b14733987bef28039536337248d7fb969ebc5fab2ebebb5540e53521"
+        },
+        {
+          "name": "scripts/tagame/controls/MenuButton.as",
+          "bytes": 7098,
+          "sha256": "e2cb9b46826d325e6ecfad3fb40b31b41e28c975e057e347b71874cba91e94c1"
+        },
+        {
+          "name": "scripts/tagame/data/ButtonLegendData.as",
+          "bytes": 2017,
+          "sha256": "5129faf4678336396afcacbf2f66812be2745501d284636e3b625c5afecf0907"
+        }
+      ],
+      "total_bytes": 100543
+    },
+    {
+      "selection": "shot-view-export",
+      "movie": "CustomTrainingSelectShotMenu.gfx",
+      "movie_sha256": "5c8507cf9b0543ce778d8c71854c9e88d6b96aceaa9f762e050138427e2280d7",
+      "observed_exit_code": 0,
+      "files": [
+        {
+          "name": "scripts/CustomTrainingSelectShotViewMovie.as",
+          "bytes": 341,
+          "sha256": "18b224a5af5a33acf3578a2f74607f4ce149356c90aa36d977c81793f5ae0c89"
+        },
+        {
+          "name": "scripts/menus/CustomTrainingSelectShotView.as",
+          "bytes": 2015,
+          "sha256": "5f7c99a1a86afc8fb4e53c679fc4b6451e3684226c5580549963261913c797a5"
+        }
+      ],
+      "total_bytes": 2356
+    },
+    {
+      "selection": "shot-row-export",
+      "movie": "CustomTrainingSelectShotMenu.gfx",
+      "movie_sha256": "5c8507cf9b0543ce778d8c71854c9e88d6b96aceaa9f762e050138427e2280d7",
+      "observed_exit_code": 0,
+      "files": [
+        {
+          "name": "scripts/controls/SelectShotButton.as",
+          "bytes": 4326,
+          "sha256": "27e9678a82f7ce51b1faa0c042fa2b5efb64fb25b1c264e4d66b38ef1dbabdaf"
+        },
+        {
+          "name": "scripts/SelectShotButtonMovie.as",
+          "bytes": 296,
+          "sha256": "8e92cff0140cc61a0c5a8554a8dde0dcdf1014196b75c31cc5a8f619d9f8fec8"
+        },
+        {
+          "name": "scripts/tagame/api/TrainingProgressPerShot.as",
+          "bytes": 2152,
+          "sha256": "39c776645771f570320d4b493a33a5d2358ffbcbc831e6c1982371ae9c34bbc6"
+        },
+        {
+          "name": "scripts/tagame/api/TrainingProgressPerShotRow.as",
+          "bytes": 1727,
+          "sha256": "86ff42cb2837e032462a7bf5fa5ad733a873f3d707726beba3c8869b7e2be654"
+        },
+        {
+          "name": "scripts/tagame/controls/ModalScrollingList.as",
+          "bytes": 1234,
+          "sha256": "f6d6cea2703be29a81956f2aed96037a457df3468877020c7462f2b8f6072107"
+        }
+      ],
+      "total_bytes": 9735
+    }
+  ]
+}

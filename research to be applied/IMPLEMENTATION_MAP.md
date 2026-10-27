@@ -82,3 +82,11 @@ map will be updated as new evidence arrives.
 - [HUD package evidence](campaign/hud-package-01.md): exact training-view and match-info movies identified; positions, timers and controller legends still need focused source tracing.
 - [Imported attempt identity](campaign/import-identity-01.md): imported JSON claims can enter automatic personal-best selection; persist application-owned capture origin and filter compatibility before choosing a best.
 - [Modifier measurement](campaign/mod-measurement-01.md): distinguish requested settings, applied effects, assistance context and imported claims.
+
+## Required rank-routing correction
+
+[Navigation research](campaign/native-navigation-01.md) found that the frozen candidate routes Power Shots to `Lesson`, where eight ranks appear in a side panel. A `LessonDifficulty` full-page builder exists but no action assigns that page in the inspected native/include/movie paths. Other lesson rows currently dispatch `start_lesson` directly. Wire and verify the requested separate rank-selection route for each supported lesson; merely retaining the unused builder or generic browser rank popup does not satisfy the requested flow. Preserve selected lesson focus on Back and persist the chosen practice tier independently of UI focus. This is a source finding and builder handoff, not a completed fix.
+
+[Ball Prediction research](campaign/ball-prediction-01.md) also shows why its checkbox requires adapter work: ordinary MCT Power Shots uses an RLBot Soccar session, while the stock plugin declares Freeplay/Custom Training contexts and keeps a cached predictor across resets. Test reseeding and cleanup with other overlays before presenting it as supported.
+
+[Shot selection](campaign/custom-shot-flow-01.md) now traces an exact static route: table indices drive the list, displayed shot numbers add one, and the chosen index reaches `StartAtPlaylistIndex` unchanged. Keep MCT scenario IDs independent of this stock host API; preserve the selected practice tier when opening an in-session situation picker. Numeric progress status meanings and actual host-call success remain unverified.

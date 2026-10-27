@@ -75,7 +75,10 @@ traces from static declarations or UI controls alone.
 | HUD-PACKAGE-01 | Training HUD versus match-clock movie metadata | Complete; Luna; exact exports identified, no HUD code/runtime claim |
 | IMPORT-IDENTITY-01 | Imported claims reaching personal-best selection | Complete; Luna; source reachability, no diagnostic run yet |
 | NATIVE-TRAINING-FLOW-01 | Stock lesson-to-difficulty menu route | Complete; Luna; current movie source, helper inventory failure disclosed |
-| NATIVE-NAVIGATION-01 | Inherited Back, focus, controller navigation | In progress; Luna; bounded private source analysis |
+| NATIVE-NAVIGATION-01 | Inherited Back, focus, controller navigation | Complete; stock focus path traced; current candidate separate-rank route missing |
 
-| CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | In progress; Luna; four selected classes |
-| BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | In progress; Luna; pinned public source |
+| CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | Complete; eleven selected classes trace zero-based dispatch and one-based display |
+| BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | Complete; source-only; targeted SDK cleanup follow-up underway |
+
+| SDK-DRAWABLE-01 | Installed SDK unregister-drawables body and ownership scope | In progress; Luna/REA static artifact |
+| HUD-INVENTORY-01 | Exact training HUD movie script names | In progress; DeepSeek helper build and independent review |
