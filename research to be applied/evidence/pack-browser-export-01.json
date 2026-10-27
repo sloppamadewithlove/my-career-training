@@ -1,0 +1,94 @@
+{
+  "scope": "Static current-movie identity, class inventory and seven focused source dependencies; no game/service call or asset publication.",
+  "movie": {
+    "name": "TrainingBrowserMenu.gfx",
+    "bytes": 921910,
+    "sha256": "c55ff890a0255a9ee5cdd347c255271cb78ce61e137f45ded1d9cfb18f925098",
+    "identity": "Existing exported movie hash rechecked; PACKAGE-02 previously matched installed RawData."
+  },
+  "inventory": {
+    "returncode": 0,
+    "bytes": 19466,
+    "sha256": "1ea85ad11126af9c5f2cf1f95e4e894570377d2b155f75600624e442c711fb32",
+    "nonblank_lines": 535,
+    "dump_entries": 535
+  },
+  "source_batches": [
+    {
+      "batch": "browser-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "controls/TrainingBrowserListView.as",
+          "bytes": 3989,
+          "sha256": "4256072ccf3302c06ce8b6bd93d89652a7403b8555fc5bac073512316bd49517"
+        },
+        {
+          "class_path": "controls/TrainingSequenceDetailsPanel.as",
+          "bytes": 22671,
+          "sha256": "c3b35af67ae51a2537ffab6f38b7cbc7b1b5abcb4155964299a6fed20d508a4e"
+        },
+        {
+          "class_path": "tagame/api/TrainingModeBrowser.as",
+          "bytes": 4871,
+          "sha256": "240de1d808cf9541ba87f4a761d8bb0aca21b62fb92074bfc5294cacb6408f0f"
+        },
+        {
+          "class_path": "tagame/api/TrainingModeRow.as",
+          "bytes": 10122,
+          "sha256": "55050085209d800e6c820f7bb6c8a36a32a6272401c1220b47871f97282cf9d8"
+        }
+      ]
+    },
+    {
+      "batch": "browser-list-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "tagame/controls/ModalScrollingList.as",
+          "bytes": 1234,
+          "sha256": "f6d6cea2703be29a81956f2aed96037a457df3468877020c7462f2b8f6072107"
+        }
+      ]
+    },
+    {
+      "batch": "browser-scroll-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "scaleform/clik/controls/ScrollingList.as",
+          "bytes": 20223,
+          "sha256": "e57a334072ca14fabd7f3b8ae63b890573b127930afdf232b0cc855cf16b8c8b"
+        }
+      ]
+    },
+    {
+      "batch": "browser-core-export",
+      "returncode": 0,
+      "files": [
+        {
+          "class_path": "scaleform/clik/controls/CoreList.as",
+          "bytes": 22626,
+          "sha256": "3ed5c413be9ac3acac0ae34026807946146c250b39fedcbfdf553f0e047108c4"
+        }
+      ]
+    }
+  ],
+  "prior_selected_sources": [
+    {
+      "class_path": "menus/TrainingBrowserMenu.as",
+      "bytes": 30434,
+      "sha256": "b5e1890c1f891be6887508e27a13acf3d1c40c26554b72463a53e6c96a49c5eb"
+    },
+    {
+      "class_path": "TrainingBrowserMenuScreen.as",
+      "bytes": 1468,
+      "sha256": "00e557ca0eb544c3aec99b9ccbe1988b5113dc9a36743f0becdaef54bdc885fa"
+    },
+    {
+      "class_path": "tagame/constants/MenuName.as",
+      "bytes": 7666,
+      "sha256": "1830f29e84c6700d6fe7ebcc2abc4e30fdecaa0e71a2374b283da0b3cb570120"
+    }
+  ]
+}

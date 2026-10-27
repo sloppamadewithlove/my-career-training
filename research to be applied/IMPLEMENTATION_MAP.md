@@ -107,3 +107,11 @@ map will be updated as new evidence arrives.
 - [Ghost playback](campaign/ghost-playback-01.md): Watch/Lead/Practice use distinct clock rules; ghost rendering continues after terminal attempts, and an ended clip can retain its last outline. Choose an explicit terminal policy and verify renderer cleanup.
 - [Workshop arrival](campaign/map-arrival-01.md): callback return and generic external activity do not prove the requested map arrived; require request-bound map/geometry/roster validation before lesson state writes.
 - [BakkesMod shot format](campaign/shot-data-01.md): a legacy JSON supplies partial launch physics, not a full drill. Correctly map rotation/angular velocity, reject executable script, and author MCT targets/outcomes/rank separately.
+
+
+## Setup, browser and ownership findings
+
+- [Reset readiness](campaign/reset-ready-01.md) traces parked and moving ball writes, settle/confirmation tolerances, and timer start on observed `go`. Ball spin is written but not part of the confirmation gate. [Scenario checks](campaign/scenario-acceptance-tests-01.md) passed 130 selected offline cases, including 96 construction cases; numbered Power Shots multi-bot recovery still needs coverage.
+- [Stock pack browser](campaign/native-pack-browser-01.md) traces code search, favorites, update and Play requests and numeric-index selection on refresh. Preserve MCT stable IDs and the requested Lessons/Workshop/Mods/Favorites tabs; native API dispatch does not prove content transfer or arrival.
+- [Garage ownership](campaign/garage-restore-01.md) found that cosmetic restore can overwrite later user edits. Track ownership per written field and handle conflicts; a saved design draft is not a durable restore baseline. Return-to-hub currently keeps the offline local appearance.
+- [Actor visibility wrapper](campaign/sdk-actor-visibility-01.md) forwards SetHidden2 to Engine.Actor.SetHidden without the replay check seen in ball fade wrappers. Its engine effects/restoration remain unverified; raw self-hidden field writes are a distinct operation, not an equivalent effect.

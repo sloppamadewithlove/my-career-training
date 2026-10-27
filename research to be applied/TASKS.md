@@ -97,3 +97,9 @@ traces from static declarations or UI controls alone.
 | GHOST-PLAYBACK-01 | Playback clocks, terminal visibility and cleanup | Complete; source trace, no live renderer acceptance |
 | MAP-ARRIVAL-01 | Selected Workshop request to confirmed map boundary | Complete; missing request-bound arrival proof |
 | SDK-FADE-01 | Installed fade wrappers and context restrictions | Complete; replay guard withdraws Soccar fade proposal |
+
+| RESET-READY-01 | Ball/actor setup, settle, observed launch and timer start | Complete; source gates and physics limits documented |
+| SCENARIO-ACCEPTANCE-TESTS-01 | Existing roster/readiness/reset tests | Complete; 130 selected offline cases passed, no game proof |
+| NATIVE-PACK-BROWSER-01 | Stock pack search/favorite/update/play/list route | Complete; seven selected dependencies, native effects unverified |
+| GARAGE-RESTORE-01 | Cosmetic lease, partial failure and user-edit preservation | Complete; external edits can be overwritten by restore |
+| SDK-ACTOR-VISIBILITY-01 | Generic hidden API versus raw self-hidden field | Complete; engine dispatch established, visual/physics effects unknown |
