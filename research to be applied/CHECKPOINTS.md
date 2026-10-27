@@ -36,3 +36,7 @@ The monitor recorded the scheduled 11:54:12 UTC checkpoint at 2026-10-27T11:54:1
 ## Hour 6
 
 The monitor recorded the scheduled 12:54:12 UTC checkpoint at 2026-10-27T12:54:12.000271+00:00. It counted 146 documents and 34 changed paths, with no missed checks. One hundred research reports are published. Both checkouts still match their own 21-file provenance baselines; their eight pre-existing differences remain explicit. Eight selected offline lifecycle cases passed, and the pause-policy contract received independent source review. A new render diagnostic is being repaired after review and has not been executed. [Checkpoint evidence](checkpoints/hour-06.json). No new game acceptance occurred in this campaign.
+
+## Hour 7
+
+The monitor recorded the scheduled 13:54:12 UTC checkpoint at 2026-10-27T13:54:12.003470+00:00. It counted 229 documents and 89 changed paths, with no missed checks. The coordinator confirmed the monitor process alive and independently rehashed all 21 selected paths in both checkouts: neither changed against its own provenance baseline. There are 106 campaign reports published at this check. The reconstructed probes and the reviewed cosmetic-conflict experiment passed their offline controls; no production fix or game acceptance is claimed. [Checkpoint evidence](checkpoints/hour-07.json). The final scheduled checkpoint is 14:54:12 UTC.

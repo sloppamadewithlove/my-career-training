@@ -7,7 +7,7 @@ a claim that every described feature is implemented or game-tested.
 
 ## Current campaign
 
-- Window: 27 October 2026, 02:54–10:54 America/New_York (06:54–14:54 UTC).
+- Window: 27 October 2026, 02:54â€“10:54 America/New_York (06:54â€“14:54 UTC).
 - One worker owns each research task. Luna max researches and executes existing
   tests only. DeepSeek builders and independent reviewers handle scoped code.
 - Prioritize research and ready-to-apply specifications. Heavy plugin compilation
@@ -55,3 +55,5 @@ account-owned items and online visibility.
 - [Campaign reports](campaign): ghost playback, garage, compatibility, downloads, settings, native UI, shot physics, Workshop loading and SDK exports.
 
 Report fingerprints identify the private source bytes read during that pass. Later editorial corrections and publication whitespace normalization can change report-file hashes; consult Git history and follow-ups when comparing research documents. A research-report hash is not a deployed game/plugin hash.
+
+The [cosmetic conflict prototype](campaign/cosmetic-conflict-prototype-01.md) includes reviewed source and an offline build/run receipt. Its conflict-preserving policy is experimental and has not been selected or installed in the product.

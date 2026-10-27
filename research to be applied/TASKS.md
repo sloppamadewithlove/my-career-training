@@ -1,6 +1,6 @@
 # Eight-hour research task board
 
-Window: 27 October 2026, 06:54:12–14:54:12 UTC / 02:54:12–10:54:12 Eastern.
+Window: 27 October 2026, 06:54:12â€“14:54:12 UTC / 02:54:12â€“10:54:12 Eastern.
 One researcher per task. Main validates and integrates evidence. No task's source
 analysis substitutes for actual gameplay verification.
 
@@ -142,3 +142,4 @@ traces from static declarations or UI controls alone.
 | RENDER-WAITER01 | Public Core cleanup transport boundary | Complete source-only pass; later pinned DLL inspection resolves selected implementation details |
 | BRIDGE-WAITER-ARTIFACT01 | Pinned Bridge waiter, sender allowance and queue reset | Complete static artifact inspection; 65,535 payload bytes per reset window and normal-return rejection/queue clearing traced; staged native runtime equivalence unverified |
 | REPRODUCIBILITY-HANDOFF-01 | Reconstruct published diagnostic inputs | Complete source archive and five successful offline invocations across four diagnostics; installed dependencies reused, no clean-environment or game claim |
+| COSMETIC-CONFLICT-PROTOTYPE-01 | Proposed coupled-pair ownership policy | Separately DeepSeek-built/reviewed; standalone compile and 22-scenario/44-record run passed; unresolved production policy and caller integration |

@@ -1,0 +1,126 @@
+# Research contract — conflict-preserving cosmetic override lease
+
+Status: **experimental proposal, not a selected production fix.** Nothing here
+changes `plugin/include/CosmeticOverrideState.h` or any product source. The
+production class is included read-only by the diagnostic and is **not fixed** by
+this work.
+
+## Observed problem
+
+`docs/cosmetic-restore-probe-01.md` and `docs/garage-restore-01.md` show that the
+current transaction stores only the pre-Apply pair and a pending bit. If the
+player or another tool edits `cl_itemmod_code` / `cl_itemmod_enabled` while the
+override is active, a later Restore (explicit, scope-loss, or unload) writes the
+old pair over that edit. The class cannot tell an external edit from its own
+write, so it cannot preserve it.
+
+## Proposed conservative policy (this experiment)
+
+The prototype models **code + enabled as one coupled pair** for ownership. It
+does not claim per-field ownership, atomic CAS, reentrancy or concurrency
+protection.
+
+1. **Baseline.** The first successful read before any write becomes the
+   baseline. Repeated Apply while the lease is still owned keeps that first
+   baseline.
+2. **Owned frontier.** The last verified pair is retained separately from the
+   candidate pair a write may produce. A fresh successful read follows each
+   setter before any further write.
+3. **Conflict.** If a fresh read diverges from every known owned frontier
+   (last verified pair, before-write candidate pair, or baseline), the lease is
+   **relinquished** and the current pair is preserved. The result is
+   `ConflictPreserved`. The prototype never disables or rewrites externally
+   changed code to "clean up". The preserved pair may still contain one field
+   written by MCT. After relinquishment, Restore is `Noop`; that remaining
+   field is not automatically cleaned up. This preserves the later edit at
+   the cost of giving up field-by-field restoration.
+4. **Fresh read before restore.** Restore performs no setter until a read
+   succeeds. A failed read yields `Pending` with zero writes — never a blind
+   rollback.
+5. **Normal restore.** An unchanged lease writes the original pair back and
+   verifies it with a fresh read.
+6. **New explicit Apply after conflict.** Once a conflict has relinquished the
+   lease, a new explicit Apply may take a fresh baseline and own the new
+   request. It does not silently resume the old one. The fresh baseline is
+   whatever the host currently holds, including any MCT-written field left
+   by a previous coupled-pair conflict.
+7. **Partial setters.** Setters may throw before or after their effect. The
+   lease reads back after each write and decides from observed state, not from
+   the absence of an exception.
+8. **Preserved safety.** The lease never re-enables unresolved non-baseline
+   code merely because the original `enabled` flag was true. If the baseline
+   code cannot be restored, the prototype attempts to disable the override
+   and remains `Pending`. A failed or ignored disabling write does not prove
+   that the host is disabled.
+
+## Result vocabulary
+
+`research::CosmeticLease::ApplyResult`
+- `Applied` — requested pair written and read back.
+- `HostUnavailable` — no readable host and no write in this call. An existing
+  lease and baseline are retained; on a repeat Apply its previous override
+  may remain active.
+- `ConflictPreserved` — external divergence detected; current pair kept, lease
+  relinquished.
+- `FailedRestored` — apply failed and the original pair was verified back.
+- `RestorePending` — apply failed and restoration is incomplete; retry needed.
+
+`research::CosmeticLease::RestoreResult`
+- `Restored` — original pair verified back; lease cleared.
+- `ConflictPreserved` — external divergence detected; current pair kept.
+- `Pending` — read or write incomplete; no success claim; retry needed.
+- `Noop` — no lease existed; nothing was written.
+
+## Caller integration requirements (must change before any integration)
+
+The current caller in `docs/MyCareerTraining.cpp.txt` (~1581–1645) cannot use
+this vocabulary as-is:
+
+- `restoreCosmetics()` returns `bool`. A `bool` "restored" message is
+  **misleading after a conflict**: `ConflictPreserved` is not a restoration and
+  must not print "Original cosmetic overrides restored."
+- The Restore branch currently reports success even when there was no lease.
+  It must distinguish `Noop` ("nothing to restore") from `Restored`.
+- The Apply branch maps `FailedRestored` to "your original settings were
+  restored". With this policy it must also handle `ConflictPreserved`
+  (the current pair was kept, possibly including an MCT-written field) and `RestorePending` (retry
+  needed) as distinct messages.
+- Any UI that blocks Apply while `restorationPending()` must also decide what
+  to show after a conflict, since the lease is relinquished rather than
+  pending.
+- Scope-loss and unload paths that call `restoreCosmetics()` must treat
+  `ConflictPreserved` as "leave the player's values alone", not as a failure to
+  retry forever.
+
+## Diagnostic
+
+`tools/research_cosmetic_conflict_prototype.cpp` runs every scenario twice:
+once against the **unchanged production class** (regression observation) and
+once against the **prototype** (declared policy controls). Production results
+are also asserted as pins of this unchanged header's observed behavior; a
+future behavior change can fail those pins. They are not desired-behavior
+requirements and are never labelled fixed. It touches no host,
+socket, file, process or game API; all values are synthetic in-memory fixtures.
+It prints bounded JSON to stdout and exits non-zero if any declared control
+check fails.
+
+Twenty-two scenarios cover: host unavailable with and without an existing
+lease; normal apply/restore; external code-only, enabled-only and both-field
+edits; read unavailable before restore; Apply code/enabled setters throwing
+before and after effect; Apply readback failure then recovery; Restore write
+failure and retry; repeat Apply with unchanged baseline; repeat Apply after
+an external edit; no-lease no-op; repeat Apply with a code throw before effect
+and failed readback; an ignored code write; Restore enabled-setter throws
+before and after effect; external return to the baseline; and fresh Apply
+after a conflict that preserved a mixed-ownership pair.
+
+## Explicit limitations
+
+- No ABA protection: a value that leaves and returns to an owned value is
+  indistinguishable from no change.
+- No reentrant or concurrent write protection; the model is sequential and
+  single-threaded.
+- No actual cvar behavior, BakkesMod callback timing, persistence, crash
+  recovery, or rendered appearance is exercised.
+- The coupled-pair rule is a **conservative experiment**, not a claim that
+  per-field ownership is wrong or that this is the production policy.

@@ -1,0 +1,189 @@
+#pragma once
+// Research prototype: conflict-preserving cosmetic override lease.
+// NOT a production fix and NOT a drop-in replacement for
+// plugin/include/CosmeticOverrideState.h. Sequential, single-threaded model
+// only. No atomic CAS, reentrancy or concurrency protection is claimed.
+#include <functional>
+#include <optional>
+#include <string>
+
+namespace research {
+
+struct CosmeticPair {
+    std::string code;
+    bool enabled = false;
+    bool operator==(const CosmeticPair& other) const {
+        return code == other.code && enabled == other.enabled;
+    }
+    bool operator!=(const CosmeticPair& other) const { return !(*this == other); }
+};
+
+class CosmeticLease {
+public:
+    using Read = std::function<std::optional<CosmeticPair>()>;
+    using WriteCode = std::function<void(const std::string&)>;
+    using WriteEnabled = std::function<void(bool)>;
+
+    enum class ApplyResult {
+        Applied,
+        HostUnavailable,
+        ConflictPreserved,
+        FailedRestored,
+        RestorePending
+    };
+    enum class RestoreResult { Restored, ConflictPreserved, Pending, Noop };
+
+    // Explicit sequential callback contract: read() returns the current pair or
+    // nullopt; setters may throw before or after their effect. Every setter is
+    // followed by a fresh successful read before any further write or success
+    // claim. HostUnavailable performs no write and never discards an existing
+    // lease; the lease stays active and a later call may retry.
+    ApplyResult apply(const std::string& code, const Read& read,
+                      const WriteCode& writeCode, const WriteEnabled& writeEnabled) {
+        const auto current = tryRead(read);
+        if (!current) return ApplyResult::HostUnavailable;
+        if (!baseline_) {
+            baseline_ = *current;
+            conflict_ = false;
+        } else if (!frontierMatches(*current)) {
+            relinquishConflict();
+            return ApplyResult::ConflictPreserved;
+        }
+        verified_ = *current;
+        frontierKnown_ = true;
+        candidate_.reset();
+
+        const CosmeticPair requested{code, true};
+        // Before-write candidate: the pair this write may produce. It is kept
+        // separately from the last verified frontier so a throw-before-effect
+        // plus a failed readback can still recognise our own older override.
+        candidate_ = CosmeticPair{code, current->enabled};
+        frontierKnown_ = false;
+        try { writeCode(code); } catch (...) {}
+        const auto afterCode = tryRead(read);
+        if (!afterCode) return ApplyResult::RestorePending; // candidate_ retained
+        verified_ = *afterCode;
+        frontierKnown_ = true;
+        candidate_.reset();
+        // A silently ignored code write must not be followed by enabling it.
+        if (afterCode->code != code) return rollback(read, writeCode, writeEnabled);
+
+        candidate_ = requested;
+        frontierKnown_ = false;
+        try { writeEnabled(true); } catch (...) {}
+        const auto afterEnabled = tryRead(read);
+        if (!afterEnabled) return ApplyResult::RestorePending;
+        verified_ = *afterEnabled;
+        frontierKnown_ = true;
+        candidate_.reset();
+        if (*afterEnabled == requested) return ApplyResult::Applied;
+        return rollback(read, writeCode, writeEnabled);
+    }
+
+    RestoreResult restore(const Read& read, const WriteCode& writeCode,
+                          const WriteEnabled& writeEnabled) {
+        if (!baseline_) return RestoreResult::Noop;
+        const auto current = tryRead(read);
+        if (!current) return RestoreResult::Pending; // no writes without a fresh read
+        if (!frontierMatches(*current)) {
+            relinquishConflict();
+            return RestoreResult::ConflictPreserved;
+        }
+        verified_ = *current;
+        frontierKnown_ = true;
+        candidate_.reset();
+
+        candidate_ = CosmeticPair{baseline_->code, current->enabled};
+        frontierKnown_ = false;
+        try { writeCode(baseline_->code); } catch (...) {}
+        const auto afterCode = tryRead(read);
+        if (!afterCode) return RestoreResult::Pending; // never enable unresolved code
+        verified_ = *afterCode;
+        frontierKnown_ = true;
+        candidate_.reset();
+        if (afterCode->code != baseline_->code) {
+            if (afterCode->enabled) {
+                candidate_ = CosmeticPair{afterCode->code, false};
+                frontierKnown_ = false;
+                try { writeEnabled(false); } catch (...) {}
+                const auto afterDisable = tryRead(read);
+                if (afterDisable) {
+                    verified_ = *afterDisable;
+                    frontierKnown_ = true;
+                    candidate_.reset();
+                }
+            }
+            return RestoreResult::Pending;
+        }
+
+        candidate_ = *baseline_;
+        frontierKnown_ = false;
+        try { writeEnabled(baseline_->enabled); } catch (...) {}
+        const auto finalRead = tryRead(read);
+        if (!finalRead) return RestoreResult::Pending;
+        verified_ = *finalRead;
+        frontierKnown_ = true;
+        candidate_.reset();
+        if (*finalRead == *baseline_) {
+            clearLease();
+            return RestoreResult::Restored;
+        }
+        return RestoreResult::Pending;
+    }
+
+    bool leaseActive() const { return baseline_.has_value(); }
+    bool conflictObserved() const { return conflict_; }
+    bool frontierKnown() const { return frontierKnown_; }
+    std::optional<CosmeticPair> baseline() const { return baseline_; }
+    std::optional<CosmeticPair> verifiedFrontier() const { return verified_; }
+
+private:
+    static std::optional<CosmeticPair> tryRead(const Read& read) {
+        try { return read(); } catch (...) { return std::nullopt; }
+    }
+
+    // Known frontiers only: the last verified pair, the before-write candidate,
+    // and the baseline. An arbitrary unverified read pair is never adopted as
+    // owned; a foreign pair is preserved instead.
+    bool frontierMatches(const CosmeticPair& current) const {
+        if (verified_ && current == *verified_) return true;
+        if (candidate_ && current == *candidate_) return true;
+        if (baseline_ && current == *baseline_) return true;
+        return false;
+    }
+
+    void relinquishConflict() {
+        baseline_.reset();
+        verified_.reset();
+        candidate_.reset();
+        frontierKnown_ = false;
+        conflict_ = true;
+    }
+
+    void clearLease() {
+        baseline_.reset();
+        verified_.reset();
+        candidate_.reset();
+        frontierKnown_ = false;
+        conflict_ = false;
+    }
+
+    ApplyResult rollback(const Read& read, const WriteCode& writeCode,
+                         const WriteEnabled& writeEnabled) {
+        switch (restore(read, writeCode, writeEnabled)) {
+            case RestoreResult::Restored: return ApplyResult::FailedRestored;
+            case RestoreResult::ConflictPreserved: return ApplyResult::ConflictPreserved;
+            case RestoreResult::Pending: return ApplyResult::RestorePending;
+            case RestoreResult::Noop: return ApplyResult::FailedRestored;
+        }
+        return ApplyResult::RestorePending;
+    }
+
+    std::optional<CosmeticPair> baseline_;
+    std::optional<CosmeticPair> verified_;
+    std::optional<CosmeticPair> candidate_;
+    bool frontierKnown_ = false;
+    bool conflict_ = false;
+};
+
+} // namespace research

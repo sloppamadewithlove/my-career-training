@@ -1,0 +1,658 @@
+// Research diagnostic: conflict-preserving cosmetic override lease.
+// Runs the UNCHANGED production mct::CosmeticOverrideState for regression
+// observation AND the experimental research::CosmeticLease for declared policy
+// controls. The production class is NOT fixed by this program. Production
+// results are asserted as pins on this exact unchanged header, so a future
+// production behavior change fails the run; they are observations, not desired
+// behavior.
+//
+// No host, socket, file, process or game API is touched. All values are
+// synthetic in-memory fixtures. Sequential single-threaded model only.
+#include "CosmeticOverrideState.h"
+#include "ResearchCosmeticLease.h"
+
+#include <cstddef>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+using research::CosmeticPair;
+
+// ---------------------------------------------------------------------------
+// Fake host: distinct original / requested / external pairs, injectable
+// failures, and a bounded stage history.
+// ---------------------------------------------------------------------------
+struct FakeHost {
+    CosmeticPair values;
+    bool available = true;
+    std::set<int> failReadAt;
+    int readIndex = 0;
+    int writes = 0;
+    std::vector<std::string> history;
+
+    enum class CodeFail { None, Before, After };
+    enum class EnabledFail { None, Before, After };
+    CodeFail codeFail = CodeFail::None;
+    EnabledFail enabledFail = EnabledFail::None;
+    bool rejectBaselineCode = false;
+    bool ignoreNewCode = false;
+
+    std::optional<CosmeticPair> read() {
+        history.push_back("read");
+        const int idx = readIndex++;
+        if (!available) return std::nullopt;
+        if (failReadAt.count(idx)) return std::nullopt;
+        return values;
+    }
+    void writeCode(const std::string& next) {
+        history.push_back("writeCode:" + next);
+        ++writes;
+        if (rejectBaselineCode && next == "original")
+            throw std::runtime_error("fixture: baseline code rejected");
+        if (codeFail == CodeFail::Before) {
+            codeFail = CodeFail::None;
+            throw std::runtime_error("fixture: code setter threw before effect");
+        }
+        if (!ignoreNewCode || next == "original") values.code = next;
+        if (codeFail == CodeFail::After) {
+            codeFail = CodeFail::None;
+            throw std::runtime_error("fixture: code setter threw after effect");
+        }
+    }
+    void writeEnabled(bool next) {
+        history.push_back(std::string("writeEnabled:") + (next ? "1" : "0"));
+        ++writes;
+        if (enabledFail == EnabledFail::Before) {
+            enabledFail = EnabledFail::None;
+            throw std::runtime_error("fixture: enabled setter threw before effect");
+        }
+        values.enabled = next;
+        if (enabledFail == EnabledFail::After) {
+            enabledFail = EnabledFail::None;
+            throw std::runtime_error("fixture: enabled setter threw after effect");
+        }
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Uniform engine interface over the two classes.
+// ---------------------------------------------------------------------------
+struct LeaseApi {
+    virtual ~LeaseApi() = default;
+    virtual std::string apply(const std::string& code, FakeHost& host) = 0;
+    virtual std::string restore(FakeHost& host) = 0;
+    virtual bool active() const = 0;
+    virtual bool conflict() const = 0;
+};
+
+struct ProdLease : LeaseApi {
+    mct::CosmeticOverrideState state;
+    std::string apply(const std::string& code, FakeHost& host) override {
+        using R = mct::CosmeticOverrideState::ApplyResult;
+        const auto result = state.apply(
+            code,
+            [&]() -> std::optional<mct::CosmeticOverrideValues> {
+                const auto pair = host.read();
+                if (!pair) return std::nullopt;
+                return mct::CosmeticOverrideValues{pair->code, pair->enabled};
+            },
+            [&](const std::string& next) { host.writeCode(next); },
+            [&](bool next) { host.writeEnabled(next); });
+        switch (result) {
+            case R::Applied: return "Applied";
+            case R::HostUnavailable: return "HostUnavailable";
+            case R::FailedRestored: return "FailedRestored";
+            case R::RestorePending: return "RestorePending";
+        }
+        return "Unknown";
+    }
+    std::string restore(FakeHost& host) override {
+        const bool ok = state.restore(
+            [&]() -> std::optional<mct::CosmeticOverrideValues> {
+                const auto pair = host.read();
+                if (!pair) return std::nullopt;
+                return mct::CosmeticOverrideValues{pair->code, pair->enabled};
+            },
+            [&](const std::string& next) { host.writeCode(next); },
+            [&](bool next) { host.writeEnabled(next); });
+        return ok ? "Restored" : "Pending";
+    }
+    bool active() const override { return state.restorationPending(); }
+    bool conflict() const override { return false; }
+};
+
+struct ProtoLease : LeaseApi {
+    research::CosmeticLease lease;
+    std::string apply(const std::string& code, FakeHost& host) override {
+        using R = research::CosmeticLease::ApplyResult;
+        const auto result = lease.apply(
+            code, [&]() { return host.read(); },
+            [&](const std::string& next) { host.writeCode(next); },
+            [&](bool next) { host.writeEnabled(next); });
+        switch (result) {
+            case R::Applied: return "Applied";
+            case R::HostUnavailable: return "HostUnavailable";
+            case R::ConflictPreserved: return "ConflictPreserved";
+            case R::FailedRestored: return "FailedRestored";
+            case R::RestorePending: return "RestorePending";
+        }
+        return "Unknown";
+    }
+    std::string restore(FakeHost& host) override {
+        using R = research::CosmeticLease::RestoreResult;
+        const auto result = lease.restore(
+            [&]() { return host.read(); },
+            [&](const std::string& next) { host.writeCode(next); },
+            [&](bool next) { host.writeEnabled(next); });
+        switch (result) {
+            case R::Restored: return "Restored";
+            case R::ConflictPreserved: return "ConflictPreserved";
+            case R::Pending: return "Pending";
+            case R::Noop: return "Noop";
+        }
+        return "Unknown";
+    }
+    bool active() const override { return lease.leaseActive(); }
+    bool conflict() const override { return lease.conflictObserved(); }
+};
+
+// ---------------------------------------------------------------------------
+// Report: bounded JSON records plus assertion failures.
+// ---------------------------------------------------------------------------
+struct Report {
+    std::vector<std::string> records;
+    std::vector<std::string> failures;
+    std::string scenario;
+    std::string engine;
+
+    void begin(const std::string& name, const std::string& which) {
+        scenario = name;
+        engine = which;
+    }
+    void check(bool ok, const std::string& message) {
+        if (!ok) failures.push_back(scenario + " [" + engine + "]: " + message);
+    }
+    static std::string escape(const std::string& text) {
+        std::string out;
+        for (const char c : text) {
+            if (c == '"' || c == '\\') { out += '\\'; out += c; }
+            else if (c == '\n') out += "\\n";
+            else out += c;
+        }
+        return out;
+    }
+    void record(const FakeHost& host, const std::string& applyResult,
+                const std::string& restoreResult, bool active, bool conflict) {
+        std::string json = "  {\"scenario\":\"" + escape(scenario) + "\",\"engine\":\"" +
+                           escape(engine) + "\",\"apply\":\"" + escape(applyResult) +
+                           "\",\"restore\":\"" + escape(restoreResult) +
+                           "\",\"finalCode\":\"" + escape(host.values.code) +
+                           "\",\"finalEnabled\":" + (host.values.enabled ? "true" : "false") +
+                           ",\"writes\":" + std::to_string(host.writes) +
+                           ",\"active\":" + (active ? "true" : "false") +
+                           ",\"conflict\":" + (conflict ? "true" : "false") +
+                           ",\"history\":[";
+        const std::size_t limit = host.history.size() < 40 ? host.history.size() : 40;
+        for (std::size_t i = 0; i < limit; ++i) {
+            if (i) json += ",";
+            json += "\"" + escape(host.history[i]) + "\"";
+        }
+        json += "]}";
+        records.push_back(json);
+    }
+};
+
+std::unique_ptr<LeaseApi> makeLease(bool proto) {
+    if (proto) return std::make_unique<ProtoLease>();
+    return std::make_unique<ProdLease>();
+}
+
+// ---------------------------------------------------------------------------
+// Scenarios. `proto` selects desired-policy assertions; otherwise only
+// preconditions are asserted and the outcome is recorded as an observation.
+// ---------------------------------------------------------------------------
+void sHostUnavailable(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.available = false;
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "HostUnavailable", "apply without a readable host must be HostUnavailable");
+    rep.check(host.writes == 0, "no write may occur when the host is unreadable");
+    rep.check(!lease.active(), "no lease may be created without a baseline");
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sHostUnavailablePreservesLease(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto first = lease.apply("first", host);
+    rep.check(first == "Applied", "precondition: first apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active");
+    host.available = false;
+    const int writesBefore = host.writes;
+    const auto second = lease.apply("second", host);
+    if (proto) {
+        rep.check(second == "HostUnavailable", "unreadable host on repeat apply must be HostUnavailable");
+        rep.check(host.writes == writesBefore, "no write may occur while the host is unreadable");
+        rep.check(lease.active(), "an unreadable host must not discard the existing lease");
+    } else {
+        // Production does not read before a repeat apply, so it writes and then
+        // cannot verify; it reports a pending restoration.
+        rep.check(second == "RestorePending", "observation: production cannot verify and stays pending");
+        rep.check(lease.active(), "observation: production keeps its pending flag");
+    }
+    host.available = true;
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "the preserved lease must still restore");
+    rep.check(host.values == CosmeticPair{"original", false}, "restore must return the first baseline");
+    rep.check(!lease.active(), "successful restore must clear the lease");
+    rep.record(host, first + "->" + second, restored, lease.active(), lease.conflict());
+}
+
+void sNormalApplyRestore(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "unchanged apply must report Applied");
+    rep.check(host.values == CosmeticPair{"requested", true}, "apply must write the requested pair");
+    rep.check(lease.active(), "apply must hold a lease");
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "unchanged lease must restore");
+    rep.check(host.values == CosmeticPair{"original", false}, "restore must return the original pair");
+    rep.check(!lease.active(), "restore must clear the lease");
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sExternalCodeOnly(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active before the external edit");
+    host.values.code = "external";
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "ConflictPreserved", "external code edit must be preserved");
+        rep.check(host.values == CosmeticPair{"external", true}, "external pair must survive restore");
+        rep.check(!lease.active(), "conflict must relinquish the lease");
+        rep.check(lease.conflict(), "conflict must be observable");
+    } else {
+        rep.check(restored == "Restored", "observation: production reports a completed restore");
+    }
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sExternalEnabledOnly(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", true};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active before the external edit");
+    host.values.enabled = false;
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "ConflictPreserved", "external enabled edit must be preserved");
+        rep.check(host.values == CosmeticPair{"requested", false}, "external enabled value must survive");
+        rep.check(!lease.active(), "conflict must relinquish the lease");
+        rep.check(lease.conflict(), "conflict must be observable");
+    } else {
+        rep.check(restored == "Restored", "observation: production reports a completed restore");
+    }
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sExternalBoth(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active before the external edit");
+    host.values = {"external", true};
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "ConflictPreserved", "external pair edit must be preserved");
+        rep.check(host.values == CosmeticPair{"external", true}, "external pair must survive restore");
+        rep.check(!lease.active(), "conflict must relinquish the lease");
+    } else {
+        rep.check(restored == "Restored", "observation: production reports a completed restore");
+    }
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sReadUnavailableBeforeRestore(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active");
+    host.available = false;
+    const int writesBefore = host.writes;
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "Pending", "unreadable host must leave restore Pending");
+        rep.check(host.writes == writesBefore, "no setter may run without a fresh successful read");
+        rep.check(lease.active(), "lease must stay active while restore is pending");
+    } else {
+        rep.check(host.writes > writesBefore, "observation: production wrote without a fresh read");
+    }
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sCodeSetterThrowsBefore(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    host.codeFail = FakeHost::CodeFail::Before;
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "FailedRestored", "code setter throwing before effect must end FailedRestored");
+    rep.check(host.values == CosmeticPair{"original", false}, "original pair must be restored");
+    rep.check(!lease.active(), "failed apply must not leave a lease");
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sCodeSetterThrowsAfter(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    host.codeFail = FakeHost::CodeFail::After;
+    const auto applied = lease.apply("requested", host);
+    if (proto) {
+        rep.check(applied == "Applied", "a setter that threw after its effect must be read back, not assumed failed");
+        rep.check(host.values == CosmeticPair{"requested", true}, "requested pair must be in place");
+        rep.check(lease.active(), "successful apply must hold a lease");
+    } else {
+        rep.check(applied == "FailedRestored", "observation: production rolls back a write that took effect");
+        rep.check(!lease.active(), "observation: production clears its pending flag after rollback");
+    }
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sEnabledSetterThrowsBefore(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    host.enabledFail = FakeHost::EnabledFail::Before;
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "FailedRestored", "enabled setter throwing before effect must end FailedRestored");
+    rep.check(host.values == CosmeticPair{"original", false}, "original pair must be restored");
+    rep.check(!lease.active(), "failed apply must not leave a lease");
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sEnabledSetterThrowsAfter(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    host.enabledFail = FakeHost::EnabledFail::After;
+    const auto applied = lease.apply("requested", host);
+    if (proto) {
+        rep.check(applied == "Applied", "a setter that threw after its effect must be read back");
+        rep.check(host.values == CosmeticPair{"requested", true}, "requested pair must be in place");
+        rep.check(lease.active(), "successful apply must hold a lease");
+    } else {
+        rep.check(applied == "FailedRestored", "observation: production rolls back a write that took effect");
+        rep.check(!lease.active(), "observation: production clears its pending flag after rollback");
+    }
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sApplyReadbackFailureThenRecovery(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    // Production reads: 0 = baseline snapshot, 1 = apply readback, 2 = restore
+    // code read, 3 = restore final read. Prototype reads: 0 = baseline,
+    // 1 = post-code read (fails -> RestorePending with no rollback write).
+    // Failing 1-3 keeps both engines pending instead of a lucky recovery.
+    host.failReadAt = {1, 2, 3};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "RestorePending", "unreadable apply readback must end RestorePending");
+    rep.check(lease.active(), "lease must stay active while restoration is pending");
+    host.failReadAt.clear();
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "retry after readback recovery must restore");
+    rep.check(host.values == CosmeticPair{"original", false}, "retry must return the original pair");
+    rep.check(!lease.active(), "successful retry must clear the lease");
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sRestoreWriteFailureThenRetry(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    host.rejectBaselineCode = true;
+    const auto first = lease.restore(host);
+    rep.check(first == "Pending", "rejected baseline write must leave restore Pending");
+    rep.check(!host.values.enabled, "unresolved override code must not stay enabled");
+    rep.check(lease.active(), "pending restore must keep the lease");
+    host.rejectBaselineCode = false;
+    const auto second = lease.restore(host);
+    rep.check(second == "Restored", "retry must restore once the setter accepts");
+    rep.check(host.values == CosmeticPair{"original", false}, "retry must return the original pair");
+    rep.check(!lease.active(), "successful retry must clear the lease");
+    rep.record(host, applied, first + "->" + second, lease.active(), lease.conflict());
+}
+
+void sRepeatApplyUnchanged(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto first = lease.apply("first", host);
+    rep.check(first == "Applied", "precondition: first apply must succeed");
+    const auto second = lease.apply("second", host);
+    rep.check(second == "Applied", "repeat apply while owned must succeed");
+    rep.check(host.values == CosmeticPair{"second", true}, "repeat apply must write the new request");
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "restore after repeat apply must succeed");
+    rep.check(host.values == CosmeticPair{"original", false}, "repeat apply must retain the first baseline");
+    rep.record(host, first + "->" + second, restored, lease.active(), lease.conflict());
+}
+
+void sRepeatApplyAfterExternalEdit(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto first = lease.apply("first", host);
+    rep.check(first == "Applied", "precondition: first apply must succeed");
+    host.values = {"external", true};
+    const auto second = lease.apply("second", host);
+    if (proto) {
+        rep.check(second == "ConflictPreserved", "apply over an external edit must preserve the pair");
+        rep.check(host.values == CosmeticPair{"external", true}, "external pair must survive the refused apply");
+        rep.check(!lease.active(), "conflict must relinquish the lease");
+        const auto fresh = lease.apply("second", host);
+        rep.check(fresh == "Applied", "a new explicit apply may take a fresh baseline");
+        rep.check(host.values == CosmeticPair{"second", true}, "fresh apply must write the request");
+        const auto restored = lease.restore(host);
+        rep.check(restored == "Restored", "fresh lease must restore");
+        rep.check(host.values == CosmeticPair{"external", true}, "fresh baseline must be the external pair");
+        rep.record(host, first + "->" + second + "->" + fresh, restored, lease.active(), lease.conflict());
+    } else {
+        rep.check(second == "Applied", "observation: production applies over the external edit");
+        const auto restored = lease.restore(host);
+        rep.check(restored == "Restored", "observation: production reports a completed restore");
+        rep.record(host, first + "->" + second, restored, lease.active(), lease.conflict());
+    }
+}
+
+void sRepeatApplyCodeThrowBeforeReadbackFailure(LeaseApi& lease, FakeHost& host, bool proto,
+                                               Report& rep) {
+    host.values = {"original", false};
+    const auto first = lease.apply("first", host);
+    rep.check(first == "Applied", "precondition: first apply must succeed");
+    rep.check(lease.active(), "precondition: lease must be active");
+    host.codeFail = FakeHost::CodeFail::Before;
+    if (proto) {
+        // Prototype reads: 0 baseline, 1 post-code, 2 post-enabled for apply #1;
+        // read 3 is the repeat-apply pre-write read and read 4 the post-code
+        // read, which fails. The older owned override {first,true} is untouched.
+        host.failReadAt = {4};
+        const auto second = lease.apply("second", host);
+        rep.check(second == "RestorePending", "failed repeat apply readback must be RestorePending");
+        rep.check(host.values == CosmeticPair{"first", true}, "the older owned override is still in place");
+        rep.check(lease.active(), "lease must survive a failed repeat apply");
+        host.failReadAt.clear();
+        const auto restored = lease.restore(host);
+        rep.check(restored == "Restored", "our own older override must not be mistaken for external");
+        rep.check(host.values == CosmeticPair{"original", false}, "restore must return the first baseline");
+        rep.check(!lease.active(), "successful restore must clear the lease");
+        rep.record(host, first + "->" + second, restored, lease.active(), lease.conflict());
+    } else {
+        // Production has no pre-write read on a repeat apply, so the same
+        // throw-before-effect is followed by its own rollback.
+        const auto second = lease.apply("second", host);
+        rep.check(second == "FailedRestored", "observation: production rolls back the repeat apply");
+        rep.check(host.values == CosmeticPair{"original", false}, "observation: production restored");
+        const auto restored = lease.restore(host);
+        rep.check(restored == "Restored", "observation: production reports success with no pending lease");
+        rep.record(host, first + "->" + second, restored, lease.active(), lease.conflict());
+    }
+}
+
+void sIgnoredCodeWrite(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    host.ignoreNewCode = true;
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "FailedRestored", "a silently ignored code write must not report Applied");
+    rep.check(host.values == CosmeticPair{"original", false}, "original pair must be restored");
+    rep.check(!lease.active(), "failed apply must not leave a lease");
+    bool enabledWritten = false;
+    for (const auto& stage : host.history)
+        if (stage == "writeEnabled:1") enabledWritten = true;
+    if (proto) {
+        rep.check(!enabledWritten, "the override must not be enabled before the code is verified");
+    } else {
+        rep.check(enabledWritten, "observation: production enables before verifying the code");
+    }
+    rep.record(host, applied, "-", lease.active(), lease.conflict());
+}
+
+void sRestoreEnabledThrowsBefore(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    host.enabledFail = FakeHost::EnabledFail::Before;
+    const auto first = lease.restore(host);
+    rep.check(first == "Pending", "enabled setter throwing before effect must leave restore Pending");
+    rep.check(lease.active(), "pending restore must keep the lease");
+    const auto second = lease.restore(host);
+    rep.check(second == "Restored", "retry must restore once the setter accepts");
+    rep.check(host.values == CosmeticPair{"original", false}, "retry must return the original pair");
+    rep.check(!lease.active(), "successful retry must clear the lease");
+    rep.record(host, applied, first + "->" + second, lease.active(), lease.conflict());
+}
+
+void sRestoreEnabledThrowsAfter(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    host.enabledFail = FakeHost::EnabledFail::After;
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "a setter that threw after its effect must be read back");
+    rep.check(host.values == CosmeticPair{"original", false}, "original pair must be in place");
+    rep.check(!lease.active(), "successful restore must clear the lease");
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sExternalRevertToBaseline(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto applied = lease.apply("requested", host);
+    rep.check(applied == "Applied", "precondition: apply must succeed");
+    host.values = {"original", false}; // external revert to the baseline pair
+    const auto restored = lease.restore(host);
+    rep.check(restored == "Restored", "a revert to the known baseline is not a conflict");
+    rep.check(host.values == CosmeticPair{"original", false}, "baseline pair must remain");
+    rep.check(!lease.active(), "successful restore must clear the lease");
+    rep.record(host, applied, restored, lease.active(), lease.conflict());
+}
+
+void sFreshApplyAfterHybridConflict(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto first = lease.apply("first", host);
+    rep.check(first == "Applied", "precondition: first apply must succeed");
+    host.values.code = "external"; // external code edit; enabled=true is MCT's own write
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "ConflictPreserved", "hybrid pair must be preserved");
+        rep.check(host.values == CosmeticPair{"external", true}, "hybrid pair must survive");
+        const auto fresh = lease.apply("second", host);
+        rep.check(fresh == "Applied", "a new explicit apply may take a fresh baseline");
+        rep.check(host.values == CosmeticPair{"second", true}, "fresh apply must write the request");
+        const auto finalRestore = lease.restore(host);
+        rep.check(finalRestore == "Restored", "fresh lease must restore");
+        rep.check(host.values == CosmeticPair{"external", true},
+                  "fresh baseline includes the current hybrid pair");
+        rep.record(host, first + "->" + fresh, finalRestore, lease.active(), lease.conflict());
+    } else {
+        rep.check(restored == "Restored", "observation: production reports a completed restore");
+        rep.record(host, first, restored, lease.active(), lease.conflict());
+    }
+}
+
+void sNoLeaseNoop(LeaseApi& lease, FakeHost& host, bool proto, Report& rep) {
+    host.values = {"original", false};
+    const auto restored = lease.restore(host);
+    if (proto) {
+        rep.check(restored == "Noop", "restore without a lease must be Noop");
+    } else {
+        rep.check(restored == "Restored", "observation: production reports success with no lease");
+    }
+    rep.check(host.writes == 0, "restore without a lease must not write");
+    rep.check(host.values == CosmeticPair{"original", false}, "restore without a lease must not change values");
+    rep.record(host, "-", restored, lease.active(), lease.conflict());
+}
+
+struct Scenario {
+    const char* name;
+    void (*run)(LeaseApi&, FakeHost&, bool, Report&);
+};
+
+} // namespace
+
+int main() {
+    const Scenario scenarios[] = {
+        {"host_unavailable_apply", sHostUnavailable},
+        {"host_unavailable_preserves_lease", sHostUnavailablePreservesLease},
+        {"normal_apply_restore", sNormalApplyRestore},
+        {"external_code_only", sExternalCodeOnly},
+        {"external_enabled_only", sExternalEnabledOnly},
+        {"external_both", sExternalBoth},
+        {"read_unavailable_before_restore", sReadUnavailableBeforeRestore},
+        {"code_setter_throws_before", sCodeSetterThrowsBefore},
+        {"code_setter_throws_after", sCodeSetterThrowsAfter},
+        {"enabled_setter_throws_before", sEnabledSetterThrowsBefore},
+        {"enabled_setter_throws_after", sEnabledSetterThrowsAfter},
+        {"apply_readback_failure_then_recovery", sApplyReadbackFailureThenRecovery},
+        {"restore_write_failure_then_retry", sRestoreWriteFailureThenRetry},
+        {"repeat_apply_unchanged", sRepeatApplyUnchanged},
+        {"repeat_apply_after_external_edit", sRepeatApplyAfterExternalEdit},
+        {"repeat_apply_code_throw_before_readback_failure", sRepeatApplyCodeThrowBeforeReadbackFailure},
+        {"ignored_code_write", sIgnoredCodeWrite},
+        {"restore_enabled_throws_before", sRestoreEnabledThrowsBefore},
+        {"restore_enabled_throws_after", sRestoreEnabledThrowsAfter},
+        {"external_revert_to_baseline", sExternalRevertToBaseline},
+        {"fresh_apply_after_hybrid_conflict", sFreshApplyAfterHybridConflict},
+        {"no_lease_noop", sNoLeaseNoop},
+    };
+
+    Report report;
+    for (const auto& scenario : scenarios) {
+        for (int pass = 0; pass < 2; ++pass) {
+            const bool proto = pass == 1;
+            report.begin(scenario.name, proto ? "prototype" : "production");
+            FakeHost host;
+            auto lease = makeLease(proto);
+            try {
+                scenario.run(*lease, host, proto, report);
+            } catch (const std::exception& error) {
+                report.check(false, std::string("scenario threw: ") + error.what());
+            }
+        }
+    }
+
+    std::cout << "{\n";
+    std::cout << "  \"kind\":\"research_cosmetic_conflict_prototype\",\n";
+    std::cout << "  \"productionFixed\":false,\n";
+    std::cout << "  \"productionObservationPins\":\"asserted against the unchanged header; not desired behavior\",\n";
+    std::cout << "  \"policy\":\"conflict-preserving lease; proposed, not selected\",\n";
+    std::cout << "  \"limitations\":[\"ABA\",\"reentrant writes\",\"concurrent writes\",\"no actual cvar behavior\"],\n";
+    std::cout << "  \"records\":[\n";
+    for (std::size_t i = 0; i < report.records.size(); ++i) {
+        std::cout << report.records[i] << (i + 1 < report.records.size() ? ",\n" : "\n");
+    }
+    std::cout << "  ],\n";
+    std::cout << "  \"failures\":" << report.failures.size() << "\n";
+    std::cout << "}\n";
+
+    for (const auto& failure : report.failures) std::cerr << "FAIL " << failure << '\n';
+    if (!report.failures.empty()) {
+        std::cerr << report.failures.size() << " control check(s) failed\n";
+        return 1;
+    }
+    std::cerr << "all declared control checks passed\n";
+    return 0;
+}

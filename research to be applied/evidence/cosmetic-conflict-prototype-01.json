@@ -1,0 +1,132 @@
+{
+  "kind": "offline_cosmetic_conflict_prototype",
+  "source_candidate": "isolated DeepSeek-built, separately DeepSeek-reviewed experiment; unchanged frozen production header",
+  "production_fixed": false,
+  "policy_selected_for_production": false,
+  "inputs": [
+    {
+      "path": "tools/ResearchCosmeticLease.h",
+      "sha256": "ccf0271dc7351879a9ab38c60bf85a55ce698e522105adcce09f22b250a870b6",
+      "bytes": 7406,
+      "publication_path": "experiments/cosmetic-conflict-prototype/tools/ResearchCosmeticLease.h.txt",
+      "publication_sha256": "ccf0271dc7351879a9ab38c60bf85a55ce698e522105adcce09f22b250a870b6",
+      "publication_bytes": 7406
+    },
+    {
+      "path": "tools/research_cosmetic_conflict_prototype.cpp",
+      "sha256": "b6cc9d2f978e73250903f074f40ff484e3396830eb356b7e67b9631ba4011926",
+      "bytes": 34036,
+      "publication_path": "experiments/cosmetic-conflict-prototype/tools/research_cosmetic_conflict_prototype.cpp.txt",
+      "publication_sha256": "b6cc9d2f978e73250903f074f40ff484e3396830eb356b7e67b9631ba4011926",
+      "publication_bytes": 34036
+    },
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "1762999f53cd6580e21f234b28510ea1e6da9041b0a9dbec061b2794c7a5793b",
+      "bytes": 921,
+      "publication_path": "experiments/cosmetic-conflict-prototype/CMakeLists.txt",
+      "publication_sha256": "1762999f53cd6580e21f234b28510ea1e6da9041b0a9dbec061b2794c7a5793b",
+      "publication_bytes": 921
+    },
+    {
+      "path": "docs/contract.md",
+      "sha256": "2b7f0de33f8c799b097637203ec3e1ae5dd0314ad3c0af880324744266dc6e3d",
+      "bytes": 6830,
+      "publication_path": "experiments/cosmetic-conflict-prototype/docs/contract.md.txt",
+      "publication_sha256": "2b7f0de33f8c799b097637203ec3e1ae5dd0314ad3c0af880324744266dc6e3d",
+      "publication_bytes": 6830
+    },
+    {
+      "path": "plugin/include/CosmeticOverrideState.h",
+      "sha256": "dc2e5183d2b0b8f96b18696dfcd6b509c7a2bf8a9daf03e1f4861cb07382dab7",
+      "bytes": 2830,
+      "publication_path": "experiments/cosmetic-conflict-prototype/plugin/include/CosmeticOverrideState.h.txt",
+      "publication_sha256": "dc2e5183d2b0b8f96b18696dfcd6b509c7a2bf8a9daf03e1f4861cb07382dab7",
+      "publication_bytes": 2830
+    }
+  ],
+  "publication_transform": "UTF-8 text with LF newlines and trailing whitespace removed; original hashes and publication hashes are separate",
+  "review": {
+    "status": "accepted_with_scope_limits",
+    "review_text_sha256": "27780b85c819ebfe597c90abdd25bd8fd0a0991d43ad62bd79b7b0f2e99bd557",
+    "scope": "Source inspection of sequential single-threaded experiment; coordinator separately hashes, compiles and executes",
+    "prior_blockers_fixed": [
+      "retain last verified frontier after failed repeat Apply",
+      "fresh read after code setter before enabling"
+    ],
+    "remaining_coverage_limits": [
+      "post-conflict Restore Noop is documented but not directly asserted",
+      "external-both case does not explicitly assert conflict flag"
+    ]
+  },
+  "launch_attempts": [
+    "First configure command was unavailable on PATH and did not launch CMake; retry used the installed VS CMake executable by explicit path"
+  ],
+  "stages": [
+    {
+      "stage": "configure",
+      "started_at_utc": "2026-10-27T13:48:24.1720314Z",
+      "finished_at_utc": "2026-10-27T13:48:31.7247565Z",
+      "exit_code": 0,
+      "cmake_sha256": "6fe2e6431b45cf32b9b2f3e50a8efae046a2366eb34d0fb36da027cf56102aec",
+      "arguments": [
+        "-S",
+        ".",
+        "-B",
+        "build-prototype",
+        "-G",
+        "Visual Studio 17 2022",
+        "-A",
+        "x64"
+      ]
+    },
+    {
+      "finished_at_utc": "2026-10-27T13:53:10.3746311Z",
+      "arguments": [
+        "--build",
+        "build-prototype",
+        "--config",
+        "Release",
+        "--target",
+        "research_cosmetic_conflict_prototype",
+        "--parallel",
+        "1"
+      ],
+      "exit_code": 0,
+      "stage": "build",
+      "started_at_utc": "2026-10-27T13:53:04.6518669Z"
+    },
+    {
+      "exe_sha256": "510ee13f2ec42b0547c0b18b938f224dda5ef7e53fa6a9466eacc3a7e1224ae8",
+      "started_at_utc": "2026-10-27T13:53:28.1810613Z",
+      "finished_at_utc": "2026-10-27T13:53:28.5860128Z",
+      "stage": "run",
+      "exit_code": 0,
+      "stdout_sha256": "ab713e95cea53201bff8c8ff70392f723e24efa54a08211b7d88dd3ffc39f8b7"
+    }
+  ],
+  "toolchain": {
+    "cmake": "3.31.6",
+    "generator": "Visual Studio 17 2022",
+    "compiler": "MSVC 19.44.35229.0",
+    "windows_sdk": "10.0.26100.0",
+    "configuration": "x64 Release, C++17",
+    "parallel_jobs": 1
+  },
+  "results": {
+    "scenarios": 22,
+    "records": 44,
+    "failures": 0,
+    "stdout_raw_sha256": "ab713e95cea53201bff8c8ff70392f723e24efa54a08211b7d88dd3ffc39f8b7",
+    "observed_document": "evidence/cosmetic-conflict-prototype-observed.json",
+    "stderr": "all declared control checks passed"
+  },
+  "limits": [
+    "synthetic in-memory host only",
+    "production rows assert historical behavior, not desired outcomes",
+    "no BakkesMod, game, cvar timing, appearance or crash recovery",
+    "no ABA, reentrant or concurrent write protection",
+    "coupled-pair conflict preserves later edit but may leave one MCT-written field; a fresh explicit Apply may adopt that pair as baseline",
+    "source and executable hashes identify this run; no deployed plugin changed"
+  ]
+}
