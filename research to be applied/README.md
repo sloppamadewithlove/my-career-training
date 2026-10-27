@@ -49,3 +49,5 @@ account-owned items and online visibility.
 - [Task board and coverage](TASKS.md)
 - [Research source identity](source-provenance.json): selected file hashes and active-checkout comparison, not a build manifest.
 - [Campaign reports](campaign): ghost playback, garage, compatibility, downloads, settings, native UI, shot physics, Workshop loading and SDK exports.
+
+Report fingerprints identify the private source bytes read during that pass. Later editorial corrections and publication whitespace normalization can change report-file hashes; consult Git history and follow-ups when comparing research documents. A research-report hash is not a deployed game/plugin hash.

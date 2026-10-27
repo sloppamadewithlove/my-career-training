@@ -1,5 +1,7 @@
 # ARTIFACT-01 — installed training UI package map
 
+**Historical inventory, updated with follow-up links:** the initial absence of selected movie/class exports below is no longer the campaign's source boundary. [Native training flow](native-training-flow-01.md) resolves the TrainingMenu difficulty route; [HUD flow](hud-flow-01.md), [HUD timeline](hud-timeline-01.md) and [input prompts](input-prompt-route-01.md) resolve selected HUD consumers and local geometry; [native pack browser](native-pack-browser-01.md) and [pack rows](native-pack-row-01.md) resolve selected browser dependencies; [stock settings](stock-training-settings-01.md) resolves selected settings classes. [GameInfo metadata](gameinfo-metadata-01.md) records the bounded package inspection. These source findings still do not prove native timer/ball causality or live appearance. Read the follow-ups before planning additional exports.
+
 ## Scope and evidence standard
 
 Read-only inventory of the installed Rocket League package names, sizes and SHA-256 values, plus the existing private training-browser exports and prior pinned-SDK research. No game launch, process attach, input, package extraction, compilation, or product changes. The report lists package names and hashes only; no proprietary code or artwork is reproduced.
@@ -29,7 +31,7 @@ The current filename inventory contains 21,409 paths, of which 18,260 are `.upk`
 
 ## Artifact → question → available evidence
 
-| Question | Current evidence | Smallest useful package/resource query | Still unknown |
+| Question | Evidence at this initial inventory | Follow-up query identified then | Unknown at that stage; consult follow-ups above |
 |---|---|---|---|
 | Which screen selects a lesson’s built-in difficulty/rank? | Private `MenuName.as` defines identifiers `DifficultyMenuMovie` (line 42), `ShotSelectionMenuMovie` (138), `TrainingMenuMovie` (172), `TrainingMenuMovie_NoCustom` (174), `TrainingBrowserMenuMovie` (176), and `TrainingMenuSettingsMovie` (178). These are names only. | Export metadata for `GFX_TrainingMenu_SF.upk`; compare with `GameInfo_TrainingEditor_SF.upk` only if the movie’s imports point there. | Which lesson routes to a difficulty picker; tier labels, row focus, confirm/back events, and whether each built-in drill has all tiers. No supplied source implements these movie identifiers. |
 | What shows top-left shot, round, or progress information? | Pinned SDK declares `GfxDataTrainingWrapper` getters for current/total round, difficulty, tutorial tip, and per-shot progress (`gfx/GfxDataTrainingWrapper.h:35–42`). This proves callable interfaces, not which movie reads them. | Header-only class/export metadata for `GFX_Hud_SF.upk`, then `GameInfo_TrainingEditor_SF.upk` / `GameInfo_Tutorial_SF.upk` for referenced HUD classes. | Exact HUD class, text, safe inset, shot-vs-round semantics, visibility rules, and which event populates it. `GFX_HudMatchInfo_SF.upk` is only a secondary candidate. |
@@ -44,8 +46,8 @@ The private `export-training` source set contains only three files: `TrainingBro
 
 REA 6.8.0 `inspect-artifact` was run on the exact `GFX_TrainingMenu_SF.upk` candidate and returned `unsupported_target` / `unsupported binary format`. That is a tool-format limitation, not evidence that package members are absent. The general Rocket League directory inventory is path/metadata coverage only. Prior tool research records a bounded UE3-v868 package reader and helper for already-decrypted headers; the current installed package headers require a decrypt callback, and the available decrypted research set did not yield the training HUD or difficulty-menu source. No full-package decompilation was attempted here.
 
-## Smallest next useful query
+## Follow-up query status
 
-Use the existing UE3-v868 parser in **metadata-only** mode on the exact three movie candidates `GFX_TrainingMenu_SF.upk`, `GFX_Hud_SF.upk`, and `GFx_TrainingBrowserMenu_SF.upk`, plus `GameInfo_TrainingEditor_SF.upk` only for imports/references. Require a valid decryption callback and record package SHA-256 before parsing. Query export/import names and referenced `SwfMovie` metadata only; do not materialize embedded movies. This should determine whether the lesson selector and gameplay HUD live in these candidate boundaries and identify one concrete movie/class for a later focused source or owned runtime observation. If current headers cannot be decrypted, stop at that explicit boundary; do not widen into a whole-install scan.
+The bounded metadata queries and selected movie/class exports proposed by this inventory were subsequently completed in the linked reports. Reuse their package/movie hashes and receipts; repeating the original discovery query is not the next task. Native host behavior and owned runtime acceptance remain separate gaps.
 
 For runtime claims, a separate approved observer must correlate one built-in lesson’s entry, active timer, timeout, retry, and next-shot transition with `GfxDataTrainingWrapper` getters and read-only ball visibility/fade state. The package map does not establish that behavior.
