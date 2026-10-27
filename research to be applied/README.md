@@ -19,6 +19,8 @@ a claim that every described feature is implemented or game-tested.
 
 ## Start here
 
+For a short route into the findings, read the [prioritized builder handoff](campaign/end-handoff-gaps-01.md). It separates implementation dependencies from the evidence still needed in game.
+
 1. [Requested-feature coverage](campaign/requirements-coverage-01.md), [proposed implementation waves](IMPLEMENTATION_WAVES.md), [eight-lesson evidence matrix](LESSON_EVIDENCE_MATRIX.md) and [current implementation map](IMPLEMENTATION_MAP.md) and [initial priorities](initial%20findings/training-research-priorities.txt)
 2. [Research/build evidence](initial%20findings/research-build-wave2.txt)
 3. [Official stock training modes](initial%20findings/stock-training-modes-research.txt)

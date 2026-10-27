@@ -136,3 +136,4 @@ traces from static declarations or UI controls alone.
 | RENDER-CLEANUP-01 | Core clear-queue progress and disconnect cleanup | Complete; conditional counter/lock no-progress path; runtime reachability and waiter behavior unverified |
 | PAUSE-POLICY-01 | Worker, engine, recorder and ghost pause coupling | Complete; independent DeepSeek source review; suspend/interrupt choices unselected, no product change |
 | RANK-LIFECYCLE-TESTS-01 | Busy rank selection, career preservation and cleanup acknowledgements | Complete; 8 focused existing offline cases passed; fake worker/process and no game acceptance |
+| END-HANDOFF-GAPS-01 | Concise builder-ready dependency order | Provisional mid-campaign synthesis; eight priorities with offline versus owned-game acceptance, no new feature verification |
