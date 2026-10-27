@@ -1,0 +1,72 @@
+{
+  "checkpoint": 3,
+  "scheduled_utc": "2026-10-27T09:54:12+00:00",
+  "recorded_utc": "2026-10-27T09:54:12.001143+00:00",
+  "coordinator_checked_utc": "2026-10-27T09:55:40.228691+00:00",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "files": 77,
+    "total_bytes": 702310,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "TASKS.md",
+      "campaign/attempt-end-01.md",
+      "campaign/ball-prediction-01.md",
+      "campaign/ball-visibility-01.md",
+      "campaign/custom-shot-flow-01.md",
+      "campaign/gameinfo-metadata-01.md",
+      "campaign/hud-flow-01.md",
+      "campaign/hud-inventory-01.md",
+      "campaign/hud-package-01.md",
+      "campaign/hud-timeline-01.md",
+      "campaign/import-identity-01.md",
+      "campaign/import-probe-01.md",
+      "campaign/mod-measurement-01.md",
+      "campaign/native-navigation-01.md",
+      "campaign/native-training-flow-01.md",
+      "campaign/package-02.md",
+      "campaign/sdk-drawable-01.md",
+      "checkpoints/hour-02.json",
+      "evidence/hud-inventory-01.json",
+      "evidence/import-probe-01.json",
+      "evidence/stock-menu-export-01.json",
+      "evidence/stock-menu-followup-01.json",
+      "experiments/research_import_probe.py.txt"
+    ],
+    "truncated": false
+  },
+  "publication_commit_at_check": "bb1c25dc729a3e652b808c0d927abfd8b913fe34",
+  "approved_campaign_reports": 49,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running",
+    "luna_stock_training_settings_01": "running; collaboration status observed",
+    "luna_shot_data_01": "running; collaboration status observed",
+    "luna_custom_shot": "completed",
+    "deepseek_import_probe": "builder/reviewer completed; corrected diagnostic executed exit0"
+  },
+  "source_freshness": {
+    "selected_paths_checked": 21,
+    "active_checkout_changed_since_provenance": [],
+    "research_snapshot_changed_since_provenance": [],
+    "scope": "selected paths only; not whole checkout or built artifacts"
+  },
+  "verification_this_hour": [
+    "Current stock Training/Difficulty and shot selector routes traced with exact movie/source hashes",
+    "Focused HUD inventory,28selected AS classes and private timeline geometry inspected; no game runtime",
+    "SDK drawable cleanup wrapper forwards to unresolved host interface; scope still unknown",
+    "Offline bridge diagnostic:4synthetic cases12checks; omitted speeds/importclaims reach automatic best selection",
+    "BothGameInfo package tables inspected; no Function/State exports, lifecycle callorder unproven",
+    "No terminal ballwrite in MCT source; candidate fadepair requires Soccar game acceptance",
+    "Source/export/publication privacy checks and80localdocumentlinks checked during hour"
+  ],
+  "limits": [
+    "Hourly document hashes are not proof of uninterrupted worker activity",
+    "No live game input/attachment, deployed-build acceptance or heavy native compilation",
+    "Synthetic bridge diagnostic does not validate live ghost playback",
+    "Raw movie/source/XML and decoder material remain private"
+  ],
+  "next_checkpoint_utc": "2026-10-27T10:54:12Z"
+}
