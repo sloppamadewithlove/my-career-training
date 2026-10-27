@@ -39,6 +39,8 @@ Start in native layout builders, authored menu/HUD views and their state produce
 
 Acceptance: mouse and controller focus, Back, refresh during selection, long titles, text scaling/aspect ratios and a real attempt's lesson/tier/timer/progress identity. Keep controller artwork, effective bindings and sampled logical inputs distinct.
 
+Use [stock menu motion](campaign/stock-menu-motion-01.md) as a behavioral reference for brief focus/selection feedback and loading visibility. The helper defaults are static settings, not measured on-screen durations; MCT still needs an explicit controller-repeat policy and tested Back/last-screen transitions.
+
 Keep serialized render payloads within the installed client's [65,535-byte limit](campaign/render-message-budget-01.md), and measure the real fixture before choosing a smaller engineering budget. Message-count bounds are not performance measurements. Verify visual cleanup after Return and disconnect: Core does request cleanup, while a [conditional clear-queue progress issue](campaign/render-cleanup-01.md) still needs a bounded reproducer and runtime reachability evidence.
 
 ## 4. Make Training settings show actual feature status

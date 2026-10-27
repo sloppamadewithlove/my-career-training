@@ -138,3 +138,4 @@ traces from static declarations or UI controls alone.
 | RANK-LIFECYCLE-TESTS-01 | Busy rank selection, career preservation and cleanup acknowledgements | Complete; 8 focused existing offline cases passed; fake worker/process and no game acceptance |
 | END-HANDOFF-GAPS-01 | Concise builder-ready dependency order | Provisional mid-campaign synthesis; eight priorities with offline versus owned-game acceptance, no new feature verification |
 | RENDER-PACKET-PROBE-01 | Actual serialized HUD/ghost payloads and oversized rejection | Complete; ten synthetic fixtures, 257 diagnostic assertions passed after reviewed import repair; client pipeline only |
+| STOCK-MENU-MOTION01 | Stock menu fade, tab feedback, loading and input repeat | Complete; cached source helpers specify 0.2/0.3-second default fades; final screen lifetime, easing and repeat cadence remain runtime questions |
