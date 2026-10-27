@@ -1,0 +1,348 @@
+{
+  "scope": "Static same-movie row source plus selected timeline metadata; no raw assets/source/XML published",
+  "movie": {
+    "name": "TrainingBrowserMenu.gfx",
+    "bytes": 921910,
+    "sha256": "c55ff890a0255a9ee5cdd347c255271cb78ce61e137f45ded1d9cfb18f925098"
+  },
+  "class_inventory": {
+    "bytes": 19466,
+    "sha256": "1ea85ad11126af9c5f2cf1f95e4e894570377d2b155f75600624e442c711fb32",
+    "entries": 535
+  },
+  "toolchain": {
+    "ffdec_version": "26.4.0",
+    "ffdec_jar_bytes": 5271501,
+    "ffdec_jar_sha256": "80f8ced0bfde98b434c28e9807e91fe5558255b2f712051a0e65221519bd392a",
+    "java_version": "Temurin JRE 21.0.9",
+    "java_exe_bytes": 50344,
+    "java_exe_sha256": "5f6248f9c0f32b38ffaba813819bf3331536a48c7ddc45b18e73acd15a6cf7ef"
+  },
+  "exports": [
+    {
+      "class": "TrainingSequenceListItemMovie",
+      "bytes": 329,
+      "sha256": "608019bd624bf43d1edec5a5baab821195c96607e4835a0b55fb5b265cf496c0"
+    },
+    {
+      "class": "TrainingSequenceListItem",
+      "bytes": 8030,
+      "sha256": "640b15b4f2d8f87039ff719847f17484d119a049be970eb497a7c9eca584ceef"
+    },
+    {
+      "class": "ModalListItemRenderer",
+      "bytes": 1235,
+      "sha256": "229ad0daf69d0277e48d9226aab70f7689257c8bbf1b8ab4c13882da3c4ae3a1"
+    },
+    {
+      "class": "TrainingEditorStrings",
+      "bytes": 5723,
+      "sha256": "0b259f332a4f935ec46bfccd7eec7e6a58fe6f56be3884358bbc238db246811c"
+    },
+    {
+      "class": "projectx.controls.StateTweenListItemRenderer",
+      "bytes": 10183,
+      "sha256": "4a885b784bc1bf1e92611747ab107dfde1cc4df2fa47c4ddb32ba062a6dd34eb"
+    },
+    {
+      "class": "tagame.api.EDifficulty",
+      "bytes": 356,
+      "sha256": "99d97c448aff34dbc1473924598d7461ac0f439e0a00f342d6b685fb6dd7bdb3"
+    },
+    {
+      "class": "tagame.api.ETrainingType",
+      "bytes": 451,
+      "sha256": "6da78ca2e89f132ad693455d4eec0f5aa8a0f49b384bb0a4bb626cb400eacbe3"
+    }
+  ],
+  "export_results": {
+    "initial_three_batches_returncodes": [
+      0,
+      0,
+      0
+    ],
+    "state_batch_returncode": 0,
+    "xml_returncode": 0
+  },
+  "private_xml": {
+    "bytes": 11259291,
+    "sha256": "3c9f3937eeb0858ef5c481c32fc3227cc91ad7b678abab2ae79b1f7f4c6cf76d"
+  },
+  "actual_import_urls": [
+    "../GFX_Shared/SharedComponents.swf",
+    "../GFX_Fonts/gfxfontlib.swf"
+  ],
+  "row_symbol": {
+    "class": "TrainingSequenceListItemMovie",
+    "symbol_id": 19,
+    "locally_defined": true,
+    "frame_count": 1
+  },
+  "named_placements": [
+    {
+      "name": "hitArea",
+      "character_id": null,
+      "class_name": "HitArea",
+      "position_twips": [
+        200,
+        199
+      ],
+      "scale": [
+        20.4375,
+        1.375
+      ]
+    },
+    {
+      "name": "downMovieClip",
+      "character_id": "10",
+      "class_name": null,
+      "position_twips": [
+        0,
+        0
+      ],
+      "scale": [
+        8.023804,
+        1.5238037
+      ]
+    },
+    {
+      "name": "selectedMovieClip",
+      "character_id": "11",
+      "class_name": null,
+      "position_twips": [
+        0,
+        0
+      ],
+      "scale": [
+        8.023804,
+        1.5238037
+      ]
+    },
+    {
+      "name": "overMovieClip",
+      "character_id": "12",
+      "class_name": null,
+      "position_twips": [
+        0,
+        0
+      ],
+      "scale": [
+        8.023804,
+        1.5237885
+      ]
+    },
+    {
+      "name": "typeIcon",
+      "character_id": "13",
+      "class_name": null,
+      "position_twips": [
+        300,
+        220
+      ],
+      "scale": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "name": "tfLastModifiedTime",
+      "character_id": "14",
+      "class_name": null,
+      "position_twips": [
+        10920,
+        300
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "text": {
+        "bounds_twips": {
+          "Xmin": -2120,
+          "Xmax": 1480,
+          "Ymin": -40,
+          "Ymax": 307
+        },
+        "font_class": "$NormalFont",
+        "font_height_twips": 240,
+        "align": 1,
+        "word_wrap": "false",
+        "multiline": "false",
+        "base_rgb": [
+          67,
+          175,
+          255
+        ]
+      }
+    },
+    {
+      "name": "tfPublished",
+      "character_id": "15",
+      "class_name": null,
+      "position_twips": [
+        10911,
+        700
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "text": {
+        "bounds_twips": {
+          "Xmin": -2111,
+          "Xmax": 1489,
+          "Ymin": -40,
+          "Ymax": 307
+        },
+        "font_class": "$NormalFont",
+        "font_height_twips": 240,
+        "align": 1,
+        "word_wrap": "false",
+        "multiline": "false",
+        "base_rgb": [
+          255,
+          224,
+          131
+        ]
+      }
+    },
+    {
+      "name": "tfTitle",
+      "character_id": "16",
+      "class_name": null,
+      "position_twips": [
+        1240,
+        260
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "text": {
+        "bounds_twips": {
+          "Xmin": -40,
+          "Xmax": 7560,
+          "Ymin": -40,
+          "Ymax": 527
+        },
+        "font_class": "$HeaderFont",
+        "font_height_twips": 480,
+        "align": 0,
+        "word_wrap": "false",
+        "multiline": "false",
+        "base_rgb": [
+          255,
+          255,
+          255
+        ]
+      }
+    },
+    {
+      "name": "tfDescription",
+      "character_id": "17",
+      "class_name": null,
+      "position_twips": [
+        1240,
+        700
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "text": {
+        "bounds_twips": {
+          "Xmin": -40,
+          "Xmax": 7560,
+          "Ymin": -40,
+          "Ymax": 345
+        },
+        "font_class": "$HeaderFont",
+        "font_height_twips": 300,
+        "align": 0,
+        "word_wrap": "false",
+        "multiline": "false",
+        "base_rgb": [
+          123,
+          252,
+          255
+        ]
+      }
+    },
+    {
+      "name": "tfOwnerName",
+      "character_id": "18",
+      "class_name": null,
+      "position_twips": [
+        10880,
+        700
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "text": {
+        "bounds_twips": {
+          "Xmin": -2080,
+          "Xmax": 1520,
+          "Ymin": -40,
+          "Ymax": 307
+        },
+        "font_class": "$NormalFont",
+        "font_height_twips": 240,
+        "align": 1,
+        "word_wrap": "false",
+        "multiline": "false",
+        "base_rgb": [
+          255,
+          255,
+          255
+        ]
+      }
+    },
+    {
+      "name": "favoriteIcon",
+      "character_id": null,
+      "class_name": "Icon_HeartMovie",
+      "position_twips": [
+        1200,
+        300
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "playerAvatar",
+      "character_id": null,
+      "class_name": "PlayerAvatarSmallMovie",
+      "position_twips": [
+        12320,
+        140
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "loadingIcon",
+      "character_id": null,
+      "class_name": "Icon_SpinnerAnim",
+      "position_twips": [
+        6740,
+        640
+      ],
+      "scale": [
+        0.703125,
+        0.703125
+      ]
+    }
+  ],
+  "coordinate_convention": "twips /20 = authored local pixels; not final screen coordinates; parent scale/runtime text fitting not applied",
+  "limitations": [
+    "Imported shared component artwork and font implementation not resolved",
+    "Generated Embed assets.swf reference is not proof original row timeline is external",
+    "No runtime focus/render/command/host behavior measured"
+  ]
+}

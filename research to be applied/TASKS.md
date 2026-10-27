@@ -115,3 +115,5 @@ traces from static declarations or UI controls alone.
 | PAUSE-CLOCK-01 | Overlay visibility versus actual pause and worker clocks | Complete; source default/trial paths distinguished; runtime unmeasured |
 | NATIVE-FEATURE-DELTA-01 | Current official feedback features and regression leads | Complete; primary documentation checked; API and runtime applicability pending |
 | CONTROLLER-EVIDENCE-01 | Physical device, logical action and prompt identity | Complete; separate display/event thresholds, fixed skin and unused profile routing documented |
+| NATIVE-RESET-SIGNAL-01 | Per-wheel/contact-time candidates versus inferred reset | Complete; seven pinned SDK headers; runtime semantics unverified |
+| NATIVE-PACK-ROW-01 | Row content, states, enum mapping and authored layout | Complete; seven same-movie classes plus local sprite metadata; imported art/fonts unresolved |

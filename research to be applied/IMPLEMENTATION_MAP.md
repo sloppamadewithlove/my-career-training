@@ -142,3 +142,9 @@ The [control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) maps six newly audi
 [Controller evidence](campaign/controller-evidence-01.md) separates the third-party overlay, fixed lesson hints and packet-derived action coaching. The current overlay requests a PS4 skin; saved binding-profile labels do not route into that skin or ghost mapping. Display/event thresholds are not hardware deadzones. Show generic logical actions until effective mappings are known.
 
 The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contract-coordinator-follow-up) now verifies that the pinned RLBot schema and installed type stub document elapsed time advancing during pause/replay. Legacy lesson timeouts and game-clock ghosts therefore need an explicit pause policy; local packet delivery is still unmeasured. A separate offline reproducer is being prepared, with unchanged production sources.
+
+## Stronger reset candidates and browser row composition
+
+[Reset signal surfaces](campaign/native-reset-signal-01.md) identifies per-wheel contact records and LastWheelsHitBallTime declarations as candidates beyond MCT's current availability/touch/geometry inference. No direct acquisition event or reset count is present in the inspected RLBot schema. Validate contact actor/time semantics before upgrading confidence. The current adapter already copies dodge_timeout.
+
+[Stock browser rows](campaign/native-pack-row-01.md) now have seven-class evidence and local timeline metadata: title/classification at the left, alternate creator or publication/date metadata at the right, favorite/loading states, shrinking text and animated focus backgrounds. The row is locally defined; a generated decompiler Embed reference had initially been mistaken for missing external row art. Shared components/fonts and final screen appearance remain separate. Use the sanitized metadata as a layout reference while retaining MCT stable IDs and explicit progress.
