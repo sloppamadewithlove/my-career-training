@@ -125,3 +125,5 @@ traces from static declarations or UI controls alone.
 | REQUIREMENTS-COVERAGE-01 | Requested features, evidence level and remaining acceptance | Complete snapshot; indirect historical game summaries distinguished from this campaign's static/offline evidence |
 | BROWSER-ACCEPTANCE-TESTS-01 | Existing catalog-routing and Workshop identity tests | Complete; 29 focused offline cases passed; mocked transfers and no map/game launch |
 | PAUSE-CLOCK-PROBE-01 | Synthetic paused delivery versus engine/ghost clocks | Complete; separate DeepSeek build/review; 11 preconditions and 2 baseline controls passed after fixture correction |
+| COSMETIC-CODE-01 | Local design encoding versus public format and host acceptance | Complete; v4 fields/limits; public-reference quirks, no host-parser or appearance proof |
+| PACK-LOAD-API-01 | Stock GFx dispatch, exact-code receipt and built-in playlist APIs | Complete; static request/receipt contract and export-name matches; offline service acceptance unresolved |

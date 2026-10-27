@@ -168,3 +168,7 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Focused browser tests](campaign/browser-acceptance-tests-01.md) passed 29 parameterized cases for current-page routing, cancellation/generation handling, Workshop package identity and setup persistence. These use mocks and temporary packages; they do not prove live transfers, plugin activation, map arrival or native rendering.
 
 [Pause-clock diagnostic](campaign/pause-clock-probe-01.md) now reproduces the engine-level inconsistency with synthetic packets: seven legacy lessons time out while Paused clocks advance, Power Shots interrupts, and clock-driven ghosts advance unless explicitly held. Eleven fixture checks and two baseline controls passed; the exact installed game's pause delivery remains unmeasured by this campaign.
+
+[Cosmetic-code format](campaign/cosmetic-code-01.md) identifies MCT's supported item/color fields and the limitations of the historical public reader/writer. No external-code import exists; stored code equality is separate from host acceptance and visible appearance.
+
+[Training-pack API boundaries](campaign/pack-load-api-01.md) separates stock row-based GFx calls, the feature-gated catalog-code command/receipt and built-in playlist APIs. An exact loaded-code receipt would still not prove shot progression or game Favorites/History.
