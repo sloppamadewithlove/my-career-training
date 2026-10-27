@@ -1,0 +1,63 @@
+{
+  "checkpoint": 8,
+  "scheduled_utc": "2026-10-27T14:54:12+00:00",
+  "recorded_utc": "2026-10-27T14:54:12.001663+00:00",
+  "coordinator_checked_utc": "2026-10-27T14:54:19.622583+00:00",
+  "window_ended": true,
+  "missed_checkpoints": 0,
+  "eight_scheduled_checkpoints_present": true,
+  "document_snapshot": {
+    "files": 249,
+    "total_bytes": 3298142,
+    "truncated": false,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "IMPLEMENTATION_WAVES.md",
+      "README.md",
+      "TASKS.md",
+      "campaign/cosmetic-conflict-prototype-01.md",
+      "campaign/defender-attribution-candidate-01.md",
+      "campaign/outcome-probe-01.md",
+      "campaign/rank-profile-propagation-01.md",
+      "campaign/settings-restart-boundaries-01.md",
+      "campaign/stock-component-reuse-01.md",
+      "checkpoints/hour-07.json",
+      "evidence/cosmetic-conflict-prototype-01.json",
+      "evidence/cosmetic-conflict-prototype-observed.json",
+      "evidence/cosmetic-conflict-reconstruction-01.json",
+      "evidence/defender-attribution-candidate-01.json",
+      "evidence/defender-attribution-probe-observed.json",
+      "evidence/rank-profile-propagation-01.json",
+      "evidence/stock-component-reuse-01.json",
+      "experiments/cosmetic-conflict-prototype/CMakeLists.txt",
+      "experiments/cosmetic-conflict-prototype/docs/contract.md.txt",
+      "experiments/cosmetic-conflict-prototype/plugin/include/CosmeticOverrideState.h.txt",
+      "experiments/cosmetic-conflict-prototype/tools/ResearchCosmeticLease.h.txt",
+      "experiments/cosmetic-conflict-prototype/tools/research_cosmetic_conflict_prototype.cpp.txt",
+      "experiments/defender-attribution-builder-contract.md.txt",
+      "experiments/defender-attribution.patch.json"
+    ]
+  },
+  "publication_commit_before_final_handoff": "9b5583c721bff3bbc8834162b9c3a174015a026e",
+  "approved_campaign_reports": 111,
+  "initial_reports": 10,
+  "source_freshness_receipt": "../evidence/final-source-freshness.json",
+  "active_selected_changed_paths": [],
+  "shared_selected_changed_paths": [
+    "src/my_career_training/game_worker.py",
+    "native_ui/menus/MctRootMenu.as"
+  ],
+  "worker_status": "All assigned Luna research/test tasks and separate DeepSeek builder/reviewer runs completed; coordinator performing final publication audit",
+  "last_hour_evidence": [
+    "Verified 60 published source/notice records and the exact scoring-patch payload",
+    "Cosmetic coupled-pair prototype separately reviewed, compiled and reconstructed; 22 scenarios/44 records/zero declared failures",
+    "714 MainMenu class records and 712 script records independently parsed; selected stock widget presence and row absence established locally",
+    "Isolated defender-attribution patch independently reviewed; 15 focused and 298 regression cases passed; six-case/33-check probe corrected; original engine counterfactual failed six attribution assertions; patch reconstruction passed"
+  ],
+  "limits": [
+    "Local monitor tracks document changes; it cannot wake Codex or prove continuous worker activity",
+    "No new owned-game acceptance, installed-file replacement or full native plugin compilation by this campaign",
+    "Counts are invocation-specific; repeated tests and reconstruction checks are not added into a unique all-feature total"
+  ]
+}

@@ -1,4 +1,4 @@
-# Implementation map — research still in progress
+# Implementation map — source and acceptance boundaries
 
 This is the builder entry point for the eight-hour campaign. It preserves the
 requested Lessons, Workshop, Mods and Favorites organization and separate

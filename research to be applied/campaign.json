@@ -2,11 +2,17 @@
   "started_at_utc": "2026-10-27T06:54:12Z",
   "ends_at_utc": "2026-10-27T14:54:12Z",
   "timezone": "America/New_York",
-  "status": "active",
+  "status": "research_window_complete",
   "heartbeat_interval_seconds": 3600,
   "heartbeat_kind": "local document-activity monitor; not Codex wakeup",
   "heavy_compilation": "deferred",
   "game_input": "not owned by this campaign",
   "task_policy": "one researcher per task; Luna research/tests only; separate DeepSeek builders/reviewers",
-  "publication_scope": "research to be applied only"
+  "publication_scope": "research to be applied only",
+  "finalized_at_utc": "2026-10-27T14:54:19.640586+00:00",
+  "approved_campaign_reports": 111,
+  "initial_reports": 10,
+  "hourly_checkpoints_recorded": 8,
+  "game_acceptance_performed": false,
+  "product_features_certified_complete": false
 }

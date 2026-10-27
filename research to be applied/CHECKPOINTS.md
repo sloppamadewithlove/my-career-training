@@ -40,3 +40,7 @@ The monitor recorded the scheduled 12:54:12 UTC checkpoint at 2026-10-27T12:54:1
 ## Hour 7
 
 The monitor recorded the scheduled 13:54:12 UTC checkpoint at 2026-10-27T13:54:12.003470+00:00. It counted 229 documents and 89 changed paths, with no missed checks. The coordinator confirmed the monitor process alive and independently rehashed all 21 selected paths in both checkouts: neither changed against its own provenance baseline. There are 106 campaign reports published at this check. The reconstructed probes and the reviewed cosmetic-conflict experiment passed their offline controls; no production fix or game acceptance is claimed. [Checkpoint evidence](checkpoints/hour-07.json). The final scheduled checkpoint is 14:54:12 UTC.
+
+## Hour 8 — research window ended
+
+The monitor recorded the final scheduled 14:54:12 UTC checkpoint at 2026-10-27T14:54:12.001663+00:00. All eight scheduled hourly records are present, with zero missed checkpoints and no final inventory truncation. It observed 249 documents. There are 111 approved campaign reports plus ten initial findings. The coordinator separately rehashed selected sources and the archived Python snapshot; shared-checkout changes are recorded in the [final source receipt](evidence/final-source-freshness.json). The source archive and isolated patches remain bound to their recorded bytes. [Final checkpoint](checkpoints/hour-08.json), [handoff](FINAL_HANDOFF.md). No campaign game acceptance is implied.

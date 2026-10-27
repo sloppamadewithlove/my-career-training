@@ -5,21 +5,21 @@ separate source declarations, shipped-artifact evidence, documented behavior,
 implementation proposals, passing tests and actual game acceptance. They are not
 a claim that every described feature is implemented or game-tested.
 
-## Current campaign
+## Completed research window
 
-- Window: 27 October 2026, 02:54â€“10:54 America/New_York (06:54â€“14:54 UTC).
+- Window: 27 October 2026, 02:54–10:54 America/New_York (06:54–14:54 UTC).
 - One worker owns each research task. Luna max researches and executes existing
   tests only. DeepSeek builders and independent reviewers handle scoped code.
 - Prioritize research and ready-to-apply specifications. Heavy plugin compilation
   and game input remain deferred while the parallel chat's live session is unresolved.
 - The local heartbeat measures document activity hourly; it cannot wake Codex and
   does not prove that an agent or a game test is running. Its actual checkpoints
-  will be summarized here without personal machine details.
+  are recorded in [hourly checkpoints](CHECKPOINTS.md) without personal machine details.
 - Preserve Lessons, Workshop, Mods and Favorites, with a separate lesson/rank menu.
 
 ## Start here
 
-For a short route into the findings, read the [prioritized builder handoff](campaign/end-handoff-gaps-01.md). It separates implementation dependencies from the evidence still needed in game.
+Start with the [final campaign handoff](FINAL_HANDOFF.md), then the implementation waves and focused reports. The [earlier prioritized handoff](campaign/end-handoff-gaps-01.md) remains a mid-campaign snapshot. Research completion does not certify feature completion or current-game acceptance.
 
 For the offline diagnostics, use the [reconstruction instructions](campaign/reproducibility-handoff-01.md). The folder now archives 55 project Python source files, project metadata and four license/notice files as exact UTF-8 JSON records. Existing vendored observation helpers retain their separate license. These are a frozen research candidate, not a complete app distribution or deployed build.
 
