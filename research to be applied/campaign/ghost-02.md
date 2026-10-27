@@ -1,5 +1,8 @@
 # GHOST-02 — Synchronized car and ball demonstration requirements
 
+Follow-up compatibility limit: [boost/resource research](boost-resource-reset-01.md) shows ordinary records have empty mutator metadata and no pad-cooldown history. Equal stored objects do not establish equal observed boost policy or bot-pressure context.
+
+
 **Date:** 2026-10-27
 **Scope:** Static source and public API research only. No game, rendering, controls, code, tests, or recording assets were used.
 

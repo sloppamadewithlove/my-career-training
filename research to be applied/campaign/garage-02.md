@@ -1,5 +1,8 @@
 # GARAGE-02 — Catalog identity, paint variants, and preview limits
 
+Follow-up restoration limit: the [cosmetic restore diagnostic](cosmetic-restore-probe-01.md) demonstrates that the current transaction can overwrite later external edits to either cosmetic cvar. Future restore acceptance below must preserve or report conflicts and restore only fields still owned by MCT; a saved snapshot alone is insufficient.
+
+
 **Date:** 2026-10-27
 **Scope:** Static source/header research only. No game, inventory, account, asset extraction, code, or runtime action.
 

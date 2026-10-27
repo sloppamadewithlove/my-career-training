@@ -1,5 +1,8 @@
 # GARAGE-01 — Rocket League garage and cosmetic interface research
 
+Follow-up restoration limit: the [cosmetic restore diagnostic](cosmetic-restore-probe-01.md) demonstrates that the current transaction can overwrite later external edits to either cosmetic cvar. Future restore acceptance below must preserve or report conflicts and restore only fields still owned by MCT; a saved snapshot alone is insufficient.
+
+
 **Date:** 2026-10-27
 **Scope:** Research only. No game was launched, no cvars or inventory were changed, and no compatibility test was run.
 

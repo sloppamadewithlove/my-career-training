@@ -32,7 +32,7 @@ Same scenario, Diamond:
 | champion | 1.28 | 11 | (5,.55,1150,.65,4320,4720) | (4,.48,1050,.85) |
 | grand-champion | 1.33 | 10 | (6,.68,1250,.48,4290,4660) | (5,.62,1200,.62) |
 | supersonic-legend | 1.39 | 9 | (7,.80,1350,.34,4260,4600) | (6,.76,1350,.42) |
-Roster is fixed per rank, so a rank change inside a match is refused: game_worker.py:736-738 compares `(team, role)` per index and raises "needs a different actor roster". Bronze→Diamond therefore cannot be a `training_scenario_step`; it requires a new match. This is a real constraint, not a bug.
+All rank changes use idle selection and a fresh session, including same-roster Bronze↔Silver and Gold↔Platinum. The in-session `training_scenario_step` retains difficulty; its additional roster check at `game_worker.py:736-738` is a situation-transition guard, not the sole reason rank changes require restart. Bronze→Diamond also changes the roster. See [rank-transition research](rank-transition-01.md) for Return, cleanup, selection and new-session identity.
 
 4. Six-part player action contract (traced)
 (a) Setup selection: `validate_setup`/`start_setup` (scenario_setup.py:13-29, 94-106) require exactly `{scenario_id, difficulty}` and re-validate through `scenario_definition`; `step_setup` (79-91) moves ±1 in the validated order and keeps rank.

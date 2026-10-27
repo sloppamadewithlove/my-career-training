@@ -28,6 +28,8 @@ When a non-looping Watch/Lead clip reaches its end, `GhostPlayback.snapshot()` e
 
 Stop/Return makes the worker stop rendering while stopping and tears down the owned RLBot match/relay (`game_worker.py:946–955, 1517–1540`). Teardown contains no explicit `coach.stop()`, practice Off, or snapshot clear. Since the implementation uses draw calls rather than an actor, there is no ghost actor to destroy; whether a last submitted line persists until the game/render layer’s next clear is not established by this Python source.
 
+The later [Core cleanup trace](render-cleanup-01.md) establishes additional per-client removal and handler-wide clear requests outside this Python path. It also identifies a conditional clear-queue progress concern. Thus the gap is unverified end-to-end disappearance, not a total absence of cleanup requests.
+
 ## Gaps and useful acceptance checks
 
 - Define a terminal policy for each playback mode: pause/freeze, hide, or keep demonstrating while the result waits for acknowledgement. Current code implicitly continues; ended Watch/Lead can leave a visible last-frame outline.
