@@ -1,0 +1,20 @@
+{
+  "restored_at_utc": "2026-10-27T13:31:05.4064159Z",
+  "source_records_restored": 56,
+  "all_source_sha256_verified": true,
+  "input": "Published-folder JSON source archives and diagnostic text copies",
+  "diagnostics": [
+    "research_outcome_probe.py",
+    "research_import_probe.py",
+    "research_pause_clock_probe.py",
+    "research_render_packet_probe.py"
+  ],
+  "destination": "work/reconstructed-probes-01",
+  "limits": "Source reconstruction only; uses already installed interpreter/dependencies, not clean-environment package installation",
+  "working_directory": "Reconstructed root containing src, tools and work",
+  "interpreter": "Explicit project interpreter private path; CPython 3.12.13 x64; see reconstructed-environment-01.json",
+  "source_records_unchanged_after_runs": 56,
+  "additional_license_notice_records_restored": 4,
+  "final_archive_records": 60,
+  "license_notice_scope": "Four notices added after diagnostic reruns; source/interpreter inputs unchanged. Existing third-party license is preserved, not replaced by app notice."
+}

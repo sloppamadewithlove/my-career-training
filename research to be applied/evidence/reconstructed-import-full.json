@@ -1,0 +1,385 @@
+{
+  "cases": [
+    {
+      "case": "omitted_speeds",
+      "command_types": [
+        "play_recording"
+      ],
+      "error": "",
+      "external_calls": {
+        "detect": 1,
+        "dialog": 1,
+        "graceful_close": 0,
+        "is_alive": 0,
+        "launch": [],
+        "launcher_pending": 0,
+        "media": 1,
+        "processes": 0
+      },
+      "imports": [
+        {
+          "capture_origin_present": false,
+          "duration": 2.0,
+          "entries_added": 1,
+          "entry_keys": [
+            "filename",
+            "id",
+            "label",
+            "lesson_id",
+            "outcome",
+            "source",
+            "variant"
+          ],
+          "entry_source_kind": "local_player",
+          "fixture_duration": 2.0,
+          "fixture_label": "Synthetic probe fixture",
+          "import_error": "",
+          "import_notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+          "import_status": "Imported personal recording",
+          "index": 0,
+          "source_kind": "local_player",
+          "source_sha256": "206d526d533a5fc8deaa1f9bc9ede50b568f06e69e61ff6c2aae9a3a9eddb119",
+          "speeds_present": false,
+          "stored": true,
+          "stored_identity_sha256": "0e34909026066a5d2812a286e2b2f045e98147a3ae805ce6db208fbc688fc1b9",
+          "stored_label": "Synthetic probe fixture",
+          "stored_sha256": "40673109e6edbf4786002db14bc3ac0d3306fab3e34bedb26c69f12f98543aba",
+          "variant": {
+            "angle": "center",
+            "side": "right",
+            "simplified": false,
+            "target_zone": null
+          }
+        }
+      ],
+      "notice": "Loading your best recorded attempt for this lesson.",
+      "selected": {
+        "duration": 2.0,
+        "identity_sha256": "0e34909026066a5d2812a286e2b2f045e98147a3ae805ce6db208fbc688fc1b9",
+        "import_status": "Imported personal recording",
+        "label": "Your Best Attempt",
+        "label_rewritten": true,
+        "lesson_id": "speed-flip",
+        "matches_stored_index": 0,
+        "mode": "lead",
+        "practice": false,
+        "source_kind": "local_player",
+        "speeds_present": false,
+        "stored_label": "Synthetic probe fixture",
+        "variant": {
+          "angle": "center",
+          "side": "right",
+          "simplified": false,
+          "target_zone": null
+        }
+      },
+      "store_isolated": true,
+      "worker_transport": "fake"
+    },
+    {
+      "case": "explicit_normal_speed",
+      "command_types": [
+        "play_recording"
+      ],
+      "error": "",
+      "external_calls": {
+        "detect": 1,
+        "dialog": 1,
+        "graceful_close": 0,
+        "is_alive": 0,
+        "launch": [],
+        "launcher_pending": 0,
+        "media": 1,
+        "processes": 0
+      },
+      "imports": [
+        {
+          "capture_origin_present": false,
+          "duration": 1.5,
+          "entries_added": 1,
+          "entry_keys": [
+            "filename",
+            "id",
+            "label",
+            "lesson_id",
+            "outcome",
+            "source",
+            "variant"
+          ],
+          "entry_source_kind": "local_player",
+          "fixture_duration": 1.5,
+          "fixture_label": "Synthetic probe fixture",
+          "import_error": "",
+          "import_notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+          "import_status": "Imported personal recording",
+          "index": 0,
+          "source_kind": "local_player",
+          "source_sha256": "42b94305d0d2595710359ad5a31d8fb9b0f2825bb3213b38162000a136bccd01",
+          "speeds_present": true,
+          "stored": true,
+          "stored_identity_sha256": "e567c0e1b26965d43e2bc54cd138ba1f305ee0cfa332f2067d8c03b315f8b2eb",
+          "stored_label": "Synthetic probe fixture",
+          "stored_sha256": "7546bb5f025738584355f9232bf4761a18eabaa6e3f1d47c674620aa6d4eb330",
+          "variant": {
+            "angle": "center",
+            "side": "right",
+            "simplified": false,
+            "target_zone": null
+          }
+        }
+      ],
+      "notice": "Loading your best recorded attempt for this lesson.",
+      "selected": {
+        "duration": 1.5,
+        "identity_sha256": "e567c0e1b26965d43e2bc54cd138ba1f305ee0cfa332f2067d8c03b315f8b2eb",
+        "import_status": "Imported personal recording",
+        "label": "Your Best Attempt",
+        "label_rewritten": true,
+        "lesson_id": "speed-flip",
+        "matches_stored_index": 0,
+        "mode": "lead",
+        "practice": false,
+        "source_kind": "local_player",
+        "speeds_present": true,
+        "stored_label": "Synthetic probe fixture",
+        "variant": {
+          "angle": "center",
+          "side": "right",
+          "simplified": false,
+          "target_zone": null
+        }
+      },
+      "store_isolated": true,
+      "worker_transport": "fake"
+    },
+    {
+      "case": "explicit_slow_speed",
+      "command_types": [],
+      "error": "No successful recording matches this lesson setup yet.",
+      "external_calls": {
+        "detect": 1,
+        "dialog": 1,
+        "graceful_close": 0,
+        "is_alive": 0,
+        "launch": [],
+        "launcher_pending": 0,
+        "media": 1,
+        "processes": 0
+      },
+      "imports": [
+        {
+          "capture_origin_present": false,
+          "duration": 1.0,
+          "entries_added": 1,
+          "entry_keys": [
+            "filename",
+            "id",
+            "label",
+            "lesson_id",
+            "outcome",
+            "source",
+            "variant"
+          ],
+          "entry_source_kind": "local_player",
+          "fixture_duration": 1.0,
+          "fixture_label": "Synthetic probe fixture",
+          "import_error": "",
+          "import_notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+          "import_status": "Imported personal recording",
+          "index": 0,
+          "source_kind": "local_player",
+          "source_sha256": "3a2e44a098beb22d457b1cc9a0f9d0150eb78bc8d1c77a099eeb3075150dce58",
+          "speeds_present": true,
+          "stored": true,
+          "stored_identity_sha256": "07fe50325b3f987fe8e553ba1945d43badc4cbb1d54fad60bc9a6fd2e8e9691d",
+          "stored_label": "Synthetic probe fixture",
+          "stored_sha256": "cb91a0d4fcdd8c0d2927cbd2f0ddf5bf8df68bf73d9ab9178276aa601f660599",
+          "variant": {
+            "angle": "center",
+            "side": "right",
+            "simplified": false,
+            "target_zone": null
+          }
+        }
+      ],
+      "notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+      "selected": null,
+      "store_isolated": true,
+      "worker_transport": "fake"
+    },
+    {
+      "case": "shorter_incompatible_beside_compatible",
+      "command_types": [
+        "play_recording"
+      ],
+      "error": "",
+      "external_calls": {
+        "detect": 1,
+        "dialog": 2,
+        "graceful_close": 0,
+        "is_alive": 0,
+        "launch": [],
+        "launcher_pending": 0,
+        "media": 1,
+        "processes": 0
+      },
+      "imports": [
+        {
+          "capture_origin_present": false,
+          "duration": 2.0,
+          "entries_added": 1,
+          "entry_keys": [
+            "filename",
+            "id",
+            "label",
+            "lesson_id",
+            "outcome",
+            "source",
+            "variant"
+          ],
+          "entry_source_kind": "local_player",
+          "fixture_duration": 2.0,
+          "fixture_label": "Synthetic probe fixture",
+          "import_error": "",
+          "import_notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+          "import_status": "Imported personal recording",
+          "index": 0,
+          "source_kind": "local_player",
+          "source_sha256": "1d2cb79b51d01e7c08d4b350b38a646d46e1ee60554d3492eb411d895429776d",
+          "speeds_present": true,
+          "stored": true,
+          "stored_identity_sha256": "1b2ecb0d985b1e2ee5b420fc6f15c47e9eff1602df51f92ba1e7628bf1f5529b",
+          "stored_label": "Synthetic probe fixture",
+          "stored_sha256": "2907e41f8de93b63fc0eb20af1dab3a11ecd0e7850b2e40e17a352abf9d4dee9",
+          "variant": {
+            "angle": "center",
+            "side": "right",
+            "simplified": false,
+            "target_zone": null
+          }
+        },
+        {
+          "capture_origin_present": false,
+          "duration": 0.5,
+          "entries_added": 1,
+          "entry_keys": [
+            "filename",
+            "id",
+            "label",
+            "lesson_id",
+            "outcome",
+            "source",
+            "variant"
+          ],
+          "entry_source_kind": "local_player",
+          "fixture_duration": 0.5,
+          "fixture_label": "Synthetic probe fixture",
+          "import_error": "",
+          "import_notice": "Recording imported with its provenance. Imported success claims are not independently certified.",
+          "import_status": "Imported personal recording",
+          "index": 1,
+          "source_kind": "local_player",
+          "source_sha256": "f24878ebded01c7cf69c2b0585a488f7497f179c7f62075cd453bb2cd235e5fb",
+          "speeds_present": true,
+          "stored": true,
+          "stored_identity_sha256": "3d57c1ec2133d2ffa28e5008fa897e773a0137e674502112bd2d4e95406aed34",
+          "stored_label": "Synthetic probe fixture",
+          "stored_sha256": "677aa4d1a00950cea01bbf856268e815df86017f5b966b83ad5804ec6a4bfc25",
+          "variant": {
+            "angle": "center",
+            "side": "right",
+            "simplified": false,
+            "target_zone": null
+          }
+        }
+      ],
+      "notice": "Loading your best recorded attempt for this lesson.",
+      "selected": {
+        "duration": 0.5,
+        "identity_sha256": "3d57c1ec2133d2ffa28e5008fa897e773a0137e674502112bd2d4e95406aed34",
+        "import_status": "Imported personal recording",
+        "label": "Your Best Attempt",
+        "label_rewritten": true,
+        "lesson_id": "speed-flip",
+        "matches_stored_index": 1,
+        "mode": "lead",
+        "practice": false,
+        "source_kind": "local_player",
+        "speeds_present": true,
+        "stored_label": "Synthetic probe fixture",
+        "variant": {
+          "angle": "center",
+          "side": "right",
+          "simplified": false,
+          "target_zone": null
+        }
+      },
+      "store_isolated": true,
+      "worker_transport": "fake"
+    }
+  ],
+  "checks": {
+    "all_fixtures_imported": true,
+    "command_is_play_recording": true,
+    "command_payload_from_store": true,
+    "game_processes_not_consulted": true,
+    "import_status_preserved": true,
+    "no_external_launch": true,
+    "no_raw_recording": true,
+    "normal_speed_control_selected": true,
+    "output_sanitized": true,
+    "route_exercised": true,
+    "slow_speed_control_not_selected": true,
+    "store_isolated": true
+  },
+  "contract": "docs/import-identity.md",
+  "fixture_claim": "synthetic fixtures claim metadata.source.kind=local_player; no capture identity is established",
+  "limits": [
+    "game process detection, native launcher pending, is_alive, graceful_close and launch_online are stubbed; no game process is started or observed",
+    "QFileDialog is replaced by a stub returning a synthetic fixture path",
+    "browser image staging and BrowserImageService are stubbed; no media is fetched",
+    "the worker transport is a FakeProcess that records commands and runs no physics",
+    "the store is a TemporaryDirectory under --work-root; no user store is opened",
+    "fixtures are hand-authored and only *claim* source.kind=local_player; they are not captured telemetry and prove nothing about who recorded a file"
+  ],
+  "mode": "probe",
+  "observations": {
+    "capture_origin_in_any_index_entry": false,
+    "import_errors": [
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "label_rewritten": true,
+    "mixed_import_durations": [
+      2.0,
+      0.5
+    ],
+    "mixed_selected_duration": 0.5,
+    "mixed_selected_index": 1,
+    "mixed_selected_label": "Your Best Attempt",
+    "mixed_selected_stored_label": "Synthetic probe fixture",
+    "mixed_selected_variant": {
+      "angle": "center",
+      "side": "right",
+      "simplified": false,
+      "target_zone": null
+    },
+    "omitted_speeds_selected": true,
+    "omitted_speeds_selected_import_status": "Imported personal recording",
+    "omitted_speeds_selected_label": "Your Best Attempt",
+    "omitted_speeds_selected_speeds_present": false,
+    "slow_speed_error": "No successful recording matches this lesson setup yet.",
+    "slow_speed_notice": "Recording imported with its provenance. Imported success claims are not independently certified."
+  },
+  "route": "dispatch(import_recording) -> _store_recording -> _recordings -> dispatch(play_recording, kind=personal_best)",
+  "source_hashes": {
+    "src/my_career_training/bridge.py": "ac502d1f19810baca479a534aa766a6afbea7ba57a405452835cc9dcff379ac2",
+    "src/my_career_training/storage.py": "3a291463f8ffdbab63adc4197a5b957413452aa011d4491895c722c151dd10de",
+    "src/my_career_training/training/recordings.py": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+    "tools/research_import_probe.py": "5e7454d2679bf5b82e5ec7e0973d7c05e4ec09c1100c14fba9cced8cd971b1fa"
+  },
+  "tool": "research_import_probe"
+}

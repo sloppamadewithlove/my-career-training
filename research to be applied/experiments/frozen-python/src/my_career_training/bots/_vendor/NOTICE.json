@@ -1,0 +1,7 @@
+{
+  "path": "src/my_career_training/bots/_vendor/NOTICE",
+  "encoding": "utf-8",
+  "bytes": 896,
+  "sha256": "7f25d0cf12114e1b58160448bb27e08d7155e771bc1718d30500c1165c3c7051",
+  "utf8_text": "Necto and Nexto observation builders and model action parsing derive from\nhttps://github.com/Rolv-Arild/Necto\nRevision: 2e6ed7d6ed2b352e8ff529d4a12a0c9c70c28cca\nAuthors: Rolv-Arild and the RLGym / Necto contributors (see upstream history).\nLicense: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International\nhttps://creativecommons.org/licenses/by-nc-sa/4.0/\nFull license: LICENSE. Model weights carry the same license.\n\nMy Career Training adapts the observation builders to its normalized RLBot v5\npacket boundary and preserves upstream observation math. This implementation\nuses the original licensed source, rather than the separate unlicensed v5 port.\nThe original model weights are unchanged. The models and their adapted code\nare a separate licensed component; the app MIT license does not relicense them.\nNo commercial permission or competitive rank certification is claimed.\n"
+}

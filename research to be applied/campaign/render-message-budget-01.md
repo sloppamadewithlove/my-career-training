@@ -8,6 +8,8 @@ For initial measurement, use **48 KiB (49,152 bytes) as a proposed soft ceiling 
 
 ## Exact transport and replacement behavior
 
+Artifact follow-up: [Bridge build-input inspection](bridge-waiter-artifact-01.md) identifies a separate per-messenger allowance of 65,535 payload bytes between explicit counter resets, excluding length prefixes. Its flush can clear a local batch after a normal-return size/budget rejection. This qualifies the earlier unknown-Bridge-boundary finding: the constant is now established in the pinned managed dependency, while its equivalence to the staged NativeAOT server and actual game-tick delivery remain unverified. Do not compare this controller-packet accounting directly with Python InterfacePacket bytes as though they were the same encoding.
+
 Follow-up: the [reviewed serialization diagnostic](render-packet-probe-01.md) measured ten synthetic fixtures at 3,038–8,266 payload bytes. Its largest fixture has 124 messages; 127 remains a conservative independent-branch bound. The run confirms client rejection of a 70,113-byte payload, not game-side delivery or persistence.
 
 The installed package metadata reports `rlbot==2.0.0b56` and `rlbot-flatbuffers==0.19.0`, matching `work/reviewed-training/pyproject.toml:15-16`. The pinned renderer and interface files are:

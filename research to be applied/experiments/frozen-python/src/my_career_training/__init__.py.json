@@ -1,0 +1,7 @@
+{
+  "path": "src/my_career_training/__init__.py",
+  "encoding": "utf-8",
+  "bytes": 94,
+  "sha256": "040425c900a39b5fe5d3dd1e581832d92d8868f219b63ca7e73e94aa205a862b",
+  "utf8_text": "\"\"\"Local career and training companion. No game assets are bundled.\"\"\"\n\n__version__ = \"0.3.0\"\n"
+}

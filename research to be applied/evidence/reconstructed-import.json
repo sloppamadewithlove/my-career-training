@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "fake_transport_protocol": true,
+    "negative_duration_rejected": true,
+    "non_local_source_not_selected": true,
+    "normal_speed_selected_with_label": true,
+    "slow_speed_not_selected": true,
+    "valid_fixture_accepted": true
+  },
+  "limits": [
+    "game process detection, native launcher pending, is_alive, graceful_close and launch_online are stubbed; no game process is started or observed",
+    "QFileDialog is replaced by a stub returning a synthetic fixture path",
+    "browser image staging and BrowserImageService are stubbed; no media is fetched",
+    "the worker transport is a FakeProcess that records commands and runs no physics",
+    "the store is a TemporaryDirectory under --work-root; no user store is opened",
+    "fixtures are hand-authored and only *claim* source.kind=local_player; they are not captured telemetry and prove nothing about who recorded a file"
+  ],
+  "mode": "self-test",
+  "ok": true,
+  "source_hashes": {
+    "src/my_career_training/bridge.py": "ac502d1f19810baca479a534aa766a6afbea7ba57a405452835cc9dcff379ac2",
+    "src/my_career_training/storage.py": "3a291463f8ffdbab63adc4197a5b957413452aa011d4491895c722c151dd10de",
+    "src/my_career_training/training/recordings.py": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+    "tools/research_import_probe.py": "5e7454d2679bf5b82e5ec7e0973d7c05e4ec09c1100c14fba9cced8cd971b1fa"
+  },
+  "tool": "research_import_probe"
+}

@@ -1,0 +1,7 @@
+{
+  "path": "pyproject.toml",
+  "encoding": "utf-8",
+  "bytes": 1221,
+  "sha256": "8f6efedc33f60e9009c007846fcb28f874e4de30c4a11775be615e44a922682b",
+  "utf8_text": "[build-system]\nrequires = [\"hatchling==1.28.0\"]\nbuild-backend = \"hatchling.build\"\n\n[project]\nname = \"my-career-training\"\nversion = \"0.3.0\"\ndescription = \"A local Rocket League career and practice companion\"\nrequires-python = \">=3.12,<3.13\"\nlicense = \"LicenseRef-Proprietary\"\nlicense-files = [\"LICENSE\"]\ndependencies = [\n  \"PySide6-Essentials==6.12.0\",\n  \"psutil==7.2.2\",\n  \"rlbot==2.0.0b56; sys_platform == 'win32'\",\n  \"rlbot-flatbuffers==0.19.0; sys_platform == 'win32'\",\n  \"pygame-ce==2.5.6\",\n  \"numpy==2.1.3; sys_platform == 'win32'\",\n  \"torch==2.6.0; sys_platform == 'win32'\",\n]\n\n[project.scripts]\nmy-career-training = \"my_career_training.__main__:main\"\n\n[dependency-groups]\ndev = [\"pytest==9.0.2\", \"ruff==0.14.14\", \"pyinstaller==6.22.3\", \"pyinstaller-hooks-contrib==2026.9\"]\n\n[tool.hatch.build.targets.wheel]\npackages = [\"src/my_career_training\"]\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\npythonpath = [\"src\"]\n\n[tool.ruff]\ntarget-version = \"py312\"\nline-length = 110\n\n[tool.ruff.lint]\nselect = [\"E4\", \"E7\", \"E9\", \"F\"]\n\n[[tool.uv.index]]\nname = \"pytorch-cpu\"\nurl = \"https://download.pytorch.org/whl/cpu\"\nexplicit = true\n\n[tool.uv.sources]\ntorch = [{ index = \"pytorch-cpu\", marker = \"sys_platform == 'win32'\" }]\n"
+}

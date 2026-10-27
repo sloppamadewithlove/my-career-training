@@ -139,3 +139,6 @@ traces from static declarations or UI controls alone.
 | END-HANDOFF-GAPS-01 | Concise builder-ready dependency order | Provisional mid-campaign synthesis; eight priorities with offline versus owned-game acceptance, no new feature verification |
 | RENDER-PACKET-PROBE-01 | Actual serialized HUD/ghost payloads and oversized rejection | Complete; ten synthetic fixtures, 257 diagnostic assertions passed after reviewed import repair; client pipeline only |
 | STOCK-MENU-MOTION01 | Stock menu fade, tab feedback, loading and input repeat | Complete; cached source helpers specify 0.2/0.3-second default fades; final screen lifetime, easing and repeat cadence remain runtime questions |
+| RENDER-WAITER01 | Public Core cleanup transport boundary | Complete source-only pass; later pinned DLL inspection resolves selected implementation details |
+| BRIDGE-WAITER-ARTIFACT01 | Pinned Bridge waiter, sender allowance and queue reset | Complete static artifact inspection; 65,535 payload bytes per reset window and normal-return rejection/queue clearing traced; staged native runtime equivalence unverified |
+| REPRODUCIBILITY-HANDOFF-01 | Reconstruct published diagnostic inputs | Complete source archive and five successful offline invocations across four diagnostics; installed dependencies reused, no clean-environment or game claim |

@@ -1,0 +1,213 @@
+{
+  "task": "BRIDGE-WAITER-ARTIFACT01",
+  "coordinator_checked_utc": "2026-10-27T13:41:54.4011055Z",
+  "evidence_class": "Static managed build-input inspection and pinned public caller source; no target execution or game observation",
+  "artifact": {
+    "origin": "https://raw.githubusercontent.com/RLBot/core/11d5d863ec2f8b2647741cff22a2c59c6b6ad08e/RLBotCS/lib/Bridge.dll",
+    "name": "Bridge.dll",
+    "format": "AnyCPU IL-only",
+    "mvid": "5d71a571-1bf1-4eb1-8bf1-203932b7c537",
+    "bytes": 187392,
+    "target": ".NETCoreApp v10.0",
+    "assembly": "Bridge 1.0.0.0",
+    "sha256": "5c5b2c6d41e376905a0da872af4b580f337c18a2c28969822f5277d2ef373f88"
+  },
+  "private_evidence_fingerprints": [
+    {
+      "name": "bridge-waiter-inspection-01.json",
+      "sha256": "e74cdb637459c5336ee13b736ad259fcee0c9ce7f3f27472de263e4eeff1ac39"
+    },
+    {
+      "name": "bridge-rendering-queue-inspection-01.json",
+      "sha256": "33e21c61b0b4fe310573501a8db083ed1a90fbca2fa89786df1dca1d96434bcd"
+    }
+  ],
+  "method_summaries": [
+    {
+      "type": "Bridge.TCP.MessageReader",
+      "name": "ReadAllAsync",
+      "token": "0x060005f8",
+      "body_status": "present",
+      "il_bytes": 15,
+      "il_sha256": "503f69c5f6a5e5908c4ae4e5fe285d94cd83b6c5494e9c73a8604d6ec4dcd03a",
+      "instructions": 6,
+      "decoded_instructions": 6,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.MessageReader",
+      "name": "WaitForAnyMessageAsync",
+      "token": "0x060005f9",
+      "body_status": "present",
+      "il_bytes": 55,
+      "il_sha256": "77fd4deee24963c83c0b7c873e37c0eadd08fa5dc4cd7f14358c5587766be1d8",
+      "instructions": 17,
+      "decoded_instructions": 17,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.TcpMessenger",
+      "name": ".ctor",
+      "token": "0x060005fa",
+      "body_status": "present",
+      "il_bytes": 76,
+      "il_sha256": "4aa36fea6d7a6e6c4156ff3e5b4a31f7917a04539d04b0ae63d7f3a827da86f0",
+      "instructions": 31,
+      "decoded_instructions": 31,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.TcpMessenger",
+      "name": "WaitForAnyMessageAsync",
+      "token": "0x060005fd",
+      "body_status": "present",
+      "il_bytes": 17,
+      "il_sha256": "b77fb55e6c4c015073e23d4f973338933b7ae7598d349f5efc662ec1927a8d46",
+      "instructions": 5,
+      "decoded_instructions": 5,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.TcpMessenger",
+      "name": "WriteMessageLength",
+      "token": "0x060005ff",
+      "body_status": "present",
+      "il_bytes": 65,
+      "il_sha256": "ce2afe5cb8a25b937670959b4896027ca111061b1a6297482d4fab6425e107c5",
+      "instructions": 36,
+      "decoded_instructions": 36,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.TcpMessenger",
+      "name": "ResetByteCount",
+      "token": "0x06000600",
+      "body_status": "present",
+      "il_bytes": 8,
+      "il_sha256": "7554bf7fffae65657c8fa1101c2fc50157b8f4db7ddb56641123e8138191546a",
+      "instructions": 4,
+      "decoded_instructions": 4,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.TCP.TcpMessenger",
+      "name": "Send",
+      "token": "0x06000601",
+      "body_status": "present",
+      "il_bytes": 173,
+      "il_sha256": "e9fe020f465ced9113d4560e10251e6510deeff6d49cab5718f41254bb13cae7",
+      "instructions": 61,
+      "decoded_instructions": 61,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "MessageBuffer",
+      "name": "ReadStreamAsync",
+      "token": "0x0600076c",
+      "body_status": "present",
+      "il_bytes": 63,
+      "il_sha256": "ae0ca9996967b5a46938cb0ff7b717c01a7a845cfd3eef669848992db52438c0",
+      "instructions": 20,
+      "decoded_instructions": 20,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "MessageBuffer",
+      "name": ".ctor",
+      "token": "0x06000770",
+      "body_status": "present",
+      "il_bytes": 23,
+      "il_sha256": "5fe6ae5e01b9b61b3327ae2f154256c540605a7f923b1303576fe9925bf0dab0",
+      "instructions": 7,
+      "decoded_instructions": 7,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "<WaitForAnyMessageAsync>d__1",
+      "name": "MoveNext",
+      "token": "0x0600077e",
+      "body_status": "present",
+      "il_bytes": 155,
+      "il_sha256": "04abf060a321b2b1d7c8cfd23aad1a82237c51ec489868c6829a77d736b3a130",
+      "instructions": 60,
+      "decoded_instructions": 60,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "<ReadStreamAsync>d__3",
+      "name": "MoveNext",
+      "token": "0x060007be",
+      "body_status": "present",
+      "il_bytes": 334,
+      "il_sha256": "87bc304e1da3b37e9f7584bcda22e6dd415b58406e231a540163a1ce7cf29615",
+      "instructions": 131,
+      "decoded_instructions": 131,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.Controller.RenderingCommandQueue",
+      "name": ".ctor",
+      "token": "0x0600075d",
+      "body_status": "present",
+      "il_bytes": 25,
+      "il_sha256": "c19b1dac26db3bd243884ef04ad01c93411f16ba3f7102cdd0916d27d5f142a0",
+      "instructions": 9,
+      "decoded_instructions": 9,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.Controller.RenderingCommandQueue",
+      "name": "Send",
+      "token": "0x06000765",
+      "body_status": "present",
+      "il_bytes": 29,
+      "il_sha256": "a839d6e2bfbeac7225c09cbedeb3c765f83a3d156f2f786a50658854164c1028",
+      "instructions": 8,
+      "decoded_instructions": 8,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.Controller.CommandQueue",
+      "name": "Flush",
+      "token": "0x06000750",
+      "body_status": "present",
+      "il_bytes": 169,
+      "il_sha256": "7077fe8895fb7040f658a5d9d434b4d1c205b9a0b84abba60bc68bff64770709",
+      "instructions": 52,
+      "decoded_instructions": 52,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.Controller.CommandQueue",
+      "name": "Reset",
+      "token": "0x06000751",
+      "body_status": "present",
+      "il_bytes": 23,
+      "il_sha256": "d1d2a0f0635e97869da257998b83529ee5f0bed3beabac25314e677cade1ac6f",
+      "instructions": 7,
+      "decoded_instructions": 7,
+      "truncated_instructions": 0
+    },
+    {
+      "type": "Bridge.Controller.CommandQueue",
+      "name": ".ctor",
+      "token": "0x06000752",
+      "body_status": "present",
+      "il_bytes": 34,
+      "il_sha256": "7f2c7d7e8a18574b34014728b881e3ebc16b3ce741e29044b8d5ccffbba4ef7a",
+      "instructions": 10,
+      "decoded_instructions": 10,
+      "truncated_instructions": 0
+    }
+  ],
+  "findings": [
+    "Sender message payload bound65535; aggregate per-instance payload counter bound65535 untilexplicitreset; two-byteprefixexcluded",
+    "Waiter creates temporarybuffer andawaitsoneStream.ReadAsync result, notcompleteframeparser",
+    "Normal-return sendrejection followedbyCommandQueue.Flush Reset; clearprogressbooldescribeslocalIDqueueonly"
+  ],
+  "limits": [
+    "No rawCIL orbinary redistributed here",
+    "Pinned build-input DLL was not recoveredfromstagedNativeAOTexecutable",
+    "No verifiednativebodymapping, deployedgame-tickcadence, rendering persistence, network failure orruntimehang"
+  ]
+}

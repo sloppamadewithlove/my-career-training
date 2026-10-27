@@ -1,0 +1,973 @@
+{
+  "diagnostic": "power-shots defender-touch goal attribution",
+  "generated_by": "tools/research_outcome_probe.py",
+  "evidence_class": "Behaviour observed in synthetic frames fed to the copied TrainingEngine. Not real game physics, not a mastery signal, and not a claim that the observed behaviour is desired.",
+  "scenario": {
+    "lesson_id": "power-shots",
+    "scenario_id": "low-side-pass",
+    "difficulty": "diamond",
+    "version": 3,
+    "execution": "grounded-receive",
+    "timeout": 12.0,
+    "targets": [
+      {
+        "type": "goal",
+        "center_x": -350.0,
+        "half_width": 900.0,
+        "min_z": 93.0,
+        "max_z": 550.0
+      }
+    ],
+    "success_events": [
+      "launch_observed",
+      "human_touch",
+      "goal_target"
+    ],
+    "selection_note": "The default low-side-pass/diamond set is the documented control set. Any other --scenario/--difficulty selection is exploratory and is not claimed to be verified generally."
+  },
+  "roles": {
+    "roles": {
+      "keeper": 0,
+      "defender": 1,
+      "human": 2
+    },
+    "teams": {
+      "keeper": 1,
+      "defender": 1,
+      "human": 0
+    },
+    "bot_indices": [
+      0,
+      1
+    ],
+    "human_index": 2,
+    "roster_size": 3
+  },
+  "attribution_model": {
+    "chain_valid": "scenario_state['chain_valid'] is a continuity flag. It starts True at 'go' and is set False by any cadence gap, by a missing scenario actor, and by any non-Active match phase. It is necessary but not sufficient for success.",
+    "latest_human_condition": "The success predicate additionally requires the human's latest attributed touch to be strictly newer than every other actor's latest attributed touch. The engine's scenario branch adds only the human index and the keeper role to that latest-touch set, so a defender touch is observed by the roster scan but is not compared there. This probe reports that as an observation and does not assert it as correct or desired.",
+    "declared_success_events": "lesson['success_events'] (launch_observed, human_touch, goal_target) is descriptive scenario metadata. It does not govern the scenario success predicate; the predicate is the explicit chain in TrainingEngine._scenario.",
+    "goal_edge_paths": "Two source paths can carry the goal edge: an Active (phase 3) packet and a GoalScored (phase 4) terminal packet. Both are exercised here as matched variants. Which path production actually delivers, and when, is not verified by this probe."
+  },
+  "source_sha256": {
+    "src/my_career_training/training/engine.py": "37028379a268d6f6e19d42b32a9e3c20778ed4f41d87bfbd3bc76955c61c602a",
+    "src/my_career_training/training/scenarios.py": "35714a224aa8765ae62be6fde3df6dc87c088c32d297adcda3795d0bc682d979",
+    "src/my_career_training/training/cadence.py": "fdbcda80e4fadb135713314e0fb65e2bcf2a3cf848f9261413fc2803555ee240",
+    "src/my_career_training/adapter.py": "98d1f4612967eda756b21857dfd198a3a12e4a211684067a248b9a829b74285c",
+    "tools/research_outcome_probe.py": "8e87a42cdb2738e3078bbd64e491995616db7ec2743bcc220d3af1370cc74e7e"
+  },
+  "cases": [
+    {
+      "name": "baseline_phase3",
+      "kind": "positive control",
+      "note": "Human touch is the latest attributed touch; goal follows.",
+      "goal_phase": 3,
+      "frames_observed": 59,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "finished",
+          "outcome": "success",
+          "events": [
+            "shot_location",
+            "goal_target",
+            "scenario_success",
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "shot_location",
+        "goal_target",
+        "scenario_success"
+      ],
+      "final": {
+        "state": "finished",
+        "outcome": "success",
+        "duration": 0.2166666666666659,
+        "observations": [
+          "Observed the configured launch, your touch and a team score increase. Repeat the same situation to compare your next attempt."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    },
+    {
+      "name": "keeper_phase3",
+      "kind": "negative control",
+      "note": "Keeper touches after the human; the chain must not complete.",
+      "goal_phase": 3,
+      "frames_observed": 1474,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "role": "keeper",
+          "index": 0,
+          "stamp": 1.3249999999999988
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "keeper_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "shot_location",
+            "goal_target"
+          ]
+        },
+        {
+          "frame": 1474,
+          "time": 13.275,
+          "state": "finished",
+          "outcome": "timeout",
+          "events": [
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "keeper_touch",
+        "shot_location",
+        "goal_target"
+      ],
+      "final": {
+        "state": "finished",
+        "outcome": "timeout",
+        "duration": 12.008333333333223,
+        "observations": [
+          "The keeper touched the ball after your shot. The attempt was not scored."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": 1.3249999999999988,
+          "latest_touch": {
+            "2": 1.274999999999999,
+            "0": 1.3249999999999988
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "0": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    },
+    {
+      "name": "defender_phase3",
+      "kind": "experimental observation",
+      "note": "Defender touches after the human; outcome is reported, not asserted.",
+      "goal_phase": 3,
+      "frames_observed": 59,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "role": "defender",
+          "index": 1,
+          "stamp": 1.3249999999999988
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "finished",
+          "outcome": "success",
+          "events": [
+            "shot_location",
+            "goal_target",
+            "scenario_success",
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "shot_location",
+        "goal_target",
+        "scenario_success"
+      ],
+      "final": {
+        "state": "finished",
+        "outcome": "success",
+        "duration": 0.2166666666666659,
+        "observations": [
+          "Observed the configured launch, your touch and a team score increase. Repeat the same situation to compare your next attempt."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "1": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    },
+    {
+      "name": "baseline_phase4",
+      "kind": "positive control",
+      "note": "Human touch is the latest attributed touch; goal follows.",
+      "goal_phase": 4,
+      "frames_observed": 59,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "finished",
+          "outcome": "success",
+          "events": [
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "shot_location",
+        "goal_target",
+        "scenario_success"
+      ],
+      "final": {
+        "state": "finished",
+        "outcome": "success",
+        "duration": 0.2083333333333326,
+        "observations": [
+          "Observed the configured launch, your touch and a team score increase. Repeat the same situation to compare your next attempt."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    },
+    {
+      "name": "keeper_phase4",
+      "kind": "negative control",
+      "note": "Keeper touches after the human; the chain must not complete.",
+      "goal_phase": 4,
+      "frames_observed": 59,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "role": "keeper",
+          "index": 0,
+          "stamp": 1.3249999999999988
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "keeper_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "interrupted",
+          "outcome": "interrupted",
+          "events": [
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "keeper_touch",
+        "shot_location",
+        "goal_target"
+      ],
+      "final": {
+        "state": "interrupted",
+        "outcome": "interrupted",
+        "duration": 0.2083333333333326,
+        "observations": [
+          "The attempt was interrupted by MatchPhase.GoalScored. Retry to establish a clean start."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": 1.3249999999999988,
+          "latest_touch": {
+            "2": 1.274999999999999,
+            "0": 1.3249999999999988
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "0": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": false,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    },
+    {
+      "name": "defender_phase4",
+      "kind": "experimental observation",
+      "note": "Defender touches after the human; outcome is reported, not asserted.",
+      "goal_phase": 4,
+      "frames_observed": 59,
+      "injected_touches": [
+        {
+          "frame": 34,
+          "time": 1.275,
+          "role": "human",
+          "index": 2,
+          "stamp": 1.274999999999999
+        },
+        {
+          "frame": 40,
+          "time": 1.325,
+          "role": "defender",
+          "index": 1,
+          "stamp": 1.3249999999999988
+        }
+      ],
+      "timeline": [
+        {
+          "frame": 1,
+          "time": 1.0,
+          "state": "settling",
+          "outcome": "unfinished",
+          "events": []
+        },
+        {
+          "frame": 32,
+          "time": 1.258333,
+          "state": "ready",
+          "outcome": "unfinished",
+          "events": [
+            "set_state",
+            "ready"
+          ]
+        },
+        {
+          "frame": 33,
+          "time": 1.266667,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "go"
+          ]
+        },
+        {
+          "frame": 34,
+          "time": 1.275,
+          "state": "active",
+          "outcome": "unfinished",
+          "events": [
+            "ball_contact",
+            "touch",
+            "human_touch"
+          ]
+        },
+        {
+          "frame": 59,
+          "time": 1.483333,
+          "state": "finished",
+          "outcome": "success",
+          "events": [
+            "completed"
+          ]
+        }
+      ],
+      "accepted_events": [
+        "launch_observed",
+        "ball_contact",
+        "touch",
+        "human_touch",
+        "shot_location",
+        "goal_target",
+        "scenario_success"
+      ],
+      "final": {
+        "state": "finished",
+        "outcome": "success",
+        "duration": 0.2083333333333326,
+        "observations": [
+          "Observed the configured launch, your touch and a team score increase. Repeat the same situation to compare your next attempt."
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "1": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "All frames are synthetic; no game, network, or physics simulation ran.",
+    "The shot path is a linear interpolation between the launch position and a point just short of the marked goal target, not simulated ball physics. The elapsed-time and position path is synthetic.",
+    "Injected contacts are stamp-only: the probe supplies a touch timestamp and a nominal location but no physical car/ball proximity, so the engine's contact evidence is not corroborated by geometry.",
+    "Both the phase 3 and phase 4 goal-edge source paths are exercised, but the actual production scheduling of those phases is unverified.",
+    "No private engine state, method, metric, clock, or event list was modified to force any outcome."
+  ],
+  "self_test": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "roles_are_keeper_defender_human",
+        "ok": true,
+        "detail": "{\"keeper\": 0, \"defender\": 1, \"human\": 2}"
+      },
+      {
+        "name": "defender_present_at_rank",
+        "ok": true,
+        "detail": "diamond"
+      },
+      {
+        "name": "human_index_is_last",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "baseline_phase3_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "baseline_phase3_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "keeper_phase3_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "keeper_phase3_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "defender_phase3_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "defender_phase3_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "baseline_phase4_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "baseline_phase4_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "keeper_phase4_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "keeper_phase4_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "defender_phase4_bot_indices_exact",
+        "ok": true,
+        "detail": "[0, 1]"
+      },
+      {
+        "name": "defender_phase4_human_index_exact",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "phase3_baseline_reaches_success",
+        "ok": true,
+        "detail": "success"
+      },
+      {
+        "name": "phase3_baseline_accepts_launch_human_goal",
+        "ok": true,
+        "detail": "launch_observed,ball_contact,touch,human_touch,shot_location,goal_target,scenario_success"
+      },
+      {
+        "name": "phase3_baseline_seen_touch_matches_injection",
+        "ok": true,
+        "detail": "{\"2\": 1.274999999999999}"
+      },
+      {
+        "name": "phase3_baseline_touch_frozen_before_attempt",
+        "ok": true,
+        "detail": "{}"
+      },
+      {
+        "name": "phase3_keeper_control_does_not_succeed",
+        "ok": true,
+        "detail": "timeout"
+      },
+      {
+        "name": "phase3_keeper_control_has_later_keeper_touch",
+        "ok": true,
+        "detail": "human=1.274999999999999 keeper=1.3249999999999988"
+      },
+      {
+        "name": "phase3_defender_input_accepted",
+        "ok": true,
+        "detail": "{\"2\": 1.274999999999999, \"1\": 1.3249999999999988}"
+      },
+      {
+        "name": "phase3_defender_input_newer_than_human",
+        "ok": true,
+        "detail": "human=1.274999999999999 defender=1.3249999999999988"
+      },
+      {
+        "name": "phase3_defender_case_terminated",
+        "ok": true,
+        "detail": "finished"
+      },
+      {
+        "name": "phase4_baseline_reaches_success",
+        "ok": true,
+        "detail": "success"
+      },
+      {
+        "name": "phase4_baseline_accepts_launch_human_goal",
+        "ok": true,
+        "detail": "launch_observed,ball_contact,touch,human_touch,shot_location,goal_target,scenario_success"
+      },
+      {
+        "name": "phase4_baseline_seen_touch_matches_injection",
+        "ok": true,
+        "detail": "{\"2\": 1.274999999999999}"
+      },
+      {
+        "name": "phase4_baseline_touch_frozen_before_attempt",
+        "ok": true,
+        "detail": "{}"
+      },
+      {
+        "name": "phase4_keeper_control_does_not_succeed",
+        "ok": true,
+        "detail": "interrupted"
+      },
+      {
+        "name": "phase4_keeper_control_has_later_keeper_touch",
+        "ok": true,
+        "detail": "human=1.274999999999999 keeper=1.3249999999999988"
+      },
+      {
+        "name": "phase4_defender_input_accepted",
+        "ok": true,
+        "detail": "{\"2\": 1.274999999999999, \"1\": 1.3249999999999988}"
+      },
+      {
+        "name": "phase4_defender_input_newer_than_human",
+        "ok": true,
+        "detail": "human=1.274999999999999 defender=1.3249999999999988"
+      },
+      {
+        "name": "phase4_defender_case_terminated",
+        "ok": true,
+        "detail": "finished"
+      }
+    ],
+    "defender_observation": {
+      "note": "Reported as an observation about synthetic frames only. This is not an assertion that the observed attribution is correct, desired, or representative of real game physics, and it is not an assertion that a defender touch is omitted from the engine's latest-touch set.",
+      "phase3": {
+        "outcome": "success",
+        "accepted_events": [
+          "launch_observed",
+          "ball_contact",
+          "touch",
+          "human_touch",
+          "shot_location",
+          "goal_target",
+          "scenario_success"
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "1": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      },
+      "phase4": {
+        "outcome": "success",
+        "accepted_events": [
+          "launch_observed",
+          "ball_contact",
+          "touch",
+          "human_touch",
+          "shot_location",
+          "goal_target",
+          "scenario_success"
+        ],
+        "evidence": {
+          "human_touch": 1.274999999999999,
+          "keeper_touch": null,
+          "latest_touch": {
+            "2": 1.274999999999999
+          },
+          "seen_touch": {
+            "2": 1.274999999999999,
+            "1": 1.3249999999999988
+          },
+          "baseline_touch": {},
+          "chain_valid": true,
+          "goal_target_time": 1.4833333333333316,
+          "score_edge": {
+            "time": 1.4833333333333316,
+            "team0_before": 0,
+            "team0_after": 1
+          },
+          "ball_out": false
+        }
+      }
+    }
+  }
+}

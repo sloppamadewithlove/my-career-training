@@ -2,6 +2,8 @@
 
 ## Finding
 
+Follow-up: [Bridge build-input inspection](bridge-waiter-artifact-01.md) resolves the selected waiter and queue internals. A normal-return transport size/budget rejection can still be followed by local batch reset, and `SendRenderClears` reports ID-queue backlog rather than acceptance by the transport. These are additional static findings; the pinned managed input has not been mapped to the staged native executable or observed in game.
+
 Pinned RLBot Core `11d5d863ec2f8b2647741cff22a2c59c6b6ad08e` limits direct render clears to 1,024 per game-message clump. Normal processing resets `Rendering._numClears` at the start of each clump, under the same `_context` lock used for rendering and cleanup. `BridgeHandler.Cleanup` also holds that lock while it runs `ClearAllRenders()` and loops on `SendRenderClears()`.
 
 The source exposes a conditional no-progress case: if `ClearAllRenders()` leaves IDs in `_renderClearQueue` after `_numClears` reaches 1,024, the next `SendRenderClears()` cannot dequeue any. Cleanup then waits for `TcpMessenger.WaitForAnyMessageAsync()` and, on success, resets only the messenger byte counter. It does not reset `Rendering._numClears`. Since cleanup retains `_context`, the normal game-clump path cannot acquire the lock to run its `ResetClearCount()` call. No second call site that resets this `Rendering` instance appears in the inspected pinned Core files.
