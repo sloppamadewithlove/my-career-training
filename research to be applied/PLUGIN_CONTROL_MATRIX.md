@@ -20,9 +20,12 @@ the implementation; no tracked license file was found at this pin.
 | [Ball Prediction](campaign/ball-prediction-01.md) | Maintains a prediction cache and draws an overlay. | Overlay checkbox after cache/context/cleanup validation. | Refresh on MCT state resets and establish drawable ownership. No scored-outcome claim from a prediction. |
 | [Legacy shot JSON](campaign/shot-data-01.md) | Partial ball/car shot parameters with parser limitations and an executable script option. | Validated data import into a separate authored draft. | No script execution; explicit units and versioned targets/outcomes. A shot file is not a complete MCT lesson. |
 
-Workshop loading has a separate [arrival contract](campaign/map-arrival-01.md).
-Its pinned default-plugin implementation is under additional research. Do not
-collapse map loading into an ordinary enabled checkbox.
+Steam Workshop loading has a separate [arrival contract](campaign/map-arrival-01.md).
+The audited [legacy WorkshopPlugin](campaign/workshop-plugin-01.md) exchanges
+shot JSON/playlists through an external peer; it is unrelated to Steam map
+loading. Its delegated reset schedules later ball writes without a bound
+shot/session identity. Keep those systems separate, and reject executable
+script fields in any future data-only shot importer.
 
 ## Common implementation contract
 

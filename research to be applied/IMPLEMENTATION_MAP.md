@@ -126,3 +126,9 @@ The [eight-lesson matrix](LESSON_EVIDENCE_MATRIX.md) now links an exact outcome/
 ## Default-plugin control contracts
 
 The [control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) maps six newly audited plugins to suitable actions or toggles. Dribble, Redirect and Rebound are one-shot ball mutations; Recovery repeats car-velocity changes; Defender is a goalkeeper-feed generator; Mechanical transforms intercepted controls. Their ordinary Freeplay gates are not proven compatible with MCT Soccar. Preserve exact context/actor/attempt identity, expose requested versus observed state, stop mutations before resets, and record assistance in result/ghost compatibility. Cvar parser and host cleanup semantics remain separate research questions.
+
+## Workshop naming and garage coverage
+
+[Legacy WorkshopPlugin](campaign/workshop-plugin-01.md) is a deprecated shot/playlist exchange, not a Steam map loader. Its TrainingPlugin reset can execute a script and schedules a mutable, unbound delayed ball write. Do not reuse that command chain as MCT Workshop loading or inert data import.
+
+[Garage catalog coverage](campaign/garage-catalog-01.md) distinguishes 15 browse categories from 11 local-code slots, with bodies catalog-only. The scanner reads catalog templates, not owned instances, and supplies neither equipability/paint-family validation nor visual preview proof. Its 100,000-entry ceiling lacks a truncation signal. Broader cosmetic support needs a build-bound coverage receipt and slot-specific compatibility/appearance checks; current source does not establish all skins available.

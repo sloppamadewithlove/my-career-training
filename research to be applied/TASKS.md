@@ -110,3 +110,5 @@ traces from static declarations or UI controls alone.
 | REDIRECT-PLUGIN-01 | Live-car feed and MCT launch identity | Complete; One-shot velocity write; whole-state launch ownership and acknowledgement needed; source-only |
 | DEFENDER-PLUGIN-01 | Goalkeeper feed versus bot roles | Complete; Ball shooter; goal-scoring cvar restoration missing; source-only |
 | MECHANICAL-PLUGIN-01 | Input transforms and Human scoping | Complete; Hook ignores caller; assistance absent from recording compatibility; source-only |
+| WORKSHOP-PLUGIN-01 | Legacy shot exchange versus Steam map loading | Complete; delegated delayed state writes and scripts; no map loader |
+| GARAGE-CATALOG-01 | Catalog, compatibility, preview and ownership boundaries | Complete; 15 browse categories/11 local slots; no live inventory or appearance proof |
