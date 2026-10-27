@@ -68,3 +68,12 @@ map will be updated as new evidence arrives.
 - [Performance budgets](campaign/performance-01.md) records configured limits and measurements still needed; no live latency benchmark is claimed.
 - [Stats and progress](campaign/stats-01.md) separates attempt evidence, match telemetry and account information.
 - [Build provenance](campaign/build-01.md) labels the publication baseline separately from the actual candidate; its addendum verifies twelve selected candidate menu hashes.
+
+## Follow-up evidence
+
+- [Scoring diagnostic](campaign/outcome-probe-01.md): six synthetic cases and 33 checks; a later defender touch reaches the engine but does not enter latest-touch attribution. Includes reviewed diagnostic source and observed JSON, not a production fix.
+- [Favorite recovery](campaign/favorites-02.md): exact-ID source resolution, saved unavailable rows, legacy-store differences and base-lesson identity.
+- [Input collisions](campaign/input-collisions-01.md): four temporary D-pad bindings, context gates and remaining event-routing questions.
+- [Replay integration](campaign/replay-01.md): current attempt JSON versus native replay files and a bounded future adapter.
+- [Native event hooks](campaign/native-events-01.md): confirmed public source hooks versus unverified callback candidates.
+- [Package inspection](campaign/package-02.md): both stock training menus inventoried; existing portable tools found; browser movie hash matches the current installed artifact.

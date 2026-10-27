@@ -1,0 +1,612 @@
+#!/usr/bin/env python3
+"""Offline research diagnostic: Power Shots defender-touch goal attribution.
+
+WHAT THIS IS
+------------
+A standard-library-only probe that drives the *actual copied* TrainingEngine
+(``src/my_career_training/training/engine.py``) and scenario catalog
+(``src/my_career_training/training/scenarios.py``) through the real public
+``update(frame)`` flow:
+
+    settle -> ready -> active -> human touch -> [opponent touch] -> goal
+
+It reports, as JSON on stdout, the injected input timeline, the observed frame
+timeline, the roster roles, the accepted events, the engine's own attribution
+evidence, the final result, and SHA-256 hashes of the selected source files.
+
+WHAT THIS IS NOT
+----------------
+* It does not run the game, the network, or any machine configuration.
+* It does not mutate private engine state, methods, metrics, time, or event
+  lists to force an outcome. It only calls ``TrainingEngine(...)`` and
+  ``engine.update(frame)`` and reads public attributes/summaries.
+* It does not claim the observed behaviour is desired, correct, or a mastery
+  signal. Every frame is synthetic. Nothing here is evidence about real game
+  physics.
+* The defender case is reported as an OBSERVATION, never as an assertion about
+  correctness. The self-test deliberately does not assert that a defender touch
+  is omitted from the engine's latest-touch set, and does not assert any
+  particular defender outcome; freezing either would freeze current behaviour.
+
+WHY DIAMOND
+-----------
+``_PRESSURE`` in scenarios.py only defines a ``defender`` for diamond and
+above, so Gold has no defender actor to touch the ball. Diamond gives the
+roster ``{0: keeper, 1: defender}`` with ``human_index == 2``.
+
+USAGE
+-----
+    python tools/research_outcome_probe.py
+    python tools/research_outcome_probe.py --self-test
+    python tools/research_outcome_probe.py --scenario crowded-box --difficulty champion
+    python tools/research_outcome_probe.py --output /tmp/probe.json
+
+The default case set (low-side-pass, diamond) is the documented control set.
+``--scenario``/``--difficulty`` selections are exploratory: they are not
+claimed to be verified generally.
+
+``--output`` is the only way this script writes a file, and it is explicit.
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from my_career_training.training.engine import TrainingEngine  # noqa: E402
+from my_career_training.training.scenarios import (  # noqa: E402
+    IMPLEMENTED_SCENARIOS,
+    RANKS,
+    scenario_definition,
+)
+
+LESSON_ID = "power-shots"
+DT = 1 / 120
+GOAL_PLANE_Y = 5120.0
+SHOT_STEPS = 24
+OPPONENT_TOUCH_STEP = 6
+SETTLE_START = 1.0
+MAX_SETTLE_FRAMES = 400
+MAX_ACTIVE_FRAMES = 4000
+
+SELECTED_SOURCES = (
+    "src/my_career_training/training/engine.py",
+    "src/my_career_training/training/scenarios.py",
+    "src/my_career_training/training/cadence.py",
+    "src/my_career_training/adapter.py",
+    "tools/research_outcome_probe.py",
+)
+
+
+# --------------------------------------------------------------------------
+# Synthetic frame construction
+# --------------------------------------------------------------------------
+
+def _actions():
+    return {
+        "throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0, "roll": 0.0,
+        "jump": False, "boost": False, "handbrake": False,
+    }
+
+
+def _actor(pose, index, team, is_bot, touch=None):
+    actor = copy.deepcopy(pose)
+    actor.update({
+        "index": index, "player_index": index, "team": team, "is_bot": is_bot,
+        "wheel_contact": True, "air_state": "OnGround",
+        "has_jumped": False, "has_double_jumped": False, "has_dodged": False,
+        "actions": _actions(),
+    })
+    if touch is not None:
+        actor["latest_touch"] = {
+            "game_seconds": touch,
+            "location": [0.0, 0.0, 93.0],
+            "normal": [0.0, 0.0, 1.0],
+            "ball_index": 0,
+        }
+    return actor
+
+
+def _frame(engine, t, *, setup="settle", touches=None, scores=(0, 0), ball=None,
+           phase=3):
+    """Build one synthetic packet with the exact full roster in index order.
+
+    ``touches`` is keyed by roster *position*, which is also the actor's
+    ``index``/``player_index``. The engine reads scenario actors positionally
+    via ``cars[index]``, so position and index must agree exactly.
+
+    ``frame_num`` is derived from the game clock as ``round(t / DT)``. Every
+    frame advances by exactly one ``DT``, so consecutive frame numbers differ by
+    exactly one and the shared cadence classifier sees a continuous single-step
+    cadence rather than a legacy clock-only guess.
+    """
+    state = engine.lesson["starting_state" if setup == "starting" else "settle_state"]
+    touches = touches or {}
+    cars = []
+    for position in range(engine.human_index + 1):
+        if position == engine.human_index:
+            pose, team, is_bot = state["car"], 0, False
+        else:
+            pose, team, is_bot = state["bots"][position], 1, True
+        cars.append(_actor(pose, position, team, is_bot, touches.get(position)))
+
+    # Structural identity assertion: the roster array must be exact.
+    assert len(cars) == engine.human_index + 1, "roster array is not the full roster"
+    for position, actor in enumerate(cars):
+        assert actor["index"] == position, "roster index mismatch"
+        assert actor["player_index"] == position, "roster player_index mismatch"
+
+    value = copy.deepcopy(state["ball"])
+    if ball:
+        value.update(ball)
+    return {
+        "time": t,
+        "dt": DT,
+        "frame_num": int(round(t / DT)),
+        "phase": phase,
+        "car": cars[engine.human_index],
+        "cars": cars,
+        "ball": value,
+        "scores": list(scores),
+        "actions": _actions(),
+        "packet_gap": False,
+    }
+
+
+class _Timeline:
+    """Compact frame log: event-bearing frames plus state transitions."""
+
+    def __init__(self):
+        self.entries = []
+        self.count = 0
+        self._last_state = None
+
+    def add(self, t, engine, events):
+        self.count += 1
+        names = [event.get("name") or event.get("type") for event in events]
+        if not names and engine.state == self._last_state:
+            return
+        self._last_state = engine.state
+        self.entries.append({
+            "frame": self.count,
+            "time": round(t, 6),
+            "state": engine.state,
+            "outcome": engine.outcome,
+            "events": names,
+        })
+
+
+# --------------------------------------------------------------------------
+# Public init/update flow
+# --------------------------------------------------------------------------
+
+def _engine(scenario_id, difficulty):
+    return TrainingEngine(LESSON_ID, scenario_id=scenario_id, difficulty=difficulty)
+
+
+def _run_case(engine, *, defender_touch=False, keeper_touch=False, goal_phase=3):
+    """Drive settle -> ready -> active -> touches -> goal through update().
+
+    Returns ``(timeline, injections)``. ``injections`` records exactly which
+    touch stamps this probe put into which roster slot, so the output can be
+    checked against the engine's own evidence without trusting the narrative.
+    """
+    timeline = _Timeline()
+    injections = []
+
+    def inject(role, index, stamp, frame_time):
+        # ``stamp`` is stored exactly as it was passed into the frame, with no
+        # rounding, so the report preserves the identical number the engine
+        # observed. Only the human-readable ``time`` is rounded for display.
+        injections.append({
+            "frame": timeline.count + 1,
+            "time": round(frame_time, 6),
+            "role": role,
+            "index": index,
+            "stamp": stamp,
+        })
+
+    # --- settle: hold the parked pose until the engine emits READY ---------
+    t = SETTLE_START
+    ready_time = None
+    for _ in range(MAX_SETTLE_FRAMES):
+        events = engine.update(_frame(engine, t))
+        timeline.add(t, engine, events)
+        if engine.state == "ready":
+            ready_time = t
+            break
+        t += DT
+    if ready_time is None:
+        raise RuntimeError("settle never reached ready; the synthetic pose was rejected")
+
+    # --- ready -> active: the next verified packet starts the drill --------
+    go_time = ready_time + DT
+    events = engine.update(_frame(engine, go_time, setup="starting"))
+    timeline.add(go_time, engine, events)
+    if engine.state != "active":
+        raise RuntimeError("the go packet did not start the attempt")
+
+    # --- first valid human contact ----------------------------------------
+    # One physics step after "go": the packet interval must stay inside the
+    # documented 0.05 s maximum or the engine records a cadence gap and the
+    # attribution chain is invalidated before it can be observed.
+    human_touch = go_time + DT
+    t = human_touch
+    inject("human", engine.human_index, human_touch, t)
+    events = engine.update(
+        _frame(engine, t, setup="starting", touches={engine.human_index: human_touch})
+    )
+    timeline.add(t, engine, events)
+
+    opponent_role = None
+    opponent_index = None
+    if defender_touch or keeper_touch:
+        opponent_role = "defender" if defender_touch else "keeper"
+        opponent_index = engine.scenario["roles"][opponent_role]
+
+    # --- synthetic shot path toward the marked goal target ----------------
+    target = engine.lesson["targets"][0]
+    goal_point = [target["center_x"], GOAL_PLANE_Y, 300.0]
+    pre_goal = [target["center_x"], GOAL_PLANE_Y - 20.0, 300.0]
+    origin = list(engine.lesson["starting_state"]["ball"]["position"])
+    velocity = [(b - a) / (SHOT_STEPS * DT) for a, b in zip(origin, pre_goal)]
+
+    for step in range(1, SHOT_STEPS + 1):
+        fraction = step / SHOT_STEPS
+        position = [a + (b - a) * fraction for a, b in zip(origin, pre_goal)]
+        touches = {}
+        if opponent_index is not None and step == OPPONENT_TOUCH_STEP:
+            stamp = t + DT
+            touches[opponent_index] = stamp
+            inject(opponent_role, opponent_index, stamp, stamp)
+        t += DT
+        events = engine.update(
+            _frame(engine, t, setup="starting", touches=touches,
+                   ball={"position": position, "velocity": velocity})
+        )
+        timeline.add(t, engine, events)
+
+    # --- goal edge packet -------------------------------------------------
+    # goal_phase 3 exercises the ordinary Active branch; goal_phase 4 exercises
+    # the GoalScored terminal branch. Both are real source paths.
+    t += DT
+    events = engine.update(
+        _frame(engine, t, setup="starting", phase=goal_phase, scores=(1, 0),
+               ball={"position": goal_point, "velocity": velocity})
+    )
+    timeline.add(t, engine, events)
+
+    # --- drain to a terminal state without inventing new evidence ---------
+    while not engine.finished and timeline.count < MAX_ACTIVE_FRAMES:
+        t += DT
+        events = engine.update(
+            _frame(engine, t, setup="starting", scores=(1, 0),
+                   ball={"position": goal_point, "velocity": velocity})
+        )
+        timeline.add(t, engine, events)
+
+    return timeline, injections
+
+
+def _case(name, kind, note, goal_phase, engine, timeline, injections):
+    summary = engine.summary()
+    evidence = (summary.get("scenario") or {}).get("evidence") or {}
+    return {
+        "name": name,
+        "kind": kind,
+        "note": note,
+        "goal_phase": goal_phase,
+        "frames_observed": timeline.count,
+        "injected_touches": injections,
+        "timeline": timeline.entries,
+        "accepted_events": [
+            event.get("name") or event.get("type") for event in summary["events"]
+        ],
+        "final": {
+            "state": summary["state"],
+            "outcome": summary["outcome"],
+            "duration": summary["duration"],
+            "observations": summary["observations"],
+            "evidence": {
+                "human_touch": evidence.get("human_touch"),
+                "keeper_touch": evidence.get("keeper_touch"),
+                "latest_touch": evidence.get("latest_touch"),
+                "seen_touch": evidence.get("seen_touch"),
+                "baseline_touch": evidence.get("baseline_touch"),
+                "chain_valid": evidence.get("chain_valid"),
+                "goal_target_time": evidence.get("goal_target_time"),
+                "score_edge": evidence.get("score_edge"),
+                "ball_out": evidence.get("ball_out"),
+            },
+        },
+    }
+
+
+# --------------------------------------------------------------------------
+# Source hashes
+# --------------------------------------------------------------------------
+
+def _sha256(relative_path):
+    path = REPO_ROOT / relative_path
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _source_hashes():
+    return {name: _sha256(name) for name in SELECTED_SOURCES}
+
+
+# --------------------------------------------------------------------------
+# Self-test
+# --------------------------------------------------------------------------
+
+def _lookup(mapping, index):
+    """Read an engine evidence mapping keyed by integer roster index.
+
+    The engine stores ``seen_touch``/``baseline_touch`` with integer keys; JSON
+    serialization later turns them into strings. Accept either form so the
+    self-test reads the live dict and the report stays readable.
+    """
+    if not isinstance(mapping, dict):
+        return None
+    if index in mapping:
+        return mapping[index]
+    return mapping.get(str(index))
+
+
+def _self_test(definition, engines, by_name):
+    """Assertions cover the valid baseline and the keeper negative control.
+
+    The defender case is deliberately NOT asserted for success or failure, and
+    the self-test does not assert that a defender touch is absent from the
+    engine's latest-touch set. Only the *input acceptance* of the defender touch
+    is asserted, so the observation stays outcome-neutral.
+    """
+    checks = []
+
+    def check(name, ok, detail=""):
+        checks.append({"name": name, "ok": bool(ok), "detail": detail})
+
+    roles = definition["roles"]
+    check("roles_are_keeper_defender_human",
+          roles == {"keeper": 0, "defender": 1, "human": 2}, json.dumps(roles))
+    check("defender_present_at_rank", "defender" in roles, definition["difficulty"])
+    check("human_index_is_last",
+          roles["human"] == len(definition["starting_state"]["bots"]), str(roles["human"]))
+
+    for label, engine in engines.items():
+        check(f"{label}_bot_indices_exact", engine.bot_indices == [0, 1],
+              str(engine.bot_indices))
+        check(f"{label}_human_index_exact", engine.human_index == 2,
+              str(engine.human_index))
+
+    for phase in (3, 4):
+        tag = f"phase{phase}"
+        baseline = by_name[f"baseline_{tag}"]
+        keeper = by_name[f"keeper_{tag}"]
+        defender = by_name[f"defender_{tag}"]
+
+        # --- positive control: human is the latest attributed touch --------
+        check(f"{tag}_baseline_reaches_success",
+              baseline["final"]["outcome"] == "success", baseline["final"]["outcome"])
+        check(f"{tag}_baseline_accepts_launch_human_goal",
+              {"launch_observed", "human_touch", "goal_target", "scenario_success"}
+              <= set(baseline["accepted_events"]),
+              ",".join(baseline["accepted_events"]))
+        baseline_evidence = baseline["final"]["evidence"]
+        human_injection = next(
+            item for item in baseline["injected_touches"] if item["role"] == "human")
+        check(f"{tag}_baseline_seen_touch_matches_injection",
+              _lookup(baseline_evidence["seen_touch"], human_injection["index"])
+              == human_injection["stamp"],
+              json.dumps(baseline_evidence["seen_touch"]))
+        check(f"{tag}_baseline_touch_frozen_before_attempt",
+              _lookup(baseline_evidence["baseline_touch"], human_injection["index"]) is None,
+              json.dumps(baseline_evidence["baseline_touch"]))
+
+        # --- negative control: a later keeper touch breaks the chain -------
+        check(f"{tag}_keeper_control_does_not_succeed",
+              keeper["final"]["outcome"] != "success", keeper["final"]["outcome"])
+        keeper_evidence = keeper["final"]["evidence"]
+        check(f"{tag}_keeper_control_has_later_keeper_touch",
+              keeper_evidence["keeper_touch"] is not None
+              and keeper_evidence["human_touch"] is not None
+              and keeper_evidence["keeper_touch"] > keeper_evidence["human_touch"],
+              f"human={keeper_evidence['human_touch']} "
+              f"keeper={keeper_evidence['keeper_touch']}")
+
+        # --- experimental observation: defender input is accepted ----------
+        defender_evidence = defender["final"]["evidence"]
+        defender_injection = next(
+            item for item in defender["injected_touches"] if item["role"] == "defender")
+        human_stamp = next(
+            item["stamp"] for item in defender["injected_touches"] if item["role"] == "human")
+        check(f"{tag}_defender_input_accepted",
+              _lookup(defender_evidence["seen_touch"], defender_injection["index"])
+              == defender_injection["stamp"],
+              json.dumps(defender_evidence["seen_touch"]))
+        check(f"{tag}_defender_input_newer_than_human",
+              defender_injection["stamp"] > human_stamp,
+              f"human={human_stamp} defender={defender_injection['stamp']}")
+        check(f"{tag}_defender_case_terminated",
+              defender["final"]["state"] in ("finished", "interrupted"),
+              defender["final"]["state"])
+
+    return {
+        "passed": all(item["ok"] for item in checks),
+        "checks": checks,
+        "defender_observation": {
+            "note": (
+                "Reported as an observation about synthetic frames only. This is "
+                "not an assertion that the observed attribution is correct, "
+                "desired, or representative of real game physics, and it is not "
+                "an assertion that a defender touch is omitted from the engine's "
+                "latest-touch set."
+            ),
+            "phase3": {
+                "outcome": by_name["defender_phase3"]["final"]["outcome"],
+                "accepted_events": by_name["defender_phase3"]["accepted_events"],
+                "evidence": by_name["defender_phase3"]["final"]["evidence"],
+            },
+            "phase4": {
+                "outcome": by_name["defender_phase4"]["final"]["outcome"],
+                "accepted_events": by_name["defender_phase4"]["accepted_events"],
+                "evidence": by_name["defender_phase4"]["final"]["evidence"],
+            },
+        },
+    }
+
+
+# --------------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------------
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Offline Power Shots defender-touch goal attribution probe."
+    )
+    parser.add_argument("--scenario", default="low-side-pass",
+                        help="Power Shots scenario id (default: low-side-pass).")
+    parser.add_argument("--difficulty", default="diamond",
+                        help="Rank with a defender actor, diamond or higher (default: diamond).")
+    parser.add_argument("--self-test", action="store_true",
+                        help="Assert the baseline and keeper negative control.")
+    parser.add_argument("--output", default=None,
+                        help="Optional explicit path for the JSON report.")
+    args = parser.parse_args(argv)
+
+    if args.scenario not in IMPLEMENTED_SCENARIOS:
+        parser.error("unknown scenario; choose one of: " + ", ".join(IMPLEMENTED_SCENARIOS))
+    if args.difficulty not in RANKS:
+        parser.error("unknown rank; choose one of: " + ", ".join(RANKS))
+
+    definition = scenario_definition(LESSON_ID, args.scenario, args.difficulty)
+    if "defender" not in definition["roles"]:
+        parser.error(
+            "rank %r has no defender actor; choose diamond or higher" % args.difficulty
+        )
+
+    engines = {}
+    by_name = {}
+    cases = []
+    for phase in (3, 4):
+        tag = f"phase{phase}"
+        for label, kind, note, kwargs in (
+            ("baseline", "positive control",
+             "Human touch is the latest attributed touch; goal follows.", {}),
+            ("keeper", "negative control",
+             "Keeper touches after the human; the chain must not complete.",
+             {"keeper_touch": True}),
+            ("defender", "experimental observation",
+             "Defender touches after the human; outcome is reported, not asserted.",
+             {"defender_touch": True}),
+        ):
+            name = f"{label}_{tag}"
+            engine = _engine(args.scenario, args.difficulty)
+            engines[name] = engine
+            timeline, injections = _run_case(engine, goal_phase=phase, **kwargs)
+            case = _case(name, kind, note, phase, engine, timeline, injections)
+            by_name[name] = case
+            cases.append(case)
+
+    report = {
+        "diagnostic": "power-shots defender-touch goal attribution",
+        "generated_by": "tools/research_outcome_probe.py",
+        "evidence_class": (
+            "Behaviour observed in synthetic frames fed to the copied "
+            "TrainingEngine. Not real game physics, not a mastery signal, and "
+            "not a claim that the observed behaviour is desired."
+        ),
+        "scenario": {
+            "lesson_id": LESSON_ID,
+            "scenario_id": definition["id"],
+            "difficulty": definition["difficulty"],
+            "version": definition["version"],
+            "execution": definition["execution"],
+            "timeout": definition["timeout"],
+            "targets": copy.deepcopy(definition["targets"]),
+            "success_events": list(definition["success_events"]),
+            "selection_note": (
+                "The default low-side-pass/diamond set is the documented control "
+                "set. Any other --scenario/--difficulty selection is exploratory "
+                "and is not claimed to be verified generally."
+            ),
+        },
+        "roles": {
+            "roles": copy.deepcopy(definition["roles"]),
+            "teams": copy.deepcopy(definition["teams"]),
+            "bot_indices": list(engines["baseline_phase3"].bot_indices),
+            "human_index": engines["baseline_phase3"].human_index,
+            "roster_size": engines["baseline_phase3"].human_index + 1,
+        },
+        "attribution_model": {
+            "chain_valid": (
+                "scenario_state['chain_valid'] is a continuity flag. It starts "
+                "True at 'go' and is set False by any cadence gap, by a missing "
+                "scenario actor, and by any non-Active match phase. It is "
+                "necessary but not sufficient for success."
+            ),
+            "latest_human_condition": (
+                "The success predicate additionally requires the human's latest "
+                "attributed touch to be strictly newer than every other actor's "
+                "latest attributed touch. The engine's scenario branch adds only "
+                "the human index and the keeper role to that latest-touch set, so "
+                "a defender touch is observed by the roster scan but is not "
+                "compared there. This probe reports that as an observation and "
+                "does not assert it as correct or desired."
+            ),
+            "declared_success_events": (
+                "lesson['success_events'] (launch_observed, human_touch, "
+                "goal_target) is descriptive scenario metadata. It does not "
+                "govern the scenario success predicate; the predicate is the "
+                "explicit chain in TrainingEngine._scenario."
+            ),
+            "goal_edge_paths": (
+                "Two source paths can carry the goal edge: an Active (phase 3) "
+                "packet and a GoalScored (phase 4) terminal packet. Both are "
+                "exercised here as matched variants. Which path production "
+                "actually delivers, and when, is not verified by this probe."
+            ),
+        },
+        "source_sha256": _source_hashes(),
+        "cases": cases,
+        "limitations": [
+            "All frames are synthetic; no game, network, or physics simulation ran.",
+            "The shot path is a linear interpolation between the launch position "
+            "and a point just short of the marked goal target, not simulated ball "
+            "physics. The elapsed-time and position path is synthetic.",
+            "Injected contacts are stamp-only: the probe supplies a touch "
+            "timestamp and a nominal location but no physical car/ball proximity, "
+            "so the engine's contact evidence is not corroborated by geometry.",
+            "Both the phase 3 and phase 4 goal-edge source paths are exercised, "
+            "but the actual production scheduling of those phases is unverified.",
+            "No private engine state, method, metric, clock, or event list was "
+            "modified to force any outcome.",
+        ],
+    }
+
+    if args.self_test:
+        report["self_test"] = _self_test(definition, engines, by_name)
+
+    text = json.dumps(report, indent=2, sort_keys=False)
+    if args.output:
+        Path(args.output).write_text(text + "\n", encoding="utf-8")
+    sys.stdout.write(text + "\n")
+
+    if args.self_test and not report["self_test"]["passed"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

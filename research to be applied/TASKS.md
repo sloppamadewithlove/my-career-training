@@ -60,6 +60,14 @@ traces from static declarations or UI controls alone.
 | SDK-03 | Actual installed timing/visibility getter bodies | Complete; Luna/REA; four direct accessors, no causal lifecycle proof |
 | ACCESSIBILITY-01 | Native text, motion, color, scaling and feedback consumers | Complete; Luna; source-only |
 | NATIVE-CONFIG-01 | Shipped input defaults and training package inventory | Complete; Luna; no effective binding/runtime claim |
-| NATIVE-EVENTS-01 | Public source event hooks and lifecycle writer evidence | In progress; Luna |
-| REPLAY-01 | Replay-based review/training integration and information loss | In progress; Luna |
-| OUTCOME-PROBE-01 | Synthetic defender-touch goal attribution experiment | In progress; DeepSeek builder; independent review and execution pending |
+| NATIVE-EVENTS-01 | Public source event hooks and lifecycle writer evidence | Complete; Luna; six header copies matched pinned revision |
+| REPLAY-01 | Replay-based review/training integration and information loss | Complete; Luna; wrapper declarations and data-loss boundary |
+| OUTCOME-PROBE-01 | Synthetic defender-touch goal attribution experiment | Complete; DeepSeek build/review; coordinator ran six cases/33 checks |
+
+| Follow-up | Scope | Status |
+| --- | --- | --- |
+| FAVORITES-02 | Saved identity and unavailable item recovery | Complete; Luna; legacy removal claim reconciled by main |
+| INPUT-COLLISIONS-01 | Menu/game/Workshop/mod key ownership | Complete; Luna; live routing and crash persistence explicitly unknown |
+| PACKAGE-02 | Stock training package metadata and portable tool discovery | Complete; Luna; current browser movie byte identity checked |
+| MENU-INSPECTOR-01 | Small private FFDec bridge for two exact training movies | In progress; DeepSeek build; independent review before execution |
+| MOD-MEASUREMENT-01 | Helper effects on scored-attempt comparability | In progress; DeepSeek research |

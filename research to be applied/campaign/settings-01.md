@@ -26,7 +26,7 @@ There is no settings key, no persistence and no restore for tab position. It is 
 | `…[ghost]` | `:632` (Ghost tab) | ghost playback; `game_worker.py:851-852` | per-lesson | same | n/a |
 | `settings.training_display.*` | `NativeCareerLayout.h:2452-2463` | coaching/ghost view; `bridge.py:1213-1222`, `:1477-1509` | global | `bridge.py:1219` | survives restart |
 | `settings.binding_profile` | `NativeCareerLayout.h:2469-2480` | **labels only** (`Main.qml:599`); no gameplay binding | global | `bridge.py:1292` | n/a |
-| `settings.text_scale`, `reduced_motion` | `Main.qml:594-595` | UI only | global | `bridge.py:1292` | n/a |
+| `settings.text_scale`, `reduced_motion` | `Main.qml:594-595` | Text scale reaches desktop controls; no authored reduced-motion consumer or native text-scale consumer was found. See [ACCESSIBILITY-01](accessibility-01.md). | global | `bridge.py:1292` | n/a |
 | `settings.launcher`, `settings.install_path` | `Main.qml:579-583` | **actual launch configuration**: `bootstrap.py:142-193` preflight/launch, `bridge.py:1709-1712` request, `game_worker.py:570` owned-game detection | global | `bridge.py:1292` | survives restart |
 | `controller_overlay.installed_by_session` | `plugin_session.py:311-330`, `bridge.py:244-262` | gates the Show-controller row (`NativeMatchLayout.h:607-611`) | session | file journal receipt | file cleanup on session end |
 
