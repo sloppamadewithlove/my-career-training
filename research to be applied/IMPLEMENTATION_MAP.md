@@ -164,3 +164,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Ghost visuals](campaign/ghost-visual-01.md) inventories the renderer primitives and cleanup calls. The existing outline already has a roof, wheels and heading arrow. Paired ball rendering and scale/style improvements are possible through visual messages; an authentic textured car mesh is not exposed by the inspected RLBot API. Spawning a gameplay car is not an established non-colliding visual solution.
 
 [Stock input prompt routing](campaign/input-prompt-route-01.md) traces action IDs through the native binding resolver into localized labels and glyph substitutions. BakkesMod command bindings are a separate interface; stored MCT display profiles do not establish effective game-action bindings.
+
+[Focused browser tests](campaign/browser-acceptance-tests-01.md) passed 29 parameterized cases for current-page routing, cancellation/generation handling, Workshop package identity and setup persistence. These use mocks and temporary packages; they do not prove live transfers, plugin activation, map arrival or native rendering.
