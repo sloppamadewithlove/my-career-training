@@ -61,10 +61,18 @@ These can proceed as separate file-owned tasks after the shared lifecycle contra
 | --- | --- | --- |
 | Ghost | One declared clock for synchronized car/ball/input, profile and assistance compatibility, clear capture origin and terminal policy | Synthetic interpolation/gap controls, then owned-session alignment on observed setup, pause, retry and cleanup; current outline is not a simulated car actor |
 | Workshop | Selected package request tied to observed playable arrival, dependencies and supported geometry | Exact map identity after transition, spawn/geometry validation, Pause and Return; command completion alone is insufficient |
-| Garage | Valid product/paint preview and local apply with per-field restore ownership | Visible appearance and compatibility, later player edits preserved, partial failure and Return; catalog availability is not account ownership or online visibility |
+| Garage | Valid product/paint preview and local apply with an explicit restore-ownership policy | Visible appearance and compatibility, later player edits preserved, partial failure and Return; catalog availability is not account ownership or online visibility |
 | Native packs/favorites | Exact stable destination, honest offline availability, separate application and game favorites | Reopen/remove/missing source, exact pack load and progression where supported; never substitute a different drill silently |
 
 Evidence: [paired ghost](campaign/ghost-02.md), [ghost lifecycle](campaign/ghost-playback-01.md), [recording trust](campaign/import-identity-01.md), [map arrival](campaign/map-arrival-01.md), [garage catalog](campaign/garage-catalog-01.md), [restore reproducer](campaign/cosmetic-restore-probe-01.md), [favorite recovery](campaign/favorites-02.md).
+
+The [reviewed cosmetic conflict experiment](campaign/cosmetic-conflict-prototype-01.md) demonstrates one coupled-pair policy in synthetic fixtures. It preserves later edits but may leave one MCT-written field behind. It is not selected for production; caller outcomes and any alternative per-field policy still require an explicit decision.
+
+The [restart-boundary audit](campaign/settings-restart-boundaries-01.md) distinguishes the durable plugin file journal from volatile cvar baselines. Training attempt ACKs also differ from career result receipts. A lost attempt ACK alone does not trigger the telemetry-recovery timeout, and retransmitting an attempt would need idempotent recording storage.
+
+The [rank propagation calculation](campaign/rank-profile-propagation-01.md) traces all 96 Power Shots definitions. It confirms setup pressure changes without rank-specific grading thresholds; projected arrival/window metadata is not measured timing or an extra enforced pass window.
+
+The [render packet diagnostic](campaign/render-packet-probe-01.md) measures ten actual client-serialized synthetic fixtures. The [pinned Bridge build-input inspection](campaign/bridge-waiter-artifact-01.md) separately traces aggregate payload allowance and local batch clearing after a normal-return rejection. Neither establishes live native renderer throughput or deployed-server equivalence.
 
 ## Assignment and completion rules
 
