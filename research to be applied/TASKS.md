@@ -127,3 +127,6 @@ traces from static declarations or UI controls alone.
 | PAUSE-CLOCK-PROBE-01 | Synthetic paused delivery versus engine/ghost clocks | Complete; separate DeepSeek build/review; 11 preconditions and 2 baseline controls passed after fixture correction |
 | COSMETIC-CODE-01 | Local design encoding versus public format and host acceptance | Complete; v4 fields/limits; public-reference quirks, no host-parser or appearance proof |
 | PACK-LOAD-API-01 | Stock GFx dispatch, exact-code receipt and built-in playlist APIs | Complete; static request/receipt contract and export-name matches; offline service acceptance unresolved |
+| REPLAY-IMPORT-FEASIBILITY-01 | Native replay trajectories versus MCT recordings | Complete; pinned parser/source comparison; no replay parsed or full input reconstruction established |
+| STOCK-TRAINING-PROGRESSION-01 | Built-in drill badges versus pack progress and MCT completion | Complete; stable lesson/rank/situation identity proposed; native score thresholds unresolved |
+| STOCK-FEEDBACK-CUES-01 | Stock HUD cue calls and visible feedback | Complete; source calls traced; audible playback and public cue adapter unverified |

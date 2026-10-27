@@ -141,7 +141,7 @@ The [control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) maps six newly audi
 
 [Controller evidence](campaign/controller-evidence-01.md) separates the third-party overlay, fixed lesson hints and packet-derived action coaching. The current overlay requests a PS4 skin; saved binding-profile labels do not route into that skin or ghost mapping. Display/event thresholds are not hardware deadzones. Show generic logical actions until effective mappings are known.
 
-The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contract-coordinator-follow-up) now verifies that the pinned RLBot schema and installed type stub document elapsed time advancing during pause/replay. Legacy lesson timeouts and game-clock ghosts therefore need an explicit pause policy; local packet delivery is still unmeasured. A separate offline reproducer is being prepared, with unchanged production sources.
+The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contract-coordinator-follow-up) now verifies that the pinned RLBot schema and installed type stub document elapsed time advancing during pause/replay. Legacy lesson timeouts and game-clock ghosts therefore need an explicit pause policy; local packet delivery is still unmeasured. The completed [offline reproducer](campaign/pause-clock-probe-01.md) uses unchanged production sources and synthetic packets.
 
 ## Stronger reset candidates and browser row composition
 
@@ -172,3 +172,11 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Cosmetic-code format](campaign/cosmetic-code-01.md) identifies MCT's supported item/color fields and the limitations of the historical public reader/writer. No external-code import exists; stored code equality is separate from host acceptance and visible appearance.
 
 [Training-pack API boundaries](campaign/pack-load-api-01.md) separates stock row-based GFx calls, the feature-gated catalog-code command/receipt and built-in playlist APIs. An exact loaded-code receipt would still not prove shot progression or game Favorites/History.
+
+## Progression, feedback and replay import
+
+[Stock progression](campaign/stock-training-progression-01.md) separates built-in perfected badges from Custom Training pack completion. MCT currently persists selection, not a twelve-situation completion matrix per rank. Keep completion keyed to stable lesson/rank/situation and criteria version, independent of shuffle order.
+
+[Stock feedback cues](campaign/stock-feedback-cues-01.md) identifies countdown, round-change, shuffle and randomization calls. A round-change cue is not proof of success. Audible playback and a supported MCT cue interface remain unverified.
+
+[Native replay import](campaign/replay-import-feasibility-01.md) is a possible separate personal trajectory viewer. Replay actor updates and partial replicated controls cannot be inserted unchanged into the live MCT recording contract. Parser compatibility, player attribution and complete input reconstruction need independent acceptance.
