@@ -1,0 +1,140 @@
+{
+  "observed_at_utc": "2026-10-27 07:39:54 UTC",
+  "plugin": {
+    "path": "installed MyCareerTraining.dll",
+    "sha256": "18569d2b321f30f20c018e8ba14a596d1ebb89ab785addda9777662c73b9887e",
+    "bytes": 591360
+  },
+  "sdk": {
+    "path": "installed pluginsdk.dll",
+    "sha256": "421df9b1ccb65cc0e316189d824f25f0d00bb05352e0ea4e5219e7f400ec8813",
+    "bytes": 1947136
+  },
+  "evidence": [
+    "ev_0bd50ae09781663abbde87b9d80b742b92415d2e1e21449b19566c1eb42ad0b6",
+    "ev_e9afb11d9bd78476e44ad657dca30f3a4ec65012f9b5409da4c2ee5691c5a247"
+  ],
+  "import_coverage": {
+    "status": "complete",
+    "reason": null,
+    "examined_dlls": 16,
+    "imports": 243,
+    "delay_imports": 0
+  },
+  "export_coverage": {
+    "status": "complete",
+    "reason": null,
+    "examined_entries": 8801,
+    "exports": 8801
+  },
+  "requested_sdk_symbols": 64,
+  "missing": [],
+  "forwarded": [],
+  "features": [
+    {
+      "api": "GetGameTimeRemaining",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetGameTimeRemaining@ServerWrapper@@QEAAMXZ"
+      ]
+    },
+    {
+      "api": "GetGameStateTimeRemaining",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetGameStateTimeRemaining@GameEventWrapper@@QEAAHXZ"
+      ]
+    },
+    {
+      "api": "GetbFadeOut",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetbFadeOut@BallWrapper@@QEAAKXZ"
+      ]
+    },
+    {
+      "api": "GetbEndOfGameHidden",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetbEndOfGameHidden@BallWrapper@@QEAAKXZ"
+      ]
+    },
+    {
+      "api": "GetGfxTrainingData",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetGfxTrainingData@GameWrapper@@QEBA?AVGfxDataTrainingWrapper@@XZ"
+      ]
+    },
+    {
+      "api": "GetCamera",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetCamera@GameWrapper@@QEAA?AVCameraWrapper@@XZ"
+      ]
+    },
+    {
+      "api": "GetCameraSettings",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetCameraSettings@CameraWrapper@@QEAA?AUProfileCameraSettings@@XZ",
+        "?GetCameraSettings@PriWrapper@@QEAA?AUProfileCameraSettings@@XZ",
+        "?GetCameraSettings@SettingsWrapper@@QEAA?AUProfileCameraSettings@@XZ"
+      ]
+    },
+    {
+      "api": "SetCameraSettings",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?SetCameraSettings@CameraWrapper@@QEAAXUProfileCameraSettings@@@Z",
+        "?SetCameraSettings@PriWrapper@@QEAAXUProfileCameraSettings@@@Z"
+      ]
+    },
+    {
+      "api": "IsKeyPressed",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?IsKeyPressed@GameWrapper@@QEAA_NH@Z"
+      ]
+    },
+    {
+      "api": "GetPsyBuildID",
+      "plugin_imports": [
+        "?GetPsyBuildID@GameWrapper@@QEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ"
+      ],
+      "sdk_exports": [
+        "?GetPsyBuildID@GameWrapper@@QEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ"
+      ]
+    },
+    {
+      "api": "GetBakkesModVersion",
+      "plugin_imports": [
+        "?GetBakkesModVersion@GameWrapper@@QEAAHXZ"
+      ],
+      "sdk_exports": [
+        "?GetBakkesModVersion@GameWrapper@@QEAAHXZ"
+      ]
+    },
+    {
+      "api": "GetAllProducts",
+      "plugin_imports": [
+        "?GetAllProducts@ItemsWrapper@@QEAA?AV?$ArrayWrapper@VProductWrapper@@@@XZ"
+      ],
+      "sdk_exports": [
+        "?GetAllProducts@ItemsWrapper@@QEAA?AV?$ArrayWrapper@VProductWrapper@@@@XZ"
+      ]
+    },
+    {
+      "api": "GetCurrentMap",
+      "plugin_imports": [],
+      "sdk_exports": [
+        "?GetCurrentMap@GameWrapper@@QEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ"
+      ]
+    }
+  ],
+  "limitations": [
+    "Exact static decorated-name comparison only; no loaded-module, DLL-search-order, ABI/layout, game-build or runtime-call guarantee.",
+    "This installed file is not established to be the isolated reviewed source candidate. No compiled candidate was produced or loaded in this check.",
+    "Absence in standard/delay import tables is not proof of no dynamic lookup or alternative implementation."
+  ]
+}

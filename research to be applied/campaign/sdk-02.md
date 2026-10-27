@@ -59,3 +59,5 @@ actual output and staged copy; inspect its exact imports against the intended SD
 then, in the owned game session, establish which artifact loaded and collect the
 specific getter observations. Do not reuse the currently installed file's clean
 name comparison as acceptance of a newly built candidate.
+
+The sanitized [machine-readable comparison](../evidence/sdk-02-import-comparison.json) records exact symbols, artifact hashes, coverage and limitations.

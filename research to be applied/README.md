@@ -19,7 +19,7 @@ a claim that every described feature is implemented or game-tested.
 
 ## Start here
 
-1. [Implementation priorities](initial%20findings/training-research-priorities.txt)
+1. [Current implementation map](IMPLEMENTATION_MAP.md) and [initial priorities](initial%20findings/training-research-priorities.txt)
 2. [Research/build evidence](initial%20findings/research-build-wave2.txt)
 3. [Official stock training modes](initial%20findings/stock-training-modes-research.txt)
 4. [Native clocks and visibility](initial%20findings/native-clock-research.txt)
