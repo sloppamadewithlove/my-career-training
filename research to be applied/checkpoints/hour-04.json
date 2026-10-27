@@ -1,0 +1,79 @@
+{
+  "checkpoint": 4,
+  "scheduled_utc": "2026-10-27T10:54:12+00:00",
+  "recorded_utc": "2026-10-27T10:54:12.001704+00:00",
+  "coordinator_checked_utc": "2026-10-27T10:57:08.746462+00:00",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "files": 104,
+    "total_bytes": 972950,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "LESSON_EVIDENCE_MATRIX.md",
+      "README.md",
+      "TASKS.md",
+      "campaign/aerial-lesson-01.md",
+      "campaign/air-roll-lesson-01.md",
+      "campaign/ball-visibility-01.md",
+      "campaign/cosmetic-restore-probe-01.md",
+      "campaign/dribble-flick-01.md",
+      "campaign/flight-recovery-01.md",
+      "campaign/flip-reset-01.md",
+      "campaign/garage-restore-01.md",
+      "campaign/ghost-playback-01.md",
+      "campaign/lesson-acceptance-tests-01.md",
+      "campaign/map-arrival-01.md",
+      "campaign/native-pack-browser-01.md",
+      "campaign/reset-ready-01.md",
+      "campaign/scenario-acceptance-tests-01.md",
+      "campaign/sdk-actor-visibility-01.md",
+      "campaign/sdk-fade-01.md",
+      "campaign/shot-data-01.md",
+      "campaign/shot-placement-01.md",
+      "campaign/speed-flip-01.md",
+      "campaign/stock-training-settings-01.md",
+      "checkpoints/hour-03.json",
+      "evidence/cosmetic-restore-probe-01.json",
+      "evidence/pack-browser-export-01.json",
+      "evidence/settings-inventory-01.json",
+      "experiments/cosmetic_restore_probe_CMakeLists.txt",
+      "experiments/cosmetic_restore_probe_CosmeticOverrideState.h.txt",
+      "experiments/research_cosmetic_restore_probe.cpp.txt"
+    ],
+    "truncated": false
+  },
+  "publication_commit_at_check": "d9bced85ee756b61ba83a7b8d946812eccf8c319",
+  "approved_campaign_reports": 68,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running",
+    "luna_cvar_semantics_01": "dispatched after completed Redirect audit",
+    "luna_workshop_plugin_01": "dispatched after completed Defender audit",
+    "luna_garage_catalog_01": "dispatched after completed Mechanical audit",
+    "deepseek_cosmetic_restore_probe": "separate builder/reviewer completed; standalone diagnostic compiled and executed"
+  },
+  "source_freshness": {
+    "selected_paths_checked": 21,
+    "active_checkout_changed_since_provenance": [],
+    "research_snapshot_changed_since_provenance": [],
+    "scope": "selected paths only; not whole checkout or built artifacts"
+  },
+  "verification_this_hour": [
+    "Eight lesson predicates and rank coverage audited against frozen source; source hashes checked",
+    "Existing isolated test selections passed: lesson selection 40 and scenario selection 130; not a unique global count or gameplay proof",
+    "Stock Training settings and Custom Training browser traced from private selected classes",
+    "SDK fade wrapper requires Replay context; earlier Soccar fade suggestion withdrawn",
+    "Actor SetHidden2 forwards to engine; runtime visibility and restoration remain unproven",
+    "Unchanged production cosmetic restore helper compiled in isolated fake host: six cases and six controls; later user edits overwritten by restore reproduced",
+    "Six default plugin source audits completed; coordinator integration pending"
+  ],
+  "limits": [
+    "Hourly document hashes are not proof of uninterrupted worker activity",
+    "No live game input/attachment, deployed-build acceptance or heavy native compilation",
+    "Standalone cosmetic experiment uses fake cvar storage, not the game",
+    "Raw movie/source/XML and decoder material remain private"
+  ],
+  "next_checkpoint_utc": "2026-10-27T11:54:12Z"
+}

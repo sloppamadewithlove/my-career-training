@@ -104,3 +104,9 @@ traces from static declarations or UI controls alone.
 | FLIGHT-RECOVERY-01 | Recovery rectangle, metrics and gap policy | Complete; source/test inventory audit, no game proof |
 | SHOT-PLACEMENT-01 | Contact confidence, target rectangle and score boundary | Complete; source/test inventory audit, no game proof |
 | COSMETIC-RESTORE-PROBE-01 | Current transaction with later external edits | Complete; separate DeepSeek build/review; compiled/run six cases/six controls |
+| RECOVERY-PLUGIN-01 | Repeated car disturbance and timer ownership | Complete; Four cvars/two commands; no active acknowledgement or callback cancellation proof; source-only |
+| DRIBBLE-PLUGIN-01 | Ball placement and incoming shot commands | Complete; One-shot actions; no persistent enabled mode or provenance; source-only |
+| REBOUND-PLUGIN-01 | Goal choice, backboard feed and spin | Complete; Velocity/spin writes; no authored result or reset lifecycle; source-only |
+| REDIRECT-PLUGIN-01 | Live-car feed and MCT launch identity | Complete; One-shot velocity write; whole-state launch ownership and acknowledgement needed; source-only |
+| DEFENDER-PLUGIN-01 | Goalkeeper feed versus bot roles | Complete; Ball shooter; goal-scoring cvar restoration missing; source-only |
+| MECHANICAL-PLUGIN-01 | Input transforms and Human scoping | Complete; Hook ignores caller; assistance absent from recording compatibility; source-only |

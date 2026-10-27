@@ -24,3 +24,7 @@ The six-case scoring experiment passed 33 checks and received independent source
 ## Hour 3
 
 The monitor recorded the scheduled 09:54:12 UTC checkpoint at 2026-10-27T09:54:12.001143+00:00. The coordinator confirmed the monitor process alive, checked both active Luna tasks and the completed DeepSeek diagnostic, and compared 21 selected source paths. Active-checkout changes since provenance: 0; frozen research-source changes: 0. Forty-nine approved reports are published. The [checkpoint record](checkpoints/hour-03.json) separates document activity, worker status, source checks and runtime limits.
+
+## Hour 4
+
+The monitor recorded the scheduled 10:54:12 UTC checkpoint at 2026-10-27T10:54:12.001704+00:00. It counted 104 documents with no missed checks. The coordinator confirmed the monitor process alive and compared 21 selected source paths: 0 active-checkout changes and 0 frozen-source changes since the provenance baseline. Sixty-eight reports are published; six further plugin audits await source reconciliation. Three Luna workers have new, separate SDK, Workshop and garage research tasks. The [checkpoint record](checkpoints/hour-04.json) distinguishes source findings, offline diagnostic results and remaining game acceptance.

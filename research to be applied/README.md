@@ -23,7 +23,7 @@ a claim that every described feature is implemented or game-tested.
 2. [Research/build evidence](initial%20findings/research-build-wave2.txt)
 3. [Official stock training modes](initial%20findings/stock-training-modes-research.txt)
 4. [Native clocks and visibility](initial%20findings/native-clock-research.txt)
-5. [Nine-plugin compatibility matrix](initial%20findings/plugin-compatibility-matrix.txt)
+5. [Training control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) and [initial nine-plugin compatibility matrix](initial%20findings/plugin-compatibility-matrix.txt)
 6. [Browser and favorite identity](initial%20findings/browser-identity-research.txt)
 
 Each new report must give source/version, finding, confidence, useful integration

@@ -122,3 +122,7 @@ map will be updated as new evidence arrives.
 The [eight-lesson matrix](LESSON_EVIDENCE_MATRIX.md) now links an exact outcome/evidence audit for every lesson. Several instructional technique claims exceed the completion rules; define intended outcome versus technique grading, event ordering, confidence and deadline behavior before adding rank profiles. The individual reports distinguish tested predicates from physically reachable gameplay.
 
 [Cosmetic restore diagnostic](campaign/cosmetic-restore-probe-01.md) compiled and ran against the unchanged production transaction class: six cases and six control checks passed. Later fake-host code/enabled edits were overwritten by Restore, confirming the source behavior. The folder includes the reviewed reproducer, header, CMake input and observed output; no actual cosmetic/game operation occurred.
+
+## Default-plugin control contracts
+
+The [control and ownership matrix](PLUGIN_CONTROL_MATRIX.md) maps six newly audited plugins to suitable actions or toggles. Dribble, Redirect and Rebound are one-shot ball mutations; Recovery repeats car-velocity changes; Defender is a goalkeeper-feed generator; Mechanical transforms intercepted controls. Their ordinary Freeplay gates are not proven compatible with MCT Soccar. Preserve exact context/actor/attempt identity, expose requested versus observed state, stop mutations before resets, and record assistance in result/ghost compatibility. Cvar parser and host cleanup semantics remain separate research questions.
