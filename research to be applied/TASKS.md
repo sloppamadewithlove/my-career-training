@@ -119,3 +119,5 @@ traces from static declarations or UI controls alone.
 | NATIVE-PACK-ROW-01 | Row content, states, enum mapping and authored layout | Complete; seven same-movie classes plus local sprite metadata; imported art/fonts unresolved |
 | CVAR-SEMANTICS-01 | Numeric range helpers versus installed host getters | Complete; wrapper forwarding established; core analysis incomplete, parser semantics unresolved |
 | CONTROLLER-OVERLAY-SOURCE-01 | Exact external overlay artifact versus historical source and device support | Complete; XInput/RawInput imports, skin assets and source mismatch; device behavior unmeasured |
+| MAP-GEOMETRY-01 | Standard-field assumptions and custom arena contract | Complete; fixed planes, telemetry omissions and map-specific acceptance requirements |
+| GHOST-VISUAL-01 | Richer ghost rendering and actor/mesh boundaries | Complete; supported visual primitives; textured mesh and live cleanup remain unresolved |
