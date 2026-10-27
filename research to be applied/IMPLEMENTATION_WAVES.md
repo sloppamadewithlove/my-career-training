@@ -8,6 +8,8 @@ This is a proposed build order, not a claim that the changes are built or game-t
 
 - Keep a session/attempt/profile identity through setup, ready, active, completed and saved acknowledgement. Confirm the observed whole-actor setup before starting the clock. Ball angular velocity is currently outside the confirmation gate.
 - Decide whether a real pause suspends a legacy lesson or interrupts it. An open MCT overlay alone does not establish a real pause. The documented RLBot elapsed clock advances during pause; actual installed packet delivery still needs observation.
+- Apply that decision across worker cadence, engine accumulation, recording timestamps, ghost playback and automatic retry. The [reviewed pause contract](campaign/pause-policy-01.md) distinguishes raw timestamps from active practice time and names the required reset points; it does not select a policy or change production behavior.
+- Declare the resource policy as part of a repeatable setup. Current resets restore actor boost, but do not restore boost-pad cooldowns. Ordinary recordings with equal empty mutator dictionaries do not establish equivalent game settings. See [boost and pad reset evidence](campaign/boost-resource-reset-01.md).
 - Specify terminal ball behavior separately from timeout detection. The current terminal path does not hide the ball. Installed fade wrappers are replay-gated, so they are not a supported Soccar solution. Generic actor hiding remains a candidate whose visibility, collisions, scoring and restore effects need testing.
 - Keep save acknowledgement separate from visual feedback. Cover delayed/lost acknowledgement, write failure, duplicate completion and Return, not only successful Retry.
 
@@ -25,6 +27,8 @@ Start in `NativeCareerLayout.h`, authored menu actions, `bridge.py`, `training/c
 
 Acceptance: all eight rank choices per supported lesson, Back/reopen/favorite routes, matching setup and grading, one qualifying example and a meaningful near miss for each declared profile. An unavailable profile must remain visibly unavailable until authored; labels alone are insufficient.
 
+Every rank change follows the idle/new-session route, including rank pairs with the same bot roster. Situation changes within a session retain its rank. The [transition contract](campaign/rank-transition-01.md) and [eight existing offline lifecycle checks](campaign/rank-lifecycle-tests-01.md) cover selected cleanup and career-preservation conditions; they do not establish live menu traversal or complete profile coverage.
+
 ## 3. Apply the stock browser and HUD composition
 
 **Player result:** the browser retains MCT content while using a consistent row hierarchy, selection feedback, controller prompts and in-level information.
@@ -34,6 +38,8 @@ Stock row metadata now establishes title/classification, alternate creator or pu
 Start in native layout builders, authored menu/HUD views and their state producers. Evidence: [browser rows](campaign/native-pack-row-01.md), [browser flow](campaign/native-pack-browser-01.md), [HUD flow](campaign/hud-flow-01.md), [HUD timeline](campaign/hud-timeline-01.md), [controller evidence](campaign/controller-evidence-01.md).
 
 Acceptance: mouse and controller focus, Back, refresh during selection, long titles, text scaling/aspect ratios and a real attempt's lesson/tier/timer/progress identity. Keep controller artwork, effective bindings and sampled logical inputs distinct.
+
+Keep serialized render payloads within the installed client's [65,535-byte limit](campaign/render-message-budget-01.md), and measure the real fixture before choosing a smaller engineering budget. Message-count bounds are not performance measurements. Verify visual cleanup after Return and disconnect: Core does request cleanup, while a [conditional clear-queue progress issue](campaign/render-cleanup-01.md) still needs a bounded reproducer and runtime reachability evidence.
 
 ## 4. Make Training settings show actual feature status
 

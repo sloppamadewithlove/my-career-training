@@ -1,0 +1,105 @@
+{
+  "checkpoint": 6,
+  "scheduled_utc": "2026-10-27T12:54:12.0000000Z",
+  "recorded_utc": "2026-10-27T12:54:12.0002710Z",
+  "coordinator_checked_utc": "2026-10-27T12:56:39.5566865Z",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "truncated": false,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "README.md",
+      "TASKS.md",
+      "campaign/artifact-01.md",
+      "campaign/boost-resource-reset-01.md",
+      "campaign/camera-01.md",
+      "campaign/cosmetic-code-01.md",
+      "campaign/garage-01.md",
+      "campaign/garage-02.md",
+      "campaign/ghost-01.md",
+      "campaign/ghost-02.md",
+      "campaign/ghost-playback-01.md",
+      "campaign/ghost-visual-01.md",
+      "campaign/hud-inventory-01.md",
+      "campaign/native-pack-browser-01.md",
+      "campaign/nativeui-01.md",
+      "campaign/pack-load-api-01.md",
+      "campaign/pause-clock-probe-01.md",
+      "campaign/pause-policy-01.md",
+      "campaign/physics-01.md",
+      "campaign/rank-lifecycle-tests-01.md",
+      "campaign/rank-transition-01.md",
+      "campaign/render-cleanup-01.md",
+      "campaign/render-message-budget-01.md",
+      "campaign/replay-import-feasibility-01.md",
+      "campaign/stock-feedback-cues-01.md",
+      "campaign/stock-training-progression-01.md",
+      "checkpoints/hour-05.json",
+      "evidence/pause-clock-probe-01.json",
+      "evidence/pause-clock-probe-observed.json",
+      "evidence/pause-clock-probe-source-manifest.json",
+      "evidence/pause-policy-review-01.json",
+      "experiments/research_pause_clock_probe.py.txt"
+    ],
+    "total_bytes": 1451089,
+    "files": 146
+  },
+  "publication_commit_at_check": "d7ac816a821719f94c559cc1c4cba5fe699333a2",
+  "approved_campaign_reports": 100,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running; monitor process confirmed alive",
+    "deepseek_render_packet_probe": "repair running after independent review rejected diagnostic; not executed",
+    "luna_source_freshness": "complete; coordinator rehashed all 21 paths in both checkouts",
+    "luna_handoff_gaps": "running; builder-ready dependency research"
+  },
+  "source_freshness": {
+    "selected_paths": 21,
+    "checked_at_utc": "2026-10-27T12:55:38Z",
+    "comparison_to": "2026-10-27T07:33:35.853112Z",
+    "scope": "Selected source only; excludes docs, binaries, deployed artifacts and other paths",
+    "results": {
+      "active_matches_recorded_active_checkout": {
+        "matched": 21,
+        "selected": 21,
+        "changed_paths": []
+      },
+      "frozen_matches_recorded_research_snapshot": {
+        "matched": 21,
+        "selected": 21,
+        "changed_paths": []
+      },
+      "active_and_frozen_identical": {
+        "matched": 13,
+        "selected": 21,
+        "different_paths": [
+          "src/my_career_training/bridge.py",
+          "src/my_career_training/game_worker.py",
+          "src/my_career_training/training/catalog.py",
+          "src/my_career_training/training/scenarios.py",
+          "src/my_career_training/training/engine.py",
+          "plugin/include/NativeCareerLayout.h",
+          "plugin/include/NativeMatchLayout.h",
+          "native_ui/menus/MctPauseMenu.as"
+        ]
+      }
+    }
+  },
+  "verification_this_hour": [
+    "Pause-clock diagnostic completed with 11 preconditions and 2 baseline controls; actual frozen source unchanged",
+    "Pause policy source contract independently reviewed; no production policy selected or implemented",
+    "Eight selected existing lifecycle cases passed offline using fake worker/process boundaries",
+    "Conditional Core render cleanup progress issue documented; runtime reachability unverified",
+    "Stock progress, feedback, replay-import, boost-resource and rank-transition research reconciled with source",
+    "Two consistency audits corrected historical wording and artifact/runtime distinctions"
+  ],
+  "limits": [
+    "Document activity does not prove uninterrupted worker activity or wake Codex",
+    "No live game operation, attachment, loaded-file replacement or full native compilation by this campaign",
+    "Frozen and active source differ on eight selected files as already recorded in the baseline; neither identifies deployed artifacts",
+    "Raw game assets, decompiler output and private game logs remain private"
+  ],
+  "next_checkpoint_utc": "2026-10-27T13:54:12Z"
+}
