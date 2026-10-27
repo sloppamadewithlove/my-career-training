@@ -1,0 +1,341 @@
+{
+  "checked_at_utc": "2026-10-27T13:08:13.7260979Z",
+  "scope": "All Python source files in isolated diagnostic checkout; compared to frozen reviewed-training",
+  "count": 55,
+  "files": [
+    {
+      "path": "src/my_career_training/__init__.py",
+      "sha256": "040425c900a39b5fe5d3dd1e581832d92d8868f219b63ca7e73e94aa205a862b",
+      "bytes": 94,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/__main__.py",
+      "sha256": "24c66de06b4a8a17cf3edc6ec89edc146b342b3953732aaad4e494476e6cf464",
+      "bytes": 4012,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/adapter.py",
+      "sha256": "98d1f4612967eda756b21857dfd198a3a12e4a211684067a248b9a829b74285c",
+      "bytes": 12018,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/app.py",
+      "sha256": "66e31d6e400a95d7163e12f1cfbbe0887515f671e25da423cc198a422bfda241",
+      "bytes": 4061,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bakkes_installation.py",
+      "sha256": "b8c32163e146120a01007fea2c6785e3fd67b7048c0df4f8aab46bfc98a5495d",
+      "bytes": 6507,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bootstrap.py",
+      "sha256": "82fef12f0d472ed0927996ff691e4b9babb1884ba9f8c02df4315b49557ca7ec",
+      "bytes": 19049,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bridge.py",
+      "sha256": "ac502d1f19810baca479a534aa766a6afbea7ba57a405452835cc9dcff379ac2",
+      "bytes": 139135,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/browser_images.py",
+      "sha256": "c66c61fe5b5e0b609a939ffba8dd1481909838a92812df3acd6505994601e9b4",
+      "bytes": 24147,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/career.py",
+      "sha256": "245fd312b30333eee65c868181bb18c38fca7001646d2b0eb9cc3a794480cdb0",
+      "bytes": 51895,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/community_discovery.py",
+      "sha256": "015787c05fa9388c86fc598b475e1b549688181532993ceac7937287262ae8dd",
+      "bytes": 37834,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/community_plugins.py",
+      "sha256": "f308d070a291b678dba9e408ec47c8dee088bf9d2488d683ec4bb935472c5c21",
+      "bytes": 38509,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/community_session.py",
+      "sha256": "8986e64d2374a99261ea2f49c587058589a165065ce1ec40dae296ccaac11bc4",
+      "bytes": 60257,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/content.py",
+      "sha256": "da2530e3b0894ab40b030017e09c79326d90f296c00930a4da30d55c95cbcfd4",
+      "bytes": 10722,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/controller_overlay.py",
+      "sha256": "27b255ac1cbafc37d39358922aa349c217d3012db075d40d5d749f3f38293e95",
+      "bytes": 13002,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/game_worker.py",
+      "sha256": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2",
+      "bytes": 90814,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/ingame.py",
+      "sha256": "40b79ba174318cd906bf3241cc121ee19c79a9814705457e2078b94b83f42b16",
+      "bytes": 7381,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/lifecycle.py",
+      "sha256": "c2cc32e36e03aa639c40165aa0f459aef301529734578acebcfbc375a48914ae",
+      "bytes": 3176,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/map_guard.py",
+      "sha256": "b2e79d11639b9c29908ea9e5053d23fbf5efddaff58d5cd03a125be5fa4746a6",
+      "bytes": 4986,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_community_binding.py",
+      "sha256": "f4dc18189ba3a910d42a61d5cc7f54e3c567c12741f1673a3f7c9b7bb1fd3524",
+      "bytes": 10151,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_community.py",
+      "sha256": "1edc59780dcba5aec095081593128ed7fcdd13dcbaa654de34c8a8a6ea33a0d6",
+      "bytes": 21224,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_compatibility.py",
+      "sha256": "f798acf33ebb417049c7ee5f0cd7dc096b78def65c735fc3f6d1cb21a4f0ba2c",
+      "bytes": 6150,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_launch.py",
+      "sha256": "128fd604e182a2383ca831a2a376557a8cca0bc0889744078f3f9d7ff73f2f6d",
+      "bytes": 64421,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_menu_assets.py",
+      "sha256": "0ea32278fa87e6b950a801801231aa5c332079662d42149b3b1eef85a3b8c7f6",
+      "bytes": 50080,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/native_offline.py",
+      "sha256": "11db4d1163cfba1b74026ff877c57ecb564fb039f40510c2665df255505987bb",
+      "bytes": 5511,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/platforms.py",
+      "sha256": "c0b7eb3c56f279e70080b05f458e4842b29366251432d1de990b88a2147cce39",
+      "bytes": 6532,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/plugin_session.py",
+      "sha256": "27c48c4be089b810c7b4843a6bf5a6d3baf08a8bba5be0d8501de2e6eef2919f",
+      "bytes": 32221,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/prerequisites.py",
+      "sha256": "62dd69f7d182aa2b848560356b2ff6e1ba09992809616be16c8a8f48b092c3bd",
+      "bytes": 9189,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/reference_capture.py",
+      "sha256": "93c840644bbcf8fb93c2c53d72ffff03bc8303a9b1b60ea86ebba14449bf9440",
+      "bytes": 12147,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/review.py",
+      "sha256": "d136581cf1eaa07e0c5e359910810999dc9b13bda6dc8faab31db563f14d452b",
+      "bytes": 10379,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/setup_dialog.py",
+      "sha256": "58095b1f314fa8a7f92909778327f8c88ae8aa6ca53919c2fd387617f0b5dafe",
+      "bytes": 9259,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/storage.py",
+      "sha256": "3a291463f8ffdbab63adc4197a5b957413452aa011d4491895c722c151dd10de",
+      "bytes": 8410,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/thumbnail_cache.py",
+      "sha256": "42e2c1263419520d209e293592f242d4160e9c3ad474b9e5597a7980a4dfdca7",
+      "bytes": 24637,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/workshop.py",
+      "sha256": "4dea4b359f612389d6186c6fed640c2ee207bf92b4ad1bd6b4e4d56bfb9eb945",
+      "bytes": 13655,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/__init__.py",
+      "sha256": "6b9e406b1532d1064499ce5918d6a4187a7d08300f769c8b6a9fb52e1687a12e",
+      "bytes": 5925,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/driving.py",
+      "sha256": "e6d97e77535d6cf954b4bed3b100585843d006315af148175e43cd83f60e2b56",
+      "bytes": 3582,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/learned.py",
+      "sha256": "4867f44db30167d041a9ff72700bfa76fcc160b8c3767bab681777f0c77ca648",
+      "bytes": 14051,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/physics.py",
+      "sha256": "d2aad719b6fea7b32883b8bd45c9af882e1eb01b63bf5df2de31fc1784981928",
+      "bytes": 4481,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/providers.py",
+      "sha256": "60b3ed97f77d9527b8da8455f3e484f22ba0d648778a087ec924dc33c29f36e4",
+      "bytes": 8816,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/tactics.py",
+      "sha256": "f3a0ef1dd7d2714773e2e43448572fe9914eee8727798b25fee904159734af2f",
+      "bytes": 7907,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/_vendor/__init__.py",
+      "sha256": "28c6f0ce9dc8650418bc7ac2524c740da3cfbfed285b21b951021d662b152b1e",
+      "bytes": 75,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/_vendor/necto_obs.py",
+      "sha256": "c4d5bf8a09f22d1503947a0e7ea71a6f38620fbe3b66ab0235ad0d159527ec73",
+      "bytes": 6099,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/bots/_vendor/nexto_obs.py",
+      "sha256": "5ccc84992f67de079cfa9804d65cb4c34fa3247e04767e9895b58ffb9461b603",
+      "bytes": 11359,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/__init__.py",
+      "sha256": "35aa775d8a2c5ba61d6a14f3f75d275c3c40640c4092cb6fca397abc46322162",
+      "bytes": 1501,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/bot_reference.py",
+      "sha256": "80c8a4e07294641465fb5dcc450f5de385db9641e4b7b5d002967724864ccd46",
+      "bytes": 52438,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/cadence.py",
+      "sha256": "fdbcda80e4fadb135713314e0fb65e2bcf2a3cf848f9261413fc2803555ee240",
+      "bytes": 5228,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/catalog.py",
+      "sha256": "1c05fe5ed75296c5c75848f26e7c01a77160b16938c76c55e15536828f58fe73",
+      "bytes": 9097,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/coach.py",
+      "sha256": "0807fda8daf33ae67a9d1f31ccf93ecb10acccd21bb7efa3d9fb8a7fec905325",
+      "bytes": 25430,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/coaching.py",
+      "sha256": "3b8336a54f4997479f1ce56f787377eb748683a117c8ba24a82e6e3c03b25d3b",
+      "bytes": 5848,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/controller.py",
+      "sha256": "899dcb25e1da465af2b1959b02ac66cfd947ee0d5e6864ef79e18ae23ccb6723",
+      "bytes": 4400,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/engine.py",
+      "sha256": "37028379a268d6f6e19d42b32a9e3c20778ed4f41d87bfbd3bc76955c61c602a",
+      "bytes": 63844,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/native_packs.py",
+      "sha256": "c28c9d7bfa733ad76ac7af206814bb7ab3c0c55f70517fd9c831f2c16fa55880",
+      "bytes": 8786,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/packs.py",
+      "sha256": "4597d84c05102df13c107c6722541e30d3d7b70b291f726a13b55ec651f77f8b",
+      "bytes": 4690,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/recordings.py",
+      "sha256": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+      "bytes": 22459,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/scenario_setup.py",
+      "sha256": "d2421bf8f7ac2508e9f3a65db21b2847a0e147b75cc62a6159a976999536a0fe",
+      "bytes": 5265,
+      "matches_frozen": true
+    },
+    {
+      "path": "src/my_career_training/training/scenarios.py",
+      "sha256": "35714a224aa8765ae62be6fde3df6dc87c088c32d297adcda3795d0bc682d979",
+      "bytes": 23706,
+      "matches_frozen": true
+    }
+  ],
+  "diagnostic": {
+    "path": "tools/research_render_packet_probe.py",
+    "sha256": "7429d38e50edcbcdb1fd8148b71fc4aba447f89889d17c298f2d4dc904800f49"
+  }
+}

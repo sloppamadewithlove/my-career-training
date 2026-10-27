@@ -1,0 +1,41 @@
+{
+  "task": "RENDER-PACKET-PROBE-01",
+  "scope": "Actual client serialization with synthetic session and fake socket; no server/game acceptance",
+  "failed_attempt": {
+    "resolution": "Explicit module imports; separately reviewed before rerun",
+    "error": "AttributeError: catalog_module was a function due to package re-export",
+    "run": {
+      "started_at_utc": "2026-10-27T13:06:19.7429504Z",
+      "finished_at_utc": "2026-10-27T13:06:20.7822374Z",
+      "elapsed_seconds": 1.039287,
+      "exit_code": 1,
+      "diagnostic_sha256": "a7592aa939e5206a9796bffc583b90238119f912806a0266d8e92f641d4c1d18"
+    },
+    "stage": "Before visual fixtures"
+  },
+  "successful_attempt": {
+    "started_at_utc": "2026-10-27T13:08:25.5666346Z",
+    "finished_at_utc": "2026-10-27T13:08:26.6568861Z",
+    "elapsed_seconds": 1.0902515,
+    "exit_code": 0,
+    "diagnostic_sha256": "7429d38e50edcbcdb1fd8148b71fc4aba447f89889d17c298f2d4dc904800f49"
+  },
+  "checks": 257,
+  "failures": 0,
+  "visual_fixtures": 10,
+  "independent_review": {
+    "reviewed_script_sha256": "7429d38e50edcbcdb1fd8148b71fc4aba447f89889d17c298f2d4dc904800f49",
+    "latest_private_review_sha256": "1939f12266ebe2941ba842a84524d64e668689aca8bf63c13e6f62875267b948",
+    "verdict": "Accepted with source/runtime scope limits; import repair separately accepted",
+    "role": "Separate DeepSeek reviewer",
+    "coordinator_notes": "Reviewed and executed copies matched. Reviewer wording about controller/recordings shadowing is broader than source evidence; only catalog was observed to bind a function. Windows logger import can invoke console-color shell command, explicitly disclosed."
+  },
+  "source_files_checked_before_and_after": 55,
+  "source_changes": [],
+  "limits": [
+    "257 assertions are diagnostic controls, not independent product acceptance cases",
+    "Full engine state, native HUD appearance, server budgets, persistence and physics not exercised",
+    "No installed component replaced and no game/server process launched",
+    "Parent captured stdout; bytecode writes disabled; installed logging may run Windows color command"
+  ]
+}

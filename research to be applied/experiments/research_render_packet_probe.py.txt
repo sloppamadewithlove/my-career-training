@@ -1,0 +1,1181 @@
+"""Offline research diagnostic: measure real RLBot render payloads for MCT.
+
+This is a research tool, not a product feature and not a test. It never
+connects a socket, starts an RLBot server, launches Rocket League or any other
+game/server process, or touches the network. One caveat, stated precisely:
+importing the installed ``rlbot`` package runs ``rlbot.utils.logging``, whose
+``get_logger`` calls ``check_color`` on Windows, which issues the harmless
+console-color shell command ``os.system("color")``. That dependency behavior is
+neither suppressed nor monkeypatched here; it is recorded in the report's
+limitations.
+It drives the actually installed ``rlbot`` ``Renderer`` and the real
+``SocketRelay.send_msg``/``send_bytes`` code paths against a fake in-memory
+socket, and the unchanged ``GameSession.render``/``draw_target``/
+``draw_ghost_actions`` methods bound to a synthetic session built with
+``GameSession.__new__`` (no ``__init__``, no thread), so the measured payload
+bytes and RenderMessage counts come from production code.
+
+Scope of the claim: the *client* pipeline only (Python serialization, the 2-byte
+big-endian length prefix, and the client-side oversized rejection). It says
+nothing about the RLBot server, the closed-source Bridge game-tick byte budget,
+or game-side draw persistence.
+
+Output is one sanitized JSON document on stdout (relative source labels, no
+absolute paths, no credentials). No files are written by this script; bytecode
+writing is disabled before the imports so importing the project does not create
+``__pycache__`` entries either. Exit code is non-zero if any check fails.
+
+Run only after parent review, offline, with the project interpreter.
+"""
+
+from __future__ import annotations
+
+import sys
+
+# Must precede every project/rlbot import so the "writes no files" claim holds.
+sys.dont_write_bytecode = True
+
+import hashlib  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
+import threading  # noqa: E402
+import types  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from rlbot import flat  # noqa: E402
+from rlbot.interface import MAX_SIZE_2_BYTES, SocketRelay  # noqa: E402
+from rlbot.managers.rendering import Renderer  # noqa: E402
+
+from my_career_training.game_worker import GameSession  # noqa: E402
+
+# ``my_career_training.training`` re-exports the *function* ``catalog``
+# (training/__init__.py:3), so ``from ... import catalog`` binds that function and
+# not the submodule. Import the submodules explicitly by module path.
+import importlib  # noqa: E402
+
+catalog_module = importlib.import_module("my_career_training.training.catalog")
+controller_module = importlib.import_module("my_career_training.training.controller")
+recordings_module = importlib.import_module("my_career_training.training.recordings")
+
+# Pinned environment this diagnostic is written against.
+EXPECTED_RLBOT_VERSION = "2.0.0b56"
+EXPECTED_FLATBUFFERS_VERSION = "0.19.0"
+# Documented installed-file pins from docs/render-message-budget-01.md.
+DOCUMENTED_PINS = {
+    "rlbot/managers/rendering.py": (
+        "7da1cafc8a3d5b57b1677f54de2a6337b8f8c13e07cd210fc7c7cf3a91a5c7a0"
+    ),
+    "rlbot/interface.py": (
+        "abc030a97cda257a988abdb7b3915e5fbfdd981e95373624609200e79eb81822"
+    ),
+}
+
+# The 127 figure from docs/render-message-budget-01.md is a conservative sum of
+# independent per-branch maxima. It is NOT an attainable maximum and is not
+# asserted against any measurement here.
+CONSERVATIVE_INDEPENDENT_BRANCH_UPPER_BOUND = 127
+SOFT_CEILING_BYTES = 49152
+HARD_PROTOCOL_CEILING_BYTES = 65535
+OVERSIZED_TEXT_LENGTH = 70000
+
+# Source-derived per-target line counts (game_worker.py:1492-1515).
+TARGET_LINE_COUNTS = {"gate": 24, "goal": 4, "plane_axis_1": 4}
+
+CHECKS: list[dict] = []
+
+
+def check(name: str, ok: bool, detail=None) -> bool:
+    CHECKS.append({"name": name, "ok": bool(ok), "detail": detail})
+    return bool(ok)
+
+
+def rel(path) -> str:
+    """Relative source label for repo files; basename only for installed files."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return resolved.name
+
+
+def sha256_of(path) -> str:
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return "unavailable"
+
+
+def module_source(module) -> dict:
+    path = getattr(module, "__file__", None)
+    if not path:
+        return {"label": "unavailable", "sha256": "unavailable", "bytes": None,
+                "outside_repo": None}
+    resolved = Path(path).resolve()
+    return {
+        "label": rel(resolved),
+        "sha256": sha256_of(resolved),
+        "bytes": resolved.stat().st_size if resolved.exists() else None,
+        "outside_repo": REPO_ROOT not in resolved.parents,
+    }
+
+
+# --------------------------------------------------------------------------
+# Fake in-memory socket. It records frames and refuses every network verb.
+# --------------------------------------------------------------------------
+
+
+class FakeSocket:
+    """In-memory stand-in for ``socket.socket``; never performs I/O."""
+
+    def __init__(self):
+        self.sent: list[bytes] = []
+        self.connect_calls = 0
+        self.recv_calls = 0
+        self.timeout_calls = 0
+        self.setsockopt_calls = 0
+        self.shutdown_calls = 0
+        self.close_calls = 0
+
+    def sendall(self, data):
+        self.sent.append(bytes(data))
+
+    def connect(self, address):  # pragma: no cover - must never run
+        self.connect_calls += 1
+        raise AssertionError("diagnostic must not connect a socket")
+
+    def recv(self, size):  # pragma: no cover - must never run
+        self.recv_calls += 1
+        raise AssertionError("diagnostic must not read from a socket")
+
+    def recv_into(self, view):  # pragma: no cover - must never run
+        self.recv_calls += 1
+        raise AssertionError("diagnostic must not read from a socket")
+
+    def settimeout(self, value):
+        self.timeout_calls += 1
+
+    def setsockopt(self, *args):
+        self.setsockopt_calls += 1
+
+    def setblocking(self, flag):
+        return None
+
+    def shutdown(self, how):
+        self.shutdown_calls += 1
+
+    def close(self):
+        # Harmless: SocketRelay.__del__ may call this.
+        self.close_calls += 1
+
+    def getsockname(self):
+        return ("127.0.0.1", 0)
+
+
+class RecordingHandler(logging.Handler):
+    def __init__(self):
+        super().__init__(level=logging.DEBUG)
+        self.records: list[dict] = []
+
+    def emit(self, record):
+        self.records.append({"level": record.levelname, "message": record.getMessage()})
+
+
+def make_relay(agent_id: str) -> tuple[SocketRelay, FakeSocket, RecordingHandler]:
+    """Build a SocketRelay wired to a fake socket without calling connect()."""
+    handler = RecordingHandler()
+    logger = logging.getLogger(f"probe.{agent_id}")
+    logger.handlers = [handler]
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    relay = SocketRelay(agent_id, logger=logger)
+    socket = FakeSocket()
+    relay.socket = socket
+    # Set directly; SocketRelay.connect() is never called.
+    relay.is_connected = True
+    relay.can_render = True
+    relay._running = False
+    return relay, socket, handler
+
+
+def make_capturing_relay(agent_id: str):
+    """Relay whose ``send_msg`` is a recording wrapper around the real one.
+
+    Instrumentation, stated precisely: the wrapper re-serializes the *same*
+    message object with the same ``flat.InterfacePacket(msg).pack()`` call that
+    ``SocketRelay.send_msg`` performs, records those bytes, and then delegates to
+    the unchanged ``SocketRelay.send_msg``. The recorded bytes therefore come
+    from the production serialization path, not from a hand-built reconstruction.
+    For accepted sends the recorded bytes are asserted equal to the bytes the
+    fake socket received, which proves the delegation really happened.
+    """
+    relay, socket, handler = make_relay(agent_id)
+    captured: list[dict] = []
+
+    def wrapper(msg):
+        payload = flat.InterfacePacket(msg).pack()
+        captured.append({"kind": type(msg).__name__, "payload": payload})
+        SocketRelay.send_msg(relay, msg)
+
+    relay.send_msg = wrapper
+    return relay, socket, handler, captured, wrapper
+
+
+def decode_frames(socket: FakeSocket) -> list[dict]:
+    frames = []
+    for raw in socket.sent:
+        prefix = raw[:2]
+        size = int.from_bytes(prefix, "big")
+        payload = raw[2:]
+        frames.append(
+            {
+                "prefix_hex": prefix.hex(),
+                "prefix_value": size,
+                "payload_bytes": len(payload),
+                "payload": payload,
+                "prefix_matches_payload": size == len(payload),
+            }
+        )
+    return frames
+
+
+RENDER_VARIETIES = {"Line3D", "PolyLine3D", "Rect2D", "Rect3D", "String2D", "String3D"}
+
+
+def describe_payload(payload: bytes) -> dict:
+    """Decode one serialized InterfacePacket payload for description only.
+
+    Byte counts always come from the raw frame; this only names the message
+    kinds. A decode failure is reported as ``unparsed`` and fails a check.
+    """
+    try:
+        packet = flat.InterfacePacket.unpack(payload)
+        message = packet.message
+    except Exception as error:  # noqa: BLE001 - reported, not hidden
+        return {
+            "kind": "unparsed",
+            "group_id": None,
+            "message_counts": {},
+            "total_messages": 0,
+            "text_utf8_bytes": 0,
+            "polyline_points": 0,
+            "decode_error": f"{type(error).__name__}: {error}",
+        }
+    if isinstance(message, flat.RenderGroup):
+        counts: dict[str, int] = {}
+        text_bytes = 0
+        polyline_points = 0
+        render_messages = message.render_messages
+        for render_message in render_messages:
+            variety = render_message.variety
+            name = type(variety).__name__
+            counts[name] = counts.get(name, 0) + 1
+            if isinstance(variety, flat.String2D):
+                text_bytes += len(variety.text.encode("utf-8"))
+            elif isinstance(variety, flat.PolyLine3D):
+                polyline_points += len(variety.points)
+        return {
+            "kind": "RenderGroup",
+            "group_id": message.id,
+            "message_counts": counts,
+            "total_messages": len(render_messages),
+            "text_utf8_bytes": text_bytes,
+            "polyline_points": polyline_points,
+        }
+    return {
+        "kind": type(message).__name__,
+        "group_id": getattr(message, "id", None),
+        "message_counts": {},
+        "total_messages": 0,
+        "text_utf8_bytes": 0,
+        "polyline_points": 0,
+    }
+
+
+# --------------------------------------------------------------------------
+# Synthetic fixtures. All labels are short and synthetic; no owner data.
+# --------------------------------------------------------------------------
+
+# Quaternion convention is (w, x, y, z) (recordings.py:333), so [0, 0, 0, 1] is
+# a normalized 180-degree rotation about z -- deliberately non-identity so the
+# rotation path in ghost_lines is exercised. It is not [1, 0, 0, 0] (identity).
+SYNTHETIC_POSE = {"position": [0.0, 0.0, 17.0], "quaternion": [0.0, 0.0, 0.0, 1.0]}
+SYNTHETIC_ACTIONS = {
+    "throttle": 1.0,
+    "steer": -0.4,
+    "pitch": 0.0,
+    "yaw": 0.0,
+    "roll": 0.0,
+    "jump": True,
+    "boost": True,
+    "handbrake": False,
+}
+SYNTHETIC_CHANGED_ACTIONS = {**SYNTHETIC_ACTIONS, "steer": 0.9, "handbrake": True}
+SYNTHETIC_FRAME = {"actions": SYNTHETIC_ACTIONS, "time": 1.5}
+SYNTHETIC_CHANGED_FRAME = {"actions": SYNTHETIC_CHANGED_ACTIONS, "time": 1.5}
+SYNTHETIC_COACHING = {
+    "message": "synthetic coaching message",
+    "interruption_reason": "synthetic interruption reason",
+    "stages": [{"title": "synthetic stage one"}, {"title": "synthetic stage two"}],
+    "next_stage": 0,
+}
+SYNTHETIC_FEEDBACK = "synthetic feedback"
+SYNTHETIC_DURATION = 1.25
+
+
+class FakeEngine:
+    """Minimal stand-in for the training engine used by GameSession.render.
+
+    Not live and not the full engine: it only supplies the attributes and the
+    ``summary()`` shape that ``render`` reads.
+    """
+
+    def __init__(self, lesson, preferences, *, state="active", started_at=0.0,
+                 finished=False, coaching=None):
+        self.lesson = lesson
+        self.preferences = preferences
+        self.state = state
+        self.started_at = started_at
+        self.finished = finished
+        self.coaching = dict(coaching or {})
+
+    def summary(self):
+        return {
+            "coaching": dict(self.coaching),
+            "duration": SYNTHETIC_DURATION,
+            "feedback": SYNTHETIC_FEEDBACK,
+            "id": "synthetic-attempt",
+        }
+
+
+def practice_snapshot(*, visible=True, with_controller=True) -> dict:
+    lines = recordings_module.ghost_lines(SYNTHETIC_POSE)
+    snapshot = {"visible": visible, "label": "synthetic ghost", "lines": lines}
+    if with_controller:
+        snapshot["controller"] = controller_module.controller_display(
+            SYNTHETIC_ACTIONS, source="ghost"
+        )
+    return snapshot
+
+
+def coach_snapshot(*, visible=True) -> dict:
+    return {
+        "visible": visible,
+        "label": "synthetic coach",
+        "lines": recordings_module.ghost_lines(SYNTHETIC_POSE),
+    }
+
+
+# Attributes ``GameSession.render``/``draw_target``/``draw_ghost_actions`` read.
+# Verified against game_worker.py:1406-1515: render touches cancel_start,
+# stopping, renderer, engine, request, practice_snapshot, practice,
+# legacy_playback, coach_snapshot; the two draw helpers touch only renderer.
+# This is the explicit seed list only; it is not a general guard against a
+# future render() reading an attribute that is not listed here.
+RENDER_ATTRIBUTES = (
+    "cancel_start", "stopping", "renderer", "engine", "request",
+    "practice_snapshot", "practice", "legacy_playback", "coach_snapshot",
+)
+
+
+def build_session(lesson, preferences, *, native_hud, practice, coach, engine):
+    """Bind the real render methods to a synthetic session.
+
+    One code path only: ``GameSession.__new__`` plus explicit attribute seeding.
+    ``__init__`` is never called, so no thread, no ``session_uuid``, no
+    ``.review`` import and no other constructor side effect runs.
+    """
+    session = GameSession.__new__(GameSession)
+    session.request = {
+        "session_id": "00000000-0000-4000-8000-000000000000",
+        "lesson_id": lesson["id"],
+        "native_hud": native_hud,
+    }
+    session.cancel_start = threading.Event()
+    session.stopping = False
+    session.renderer = None
+    session.engine = engine
+    session.practice_snapshot = practice
+    # render only tests ``self.practice is None``; the snapshot dict is the
+    # synthetic stand-in for the practice controller object.
+    session.practice = practice if practice.get("visible") else None
+    session.legacy_playback = False
+    session.coach_snapshot = coach
+    return session
+
+
+def session_attributes_present(session) -> dict:
+    """Verify the seeded attributes are real instance fields, not class descriptors."""
+    return {
+        name: (name in vars(session), type(getattr(session, name, None)).__name__)
+        for name in RENDER_ATTRIBUTES
+    }
+
+
+def expected_target_lines(targets) -> int:
+    total = 0
+    for target in targets:
+        kind = target.get("type")
+        if kind == "gate":
+            total += TARGET_LINE_COUNTS["gate"]
+        elif kind == "goal":
+            total += TARGET_LINE_COUNTS["goal"]
+        elif kind == "plane" and target.get("axis") == 1:
+            total += TARGET_LINE_COUNTS["plane_axis_1"]
+        # carry / ball_reset / recovery / other kinds match no draw_target branch.
+    return total
+
+
+def expected_string_count(*, steps, preferences, native_hud, practice_visible,
+                          coach_visible, engine_state, coaching) -> int:
+    """Mirror of the text branches in game_worker.py:1419-1490."""
+    count = 0
+    if preferences["explanations"] and not native_hud:
+        count += 1 + min(6, steps)  # title + steps
+    if preferences["actions"] and not native_hud:
+        count += 1
+    if preferences["timing"] and not native_hud:
+        count += 1
+    message = coaching.get("message")
+    interrupted = engine_state == "interrupted"
+    if interrupted:
+        message = coaching.get("interruption_reason") or SYNTHETIC_FEEDBACK or message
+    if not native_hud and message and (preferences["explanations"] or interrupted):
+        count += 1
+    stages = coaching.get("stages") or []
+    next_stage = coaching.get("next_stage")
+    if (preferences["explanations"] and not native_hud and isinstance(next_stage, int)
+            and 0 <= next_stage < len(stages)):
+        count += 1
+    if practice_visible:
+        count += 1  # "GHOST · label"
+        if not native_hud:
+            count += 2  # draw_ghost_actions: inputs line + provenance line
+    elif coach_visible and preferences["ghost"]:
+        count += 1  # coach label
+    return count
+
+
+def run_fixture(label, lesson, preferences, *, native_hud=False, practice=None,
+                coach=None, state="active", started_at=0.0, finished=False,
+                coaching=None):
+    """Render one bounded synthetic fixture through the real render path."""
+    practice = practice or {}
+    coach = coach or {}
+    relay, socket, handler = make_relay(f"probe/{label}")
+    renderer = Renderer(relay)
+    # Instance-level isolation, exactly as game_worker.setup() does it.
+    renderer._used_group_ids = set()
+    renderer._current_renders = []
+    engine = FakeEngine(lesson, preferences, state=state, started_at=started_at,
+                        finished=finished, coaching=coaching)
+    session = build_session(
+        lesson, preferences, native_hud=native_hud,
+        practice=practice, coach=coach, engine=engine,
+    )
+    session.renderer = renderer
+    # Verify the explicit seed list is present as real instance fields (not class
+    # descriptors) before rendering. This checks only the attributes this probe
+    # seeds; it cannot detect a new attribute a future render() might read.
+    seeded = session_attributes_present(session)
+    check(f"{label}:session_attributes_seeded",
+          all(present for present, _ in seeded.values()), seeded)
+    session.render(SYNTHETIC_FRAME)
+    frames = decode_frames(socket)
+    described = [describe_payload(frame["payload"]) for frame in frames]
+    first = described[0] if described else None
+    practice_visible = bool(practice.get("visible"))
+    coach_visible = bool(coach.get("visible"))
+    result = {
+        "label": label,
+        "lesson_id": lesson["id"],
+        "native_hud": native_hud,
+        "preferences": dict(preferences),
+        "engine_state": state,
+        "engine_started_at": started_at,
+        "engine_finished": finished,
+        "engine_summary": engine.summary(),
+        "target_types": [target.get("type") for target in lesson["targets"]],
+        "step_count": len(lesson["steps"]),
+        "practice_visible": practice_visible,
+        "coach_visible": coach_visible,
+        "session_attributes_seeded": seeded,
+        "frames_sent": len(frames),
+        "payload_bytes": [frame["payload_bytes"] for frame in frames],
+        "prefix_hex": [frame["prefix_hex"] for frame in frames],
+        "prefix_matches_payload": bool(frames)
+        and all(f["prefix_matches_payload"] for f in frames),
+        "counts_available": bool(first) and first["kind"] == "RenderGroup",
+        "message_counts": first["message_counts"] if first else {},
+        "total_messages": first["total_messages"] if first else 0,
+        "text_utf8_bytes": first["text_utf8_bytes"] if first else 0,
+        "polyline_points": first["polyline_points"] if first else 0,
+        "group_id": first["group_id"] if first else None,
+        "expected_target_lines": expected_target_lines(lesson["targets"]),
+        "expected_string_count": expected_string_count(
+            steps=len(lesson["steps"]), preferences=preferences,
+            native_hud=native_hud, practice_visible=practice_visible,
+            coach_visible=coach_visible, engine_state=state,
+            coaching=coaching or {},
+        ),
+        "logger_records": list(handler.records),
+        "socket_connect_calls": socket.connect_calls,
+        "socket_recv_calls": socket.recv_calls,
+        "relay_running": relay._running,
+        "renderer_queue_empty_after": len(renderer._current_renders) == 0,
+        "renderer_group_id_cleared": renderer._group_id is None,
+        "renderer_send_msg_is_production": (
+            getattr(renderer._send_msg, "__func__", None) is SocketRelay.send_msg
+        ),
+    }
+    return result, renderer, relay, socket, handler
+
+
+def find_lesson(lessons, lesson_id):
+    for item in lessons:
+        if item["id"] == lesson_id:
+            return item
+    return None
+
+
+def emit(report: dict) -> int:
+    failures = [entry for entry in CHECKS if not entry["ok"]]
+    report["checks"] = CHECKS
+    report["check_count"] = len(CHECKS)
+    report["failure_count"] = len(failures)
+    report["failures"] = [entry["name"] for entry in failures]
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 1 if failures else 0
+
+
+def main() -> int:
+    report: dict = {
+        "tool": "research_render_packet_probe",
+        "scope": "client pipeline only; not a server, game or persistence simulation",
+        "engine_fixture": "FakeEngine (synthetic, not live, not full engine)",
+        "session_fixture": (
+            "GameSession.__new__ with explicit attributes; __init__ and its "
+            "thread are never run"
+        ),
+        "conservative_independent_branch_upper_bound": (
+            CONSERVATIVE_INDEPENDENT_BRANCH_UPPER_BOUND
+        ),
+        "upper_bound_note": (
+            "127 is a conservative sum of independent per-branch maxima from "
+            "docs/render-message-budget-01.md; it is not an attainable maximum "
+            "and is not asserted against any measurement below."
+        ),
+        "soft_ceiling_bytes": SOFT_CEILING_BYTES,
+        "hard_protocol_ceiling_bytes": HARD_PROTOCOL_CEILING_BYTES,
+        "synthetic_inputs": {
+            "pose": SYNTHETIC_POSE,
+            "actions": SYNTHETIC_ACTIONS,
+            "changed_actions": SYNTHETIC_CHANGED_ACTIONS,
+            "frame_time": SYNTHETIC_FRAME["time"],
+            "coaching": SYNTHETIC_COACHING,
+            "engine_feedback": SYNTHETIC_FEEDBACK,
+            "engine_duration": SYNTHETIC_DURATION,
+            "oversized_text_length": OVERSIZED_TEXT_LENGTH,
+        },
+    }
+
+    # ---- flatbuffer API preconditions (instance fields, not class guesses) --
+    probe_group = flat.RenderGroup([], 0)
+    probe_message = flat.RenderMessage(flat.Line3D())
+    # InterfacePacket.message is a union that includes RenderGroup but not
+    # RenderMessage (docs/rlbot_flatbuffers.pyi.txt:6157), so the packet probe
+    # must wrap the already-built RenderGroup.
+    probe_packet = flat.InterfacePacket(probe_group)
+    api = {
+        "RenderGroup.render_messages": hasattr(probe_group, "render_messages"),
+        "RenderGroup.renders_absent": not hasattr(probe_group, "renders"),
+        "RenderMessage.variety": hasattr(probe_message, "variety"),
+        "RenderMessage.item_absent": not hasattr(probe_message, "item"),
+        "InterfacePacket.message": hasattr(probe_packet, "message"),
+        "InterfacePacket.message_is_render_group": isinstance(
+            probe_packet.message, flat.RenderGroup),
+        "RemoveRenderGroup.id": hasattr(flat.RemoveRenderGroup(0), "id"),
+        "String2D.text": hasattr(flat.String2D("x"), "text"),
+        "PolyLine3D.points": hasattr(flat.PolyLine3D([]), "points"),
+    }
+    report["flatbuffer_api"] = api
+    for name, ok in api.items():
+        check(f"api:{name}", ok)
+
+    # The package re-exports a ``catalog`` function, so verify the bindings used
+    # below are the submodules themselves and not the shadowing functions.
+    bindings = {
+        "catalog_module": catalog_module,
+        "controller_module": controller_module,
+        "recordings_module": recordings_module,
+    }
+    report["module_bindings"] = {
+        name: {"is_module": isinstance(value, types.ModuleType),
+               "name": getattr(value, "__name__", None)}
+        for name, value in bindings.items()
+    }
+    for name, value in bindings.items():
+        check(f"binding:{name}:is_module", isinstance(value, types.ModuleType),
+              getattr(value, "__name__", type(value).__name__))
+    check("binding:catalog_module:not_shadowed_function",
+          catalog_module is not catalog_module.catalog,
+          report["module_bindings"]["catalog_module"])
+
+    # ---- identity of the code under measurement -------------------------
+    identity = {
+        "GameSession.render": GameSession.render,
+        "GameSession.draw_target": GameSession.draw_target,
+        "GameSession.draw_ghost_actions": GameSession.draw_ghost_actions,
+        "Renderer.context": Renderer.context,
+        "Renderer.end_rendering": Renderer.end_rendering,
+        "SocketRelay.send_msg": SocketRelay.send_msg,
+        "SocketRelay.send_bytes": SocketRelay.send_bytes,
+        "ghost_lines": recordings_module.ghost_lines,
+        "catalog": catalog_module.catalog,
+        "lesson": catalog_module.lesson,
+        "controller_display": controller_module.controller_display,
+    }
+    report["method_identity"] = {
+        name: {"module": fn.__module__, "qualname": fn.__qualname__}
+        for name, fn in identity.items()
+    }
+    check("render_is_production_function",
+          identity["GameSession.render"].__module__ == "my_career_training.game_worker"
+          and identity["GameSession.render"].__qualname__ == "GameSession.render")
+    check("draw_target_is_production_function",
+          identity["GameSession.draw_target"].__qualname__ == "GameSession.draw_target")
+    check("draw_ghost_actions_is_production_function",
+          identity["GameSession.draw_ghost_actions"].__qualname__
+          == "GameSession.draw_ghost_actions")
+    check("renderer_is_installed_rlbot",
+          identity["Renderer.end_rendering"].__module__ == "rlbot.managers.rendering")
+    check("relay_is_installed_rlbot",
+          identity["SocketRelay.send_bytes"].__module__ == "rlbot.interface")
+    check("ghost_lines_is_production_function",
+          identity["ghost_lines"].__module__ == "my_career_training.training.recordings")
+    check("catalog_is_production_function",
+          identity["catalog"].__module__ == "my_career_training.training.catalog")
+    check("controller_display_is_production_function",
+          identity["controller_display"].__module__
+          == "my_career_training.training.controller")
+
+    # ---- installed versions and frozen local imports --------------------
+    try:
+        from importlib.metadata import version as dist_version
+        rlbot_version = dist_version("rlbot")
+        flatbuffers_version = dist_version("rlbot-flatbuffers")
+    except Exception as error:  # noqa: BLE001
+        rlbot_version = f"unavailable: {type(error).__name__}"
+        flatbuffers_version = rlbot_version
+    report["installed_versions"] = {
+        "rlbot": rlbot_version,
+        "rlbot-flatbuffers": flatbuffers_version,
+        "expected_rlbot": EXPECTED_RLBOT_VERSION,
+        "expected_rlbot-flatbuffers": EXPECTED_FLATBUFFERS_VERSION,
+        "MAX_SIZE_2_BYTES": MAX_SIZE_2_BYTES,
+    }
+    check("rlbot_version_pinned", rlbot_version == EXPECTED_RLBOT_VERSION, rlbot_version)
+    check("flatbuffers_version_pinned",
+          flatbuffers_version == EXPECTED_FLATBUFFERS_VERSION, flatbuffers_version)
+    check("protocol_ceiling_is_65535", MAX_SIZE_2_BYTES == HARD_PROTOCOL_CEILING_BYTES,
+          MAX_SIZE_2_BYTES)
+    check("soft_ceiling_below_hard_ceiling",
+          SOFT_CEILING_BYTES < HARD_PROTOCOL_CEILING_BYTES,
+          {"soft": SOFT_CEILING_BYTES, "hard": HARD_PROTOCOL_CEILING_BYTES})
+
+    import rlbot.interface as interface_module
+    import rlbot.managers.rendering as rendering_module
+
+    sources = {
+        "game_worker": module_source(sys.modules["my_career_training.game_worker"]),
+        "training/catalog": module_source(catalog_module),
+        "training/recordings": module_source(recordings_module),
+        "training/controller": module_source(controller_module),
+        "installed rlbot/managers/rendering": module_source(rendering_module),
+        "installed rlbot/interface": module_source(interface_module),
+    }
+    report["source_identity"] = sources
+    for key in ("game_worker", "training/catalog", "training/recordings",
+                "training/controller"):
+        check(f"source:{key}:relative_label", sources[key]["label"].startswith("src/"),
+              sources[key]["label"])
+        check(f"source:{key}:hash_available",
+              sources[key]["sha256"] != "unavailable", sources[key]["sha256"])
+        check(f"source:{key}:bytes_available",
+              isinstance(sources[key]["bytes"], int) and sources[key]["bytes"] > 0,
+              sources[key]["bytes"])
+    for key in ("installed rlbot/managers/rendering", "installed rlbot/interface"):
+        check(f"source:{key}:outside_repo", sources[key]["outside_repo"] is True,
+              sources[key]["label"])
+        check(f"source:{key}:hash_available",
+              sources[key]["sha256"] != "unavailable", sources[key]["sha256"])
+    check("installed_rendering_hash_matches_documented_pin",
+          sources["installed rlbot/managers/rendering"]["sha256"]
+          == DOCUMENTED_PINS["rlbot/managers/rendering.py"],
+          sources["installed rlbot/managers/rendering"]["sha256"])
+    check("installed_interface_hash_matches_documented_pin",
+          sources["installed rlbot/interface"]["sha256"]
+          == DOCUMENTED_PINS["rlbot/interface.py"],
+          sources["installed rlbot/interface"]["sha256"])
+
+    # ---- catalog: full listing vs single-lesson lookup ------------------
+    lessons = catalog_module.catalog()
+    report["catalog"] = {
+        "lesson_count": len(lessons),
+        "lesson_ids": [item["id"] for item in lessons],
+        "content_sha256": hashlib.sha256(
+            json.dumps(lessons, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "lookup_matches_listing": all(
+            catalog_module.lesson(item["id"]) == item for item in lessons
+        ),
+    }
+    check("catalog_has_eight_lessons", len(lessons) == 8, len(lessons))
+    check("catalog_lookup_matches_listing", report["catalog"]["lookup_matches_listing"])
+    check("catalog_content_hash_available",
+          len(report["catalog"]["content_sha256"]) == 64)
+
+    # ---- setup conditions ----------------------------------------------
+    ghost = recordings_module.ghost_lines(SYNTHETIC_POSE)
+    report["ghost_lines"] = {"count": len(ghost),
+                             "styles": sorted({line["style"] for line in ghost})}
+    check("ghost_lines_has_41_lines", len(ghost) == 41, len(ghost))
+    check("ghost_lines_have_start_end_style",
+          all({"start", "end", "style"} <= set(line) for line in ghost))
+
+    display = controller_module.controller_display(SYNTHETIC_ACTIONS, source="ghost")
+    report["controller_display"] = {
+        "observed": display.get("observed"),
+        "source": display.get("source"),
+        "active_action_count": len(display.get("active_actions") or []),
+        "active_action_labels": [
+            item.get("label") for item in (display.get("active_actions") or [])
+        ],
+    }
+    check("controller_display_observed", display.get("observed") is True)
+    check("controller_display_has_active_actions",
+          bool(display.get("active_actions")), report["controller_display"])
+
+    all_preferences = catalog_module.assistance_preferences()
+    report["preferences"] = dict(all_preferences)
+    check("preferences_have_render_keys",
+          {"explanations", "actions", "timing", "ghost"} <= set(all_preferences),
+          sorted(all_preferences))
+
+    power_shots = find_lesson(lessons, "power-shots")
+    aerial = find_lesson(lessons, "aerial-air-roll")
+    check("power_shots_lesson_present", power_shots is not None)
+    check("aerial_lesson_present", aerial is not None)
+    if power_shots is None or aerial is None:
+        report["aborted"] = "required lesson definitions missing from the catalog"
+        return emit(report)
+
+    # Class-level Renderer collections must be unchanged afterwards. Snapshot the
+    # *values* now; comparing the same object to itself later would be tautological.
+    class_used_before = Renderer._used_group_ids
+    class_renders_before = Renderer._current_renders
+    class_used_snapshot = set(class_used_before)
+    class_renders_snapshot = list(class_renders_before)
+    # Save the actual function objects so the later identity check compares
+    # identity, not module-name strings.
+    original_functions = dict(identity)
+
+    # Renderer's own logger, so "draw without a group" errors are visible.
+    renderer_logger = Renderer._logger
+    renderer_handler = RecordingHandler()
+    renderer_logger_attached = hasattr(renderer_logger, "addHandler")
+    if renderer_logger_attached:
+        renderer_logger.addHandler(renderer_handler)
+    report["renderer_logger"] = {
+        "name": getattr(renderer_logger, "name", None),
+        "captured": renderer_logger_attached,
+    }
+
+    # ---- fixtures: every existing lesson definition --------------------
+    fixtures: list[dict] = []
+    fixture_renderers: list[Renderer] = []
+    for lesson in lessons:
+        result, renderer, _, _, _ = run_fixture(
+            f"lesson-{lesson['id']}",
+            lesson,
+            all_preferences,
+            native_hud=False,
+            practice=practice_snapshot(),
+            coach=coach_snapshot(),
+            coaching=SYNTHETIC_COACHING,
+        )
+        fixtures.append(result)
+        fixture_renderers.append(renderer)
+
+    # ---- Power Shots with native_hud true ------------------------------
+    native_result, native_renderer, _, _, _ = run_fixture(
+        "power-shots-native-hud",
+        power_shots,
+        all_preferences,
+        native_hud=True,
+        practice=practice_snapshot(),
+        coach=coach_snapshot(),
+        coaching=SYNTHETIC_COACHING,
+    )
+    fixtures.append(native_result)
+    fixture_renderers.append(native_renderer)
+
+    # ---- interrupted engine, coach ghost only --------------------------
+    interrupted_result, interrupted_renderer, _, _, _ = run_fixture(
+        "aerial-interrupted-coach-ghost",
+        aerial,
+        all_preferences,
+        native_hud=False,
+        practice={},
+        coach=coach_snapshot(),
+        state="interrupted",
+        coaching=SYNTHETIC_COACHING,
+    )
+    fixtures.append(interrupted_result)
+    fixture_renderers.append(interrupted_renderer)
+
+    report["fixtures"] = fixtures
+
+    # ---- per-fixture assertions ---------------------------------------
+    for fixture in fixtures:
+        label = fixture["label"]
+        check(f"{label}:one_frame_sent", fixture["frames_sent"] == 1,
+              fixture["frames_sent"])
+        check(f"{label}:payload_decoded", fixture["counts_available"],
+              fixture["message_counts"])
+        check(f"{label}:prefix_matches_payload",
+              fixture["frames_sent"] >= 1 and fixture["prefix_matches_payload"])
+        check(f"{label}:payload_under_hard_ceiling",
+              len(fixture["payload_bytes"]) >= 1
+              and all(size <= HARD_PROTOCOL_CEILING_BYTES
+                      for size in fixture["payload_bytes"]),
+              fixture["payload_bytes"])
+        check(f"{label}:no_socket_connect", fixture["socket_connect_calls"] == 0)
+        check(f"{label}:no_socket_read", fixture["socket_recv_calls"] == 0)
+        check(f"{label}:relay_not_running", fixture["relay_running"] is False)
+        check(f"{label}:renderer_queue_empty", fixture["renderer_queue_empty_after"])
+        check(f"{label}:renderer_group_cleared", fixture["renderer_group_id_cleared"])
+        check(f"{label}:send_msg_is_production",
+              fixture["renderer_send_msg_is_production"])
+        check(f"{label}:no_relay_logger_errors",
+              not [r for r in fixture["logger_records"] if r["level"] == "ERROR"],
+              fixture["logger_records"])
+        check(f"{label}:has_render_messages", fixture["total_messages"] > 0,
+              fixture["total_messages"])
+        check(f"{label}:message_kinds_are_render_varieties",
+              set(fixture["message_counts"]) <= RENDER_VARIETIES
+              and "NoneType" not in fixture["message_counts"],
+              sorted(fixture["message_counts"]))
+        # Meaningful branch assertions: exact counts, not just "> 0".
+        # draw_target runs only inside `if preferences["explanations"]:`
+        # (game_worker.py:1419-1426), so the target term is gated the same way.
+        expected_lines = (
+            fixture["expected_target_lines"] if fixture["preferences"]["explanations"] else 0
+        ) + (
+            len(ghost) if fixture["practice_visible"] else 0
+        ) + (len(ghost) if fixture["coach_visible"]
+             and not fixture["practice_visible"] else 0)
+        check(f"{label}:line3d_matches_branch_expectation",
+              fixture["message_counts"].get("Line3D", 0) == expected_lines,
+              {"measured": fixture["message_counts"].get("Line3D", 0),
+               "expected": expected_lines})
+        check(f"{label}:string2d_matches_branch_expectation",
+              fixture["message_counts"].get("String2D", 0)
+              == fixture["expected_string_count"],
+              {"measured": fixture["message_counts"].get("String2D", 0),
+               "expected": fixture["expected_string_count"]})
+        check(f"{label}:text_bytes_positive",
+              fixture["text_utf8_bytes"] > 0, fixture["text_utf8_bytes"])
+
+    # native_hud suppresses duplicate RLBot text but keeps world geometry.
+    plain_power_shots = next(f for f in fixtures if f["label"] == "lesson-power-shots")
+    native_strings = native_result["message_counts"].get("String2D", 0)
+    plain_strings = plain_power_shots["message_counts"].get("String2D", 0)
+    native_lines = native_result["message_counts"].get("Line3D", 0)
+    plain_lines = plain_power_shots["message_counts"].get("Line3D", 0)
+    check("native_hud_reduces_text_messages",
+          native_strings > 0 and plain_strings > 0 and native_strings < plain_strings,
+          {"native_hud_true": native_strings, "native_hud_false": plain_strings})
+    check("native_hud_keeps_world_geometry",
+          native_lines > 0 and native_lines == plain_lines,
+          {"native_hud_true": native_lines, "native_hud_false": plain_lines})
+
+    # ---- re-render: same named group, same ID, changed payload ---------
+    rerender_relay, rerender_socket, _ = make_relay("probe/rerender")
+    rerender = Renderer(rerender_relay)
+    rerender._used_group_ids = set()
+    rerender._current_renders = []
+    rerender_engine = FakeEngine(power_shots, all_preferences,
+                                 coaching=SYNTHETIC_COACHING)
+    rerender_session = build_session(
+        power_shots, all_preferences, native_hud=False,
+        practice=practice_snapshot(), coach=coach_snapshot(), engine=rerender_engine,
+    )
+    rerender_session.renderer = rerender
+    # render() itself has no wall-clock gate; the 1/30 s interval lives at the
+    # call site (game_worker.py:1324-1326), so three direct calls all send.
+    rerender_session.render(SYNTHETIC_FRAME)
+    rerender_session.render(SYNTHETIC_FRAME)
+    rerender_session.render(SYNTHETIC_CHANGED_FRAME)
+
+    rerender_frames = decode_frames(rerender_socket)
+    rerender_described = [describe_payload(f["payload"]) for f in rerender_frames]
+    rerender_report = {
+        "frames_sent": len(rerender_frames),
+        "group_ids": [d["group_id"] for d in rerender_described],
+        "payload_bytes": [f["payload_bytes"] for f in rerender_frames],
+        "prefix_hex": [f["prefix_hex"] for f in rerender_frames],
+        "message_counts": [d["message_counts"] for d in rerender_described],
+        "same_group_id": len({d["group_id"] for d in rerender_described}) == 1,
+        "identical_payload_repeated": (
+            len(rerender_frames) == 3
+            and rerender_frames[0]["payload"] == rerender_frames[1]["payload"]
+        ),
+        "changed_payload_differs": (
+            len(rerender_frames) == 3
+            and rerender_frames[2]["payload"] != rerender_frames[1]["payload"]
+        ),
+        "renderer_queue_empty_after": len(rerender._current_renders) == 0,
+    }
+    report["rerender"] = rerender_report
+    check("rerender_sent_three_frames", rerender_report["frames_sent"] == 3,
+          rerender_report["frames_sent"])
+    check("rerender_same_named_group_same_id", rerender_report["same_group_id"],
+          rerender_report["group_ids"])
+    check("rerender_identical_payload_repeated",
+          rerender_report["identical_payload_repeated"])
+    check("rerender_changed_payload_differs",
+          rerender_report["changed_payload_differs"])
+    check("rerender_queue_empty", rerender_report["renderer_queue_empty_after"])
+
+    # ---- direct Renderer client-pipeline probe -------------------------
+    direct_relay, direct_socket, direct_handler, captured, wrapper = (
+        make_capturing_relay("probe/direct")
+    )
+    direct = Renderer(direct_relay)
+    direct._used_group_ids = set()
+    direct._current_renders = []
+
+    with direct.context("probe-short"):
+        direct.draw_line_3d(flat.Vector3(0, 0, 0), flat.Vector3(100, 0, 0))
+    sends_after_valid = len(direct_socket.sent)
+
+    with direct.context("probe-oversized"):
+        direct.draw_string_2d("A" * OVERSIZED_TEXT_LENGTH, 0.03, 0.05, 1.0)
+    sends_after_oversized = len(direct_socket.sent)
+
+    with direct.context("probe-oversized"):
+        direct.draw_string_2d("synthetic replacement", 0.03, 0.05, 1.0)
+    sends_after_replacement = len(direct_socket.sent)
+
+    direct.clear_render_group("probe-oversized")
+    sends_after_clear = len(direct_socket.sent)
+
+    direct_frames = decode_frames(direct_socket)
+    direct_described = [describe_payload(f["payload"]) for f in direct_frames]
+    oversized_group_id = Renderer._get_group_id("probe-oversized")
+    # The rejected payload is the wrapper's record of the second send, i.e. the
+    # same serialization the real send_msg performed before send_bytes rejected it.
+    oversized_capture = captured[1] if len(captured) > 1 else None
+    oversized_payload_bytes = (
+        len(oversized_capture["payload"]) if oversized_capture else None
+    )
+    direct_report = {
+        "instrumentation": (
+            "send_msg wrapper re-serializes the same message with "
+            "flat.InterfacePacket(msg).pack(), records it, then delegates to the "
+            "unchanged SocketRelay.send_msg"
+        ),
+        "wrapper_is_renderer_send_msg": direct._send_msg is wrapper,
+        "captured_send_count": len(captured),
+        "captured_kinds": [entry["kind"] for entry in captured],
+        "captured_payload_bytes": [len(entry["payload"]) for entry in captured],
+        "send_counts": {
+            "after_valid": sends_after_valid,
+            "after_oversized": sends_after_oversized,
+            "after_replacement": sends_after_replacement,
+            "after_clear": sends_after_clear,
+        },
+        "message_kinds": [d["kind"] for d in direct_described],
+        "group_ids": [d["group_id"] for d in direct_described],
+        "payload_bytes": [f["payload_bytes"] for f in direct_frames],
+        "prefix_hex": [f["prefix_hex"] for f in direct_frames],
+        "prefix_matches_payload": bool(direct_frames)
+        and all(f["prefix_matches_payload"] for f in direct_frames),
+        "oversized_group_id": oversized_group_id,
+        "oversized_payload_bytes": oversized_payload_bytes,
+        "oversized_exceeds_hard_ceiling": (
+            oversized_payload_bytes is not None
+            and oversized_payload_bytes > HARD_PROTOCOL_CEILING_BYTES
+        ),
+        "logger_records": list(direct_handler.records),
+        "socket_connect_calls": direct_socket.connect_calls,
+        "socket_recv_calls": direct_socket.recv_calls,
+        "relay_running": direct_relay._running,
+        "renderer_queue_empty_after": len(direct._current_renders) == 0,
+        "renderer_group_id_cleared": direct._group_id is None,
+    }
+    report["direct_renderer"] = direct_report
+
+    check("direct_wrapper_installed", direct_report["wrapper_is_renderer_send_msg"])
+    check("direct_wrapper_captured_four_sends",
+          direct_report["captured_send_count"] == 4,
+          direct_report["captured_send_count"])
+    check("direct_captured_kinds",
+          direct_report["captured_kinds"]
+          == ["RenderGroup", "RenderGroup", "RenderGroup", "RemoveRenderGroup"],
+          direct_report["captured_kinds"])
+    check("direct_valid_group_serialized", sends_after_valid == 1, sends_after_valid)
+    check("direct_oversized_rejected_no_frame",
+          sends_after_oversized == sends_after_valid,
+          {"before": sends_after_valid, "after": sends_after_oversized})
+    check("direct_oversized_logged_error",
+          any("too big" in record["message"].lower()
+              for record in direct_report["logger_records"]),
+          direct_report["logger_records"])
+    check("direct_oversized_payload_exceeds_ceiling",
+          direct_report["oversized_exceeds_hard_ceiling"], oversized_payload_bytes)
+    check("direct_replacement_serialized",
+          sends_after_replacement == sends_after_oversized + 1,
+          {"before": sends_after_oversized, "after": sends_after_replacement})
+    check("direct_clear_serialized",
+          sends_after_clear == sends_after_replacement + 1,
+          {"before": sends_after_replacement, "after": sends_after_clear})
+    check("direct_send_sequence_kinds",
+          direct_report["message_kinds"]
+          == ["RenderGroup", "RenderGroup", "RemoveRenderGroup"],
+          direct_report["message_kinds"])
+    check("direct_replacement_reuses_group_id",
+          len(direct_report["group_ids"]) == 3
+          and direct_report["group_ids"][1] == oversized_group_id,
+          {"group_ids": direct_report["group_ids"], "expected": oversized_group_id})
+    check("direct_prefix_matches_payload",
+          len(direct_frames) >= 1 and direct_report["prefix_matches_payload"])
+    # Wrapper bytes must equal the bytes the fake socket actually received.
+    check("direct_wrapper_bytes_match_socket_frames",
+          len(captured) == 4 and len(direct_frames) == 3
+          and captured[0]["payload"] == direct_frames[0]["payload"]
+          and captured[2]["payload"] == direct_frames[1]["payload"]
+          and captured[3]["payload"] == direct_frames[2]["payload"],
+          {"captured": direct_report["captured_payload_bytes"],
+           "frames": direct_report["payload_bytes"]})
+    check("direct_no_socket_connect", direct_report["socket_connect_calls"] == 0)
+    check("direct_no_socket_read", direct_report["socket_recv_calls"] == 0)
+    check("direct_relay_not_running", direct_report["relay_running"] is False)
+    check("direct_renderer_queue_empty", direct_report["renderer_queue_empty_after"])
+    check("direct_renderer_group_cleared", direct_report["renderer_group_id_cleared"])
+
+    # ---- class-level Renderer isolation --------------------------------
+    check("class_used_group_ids_object_unchanged",
+          Renderer._used_group_ids is class_used_before,
+          {"before": len(class_used_snapshot), "after": len(Renderer._used_group_ids)})
+    check("class_current_renders_object_unchanged",
+          Renderer._current_renders is class_renders_before,
+          {"before": len(class_renders_snapshot),
+           "after": len(Renderer._current_renders)})
+    check("class_collections_not_mutated_by_fixtures",
+          set(Renderer._used_group_ids) == class_used_snapshot
+          and list(Renderer._current_renders) == class_renders_snapshot,
+          {"used_before": len(class_used_snapshot),
+           "used_after": len(Renderer._used_group_ids),
+           "renders_before": len(class_renders_snapshot),
+           "renders_after": len(Renderer._current_renders)})
+    leaked = [
+        renderer for renderer in fixture_renderers
+        if renderer._current_renders or renderer._group_id is not None
+    ]
+    check("fixture_renderers_do_not_leak", not leaked, len(leaked))
+    distinct_queues = len({id(renderer._current_renders) for renderer in fixture_renderers})
+    check("fixture_renderers_have_distinct_queues",
+          distinct_queues == len(fixture_renderers),
+          {"distinct": distinct_queues, "renderers": len(fixture_renderers)})
+    check("fixture_queues_are_not_the_class_queue",
+          all(renderer._current_renders is not class_renders_before
+              for renderer in fixture_renderers))
+
+    # ---- class methods must still be the original function objects ------
+    # Compares identity against the functions saved before any fixture ran. The
+    # direct probe rebinds only an *instance* send_msg, which is asserted
+    # separately by direct_wrapper_installed.
+    current_functions = {
+        "GameSession.render": GameSession.render,
+        "GameSession.draw_target": GameSession.draw_target,
+        "GameSession.draw_ghost_actions": GameSession.draw_ghost_actions,
+        "Renderer.context": Renderer.context,
+        "Renderer.end_rendering": Renderer.end_rendering,
+        "SocketRelay.send_msg": SocketRelay.send_msg,
+        "SocketRelay.send_bytes": SocketRelay.send_bytes,
+        "ghost_lines": recordings_module.ghost_lines,
+        "catalog": catalog_module.catalog,
+        "lesson": catalog_module.lesson,
+        "controller_display": controller_module.controller_display,
+    }
+    changed = [
+        name for name, function in current_functions.items()
+        if function is not original_functions.get(name)
+    ]
+    check("class_method_identity_matches_original", not changed, changed)
+
+    # ---- renderer logger ------------------------------------------------
+    if renderer_logger_attached:
+        renderer_logger.removeHandler(renderer_handler)
+    renderer_errors = [r for r in renderer_handler.records if r["level"] == "ERROR"]
+    report["renderer_logger"]["records"] = list(renderer_handler.records)
+    # Without a real handler the error list is empty for the wrong reason, so the
+    # capture itself is asserted before the no-errors claim is trusted.
+    check("renderer_logger_captured", renderer_logger_attached,
+          report["renderer_logger"]["name"])
+    check("renderer_logger_has_no_errors",
+          renderer_logger_attached and not renderer_errors, renderer_errors)
+
+    # ---- summary -------------------------------------------------------
+    counts_available = all(fixture["counts_available"] for fixture in fixtures)
+    report["counts_available"] = counts_available
+    report["measured_fixture_count"] = len(fixtures)
+    report["measured_payload_bytes"] = (
+        sorted({size for fixture in fixtures for size in fixture["payload_bytes"]})
+        if counts_available else None
+    )
+    report["measured_message_counts"] = [
+        {"label": fixture["label"], "total_messages": fixture["total_messages"],
+         "message_counts": fixture["message_counts"],
+         "payload_bytes": fixture["payload_bytes"]}
+        for fixture in fixtures
+    ] if counts_available else None
+    report["claims"] = {
+        "measured": "client-side serialized InterfacePacket payload bytes and "
+                    "RenderMessage counts for the listed synthetic fixtures",
+        "not_measured": [
+            "RLBot server or Bridge game-tick byte budget",
+            "game-side draw persistence or skipping",
+            "any maximum or performance claim beyond these fixtures",
+        ],
+        "limitations": [
+            "importing the installed rlbot package runs rlbot.utils.logging, "
+            "whose get_logger calls check_color on Windows and issues the "
+            "harmless console-color shell command os.system('color'); this is "
+            "dependency behavior, not suppressed or monkeypatched here",
+            "no game, RLBot server or other game/server process is started, and "
+            "no socket is connected or read",
+        ],
+    }
+    # Observation only: the proposed soft ceiling is a client-protocol margin
+    # from docs/render-message-budget-01.md, not a measured no-drop threshold.
+    report["soft_ceiling_observation"] = {
+        "soft_ceiling_bytes": SOFT_CEILING_BYTES,
+        "fixtures_over_soft_ceiling": [
+            fixture["label"] for fixture in fixtures
+            if any(size > SOFT_CEILING_BYTES for size in fixture["payload_bytes"])
+        ],
+        "note": "observation only; exceeding it is not asserted as a failure and "
+                "staying under it is not asserted as safe",
+    }
+    return emit(report)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

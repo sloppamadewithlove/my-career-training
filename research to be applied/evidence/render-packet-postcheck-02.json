@@ -1,0 +1,89 @@
+{
+  "checked_at_utc": "2026-10-27T13:09:10.9326729Z",
+  "selected_source_count": 55,
+  "changes": [],
+  "diagnostic_sha256": "7429d38e50edcbcdb1fd8148b71fc4aba447f89889d17c298f2d4dc904800f49",
+  "observed_sha256": "be69872d882b15643dbde1a3301e4fbaf100ef478dfbd3ae63cf5ec502d2ab5f",
+  "observed_bytes": 78760,
+  "source_identity": {
+    "game_worker": {
+      "bytes": 90814,
+      "label": "src/my_career_training/game_worker.py",
+      "outside_repo": false,
+      "sha256": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2"
+    },
+    "installed rlbot/interface": {
+      "bytes": 13386,
+      "label": "interface.py",
+      "outside_repo": true,
+      "sha256": "abc030a97cda257a988abdb7b3915e5fbfdd981e95373624609200e79eb81822"
+    },
+    "installed rlbot/managers/rendering": {
+      "bytes": 11891,
+      "label": "rendering.py",
+      "outside_repo": true,
+      "sha256": "7da1cafc8a3d5b57b1677f54de2a6337b8f8c13e07cd210fc7c7cf3a91a5c7a0"
+    },
+    "training/catalog": {
+      "bytes": 9097,
+      "label": "src/my_career_training/training/catalog.py",
+      "outside_repo": false,
+      "sha256": "1c05fe5ed75296c5c75848f26e7c01a77160b16938c76c55e15536828f58fe73"
+    },
+    "training/controller": {
+      "bytes": 4400,
+      "label": "src/my_career_training/training/controller.py",
+      "outside_repo": false,
+      "sha256": "899dcb25e1da465af2b1959b02ac66cfd947ee0d5e6864ef79e18ae23ccb6723"
+    },
+    "training/recordings": {
+      "bytes": 22459,
+      "label": "src/my_career_training/training/recordings.py",
+      "outside_repo": false,
+      "sha256": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1"
+    }
+  },
+  "rerender": {
+    "changed_payload_differs": true,
+    "frames_sent": 3,
+    "group_ids": [
+      985296343,
+      985296343,
+      985296343
+    ],
+    "identical_payload_repeated": true,
+    "message_counts": [
+      {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      {
+        "Line3D": 45,
+        "String2D": 11
+      }
+    ],
+    "payload_bytes": [
+      3860,
+      3860,
+      3872
+    ],
+    "prefix_hex": [
+      "0f14",
+      "0f14",
+      "0f20"
+    ],
+    "renderer_queue_empty_after": true,
+    "same_group_id": true
+  },
+  "installed_versions": {
+    "MAX_SIZE_2_BYTES": 65535,
+    "expected_rlbot": "2.0.0b56",
+    "expected_rlbot-flatbuffers": "0.19.0",
+    "rlbot": "2.0.0b56",
+    "rlbot-flatbuffers": "0.19.0"
+  }
+}

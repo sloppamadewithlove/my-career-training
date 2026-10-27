@@ -8,6 +8,8 @@ For initial measurement, use **48 KiB (49,152 bytes) as a proposed soft ceiling 
 
 ## Exact transport and replacement behavior
 
+Follow-up: the [reviewed serialization diagnostic](render-packet-probe-01.md) measured ten synthetic fixtures at 3,038–8,266 payload bytes. Its largest fixture has 124 messages; 127 remains a conservative independent-branch bound. The run confirms client rejection of a 70,113-byte payload, not game-side delivery or persistence.
+
 The installed package metadata reports `rlbot==2.0.0b56` and `rlbot-flatbuffers==0.19.0`, matching `work/reviewed-training/pyproject.toml:15-16`. The pinned renderer and interface files are:
 
 | Artifact | Bytes | SHA-256 | Relevant lines |

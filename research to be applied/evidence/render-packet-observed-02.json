@@ -1,0 +1,3414 @@
+{
+  "catalog": {
+    "content_sha256": "027f3933b0063e54a5e92f4badd93a5cb242e5b8811463a04709a40a0976d4e5",
+    "lesson_count": 8,
+    "lesson_ids": [
+      "speed-flip",
+      "flip-reset",
+      "dribble-flick",
+      "power-shots",
+      "shot-placement",
+      "fast-aerial",
+      "aerial-air-roll",
+      "flight-recovery"
+    ],
+    "lookup_matches_listing": true
+  },
+  "check_count": 257,
+  "checks": [
+    {
+      "detail": null,
+      "name": "api:RenderGroup.render_messages",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:RenderGroup.renders_absent",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:RenderMessage.variety",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:RenderMessage.item_absent",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:InterfacePacket.message",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:InterfacePacket.message_is_render_group",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:RemoveRenderGroup.id",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:String2D.text",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "api:PolyLine3D.points",
+      "ok": true
+    },
+    {
+      "detail": "my_career_training.training.catalog",
+      "name": "binding:catalog_module:is_module",
+      "ok": true
+    },
+    {
+      "detail": "my_career_training.training.controller",
+      "name": "binding:controller_module:is_module",
+      "ok": true
+    },
+    {
+      "detail": "my_career_training.training.recordings",
+      "name": "binding:recordings_module:is_module",
+      "ok": true
+    },
+    {
+      "detail": {
+        "is_module": true,
+        "name": "my_career_training.training.catalog"
+      },
+      "name": "binding:catalog_module:not_shadowed_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "render_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "draw_target_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "draw_ghost_actions_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "renderer_is_installed_rlbot",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "relay_is_installed_rlbot",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "ghost_lines_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "catalog_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "controller_display_is_production_function",
+      "ok": true
+    },
+    {
+      "detail": "2.0.0b56",
+      "name": "rlbot_version_pinned",
+      "ok": true
+    },
+    {
+      "detail": "0.19.0",
+      "name": "flatbuffers_version_pinned",
+      "ok": true
+    },
+    {
+      "detail": 65535,
+      "name": "protocol_ceiling_is_65535",
+      "ok": true
+    },
+    {
+      "detail": {
+        "hard": 65535,
+        "soft": 49152
+      },
+      "name": "soft_ceiling_below_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": "src/my_career_training/game_worker.py",
+      "name": "source:game_worker:relative_label",
+      "ok": true
+    },
+    {
+      "detail": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2",
+      "name": "source:game_worker:hash_available",
+      "ok": true
+    },
+    {
+      "detail": 90814,
+      "name": "source:game_worker:bytes_available",
+      "ok": true
+    },
+    {
+      "detail": "src/my_career_training/training/catalog.py",
+      "name": "source:training/catalog:relative_label",
+      "ok": true
+    },
+    {
+      "detail": "1c05fe5ed75296c5c75848f26e7c01a77160b16938c76c55e15536828f58fe73",
+      "name": "source:training/catalog:hash_available",
+      "ok": true
+    },
+    {
+      "detail": 9097,
+      "name": "source:training/catalog:bytes_available",
+      "ok": true
+    },
+    {
+      "detail": "src/my_career_training/training/recordings.py",
+      "name": "source:training/recordings:relative_label",
+      "ok": true
+    },
+    {
+      "detail": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+      "name": "source:training/recordings:hash_available",
+      "ok": true
+    },
+    {
+      "detail": 22459,
+      "name": "source:training/recordings:bytes_available",
+      "ok": true
+    },
+    {
+      "detail": "src/my_career_training/training/controller.py",
+      "name": "source:training/controller:relative_label",
+      "ok": true
+    },
+    {
+      "detail": "899dcb25e1da465af2b1959b02ac66cfd947ee0d5e6864ef79e18ae23ccb6723",
+      "name": "source:training/controller:hash_available",
+      "ok": true
+    },
+    {
+      "detail": 4400,
+      "name": "source:training/controller:bytes_available",
+      "ok": true
+    },
+    {
+      "detail": "rendering.py",
+      "name": "source:installed rlbot/managers/rendering:outside_repo",
+      "ok": true
+    },
+    {
+      "detail": "7da1cafc8a3d5b57b1677f54de2a6337b8f8c13e07cd210fc7c7cf3a91a5c7a0",
+      "name": "source:installed rlbot/managers/rendering:hash_available",
+      "ok": true
+    },
+    {
+      "detail": "interface.py",
+      "name": "source:installed rlbot/interface:outside_repo",
+      "ok": true
+    },
+    {
+      "detail": "abc030a97cda257a988abdb7b3915e5fbfdd981e95373624609200e79eb81822",
+      "name": "source:installed rlbot/interface:hash_available",
+      "ok": true
+    },
+    {
+      "detail": "7da1cafc8a3d5b57b1677f54de2a6337b8f8c13e07cd210fc7c7cf3a91a5c7a0",
+      "name": "installed_rendering_hash_matches_documented_pin",
+      "ok": true
+    },
+    {
+      "detail": "abc030a97cda257a988abdb7b3915e5fbfdd981e95373624609200e79eb81822",
+      "name": "installed_interface_hash_matches_documented_pin",
+      "ok": true
+    },
+    {
+      "detail": 8,
+      "name": "catalog_has_eight_lessons",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "catalog_lookup_matches_listing",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "catalog_content_hash_available",
+      "ok": true
+    },
+    {
+      "detail": 41,
+      "name": "ghost_lines_has_41_lines",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "ghost_lines_have_start_end_style",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "controller_display_observed",
+      "ok": true
+    },
+    {
+      "detail": {
+        "active_action_count": 4,
+        "active_action_labels": [
+          "Accelerate",
+          "Steer",
+          "Jump",
+          "Boost"
+        ],
+        "observed": true,
+        "source": "ghost"
+      },
+      "name": "controller_display_has_active_actions",
+      "ok": true
+    },
+    {
+      "detail": [
+        "actions",
+        "auto_reset",
+        "controller_overlay",
+        "explanations",
+        "ghost",
+        "playback_speed",
+        "timing"
+      ],
+      "name": "preferences_have_render_keys",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power_shots_lesson_present",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial_lesson_present",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-speed-flip:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-flip-reset:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-dribble-flick:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-power-shots:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-shot-placement:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-fast-aerial:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-aerial-air-roll:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "lesson-flight-recovery:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "power-shots-native-hud:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "NoneType"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "name": "aerial-interrupted-coach-ghost:session_attributes_seeded",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-speed-flip:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "name": "lesson-speed-flip:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3971
+      ],
+      "name": "lesson-speed-flip:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-speed-flip:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-speed-flip:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 56,
+      "name": "lesson-speed-flip:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-speed-flip:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 45,
+        "measured": 45
+      },
+      "name": "lesson-speed-flip:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-speed-flip:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 451,
+      "name": "lesson-speed-flip:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-flip-reset:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 41,
+        "String2D": 11
+      },
+      "name": "lesson-flip-reset:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3675
+      ],
+      "name": "lesson-flip-reset:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flip-reset:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-flip-reset:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 52,
+      "name": "lesson-flip-reset:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-flip-reset:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 41,
+        "measured": 41
+      },
+      "name": "lesson-flip-reset:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-flip-reset:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 407,
+      "name": "lesson-flip-reset:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-dribble-flick:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "name": "lesson-dribble-flick:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3867
+      ],
+      "name": "lesson-dribble-flick:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-dribble-flick:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-dribble-flick:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 56,
+      "name": "lesson-dribble-flick:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-dribble-flick:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 45,
+        "measured": 45
+      },
+      "name": "lesson-dribble-flick:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-dribble-flick:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 345,
+      "name": "lesson-dribble-flick:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-power-shots:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "name": "lesson-power-shots:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3860
+      ],
+      "name": "lesson-power-shots:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-power-shots:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-power-shots:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 56,
+      "name": "lesson-power-shots:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-power-shots:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 45,
+        "measured": 45
+      },
+      "name": "lesson-power-shots:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-power-shots:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 341,
+      "name": "lesson-power-shots:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-shot-placement:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "name": "lesson-shot-placement:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3871
+      ],
+      "name": "lesson-shot-placement:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-shot-placement:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-shot-placement:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 56,
+      "name": "lesson-shot-placement:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-shot-placement:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 45,
+        "measured": 45
+      },
+      "name": "lesson-shot-placement:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-shot-placement:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 345,
+      "name": "lesson-shot-placement:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-fast-aerial:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 65,
+        "String2D": 11
+      },
+      "name": "lesson-fast-aerial:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        5168
+      ],
+      "name": "lesson-fast-aerial:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-fast-aerial:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-fast-aerial:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 76,
+      "name": "lesson-fast-aerial:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-fast-aerial:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 65,
+        "measured": 65
+      },
+      "name": "lesson-fast-aerial:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-fast-aerial:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 367,
+      "name": "lesson-fast-aerial:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-aerial-air-roll:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 113,
+        "String2D": 11
+      },
+      "name": "lesson-aerial-air-roll:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        8266
+      ],
+      "name": "lesson-aerial-air-roll:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-aerial-air-roll:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-aerial-air-roll:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 124,
+      "name": "lesson-aerial-air-roll:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-aerial-air-roll:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 113,
+        "measured": 113
+      },
+      "name": "lesson-aerial-air-roll:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-aerial-air-roll:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 394,
+      "name": "lesson-aerial-air-roll:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "lesson-flight-recovery:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 89,
+        "String2D": 11
+      },
+      "name": "lesson-flight-recovery:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        6723
+      ],
+      "name": "lesson-flight-recovery:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "lesson-flight-recovery:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "lesson-flight-recovery:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 100,
+      "name": "lesson-flight-recovery:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "lesson-flight-recovery:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 89,
+        "measured": 89
+      },
+      "name": "lesson-flight-recovery:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 11,
+        "measured": 11
+      },
+      "name": "lesson-flight-recovery:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 385,
+      "name": "lesson-flight-recovery:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "power-shots-native-hud:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 45,
+        "String2D": 1
+      },
+      "name": "power-shots-native-hud:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        3038
+      ],
+      "name": "power-shots-native-hud:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "power-shots-native-hud:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "power-shots-native-hud:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 46,
+      "name": "power-shots-native-hud:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "power-shots-native-hud:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 45,
+        "measured": 45
+      },
+      "name": "power-shots-native-hud:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 1,
+        "measured": 1
+      },
+      "name": "power-shots-native-hud:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 24,
+      "name": "power-shots-native-hud:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "aerial-interrupted-coach-ghost:one_frame_sent",
+      "ok": true
+    },
+    {
+      "detail": {
+        "Line3D": 113,
+        "String2D": 9
+      },
+      "name": "aerial-interrupted-coach-ghost:payload_decoded",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": [
+        8038
+      ],
+      "name": "aerial-interrupted-coach-ghost:payload_under_hard_ceiling",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "aerial-interrupted-coach-ghost:send_msg_is_production",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "aerial-interrupted-coach-ghost:no_relay_logger_errors",
+      "ok": true
+    },
+    {
+      "detail": 122,
+      "name": "aerial-interrupted-coach-ghost:has_render_messages",
+      "ok": true
+    },
+    {
+      "detail": [
+        "Line3D",
+        "String2D"
+      ],
+      "name": "aerial-interrupted-coach-ghost:message_kinds_are_render_varieties",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 113,
+        "measured": 113
+      },
+      "name": "aerial-interrupted-coach-ghost:line3d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 9,
+        "measured": 9
+      },
+      "name": "aerial-interrupted-coach-ghost:string2d_matches_branch_expectation",
+      "ok": true
+    },
+    {
+      "detail": 273,
+      "name": "aerial-interrupted-coach-ghost:text_bytes_positive",
+      "ok": true
+    },
+    {
+      "detail": {
+        "native_hud_false": 11,
+        "native_hud_true": 1
+      },
+      "name": "native_hud_reduces_text_messages",
+      "ok": true
+    },
+    {
+      "detail": {
+        "native_hud_false": 45,
+        "native_hud_true": 45
+      },
+      "name": "native_hud_keeps_world_geometry",
+      "ok": true
+    },
+    {
+      "detail": 3,
+      "name": "rerender_sent_three_frames",
+      "ok": true
+    },
+    {
+      "detail": [
+        985296343,
+        985296343,
+        985296343
+      ],
+      "name": "rerender_same_named_group_same_id",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "rerender_identical_payload_repeated",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "rerender_changed_payload_differs",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "rerender_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_wrapper_installed",
+      "ok": true
+    },
+    {
+      "detail": 4,
+      "name": "direct_wrapper_captured_four_sends",
+      "ok": true
+    },
+    {
+      "detail": [
+        "RenderGroup",
+        "RenderGroup",
+        "RenderGroup",
+        "RemoveRenderGroup"
+      ],
+      "name": "direct_captured_kinds",
+      "ok": true
+    },
+    {
+      "detail": 1,
+      "name": "direct_valid_group_serialized",
+      "ok": true
+    },
+    {
+      "detail": {
+        "after": 1,
+        "before": 1
+      },
+      "name": "direct_oversized_rejected_no_frame",
+      "ok": true
+    },
+    {
+      "detail": [
+        {
+          "level": "ERROR",
+          "message": "Couldn't send message because it was too big!"
+        }
+      ],
+      "name": "direct_oversized_logged_error",
+      "ok": true
+    },
+    {
+      "detail": 70113,
+      "name": "direct_oversized_payload_exceeds_ceiling",
+      "ok": true
+    },
+    {
+      "detail": {
+        "after": 2,
+        "before": 1
+      },
+      "name": "direct_replacement_serialized",
+      "ok": true
+    },
+    {
+      "detail": {
+        "after": 3,
+        "before": 2
+      },
+      "name": "direct_clear_serialized",
+      "ok": true
+    },
+    {
+      "detail": [
+        "RenderGroup",
+        "RenderGroup",
+        "RemoveRenderGroup"
+      ],
+      "name": "direct_send_sequence_kinds",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": 1040832292,
+        "group_ids": [
+          71101034,
+          1040832292,
+          1040832292
+        ]
+      },
+      "name": "direct_replacement_reuses_group_id",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_prefix_matches_payload",
+      "ok": true
+    },
+    {
+      "detail": {
+        "captured": [
+          130,
+          70113,
+          134,
+          38
+        ],
+        "frames": [
+          130,
+          134,
+          38
+        ]
+      },
+      "name": "direct_wrapper_bytes_match_socket_frames",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_no_socket_connect",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_no_socket_read",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_relay_not_running",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_renderer_queue_empty",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "direct_renderer_group_cleared",
+      "ok": true
+    },
+    {
+      "detail": {
+        "after": 0,
+        "before": 0
+      },
+      "name": "class_used_group_ids_object_unchanged",
+      "ok": true
+    },
+    {
+      "detail": {
+        "after": 0,
+        "before": 0
+      },
+      "name": "class_current_renders_object_unchanged",
+      "ok": true
+    },
+    {
+      "detail": {
+        "renders_after": 0,
+        "renders_before": 0,
+        "used_after": 0,
+        "used_before": 0
+      },
+      "name": "class_collections_not_mutated_by_fixtures",
+      "ok": true
+    },
+    {
+      "detail": 0,
+      "name": "fixture_renderers_do_not_leak",
+      "ok": true
+    },
+    {
+      "detail": {
+        "distinct": 10,
+        "renderers": 10
+      },
+      "name": "fixture_renderers_have_distinct_queues",
+      "ok": true
+    },
+    {
+      "detail": null,
+      "name": "fixture_queues_are_not_the_class_queue",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "class_method_identity_matches_original",
+      "ok": true
+    },
+    {
+      "detail": "renderer",
+      "name": "renderer_logger_captured",
+      "ok": true
+    },
+    {
+      "detail": [],
+      "name": "renderer_logger_has_no_errors",
+      "ok": true
+    }
+  ],
+  "claims": {
+    "limitations": [
+      "importing the installed rlbot package runs rlbot.utils.logging, whose get_logger calls check_color on Windows and issues the harmless console-color shell command os.system('color'); this is dependency behavior, not suppressed or monkeypatched here",
+      "no game, RLBot server or other game/server process is started, and no socket is connected or read"
+    ],
+    "measured": "client-side serialized InterfacePacket payload bytes and RenderMessage counts for the listed synthetic fixtures",
+    "not_measured": [
+      "RLBot server or Bridge game-tick byte budget",
+      "game-side draw persistence or skipping",
+      "any maximum or performance claim beyond these fixtures"
+    ]
+  },
+  "conservative_independent_branch_upper_bound": 127,
+  "controller_display": {
+    "active_action_count": 4,
+    "active_action_labels": [
+      "Accelerate",
+      "Steer",
+      "Jump",
+      "Boost"
+    ],
+    "observed": true,
+    "source": "ghost"
+  },
+  "counts_available": true,
+  "direct_renderer": {
+    "captured_kinds": [
+      "RenderGroup",
+      "RenderGroup",
+      "RenderGroup",
+      "RemoveRenderGroup"
+    ],
+    "captured_payload_bytes": [
+      130,
+      70113,
+      134,
+      38
+    ],
+    "captured_send_count": 4,
+    "group_ids": [
+      71101034,
+      1040832292,
+      1040832292
+    ],
+    "instrumentation": "send_msg wrapper re-serializes the same message with flat.InterfacePacket(msg).pack(), records it, then delegates to the unchanged SocketRelay.send_msg",
+    "logger_records": [
+      {
+        "level": "ERROR",
+        "message": "Couldn't send message because it was too big!"
+      }
+    ],
+    "message_kinds": [
+      "RenderGroup",
+      "RenderGroup",
+      "RemoveRenderGroup"
+    ],
+    "oversized_exceeds_hard_ceiling": true,
+    "oversized_group_id": 1040832292,
+    "oversized_payload_bytes": 70113,
+    "payload_bytes": [
+      130,
+      134,
+      38
+    ],
+    "prefix_hex": [
+      "0082",
+      "0086",
+      "0026"
+    ],
+    "prefix_matches_payload": true,
+    "relay_running": false,
+    "renderer_group_id_cleared": true,
+    "renderer_queue_empty_after": true,
+    "send_counts": {
+      "after_clear": 3,
+      "after_oversized": 1,
+      "after_replacement": 2,
+      "after_valid": 1
+    },
+    "socket_connect_calls": 0,
+    "socket_recv_calls": 0,
+    "wrapper_is_renderer_send_msg": true
+  },
+  "engine_fixture": "FakeEngine (synthetic, not live, not full engine)",
+  "failure_count": 0,
+  "failures": [],
+  "fixtures": [
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 4,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-speed-flip",
+      "lesson_id": "speed-flip",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        3971
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0f83"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "plane"
+      ],
+      "text_utf8_bytes": 451,
+      "total_messages": 56
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 0,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-flip-reset",
+      "lesson_id": "flip-reset",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 41,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        3675
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0e5b"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "ball_reset"
+      ],
+      "text_utf8_bytes": 407,
+      "total_messages": 52
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 4,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-dribble-flick",
+      "lesson_id": "dribble-flick",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        3867
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0f1b"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "carry",
+        "goal"
+      ],
+      "text_utf8_bytes": 345,
+      "total_messages": 56
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 4,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-power-shots",
+      "lesson_id": "power-shots",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        3860
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0f14"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "goal"
+      ],
+      "text_utf8_bytes": 341,
+      "total_messages": 56
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 4,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-shot-placement",
+      "lesson_id": "shot-placement",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        3871
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0f1f"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "goal"
+      ],
+      "text_utf8_bytes": 345,
+      "total_messages": 56
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 24,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-fast-aerial",
+      "lesson_id": "fast-aerial",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 65,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        5168
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "1430"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "gate"
+      ],
+      "text_utf8_bytes": 367,
+      "total_messages": 76
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 72,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-aerial-air-roll",
+      "lesson_id": "aerial-air-roll",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 113,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        8266
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "204a"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "gate",
+        "gate",
+        "gate"
+      ],
+      "text_utf8_bytes": 394,
+      "total_messages": 124
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 11,
+      "expected_target_lines": 48,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "lesson-flight-recovery",
+      "lesson_id": "flight-recovery",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 89,
+        "String2D": 11
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        6723
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "1a43"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "gate",
+        "gate",
+        "recovery"
+      ],
+      "text_utf8_bytes": 385,
+      "total_messages": 100
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "active",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 1,
+      "expected_target_lines": 4,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "power-shots-native-hud",
+      "lesson_id": "power-shots",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 1
+      },
+      "native_hud": true,
+      "payload_bytes": [
+        3038
+      ],
+      "polyline_points": 0,
+      "practice_visible": true,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "0bde"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "dict"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "goal"
+      ],
+      "text_utf8_bytes": 24,
+      "total_messages": 46
+    },
+    {
+      "coach_visible": true,
+      "counts_available": true,
+      "engine_finished": false,
+      "engine_started_at": 0.0,
+      "engine_state": "interrupted",
+      "engine_summary": {
+        "coaching": {
+          "interruption_reason": "synthetic interruption reason",
+          "message": "synthetic coaching message",
+          "next_stage": 0,
+          "stages": [
+            {
+              "title": "synthetic stage one"
+            },
+            {
+              "title": "synthetic stage two"
+            }
+          ]
+        },
+        "duration": 1.25,
+        "feedback": "synthetic feedback",
+        "id": "synthetic-attempt"
+      },
+      "expected_string_count": 9,
+      "expected_target_lines": 72,
+      "frames_sent": 1,
+      "group_id": 985296343,
+      "label": "aerial-interrupted-coach-ghost",
+      "lesson_id": "aerial-air-roll",
+      "logger_records": [],
+      "message_counts": {
+        "Line3D": 113,
+        "String2D": 9
+      },
+      "native_hud": false,
+      "payload_bytes": [
+        8038
+      ],
+      "polyline_points": 0,
+      "practice_visible": false,
+      "preferences": {
+        "actions": true,
+        "auto_reset": true,
+        "controller_overlay": true,
+        "explanations": true,
+        "ghost": true,
+        "playback_speed": 1.0,
+        "timing": true
+      },
+      "prefix_hex": [
+        "1f66"
+      ],
+      "prefix_matches_payload": true,
+      "relay_running": false,
+      "renderer_group_id_cleared": true,
+      "renderer_queue_empty_after": true,
+      "renderer_send_msg_is_production": true,
+      "session_attributes_seeded": {
+        "cancel_start": [
+          true,
+          "Event"
+        ],
+        "coach_snapshot": [
+          true,
+          "dict"
+        ],
+        "engine": [
+          true,
+          "FakeEngine"
+        ],
+        "legacy_playback": [
+          true,
+          "bool"
+        ],
+        "practice": [
+          true,
+          "NoneType"
+        ],
+        "practice_snapshot": [
+          true,
+          "dict"
+        ],
+        "renderer": [
+          true,
+          "Renderer"
+        ],
+        "request": [
+          true,
+          "dict"
+        ],
+        "stopping": [
+          true,
+          "bool"
+        ]
+      },
+      "socket_connect_calls": 0,
+      "socket_recv_calls": 0,
+      "step_count": 3,
+      "target_types": [
+        "gate",
+        "gate",
+        "gate"
+      ],
+      "text_utf8_bytes": 273,
+      "total_messages": 122
+    }
+  ],
+  "flatbuffer_api": {
+    "InterfacePacket.message": true,
+    "InterfacePacket.message_is_render_group": true,
+    "PolyLine3D.points": true,
+    "RemoveRenderGroup.id": true,
+    "RenderGroup.render_messages": true,
+    "RenderGroup.renders_absent": true,
+    "RenderMessage.item_absent": true,
+    "RenderMessage.variety": true,
+    "String2D.text": true
+  },
+  "ghost_lines": {
+    "count": 41,
+    "styles": [
+      "front",
+      "outline",
+      "roof",
+      "underside",
+      "wheel"
+    ]
+  },
+  "hard_protocol_ceiling_bytes": 65535,
+  "installed_versions": {
+    "MAX_SIZE_2_BYTES": 65535,
+    "expected_rlbot": "2.0.0b56",
+    "expected_rlbot-flatbuffers": "0.19.0",
+    "rlbot": "2.0.0b56",
+    "rlbot-flatbuffers": "0.19.0"
+  },
+  "measured_fixture_count": 10,
+  "measured_message_counts": [
+    {
+      "label": "lesson-speed-flip",
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        3971
+      ],
+      "total_messages": 56
+    },
+    {
+      "label": "lesson-flip-reset",
+      "message_counts": {
+        "Line3D": 41,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        3675
+      ],
+      "total_messages": 52
+    },
+    {
+      "label": "lesson-dribble-flick",
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        3867
+      ],
+      "total_messages": 56
+    },
+    {
+      "label": "lesson-power-shots",
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        3860
+      ],
+      "total_messages": 56
+    },
+    {
+      "label": "lesson-shot-placement",
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        3871
+      ],
+      "total_messages": 56
+    },
+    {
+      "label": "lesson-fast-aerial",
+      "message_counts": {
+        "Line3D": 65,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        5168
+      ],
+      "total_messages": 76
+    },
+    {
+      "label": "lesson-aerial-air-roll",
+      "message_counts": {
+        "Line3D": 113,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        8266
+      ],
+      "total_messages": 124
+    },
+    {
+      "label": "lesson-flight-recovery",
+      "message_counts": {
+        "Line3D": 89,
+        "String2D": 11
+      },
+      "payload_bytes": [
+        6723
+      ],
+      "total_messages": 100
+    },
+    {
+      "label": "power-shots-native-hud",
+      "message_counts": {
+        "Line3D": 45,
+        "String2D": 1
+      },
+      "payload_bytes": [
+        3038
+      ],
+      "total_messages": 46
+    },
+    {
+      "label": "aerial-interrupted-coach-ghost",
+      "message_counts": {
+        "Line3D": 113,
+        "String2D": 9
+      },
+      "payload_bytes": [
+        8038
+      ],
+      "total_messages": 122
+    }
+  ],
+  "measured_payload_bytes": [
+    3038,
+    3675,
+    3860,
+    3867,
+    3871,
+    3971,
+    5168,
+    6723,
+    8038,
+    8266
+  ],
+  "method_identity": {
+    "GameSession.draw_ghost_actions": {
+      "module": "my_career_training.game_worker",
+      "qualname": "GameSession.draw_ghost_actions"
+    },
+    "GameSession.draw_target": {
+      "module": "my_career_training.game_worker",
+      "qualname": "GameSession.draw_target"
+    },
+    "GameSession.render": {
+      "module": "my_career_training.game_worker",
+      "qualname": "GameSession.render"
+    },
+    "Renderer.context": {
+      "module": "rlbot.managers.rendering",
+      "qualname": "Renderer.context"
+    },
+    "Renderer.end_rendering": {
+      "module": "rlbot.managers.rendering",
+      "qualname": "Renderer.end_rendering"
+    },
+    "SocketRelay.send_bytes": {
+      "module": "rlbot.interface",
+      "qualname": "SocketRelay.send_bytes"
+    },
+    "SocketRelay.send_msg": {
+      "module": "rlbot.interface",
+      "qualname": "SocketRelay.send_msg"
+    },
+    "catalog": {
+      "module": "my_career_training.training.catalog",
+      "qualname": "catalog"
+    },
+    "controller_display": {
+      "module": "my_career_training.training.controller",
+      "qualname": "controller_display"
+    },
+    "ghost_lines": {
+      "module": "my_career_training.training.recordings",
+      "qualname": "ghost_lines"
+    },
+    "lesson": {
+      "module": "my_career_training.training.catalog",
+      "qualname": "lesson"
+    }
+  },
+  "module_bindings": {
+    "catalog_module": {
+      "is_module": true,
+      "name": "my_career_training.training.catalog"
+    },
+    "controller_module": {
+      "is_module": true,
+      "name": "my_career_training.training.controller"
+    },
+    "recordings_module": {
+      "is_module": true,
+      "name": "my_career_training.training.recordings"
+    }
+  },
+  "preferences": {
+    "actions": true,
+    "auto_reset": true,
+    "controller_overlay": true,
+    "explanations": true,
+    "ghost": true,
+    "playback_speed": 1.0,
+    "timing": true
+  },
+  "renderer_logger": {
+    "captured": true,
+    "name": "renderer",
+    "records": []
+  },
+  "rerender": {
+    "changed_payload_differs": true,
+    "frames_sent": 3,
+    "group_ids": [
+      985296343,
+      985296343,
+      985296343
+    ],
+    "identical_payload_repeated": true,
+    "message_counts": [
+      {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      {
+        "Line3D": 45,
+        "String2D": 11
+      },
+      {
+        "Line3D": 45,
+        "String2D": 11
+      }
+    ],
+    "payload_bytes": [
+      3860,
+      3860,
+      3872
+    ],
+    "prefix_hex": [
+      "0f14",
+      "0f14",
+      "0f20"
+    ],
+    "renderer_queue_empty_after": true,
+    "same_group_id": true
+  },
+  "scope": "client pipeline only; not a server, game or persistence simulation",
+  "session_fixture": "GameSession.__new__ with explicit attributes; __init__ and its thread are never run",
+  "soft_ceiling_bytes": 49152,
+  "soft_ceiling_observation": {
+    "fixtures_over_soft_ceiling": [],
+    "note": "observation only; exceeding it is not asserted as a failure and staying under it is not asserted as safe",
+    "soft_ceiling_bytes": 49152
+  },
+  "source_identity": {
+    "game_worker": {
+      "bytes": 90814,
+      "label": "src/my_career_training/game_worker.py",
+      "outside_repo": false,
+      "sha256": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2"
+    },
+    "installed rlbot/interface": {
+      "bytes": 13386,
+      "label": "interface.py",
+      "outside_repo": true,
+      "sha256": "abc030a97cda257a988abdb7b3915e5fbfdd981e95373624609200e79eb81822"
+    },
+    "installed rlbot/managers/rendering": {
+      "bytes": 11891,
+      "label": "rendering.py",
+      "outside_repo": true,
+      "sha256": "7da1cafc8a3d5b57b1677f54de2a6337b8f8c13e07cd210fc7c7cf3a91a5c7a0"
+    },
+    "training/catalog": {
+      "bytes": 9097,
+      "label": "src/my_career_training/training/catalog.py",
+      "outside_repo": false,
+      "sha256": "1c05fe5ed75296c5c75848f26e7c01a77160b16938c76c55e15536828f58fe73"
+    },
+    "training/controller": {
+      "bytes": 4400,
+      "label": "src/my_career_training/training/controller.py",
+      "outside_repo": false,
+      "sha256": "899dcb25e1da465af2b1959b02ac66cfd947ee0d5e6864ef79e18ae23ccb6723"
+    },
+    "training/recordings": {
+      "bytes": 22459,
+      "label": "src/my_career_training/training/recordings.py",
+      "outside_repo": false,
+      "sha256": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1"
+    }
+  },
+  "synthetic_inputs": {
+    "actions": {
+      "boost": true,
+      "handbrake": false,
+      "jump": true,
+      "pitch": 0.0,
+      "roll": 0.0,
+      "steer": -0.4,
+      "throttle": 1.0,
+      "yaw": 0.0
+    },
+    "changed_actions": {
+      "boost": true,
+      "handbrake": true,
+      "jump": true,
+      "pitch": 0.0,
+      "roll": 0.0,
+      "steer": 0.9,
+      "throttle": 1.0,
+      "yaw": 0.0
+    },
+    "coaching": {
+      "interruption_reason": "synthetic interruption reason",
+      "message": "synthetic coaching message",
+      "next_stage": 0,
+      "stages": [
+        {
+          "title": "synthetic stage one"
+        },
+        {
+          "title": "synthetic stage two"
+        }
+      ]
+    },
+    "engine_duration": 1.25,
+    "engine_feedback": "synthetic feedback",
+    "frame_time": 1.5,
+    "oversized_text_length": 70000,
+    "pose": {
+      "position": [
+        0.0,
+        0.0,
+        17.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "tool": "research_render_packet_probe",
+  "upper_bound_note": "127 is a conservative sum of independent per-branch maxima from docs/render-message-budget-01.md; it is not an attainable maximum and is not asserted against any measurement below."
+}
