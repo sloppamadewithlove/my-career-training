@@ -1,0 +1,1578 @@
+{
+  "kind": "read_only_source_calculation",
+  "checked_at_utc": "2026-10-27T14:08:20.219982+00:00",
+  "source_fingerprints": {
+    "training/scenarios.py": "35714a224aa8765ae62be6fde3df6dc87c088c32d297adcda3795d0bc682d979",
+    "training/scenario_setup.py": "d2421bf8f7ac2508e9f3a65db21b2847a0e147b75cc62a6159a976999536a0fe",
+    "training/engine.py": "37028379a268d6f6e19d42b32a9e3c20778ed4f41d87bfbd3bc76955c61c602a",
+    "bots/__init__.py": "6b9e406b1532d1064499ce5918d6a4187a7d08300f769c8b6a9fb52e1687a12e",
+    "bridge.py": "ac502d1f19810baca479a534aa766a6afbea7ba57a405452835cc9dcff379ac2",
+    "game_worker.py": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2",
+    "adapter.py": "98d1f4612967eda756b21857dfd198a3a12e4a211684067a248b9a829b74285c",
+    "training/coaching.py": "3b8336a54f4997479f1ce56f787377eb748683a117c8ba24a82e6e3c03b25d3b"
+  },
+  "definition_count": 96,
+  "rows": [
+    {
+      "situation": "low-side-pass",
+      "rank": "bronze",
+      "arrival_seconds": 2.386303510546059,
+      "shot_window_seconds": 12.613696489453941,
+      "timeout_seconds": 15.0,
+      "launch_speed": 900.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "silver",
+      "arrival_seconds": 2.2512297269302444,
+      "shot_window_seconds": 11.748770273069756,
+      "timeout_seconds": 14.0,
+      "launch_speed": 954.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "gold",
+      "arrival_seconds": 2.149822982473927,
+      "shot_window_seconds": 11.850177017526073,
+      "timeout_seconds": 14.0,
+      "launch_speed": 999.0000000000001,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "platinum",
+      "arrival_seconds": 2.039575650039367,
+      "shot_window_seconds": 10.960424349960633,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1053.0,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "diamond",
+      "arrival_seconds": 1.9559864840541468,
+      "shot_window_seconds": 10.044013515945853,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1098.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "champion",
+      "arrival_seconds": 1.8642996176141087,
+      "shot_window_seconds": 9.135700382385892,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1152.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.7942131658241045,
+      "shot_window_seconds": 8.205786834175896,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1197.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "low-side-pass",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.716765115500762,
+      "shot_window_seconds": 7.2832348844992385,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1251.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "bronze",
+      "arrival_seconds": 2.936622094168553,
+      "shot_window_seconds": 12.063377905831448,
+      "timeout_seconds": 15.0,
+      "launch_speed": 860.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 125.0,
+      "launch_vz": -260.0,
+      "execution": "settled-bounce"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "silver",
+      "arrival_seconds": 2.7703982020458042,
+      "shot_window_seconds": 11.229601797954196,
+      "timeout_seconds": 14.0,
+      "launch_speed": 911.6,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 125.0,
+      "launch_vz": -260.0,
+      "execution": "settled-bounce"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "gold",
+      "arrival_seconds": 2.6456054902419393,
+      "shot_window_seconds": 11.35439450975806,
+      "timeout_seconds": 14.0,
+      "launch_speed": 954.6000000000001,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "platinum",
+      "arrival_seconds": 2.509933413819276,
+      "shot_window_seconds": 10.490066586180724,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1006.1999999999999,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "diamond",
+      "arrival_seconds": 2.407067290302092,
+      "shot_window_seconds": 9.592932709697909,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1049.2,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "champion",
+      "arrival_seconds": 2.2942360110691817,
+      "shot_window_seconds": 8.70576398893082,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1100.8,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "grand-champion",
+      "arrival_seconds": 2.207986536968837,
+      "shot_window_seconds": 7.792013463031163,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1143.8,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 2.112677765588887,
+      "shot_window_seconds": 6.887322234411113,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1195.3999999999999,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 260.0,
+      "launch_vz": -80.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "bronze",
+      "arrival_seconds": 2.1301644127463057,
+      "shot_window_seconds": 12.869835587253695,
+      "timeout_seconds": 15.0,
+      "launch_speed": 920.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "silver",
+      "arrival_seconds": 2.00958906862859,
+      "shot_window_seconds": 11.990410931371411,
+      "timeout_seconds": 14.0,
+      "launch_speed": 975.2,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "gold",
+      "arrival_seconds": 1.9190670385101851,
+      "shot_window_seconds": 12.080932961489815,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1021.2,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "platinum",
+      "arrival_seconds": 1.8206533442276118,
+      "shot_window_seconds": 11.179346655772388,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1076.3999999999999,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "diamond",
+      "arrival_seconds": 1.7460364038904146,
+      "shot_window_seconds": 10.253963596109585,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1122.3999999999999,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "champion",
+      "arrival_seconds": 1.664190947458051,
+      "shot_window_seconds": 9.335809052541949,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1177.6000000000001,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.6016273780047408,
+      "shot_window_seconds": 8.398372621995259,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1223.6000000000001,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "goal-line-cutback",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.5324923832707236,
+      "shot_window_seconds": 7.467507616729277,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1278.8,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "bronze",
+      "arrival_seconds": 1.4784345430423838,
+      "shot_window_seconds": 13.521565456957616,
+      "timeout_seconds": 15.0,
+      "launch_speed": 760.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "silver",
+      "arrival_seconds": 1.394749568907909,
+      "shot_window_seconds": 12.605250431092092,
+      "timeout_seconds": 14.0,
+      "launch_speed": 805.6,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "gold",
+      "arrival_seconds": 1.3319230117498952,
+      "shot_window_seconds": 12.668076988250105,
+      "timeout_seconds": 14.0,
+      "launch_speed": 843.6,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "platinum",
+      "arrival_seconds": 1.263619267557593,
+      "shot_window_seconds": 11.736380732442408,
+      "timeout_seconds": 13.0,
+      "launch_speed": 889.1999999999999,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "diamond",
+      "arrival_seconds": 1.2118315926576917,
+      "shot_window_seconds": 10.788168407342308,
+      "timeout_seconds": 12.0,
+      "launch_speed": 927.1999999999999,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "champion",
+      "arrival_seconds": 1.155026986751862,
+      "shot_window_seconds": 9.844973013248138,
+      "timeout_seconds": 11.0,
+      "launch_speed": 972.8000000000001,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.1116049195807396,
+      "shot_window_seconds": 8.88839508041926,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1010.8000000000001,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "backward-layoff",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.0636219734117869,
+      "shot_window_seconds": 7.936378026588213,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1056.3999999999999,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "bronze",
+      "arrival_seconds": 3.1669662352731622,
+      "shot_window_seconds": 11.833033764726839,
+      "timeout_seconds": 15.0,
+      "launch_speed": 980.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "silver",
+      "arrival_seconds": 2.987703995540719,
+      "shot_window_seconds": 11.01229600445928,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1038.8,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "gold",
+      "arrival_seconds": 2.853122734480326,
+      "shot_window_seconds": 11.146877265519674,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1087.8000000000002,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "platinum",
+      "arrival_seconds": 2.70680874809672,
+      "shot_window_seconds": 10.29319125190328,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1146.6,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "diamond",
+      "arrival_seconds": 2.595873963338658,
+      "shot_window_seconds": 9.404126036661342,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1195.6,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "champion",
+      "arrival_seconds": 2.474192371307158,
+      "shot_window_seconds": 8.525807628692842,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1254.4,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "grand-champion",
+      "arrival_seconds": 2.381177620506137,
+      "shot_window_seconds": 7.618822379493864,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1303.4,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "across-body-pass",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 2.2783929750166636,
+      "shot_window_seconds": 6.721607024983337,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1362.1999999999998,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "bronze",
+      "arrival_seconds": 2.727204012052639,
+      "shot_window_seconds": 12.272795987947362,
+      "timeout_seconds": 15.0,
+      "launch_speed": 1050.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "silver",
+      "arrival_seconds": 2.5728339736345647,
+      "shot_window_seconds": 11.427166026365436,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1113.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "gold",
+      "arrival_seconds": 2.4569405513987737,
+      "shot_window_seconds": 11.543059448601227,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1165.5,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "platinum",
+      "arrival_seconds": 2.3309436000449906,
+      "shot_window_seconds": 10.669056399955009,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1228.5,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "diamond",
+      "arrival_seconds": 2.2354131246333107,
+      "shot_window_seconds": 9.764586875366689,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1281.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "champion",
+      "arrival_seconds": 2.130628134416124,
+      "shot_window_seconds": 8.869371865583876,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1344.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "grand-champion",
+      "arrival_seconds": 2.050529332370405,
+      "shot_window_seconds": 7.949470667629595,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1396.5,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "long-outlet",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.9620172748580136,
+      "shot_window_seconds": 7.037982725141987,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1459.5,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "bronze",
+      "arrival_seconds": 4.032256360652767,
+      "shot_window_seconds": 10.967743639347233,
+      "timeout_seconds": 15.0,
+      "launch_speed": 900.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-wall-read"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "silver",
+      "arrival_seconds": 3.8040154345780812,
+      "shot_window_seconds": 10.195984565421918,
+      "timeout_seconds": 14.0,
+      "launch_speed": 954.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-wall-read"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "gold",
+      "arrival_seconds": 3.6326633879754646,
+      "shot_window_seconds": 10.367336612024536,
+      "timeout_seconds": 14.0,
+      "launch_speed": 999.0000000000001,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "platinum",
+      "arrival_seconds": 3.4463729578228772,
+      "shot_window_seconds": 9.553627042177123,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1053.0,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "diamond",
+      "arrival_seconds": 3.3051281644694805,
+      "shot_window_seconds": 8.69487183553052,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1098.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "champion",
+      "arrival_seconds": 3.1502002817599735,
+      "shot_window_seconds": 7.8497997182400265,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1152.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "grand-champion",
+      "arrival_seconds": 3.031771699738922,
+      "shot_window_seconds": 6.968228300261078,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1197.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "side-wall-rebound",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 2.900903856584724,
+      "shot_window_seconds": 6.0990961434152755,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1251.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "wall-rebound-strike"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "bronze",
+      "arrival_seconds": 2.6048929206452387,
+      "shot_window_seconds": 12.395107079354762,
+      "timeout_seconds": 15.0,
+      "launch_speed": 850.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 125.0,
+      "launch_vz": -260.0,
+      "execution": "settled-bounce"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "silver",
+      "arrival_seconds": 2.457446151552112,
+      "shot_window_seconds": 11.542553848447888,
+      "timeout_seconds": 14.0,
+      "launch_speed": 901.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 125.0,
+      "launch_vz": -260.0,
+      "execution": "settled-bounce"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "gold",
+      "arrival_seconds": 2.3467503789596744,
+      "shot_window_seconds": 11.653249621040326,
+      "timeout_seconds": 14.0,
+      "launch_speed": 943.5000000000001,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "platinum",
+      "arrival_seconds": 2.2264042056796916,
+      "shot_window_seconds": 10.773595794320308,
+      "timeout_seconds": 13.0,
+      "launch_speed": 994.4999999999999,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "diamond",
+      "arrival_seconds": 2.1351581316764254,
+      "shot_window_seconds": 9.864841868323575,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1037.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "champion",
+      "arrival_seconds": 2.0350725942540926,
+      "shot_window_seconds": 8.964927405745907,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1088.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.9585661057483,
+      "shot_window_seconds": 8.0414338942517,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1130.5,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "dropping-delivery",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.874023683917438,
+      "shot_window_seconds": 7.125976316082562,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1181.5,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 520.0,
+      "launch_vz": -140.0,
+      "execution": "low-volley"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "bronze",
+      "arrival_seconds": 2.0227279442922232,
+      "shot_window_seconds": 12.977272055707777,
+      "timeout_seconds": 15.0,
+      "launch_speed": 780.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-rebound"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "silver",
+      "arrival_seconds": 1.9082339097096446,
+      "shot_window_seconds": 12.091766090290356,
+      "timeout_seconds": 14.0,
+      "launch_speed": 826.8000000000001,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-rebound"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "gold",
+      "arrival_seconds": 1.8222774272902913,
+      "shot_window_seconds": 12.177722572709708,
+      "timeout_seconds": 14.0,
+      "launch_speed": 865.8000000000001,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "platinum",
+      "arrival_seconds": 1.7288273028138663,
+      "shot_window_seconds": 11.271172697186135,
+      "timeout_seconds": 13.0,
+      "launch_speed": 912.5999999999999,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "diamond",
+      "arrival_seconds": 1.6579737248296913,
+      "shot_window_seconds": 10.342026275170308,
+      "timeout_seconds": 12.0,
+      "launch_speed": 951.6,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "champion",
+      "arrival_seconds": 1.5802562064782997,
+      "shot_window_seconds": 9.4197437935217,
+      "timeout_seconds": 11.0,
+      "launch_speed": 998.4,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.5208480784152054,
+      "shot_window_seconds": 8.479151921584794,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1037.4,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "second-chance",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.4551999599224632,
+      "shot_window_seconds": 7.544800040077536,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1084.1999999999998,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "rebound-recovery"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "bronze",
+      "arrival_seconds": 1.7073170731707317,
+      "shot_window_seconds": 13.292682926829269,
+      "timeout_seconds": 15.0,
+      "launch_speed": 820.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "silver",
+      "arrival_seconds": 1.6106764841233316,
+      "shot_window_seconds": 12.389323515876669,
+      "timeout_seconds": 14.0,
+      "launch_speed": 869.2,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "gold",
+      "arrival_seconds": 1.5381234893430014,
+      "shot_window_seconds": 12.461876510657,
+      "timeout_seconds": 14.0,
+      "launch_speed": 910.2,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "platinum",
+      "arrival_seconds": 1.4592453616843861,
+      "shot_window_seconds": 11.540754638315613,
+      "timeout_seconds": 13.0,
+      "launch_speed": 959.4,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "diamond",
+      "arrival_seconds": 1.3994402239104358,
+      "shot_window_seconds": 10.600559776089565,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1000.4,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "champion",
+      "arrival_seconds": 1.3338414634146343,
+      "shot_window_seconds": 9.666158536585366,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1049.6,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "grand-champion",
+      "arrival_seconds": 1.2836970474967906,
+      "shot_window_seconds": 8.71630295250321,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1090.6000000000001,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "keeper-commitment",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.2282856641516056,
+      "shot_window_seconds": 7.771714335848395,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1139.8,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "bronze",
+      "arrival_seconds": 2.6881444188283568,
+      "shot_window_seconds": 12.311855581171644,
+      "timeout_seconds": 15.0,
+      "launch_speed": 940.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "silver",
+      "arrival_seconds": 2.5359853007814683,
+      "shot_window_seconds": 11.46401469921853,
+      "timeout_seconds": 14.0,
+      "launch_speed": 996.4000000000001,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "gold",
+      "arrival_seconds": 2.421751728674195,
+      "shot_window_seconds": 11.578248271325805,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1043.4,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "platinum",
+      "arrival_seconds": 2.297559332331929,
+      "shot_window_seconds": 10.702440667668071,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1099.8,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "diamond",
+      "arrival_seconds": 2.2033970646134073,
+      "shot_window_seconds": 9.796602935386593,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1146.8,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "champion",
+      "arrival_seconds": 2.100112827209654,
+      "shot_window_seconds": 8.899887172790347,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1203.2,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "grand-champion",
+      "arrival_seconds": 2.021161217164178,
+      "shot_window_seconds": 7.9788387828358225,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1250.2,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "closing-lane",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.9339168480779547,
+      "shot_window_seconds": 7.0660831519220455,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1306.6,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "bronze",
+      "arrival_seconds": 2.7202941017470885,
+      "shot_window_seconds": 12.279705898252912,
+      "timeout_seconds": 15.0,
+      "launch_speed": 1000.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "silver",
+      "arrival_seconds": 2.566315190327442,
+      "shot_window_seconds": 11.433684809672558,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1060.0,
+      "roles": {
+        "human": 0
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "gold",
+      "arrival_seconds": 2.450715406979359,
+      "shot_window_seconds": 11.54928459302064,
+      "timeout_seconds": 14.0,
+      "launch_speed": 1110.0,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "platinum",
+      "arrival_seconds": 2.3250376938009305,
+      "shot_window_seconds": 10.67496230619907,
+      "timeout_seconds": 13.0,
+      "launch_speed": 1170.0,
+      "roles": {
+        "keeper": 0,
+        "human": 1
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "diamond",
+      "arrival_seconds": 2.229749263727122,
+      "shot_window_seconds": 9.770250736272878,
+      "timeout_seconds": 12.0,
+      "launch_speed": 1220.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "champion",
+      "arrival_seconds": 2.125229766989913,
+      "shot_window_seconds": 8.874770233010087,
+      "timeout_seconds": 11.0,
+      "launch_speed": 1280.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "grand-champion",
+      "arrival_seconds": 2.0453339110880364,
+      "shot_window_seconds": 7.954666088911964,
+      "timeout_seconds": 10.0,
+      "launch_speed": 1330.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    },
+    {
+      "situation": "crowded-box",
+      "rank": "supersonic-legend",
+      "arrival_seconds": 1.9570461163648118,
+      "shot_window_seconds": 7.042953883635188,
+      "timeout_seconds": 9.0,
+      "launch_speed": 1390.0,
+      "roles": {
+        "keeper": 0,
+        "defender": 1,
+        "human": 2
+      },
+      "launch_z": 93.0,
+      "launch_vz": 0.0,
+      "execution": "grounded-receive"
+    }
+  ],
+  "rank_summaries": [
+    {
+      "rank": "bronze",
+      "min_projected_window": 10.967743639347233,
+      "max_projected_window": 13.521565456957616
+    },
+    {
+      "rank": "silver",
+      "min_projected_window": 10.195984565421918,
+      "max_projected_window": 12.605250431092092
+    },
+    {
+      "rank": "gold",
+      "min_projected_window": 10.367336612024536,
+      "max_projected_window": 12.668076988250105
+    },
+    {
+      "rank": "platinum",
+      "min_projected_window": 9.553627042177123,
+      "max_projected_window": 11.736380732442408
+    },
+    {
+      "rank": "diamond",
+      "min_projected_window": 8.69487183553052,
+      "max_projected_window": 10.788168407342308
+    },
+    {
+      "rank": "champion",
+      "min_projected_window": 7.8497997182400265,
+      "max_projected_window": 9.844973013248138
+    },
+    {
+      "rank": "grand-champion",
+      "min_projected_window": 6.968228300261078,
+      "max_projected_window": 8.88839508041926
+    },
+    {
+      "rank": "supersonic-legend",
+      "min_projected_window": 6.0990961434152755,
+      "max_projected_window": 7.936378026588213
+    }
+  ],
+  "silver_gold_deltas": [
+    {
+      "situation": "low-side-pass",
+      "gold_minus_silver_projected_window": 0.10140674445631781
+    },
+    {
+      "situation": "bouncing-side-pass",
+      "gold_minus_silver_projected_window": 0.12479271180386498
+    },
+    {
+      "situation": "goal-line-cutback",
+      "gold_minus_silver_projected_window": 0.09052203011840376
+    },
+    {
+      "situation": "backward-layoff",
+      "gold_minus_silver_projected_window": 0.06282655715801333
+    },
+    {
+      "situation": "across-body-pass",
+      "gold_minus_silver_projected_window": 0.1345812610603936
+    },
+    {
+      "situation": "long-outlet",
+      "gold_minus_silver_projected_window": 0.11589342223579102
+    },
+    {
+      "situation": "side-wall-rebound",
+      "gold_minus_silver_projected_window": 0.1713520466026175
+    },
+    {
+      "situation": "dropping-delivery",
+      "gold_minus_silver_projected_window": 0.11069577259243779
+    },
+    {
+      "situation": "second-chance",
+      "gold_minus_silver_projected_window": 0.08595648241935194
+    },
+    {
+      "situation": "keeper-commitment",
+      "gold_minus_silver_projected_window": 0.07255299478033095
+    },
+    {
+      "situation": "closing-lane",
+      "gold_minus_silver_projected_window": 0.11423357210727403
+    },
+    {
+      "situation": "crowded-box",
+      "gold_minus_silver_projected_window": 0.11559978334808285
+    }
+  ],
+  "limits": [
+    "calls frozen scenario_definition only; no game or network",
+    "projected 2D arrival/window metadata is not measured physics or an enforced separate grading window",
+    "rank labels are authored difficulty profiles, not calibrated competitive MMR"
+  ]
+}

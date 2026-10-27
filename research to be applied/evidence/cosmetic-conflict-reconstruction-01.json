@@ -1,0 +1,67 @@
+{
+  "kind": "published_source_reconstruction",
+  "input_receipt": "cosmetic-conflict-prototype-01.json",
+  "source": "Five published text artifacts restored by recorded original relative path into a fresh private directory; all publication hashes checked before build and unchanged afterward",
+  "stages": [
+    {
+      "started_at_utc": "2026-10-27T14:03:37.1219182Z",
+      "exit_code": 0,
+      "stage": "configure",
+      "finished_at_utc": "2026-10-27T14:03:45.9282516Z",
+      "arguments": [
+        "-S",
+        ".",
+        "-B",
+        "build",
+        "-G",
+        "Visual Studio 17 2022",
+        "-A",
+        "x64"
+      ]
+    },
+    {
+      "started_at_utc": "2026-10-27T14:03:45.9446169Z",
+      "exit_code": 0,
+      "stage": "build",
+      "finished_at_utc": "2026-10-27T14:03:55.4492708Z",
+      "arguments": [
+        "--build",
+        "build",
+        "--config",
+        "Release",
+        "--target",
+        "research_cosmetic_conflict_prototype",
+        "--parallel",
+        "1"
+      ]
+    },
+    {
+      "stdout_sha256": "ab713e95cea53201bff8c8ff70392f723e24efa54a08211b7d88dd3ffc39f8b7",
+      "stage": "run",
+      "exe_sha256": "5caad91d3dde8812bec365508eb5aa9ae923768172ec21df309ec461d4a98eb1",
+      "exit_code": 0,
+      "finished_at_utc": "2026-10-27T14:03:55.8035470Z",
+      "started_at_utc": "2026-10-27T14:03:55.4493283Z"
+    }
+  ],
+  "toolchain": {
+    "cmake": "3.31.6-msvc6",
+    "generator": "Visual Studio 17 2022",
+    "compiler": "MSVC 19.44.35229.0",
+    "windows_sdk": "10.0.26100.0",
+    "configuration": "x64 Release, C++17",
+    "parallel_jobs": 1
+  },
+  "results": {
+    "records": 44,
+    "scenarios": 22,
+    "failures": 0,
+    "raw_stdout_identical_to_original_run": true,
+    "stderr": "all declared control checks passed"
+  },
+  "limits": [
+    "same installed Windows toolchain; not a clean-machine installation",
+    "executable hashes differ; binary reproducibility not claimed",
+    "standalone synthetic host only; no product integration or live game acceptance"
+  ]
+}
