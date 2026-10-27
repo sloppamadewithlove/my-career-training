@@ -1,0 +1,21 @@
+{
+  "task": "PAUSE-POLICY-01",
+  "scope": "research document only",
+  "independent_reviewer": "DeepSeek V4.1 Flash 1017",
+  "review_verdict": "source_review_accepted_with_limits",
+  "reviewed_document_sha256": "9ab9cd9f328bb827261aa51b2bfec6549584a5c2c9288bc2970023a3de6a00e1",
+  "final_private_document_sha256": "ff00c4abe381bfe052ca38e7f07ad224bff0c2eee68b082b9537441a074d1118",
+  "coordinator_source_hashes_verified": 6,
+  "coordinator_postreview_edits": [
+    "Clarified phase4 returns completed if terminal evidence finishes the attempt; otherwise interrupts.",
+    "Named last_touch_time among retained event baselines."
+  ],
+  "limits": [
+    "Source review, not implementation approval.",
+    "Reviewer did not execute code or verify hashes; coordinator matched six source files against frozen research checkout.",
+    "No product changes or new tests.",
+    "No installed-game pause delivery or live ghost acceptance.",
+    "Publication whitespace normalization may change report bytes; fingerprint identifies private research source."
+  ],
+  "observed_at_utc": "2026-10-27T12:42:59.8571235Z"
+}
