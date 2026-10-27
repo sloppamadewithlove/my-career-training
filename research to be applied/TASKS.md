@@ -16,19 +16,21 @@ analysis substitutes for actual gameplay verification.
 | MAP-01 | Workshop package identity, prepare/arrival/Return/cleanup | Complete; Luna; reviewed for publication |
 | NATIVEUI-01 | Native composition, focus/repeat, image refresh and scaling | Complete; Luna; final text integrated |
 | SDK-01 | Shipped host interfaces versus pinned wrapper declarations | Complete; Luna; installed export evidence recorded |
-| PACK-01 | Native training-pack metadata, progress, history and offline limits | In progress; Luna |
-| CURRICULUM-01 | Existing eight lessons and mechanic-specific rank expansion | Queued |
+| SDK-02 | Installed plugin imports versus installed SDK exports | Complete; coordinator; 64 exact names matched |
+| PERSIST-TEST-01 | Existing storage/import/ack tests | Complete; Luna; 21 passed, overlapping earlier scope |
+| PACK-01 | Native training-pack metadata, progress, history and offline limits | Complete; Luna; official progress docs checked |
+| CURRICULUM-01 | Existing eight lessons and mechanic-specific rank expansion | Complete; Luna; 64-profile acceptance defined |
 | OUTCOMES-01 | Success/failure/timing feedback and durable attempt acknowledgement | Complete; DeepSeek research reconciled against callers by main |
-| PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | In progress; DeepSeek |
-| CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | In progress; Luna |
-| TELEMETRY-01 | Packet clocks, gaps, pauses, speed changes and recovery | Queued |
+| PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | Complete; DeepSeek; coordinator corrected platform/backup claims |
+| CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | Complete; Luna; camera declarations and source gaps checked |
+| TELEMETRY-01 | Packet clocks, gaps, pauses, speed changes and recovery | In progress; DeepSeek |
 | PERFORMANCE-01 | Rendering/update budgets, cache paging and observable latency | Queued |
-| ARTIFACT-01 | Training/HUD/map package boundaries and reusable public interfaces | Queued |
+| ARTIFACT-01 | Training/HUD/map package boundaries and reusable public interfaces | In progress; Luna |
 | BUILD-01 | Native/authored/frozen packaging provenance and reproducible acceptance | Queued |
 | STATS-01 | Official telemetry/StatsAPI and native feature opportunities | Queued |
 | RESTORE-01 | Return/exit/failure recovery across game, plugins, files and saves | Queued |
 | CONTENT-01 | Installed training map mechanics and fit with lesson progression | Queued |
-| GARAGE-02 | Product metadata, thumbnails, paint variants and richer browsing | Queued |
+| GARAGE-02 | Product metadata, thumbnails, paint variants and richer browsing | In progress; Luna |
 | GHOST-02 | Requirements for synchronized ball/car playback and truthful comparison | Queued |
 
 The queue can be refined when evidence reveals a more valuable question. Repeated
