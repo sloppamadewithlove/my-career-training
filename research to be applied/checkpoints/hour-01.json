@@ -1,0 +1,71 @@
+{
+  "checkpoint": 1,
+  "scheduled_utc": "2026-10-27T07:54:12+00:00",
+  "recorded_utc": "2026-10-27T07:54:12.012950+00:00",
+  "coordinator_checked_utc": "2026-10-27T07:56:02.954642+00:00",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "files": 35,
+    "total_bytes": 296122,
+    "changed_paths": [
+      "IMPLEMENTATION_MAP.md",
+      "README.md",
+      "TASKS.md",
+      "campaign.json",
+      "campaign/artifact-01.md",
+      "campaign/camera-01.md",
+      "campaign/compat-01.md",
+      "campaign/curriculum-01.md",
+      "campaign/download-01.md",
+      "campaign/garage-01.md",
+      "campaign/garage-02.md",
+      "campaign/ghost-01.md",
+      "campaign/map-01.md",
+      "campaign/nativeui-01.md",
+      "campaign/outcomes-01.md",
+      "campaign/pack-01.md",
+      "campaign/persist-01.md",
+      "campaign/persist-test-01.md",
+      "campaign/physics-01.md",
+      "campaign/sdk-01.md",
+      "campaign/sdk-02.md",
+      "campaign/settings-01.md",
+      "campaign/telemetry-01.md",
+      "evidence/sdk-02-import-comparison.json",
+      "initial findings/browser-identity-research.txt",
+      "initial findings/native-training-research.txt",
+      "initial findings/plugin-compatibility-matrix.txt",
+      "initial findings/stock-training-modes-research.txt",
+      "source-provenance.json"
+    ],
+    "truncated": false
+  },
+  "publication_commit_at_check": "948b0f4c815ed6f39e73b55c9a8cbb64a1a99922",
+  "approved_campaign_reports": 19,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running",
+    "luna_content_01": "running, collaboration status observed",
+    "luna_ghost_02": "running, collaboration status observed",
+    "deepseek_restore_01": "completed, exit 0, corrected report awaits coordinator integration"
+  },
+  "source_freshness": {
+    "selected_paths_checked": 21,
+    "changed_since_source_provenance": 0,
+    "scope": "selected paths only, not whole checkout"
+  },
+  "verification_this_hour": [
+    "21 existing focused persistence/import/ack cases passed; scope overlaps prior runs",
+    "Four synthetic cadence calls checked arithmetic and ordinary versus strict classification",
+    "REA complete PE inventories: 64 installed plugin SDK imports matched installed SDK export names",
+    "Publication restricted to sanitized research folder; no extracted code/assets or raw private data"
+  ],
+  "limits": [
+    "Document monitor cannot wake Codex and is not worker activity proof",
+    "No game input, process attachment, live physics/timing acceptance or deployed candidate validation",
+    "Heavy native builds deferred while parallel session ownership remains unresolved",
+    "Hourly checkpoint and worker status are observations, not proof of uninterrupted activity between them"
+  ],
+  "next_checkpoint_utc": "2026-10-27T08:54:12Z"
+}

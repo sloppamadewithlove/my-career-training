@@ -39,7 +39,7 @@ The project status records one copied-profile game session that loaded **Dribble
 
 ## Installed Steam Workshop inventory
 
-A bounded read-only scan of the installed Rocket League app-252950 Workshop tree found 7 numeric item directories and 9 `.udk`/`.upk` candidates (7 `.udk`, 2 `.upk`), with candidates in at most 6 directories and 3 package-bearing directories containing multiple files (the aggregate output did not preserve per-directory counts, so the exact empty-directory count is unknown). All 9 candidates had the expected Unreal package magic. The Steam Workshop manifest existed. Counts and headers establish local files only; they do not establish subscription, entry-map role, dependencies, runtime compatibility, or that any map was launched. No package content or item IDs are included here.
+A later coordinator-verified bounded path scan found 7 numeric item directories and 9 `.udk`/`.upk` candidates, distributed as six one-file directories and one three-file directory. The earlier aggregate claim of three multi-package directories was not supported by that per-directory scan and is withdrawn. The earlier header inspection counted 7 `.udk` and 2 `.upk`; the correction scan checked paths/counts, not package contents. All 9 candidates had the expected Unreal package magic. The Steam Workshop manifest existed. Counts and headers establish local files only; they do not establish subscription, entry-map role, dependencies, runtime compatibility, or that any map was launched. No package content or item IDs are included here.
 
 ## Existing coverage and gaps
 
