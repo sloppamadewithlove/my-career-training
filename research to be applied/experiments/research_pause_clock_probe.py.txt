@@ -1,0 +1,788 @@
+#!/usr/bin/env python3
+"""Offline synthetic probe: pause-phase delivery versus game-clock behaviour.
+
+Research diagnostic only. It imports the unchanged MCT source from this
+repository's ``src`` tree, drives the public ``TrainingEngine`` update surface
+and the public ``GhostPlayback`` / ``GhostPractice`` surfaces with clearly
+synthetic, complete, normalized 120 Hz one-step frames, and prints a bounded
+JSON observation report to stdout.
+
+It does not start a game, worker, process, Qt surface, or network connection,
+and it writes no files. It never assigns private engine/ghost state and never
+monkeypatches. Every fixture is synthetic test-only data; nothing here is a
+real capture, a real reference, or a game result.
+
+Usage:
+    python tools/research_pause_clock_probe.py
+
+Exit status is 0 only when every precondition/control check passes.
+"""
+
+import json
+import math
+import sys
+from pathlib import Path
+
+# --- source origin: only this repository's src tree -------------------------
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from my_career_training.training.catalog import catalog, lesson as catalog_lesson  # noqa: E402
+from my_career_training.training.coach import GhostPlayback, GhostPractice  # noqa: E402
+from my_career_training.training.engine import TrainingEngine  # noqa: E402
+from my_career_training.training.recordings import validate_recording  # noqa: E402
+from my_career_training.training.scenarios import scenario_definition  # noqa: E402
+
+# Captured at import time so a later replacement is detectable.
+_ORIGINAL_ENGINE_UPDATE = TrainingEngine.update
+_ORIGINAL_ENGINE_RESET = TrainingEngine.reset
+_ORIGINAL_PLAYBACK_UPDATE = GhostPlayback.update
+_ORIGINAL_PLAYBACK_PAUSE = GhostPlayback.pause
+_ORIGINAL_PRACTICE_UPDATE = GhostPractice.update
+_ORIGINAL_PRACTICE_SET_ENABLED = GhostPractice.set_enabled
+
+HZ = 120.0
+STEP = 1.0 / HZ
+PHASE_NAMES = {
+    0: "MatchPhase.Inactive", 1: "MatchPhase.Countdown", 2: "MatchPhase.Kickoff",
+    3: "MatchPhase.Active", 4: "MatchPhase.GoalScored", 5: "MatchPhase.Replay",
+    6: "MatchPhase.Paused", 7: "MatchPhase.Ended",
+}
+ACTIVE, PAUSED = 3, 6
+FORBIDDEN_MODULES = (
+    "PyQt5", "PyQt6", "PySide2", "PySide6",
+    "my_career_training.game_worker", "my_career_training.bridge",
+    "my_career_training.app", "my_career_training.bootstrap",
+    "my_career_training.adapter", "my_career_training.native_launch",
+)
+SOURCE_MODULES = (
+    "my_career_training.training.engine",
+    "my_career_training.training.coach",
+    "my_career_training.training.recordings",
+    "my_career_training.training.catalog",
+    "my_career_training.training.scenarios",
+    "my_career_training.training.cadence",
+    "my_career_training.training.coaching",
+)
+FIXTURE_LABEL = "synthetic-test-only/private"
+SCENARIO_LESSON = "power-shots"
+
+
+# --- synthetic normalized frames -------------------------------------------
+def neutral_actions():
+    return {
+        "throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0, "roll": 0.0,
+        "jump": False, "boost": False, "handbrake": False,
+    }
+
+
+def car_state(position, *, velocity=(0.0, 0.0, 0.0), rotation=(0.0, math.pi / 2, 0.0),
+              angular_velocity=(0.0, 0.0, 0.0), boost=100.0, grounded=True):
+    return {
+        "position": [float(x) for x in position],
+        "velocity": [float(x) for x in velocity],
+        "rotation": [float(x) for x in rotation],
+        "angular_velocity": [float(x) for x in angular_velocity],
+        "boost": float(boost),
+        "wheel_contact": bool(grounded),
+        "air_state": "OnGround" if grounded else "InAir",
+        "has_jumped": False,
+        "has_double_jumped": False,
+        "has_dodged": False,
+        "player_index": 0,
+    }
+
+
+def ball_state(position, velocity=(0.0, 0.0, 0.0)):
+    return {
+        "position": [float(x) for x in position],
+        "velocity": [float(x) for x in velocity],
+        "rotation": [0.0, 0.0, 0.0],
+        "angular_velocity": [0.0, 0.0, 0.0],
+    }
+
+
+def actor_car(pose):
+    """Complete car state from an authored scenario/lesson actor pose."""
+    return car_state(
+        pose["position"],
+        velocity=pose.get("velocity", (0.0, 0.0, 0.0)),
+        rotation=pose.get("rotation", (0.0, math.pi / 2, 0.0)),
+        angular_velocity=pose.get("angular_velocity", (0.0, 0.0, 0.0)),
+        boost=pose.get("boost", 100.0),
+    )
+
+
+def build_cars(bots, human_index, human_car, *, elapsed=0.0):
+    """Full actor roster at the authored indices, human at its authored index."""
+    cars = [None] * (human_index + 1)
+    for index, pose in bots.items():
+        car = actor_car(pose)
+        if elapsed:
+            car["position"] = [p + v * elapsed
+                               for p, v in zip(car["position"], car["velocity"])]
+        cars[int(index)] = car
+    cars[human_index] = human_car
+    return cars
+
+
+def frame_at(frame_num, *, phase, cars, ball, human_index):
+    """Complete normalized frame; game time is derived from the frame number."""
+    return {
+        "time": frame_num / HZ,
+        "frame_num": int(frame_num),
+        "phase": int(phase),
+        "phase_name": PHASE_NAMES[int(phase)],
+        "car": cars[human_index],
+        "cars": cars,
+        "ball": ball,
+        "actions": neutral_actions(),
+    }
+
+
+# --- bounded engine observation --------------------------------------------
+def engine_snapshot(engine):
+    summary = engine.summary()
+    events = summary.get("events") or []
+    metrics = summary.get("metrics") or {}
+    observations = summary.get("observations") or []
+    return {
+        "state": summary.get("state"),
+        "outcome": summary.get("outcome"),
+        "duration_seconds": round(float(summary.get("duration") or 0.0), 6),
+        "event_count": len(events),
+        "event_names": sorted({event.get("name") for event in events if event.get("name")}),
+        "packet_gaps": metrics.get("packet_gaps"),
+        "gates": metrics.get("gates"),
+        "observation_count": len(observations),
+        "first_observation": observations[0] if observations else None,
+        "attempt_id_present": bool(summary.get("id")),
+    }
+
+
+def event_summary(events):
+    rows = []
+    for event in events:
+        row = {"type": event.get("type")}
+        if event.get("name") is not None:
+            row["name"] = event.get("name")
+        if event.get("type") == "completed":
+            row["outcome"] = (event.get("summary") or {}).get("outcome")
+        rows.append(row)
+    return rows[:12]
+
+
+def lesson_roster(value):
+    """Legacy lessons have no scenario bots; the human is actor index 0."""
+    return {"settle_bots": {}, "start_bots": {}, "human_index": 0}
+
+
+def scenario_roster(definition):
+    return {
+        "settle_bots": definition["settle_state"].get("bots", {}),
+        "start_bots": definition["starting_state"].get("bots", {}),
+        "human_index": definition["roles"]["human"],
+    }
+
+
+def activate(engine, states, roster, *, phase, frame_num=0, max_settle=1200):
+    """Traverse settle -> ready -> active using only public update() calls."""
+    settle_car, settle_ball = states["settle"]["car"], states["settle"]["ball"]
+    settle_cars = build_cars(roster["settle_bots"], roster["human_index"],
+                             actor_car(settle_car))
+    settle_ball_state = ball_state(settle_ball["position"],
+                                   settle_ball.get("velocity", (0.0, 0.0, 0.0)))
+    ready_time = None
+    for _ in range(max_settle):
+        frame = frame_at(frame_num, phase=phase, cars=settle_cars,
+                         ball=settle_ball_state, human_index=roster["human_index"])
+        events = engine.update(frame)
+        frame_num += 1
+        if any(event.get("type") == "ready" for event in events):
+            ready_time = frame["time"]
+            break
+        if engine.finished:
+            return {"ok": False, "reason": "engine finished during settle",
+                    "frame_num": frame_num}
+    if ready_time is None:
+        return {"ok": False, "reason": "ready state not reached", "frame_num": frame_num}
+
+    start_car, start_ball = states["starting"]["car"], states["starting"]["ball"]
+    go_time = None
+    for _ in range(240):
+        elapsed = frame_num / HZ - ready_time
+        expected_car = [p + v * elapsed for p, v in zip(start_car["position"], start_car["velocity"])]
+        expected_ball = [p + v * elapsed for p, v in zip(start_ball["position"], start_ball["velocity"])]
+        expected_ball_velocity = list(start_ball["velocity"])
+        if start_ball["position"][2] > 100 or start_ball["velocity"][2] != 0:
+            expected_ball[2] -= 325 * elapsed * elapsed
+            expected_ball_velocity[2] -= 650 * elapsed
+        # Scenario bots are predicted by the engine from their authored pose and
+        # velocity, so the observed roster must follow the same extrapolation.
+        cars = build_cars(roster["start_bots"], roster["human_index"],
+                          actor_car(start_car), elapsed=elapsed)
+        cars[roster["human_index"]] = car_state(
+            expected_car, velocity=start_car["velocity"], rotation=start_car["rotation"],
+            boost=start_car.get("boost", 100.0),
+        )
+        frame = frame_at(frame_num, phase=phase, cars=cars,
+                         ball=ball_state(expected_ball, expected_ball_velocity),
+                         human_index=roster["human_index"])
+        events = engine.update(frame)
+        frame_num += 1
+        if any(event.get("type") == "go" for event in events):
+            go_time = frame["time"]
+            break
+        if engine.finished:
+            return {"ok": False, "reason": "engine finished during ready confirmation",
+                    "frame_num": frame_num}
+    if go_time is None:
+        return {"ok": False, "reason": "active state not reached", "frame_num": frame_num}
+    return {"ok": True, "frame_num": frame_num, "ready_time": ready_time, "go_time": go_time}
+
+
+def advance(engine, *, phase, frame_num, cars, ball, human_index, max_seconds, steps=1):
+    """Deliver complete one-step frames at a fixed phase until finished or bounded out."""
+    limit = int(round(max_seconds * HZ / steps))
+    delivered = 0
+    events = []
+    for _ in range(limit):
+        frame_num += steps
+        events.extend(engine.update(frame_at(frame_num, phase=phase, cars=cars, ball=ball,
+                                             human_index=human_index)))
+        delivered += 1
+        if engine.finished:
+            break
+    return {"frame_num": frame_num, "delivered": delivered, "events": events}
+
+
+# --- case 1: every legacy lesson, paused-phase advancing clock --------------
+def case_legacy_paused_timeout():
+    lessons = [value for value in catalog() if value["id"] != SCENARIO_LESSON]
+    results = []
+    for value in lessons:
+        lesson_id = value["id"]
+        engine = TrainingEngine(lesson_id)
+        states = {"settle": value["settle_state"], "starting": value["starting_state"]}
+        roster = lesson_roster(value)
+        before = engine_snapshot(engine)
+        activation = activate(engine, states, roster, phase=ACTIVE)
+        if not activation["ok"]:
+            results.append({"lesson_id": lesson_id, "activated": False,
+                            "activation_reason": activation["reason"]})
+            continue
+        active_before = engine_snapshot(engine)
+        start_car = value["starting_state"]["car"]
+        start_ball = value["starting_state"]["ball"]
+        cars = build_cars(roster["start_bots"], roster["human_index"], actor_car(start_car))
+        run = advance(
+            engine, phase=PAUSED, frame_num=activation["frame_num"], cars=cars,
+            ball=ball_state(start_ball["position"], start_ball["velocity"]),
+            human_index=roster["human_index"],
+            max_seconds=float(value["timeout"]) + 2.0,
+        )
+        after = engine_snapshot(engine)
+        emitted = set(after["event_names"])
+        required = set(value["success_events"])
+        results.append({
+            "lesson_id": lesson_id,
+            "activated": True,
+            "lesson_timeout_seconds": value["timeout"],
+            "success_events_required": sorted(required),
+            "before": before,
+            "active_before_paused_delivery": active_before,
+            "paused_packets_delivered": run["delivered"],
+            "after": after,
+            "events_during_paused_delivery": event_summary(run["events"]),
+            "success_without_required_events": (
+                after["outcome"] == "success" and not required.issubset(emitted)
+            ),
+        })
+    activated = [item for item in results if item.get("activated")]
+    outcomes = {}
+    for item in activated:
+        key = str(item["after"]["outcome"])
+        outcomes[key] = outcomes.get(key, 0) + 1
+    return {
+        "name": "legacy_lessons_paused_phase_advancing_clock",
+        "input_assumptions": {
+            "fixture": FIXTURE_LABEL,
+            "lessons": "every catalog lesson except the scenario lesson",
+            "scenario_lesson_excluded": SCENARIO_LESSON,
+            "lesson_count_observed": len(lessons),
+            "frames": "complete normalized 120 Hz one-step frames",
+            "phase_during_advance": PHASE_NAMES[PAUSED],
+            "clock": "game time advances while phase is Paused",
+            "poses": "stable authored settle/starting poses, no input edges",
+        },
+        "activated_lesson_count": len(activated),
+        "observed_outcome_counts": outcomes,
+        "lessons": results,
+    }
+
+
+# --- case 2: Bronze low-side-pass Power Shots interrupted by Paused ---------
+def case_scenario_paused_interrupt():
+    definition = scenario_definition(SCENARIO_LESSON, "low-side-pass", "bronze")
+    engine = TrainingEngine(SCENARIO_LESSON, scenario_id="low-side-pass", difficulty="bronze")
+    states = {"settle": definition["settle_state"], "starting": definition["starting_state"]}
+    roster = scenario_roster(definition)
+    before = engine_snapshot(engine)
+    activation = activate(engine, states, roster, phase=ACTIVE)
+    if not activation["ok"]:
+        return {"name": "scenario_bronze_low_side_pass_paused_interrupt",
+                "activated": False, "activation_reason": activation["reason"],
+                "bot_indices": sorted(roster["start_bots"]),
+                "human_index": roster["human_index"]}
+    active_before = engine_snapshot(engine)
+    start_car = definition["starting_state"]["car"]
+    start_ball = definition["starting_state"]["ball"]
+    cars = build_cars(roster["start_bots"], roster["human_index"], actor_car(start_car))
+    ball = ball_state(start_ball["position"], start_ball["velocity"])
+    active_run = advance(engine, phase=ACTIVE, frame_num=activation["frame_num"],
+                         cars=cars, ball=ball, human_index=roster["human_index"],
+                         max_seconds=0.25)
+    before_pause = engine_snapshot(engine)
+    paused_frame = frame_at(active_run["frame_num"] + 1, phase=PAUSED, cars=cars, ball=ball,
+                            human_index=roster["human_index"])
+    paused_events = engine.update(paused_frame)
+    after = engine_snapshot(engine)
+    return {
+        "name": "scenario_bronze_low_side_pass_paused_interrupt",
+        "input_assumptions": {
+            "fixture": FIXTURE_LABEL,
+            "lesson": SCENARIO_LESSON,
+            "scenario_id": "low-side-pass",
+            "difficulty": "bronze",
+            "bot_indices": sorted(roster["start_bots"]),
+            "human_index": roster["human_index"],
+            "frames": "complete normalized 120 Hz one-step frames with full actor roster",
+            "pause_packets": 1,
+            "phase_during_pause": PHASE_NAMES[PAUSED],
+        },
+        "activated": True,
+        "before": before,
+        "active_before_pause": active_before,
+        "active_packets_before_pause": active_run["delivered"],
+        "state_before_pause_packet": before_pause,
+        "paused_packet_events": event_summary(paused_events),
+        "after": after,
+        "interrupted": after["state"] == "interrupted",
+        "success_without_required_events": (
+            after["outcome"] == "success"
+            and not set(definition["success_events"]).issubset(set(after["event_names"]))
+        ),
+    }
+
+
+# --- case 3: equal timestamps during pause, then resumed advanced clock -----
+def case_equal_clock_then_resumed():
+    value = catalog_lesson("speed-flip")
+    engine = TrainingEngine("speed-flip")
+    states = {"settle": value["settle_state"], "starting": value["starting_state"]}
+    roster = lesson_roster(value)
+    activation = activate(engine, states, roster, phase=ACTIVE)
+    if not activation["ok"]:
+        return {"name": "equal_clock_during_pause_then_resumed_clock",
+                "activated": False, "activation_reason": activation["reason"]}
+    start_car = value["starting_state"]["car"]
+    start_ball = value["starting_state"]["ball"]
+    cars = build_cars(roster["start_bots"], roster["human_index"], actor_car(start_car))
+    ball = ball_state(start_ball["position"], start_ball["velocity"])
+    warm = advance(engine, phase=PAUSED, frame_num=activation["frame_num"],
+                   cars=cars, ball=ball, human_index=roster["human_index"], max_seconds=0.1)
+    before_stall = engine_snapshot(engine)
+    stalled_frame = frame_at(warm["frame_num"], phase=PAUSED, cars=cars, ball=ball,
+                             human_index=roster["human_index"])
+    stalled_events = engine.update(stalled_frame)
+    after_stall = engine_snapshot(engine)
+    resumed_frame = frame_at(warm["frame_num"] + int(round(10.0 * HZ)),
+                             phase=PAUSED, cars=cars, ball=ball,
+                             human_index=roster["human_index"])
+    resumed_events = engine.update(resumed_frame)
+    after_resume = engine_snapshot(engine)
+    return {
+        "name": "equal_clock_during_pause_then_resumed_clock",
+        "input_assumptions": {
+            "fixture": FIXTURE_LABEL,
+            "lesson": "speed-flip",
+            "stalled_delivery": "one packet repeating the previous game timestamp",
+            "resumed_delivery": "one packet 10.0 game seconds later, same Paused phase",
+        },
+        "activated": True,
+        "before_stall": before_stall,
+        "stalled_packet_event_count": len(stalled_events),
+        "stalled_packet_events": event_summary(stalled_events),
+        "after_stalled_packet": after_stall,
+        "resumed_packet_events": event_summary(resumed_events),
+        "after_resumed_packet": after_resume,
+        "stalled_packet_changed_state": after_stall["state"] != before_stall["state"],
+        "resumed_packet_changed_state": after_resume["state"] != after_stall["state"],
+    }
+
+
+# --- case 4: synthetic private recording drives Watch and Practice ----------
+def synthetic_recording():
+    base = catalog_lesson("speed-flip")
+    samples = []
+    for index in range(11):
+        samples.append({
+            "time": round(index * 0.1, 6),
+            "position": [0.0, -2500.0 + 100.0 * index, 17.01],
+            "rotation": [0.0, math.pi / 2, 0.0],
+            "velocity": [0.0, 100.0, 0.0],
+            "angular_velocity": [0.0, 0.0, 0.0],
+            "ball_position": [0.0, 0.0, 93.15],
+            "ball_velocity": [0.0, 0.0, 0.0],
+            "actions": neutral_actions(),
+            "wheel_contact": True,
+            "boost": 100.0,
+            "game_speed": 1.0,
+        })
+    return {
+        "schema_version": 1,
+        "lesson_id": "speed-flip",
+        "lesson_version": base["version"],
+        "duration": 1.0,
+        "outcome": "unfinished",
+        "truncated": False,
+        "variant": base.get("variant"),
+        "metadata": {
+            "game_version": "synthetic-test-only",
+            "framework_version": "synthetic-test-only",
+            "car_hitbox": "synthetic-test-only",
+            "map": base["map"],
+            "mutators": {},
+            "starting_state": base["starting_state"],
+            "time_base": "game_seconds",
+            "source": {"kind": "local_player", "origin": "synthetic-test-only"},
+            "permission": {"distribute": False,
+                           "basis": "synthetic test-only fixture; not a real capture"},
+            "success_evidence": [],
+        },
+        "samples": samples,
+    }
+
+
+def cursor_of(snapshot):
+    return round(float(snapshot.get("cursor") or 0.0), 6)
+
+
+def case_ghost_clock_hold():
+    recording = synthetic_recording()
+    validate_recording(recording)
+
+    watch = GhostPlayback(recording, mode="watch", speed=1.0, loop=False)
+    watch_start = watch.snapshot()
+    watch.update(100.0)
+    watch.update(100.25)
+    watch_mid = watch.snapshot()
+    watch.update(100.5)
+    watch_advanced = watch.snapshot()
+    watch.pause()
+    watch.update(101.0)
+    watch_paused = watch.snapshot()
+    watch.resume()
+    watch.update(101.0)
+    watch_resumed_first = watch.snapshot()
+    watch.update(101.0)
+    watch_equal_clock = watch.snapshot()
+
+    practice = GhostPractice(recording)
+    practice_loaded = practice.snapshot()
+    player_pose = {"position": [0.0, -2500.0, 17.01], "rotation": [0.0, math.pi / 2, 0.0]}
+    practice.set_enabled(True, player_pose=player_pose)
+    practice.update(200.0)
+    practice.update(200.25)
+    practice_mid = practice.snapshot()
+    practice.update(200.5)
+    practice_advanced = practice.snapshot()
+    practice.update(200.5)
+    practice_equal_clock = practice.snapshot()
+
+    watch_provenance = watch.snapshot().get("provenance") or {}
+    return {
+        "name": "synthetic_private_recording_watch_and_practice",
+        "input_assumptions": {
+            "fixture": FIXTURE_LABEL,
+            "recording": "synthetic private (kind=local_player), not a teaching reference",
+            "sample_count": len(recording["samples"]),
+            "sample_interval_seconds": 0.1,
+            "delivery": "advancing game clocks labelled simulated-paused delivery",
+            "watch_mode": "watch, normal speed, loop off",
+            "practice": "enabled with a supplied player pose",
+        },
+        "watch": {
+            "loaded_status": watch_start.get("status"),
+            "cursor_after_load": cursor_of(watch_start),
+            "cursor_after_mid_clock": cursor_of(watch_mid),
+            "cursor_after_advancing_clock": cursor_of(watch_advanced),
+            "cursor_after_explicit_pause": cursor_of(watch_paused),
+            "paused_status": watch_paused.get("status"),
+            "cursor_after_resume_first_packet": cursor_of(watch_resumed_first),
+            "cursor_after_equal_clock_packet": cursor_of(watch_equal_clock),
+            "advanced_progressed": cursor_of(watch_advanced) > cursor_of(watch_start),
+            "explicit_pause_held": cursor_of(watch_paused) == cursor_of(watch_advanced),
+            "equal_clock_held": cursor_of(watch_equal_clock) == cursor_of(watch_resumed_first),
+            "provenance_label": watch.snapshot().get("label"),
+            "reference_eligible": watch_provenance.get("reference_eligible"),
+        },
+        "practice": {
+            "loaded_status": practice_loaded.get("status"),
+            "cursor_after_enable": cursor_of(practice_loaded),
+            "cursor_after_mid_clock": cursor_of(practice_mid),
+            "cursor_after_advancing_clock": cursor_of(practice_advanced),
+            "cursor_after_equal_clock_packet": cursor_of(practice_equal_clock),
+            "advanced_progressed": cursor_of(practice_advanced) > cursor_of(practice_mid),
+            "equal_clock_held": cursor_of(practice_equal_clock) == cursor_of(practice_advanced),
+            "visible": practice_advanced.get("visible"),
+            "provenance_label": practice_advanced.get("label"),
+        },
+    }
+
+
+# --- controls ---------------------------------------------------------------
+def control_legacy_active_timeout():
+    value = catalog_lesson("speed-flip")
+    engine = TrainingEngine("speed-flip")
+    states = {"settle": value["settle_state"], "starting": value["starting_state"]}
+    roster = lesson_roster(value)
+    activation = activate(engine, states, roster, phase=ACTIVE)
+    if not activation["ok"]:
+        return {"name": "control_legacy_active_phase_timeout", "passed": False,
+                "detail": {"reason": activation["reason"]}}
+    start_car = value["starting_state"]["car"]
+    start_ball = value["starting_state"]["ball"]
+    cars = build_cars(roster["start_bots"], roster["human_index"], actor_car(start_car))
+    run = advance(engine, phase=ACTIVE, frame_num=activation["frame_num"], cars=cars,
+                  ball=ball_state(start_ball["position"], start_ball["velocity"]),
+                  human_index=roster["human_index"],
+                  max_seconds=float(value["timeout"]) + 2.0)
+    after = engine_snapshot(engine)
+    return {
+        "name": "control_legacy_active_phase_timeout",
+        "passed": after["state"] == "finished" and after["outcome"] == "timeout",
+        "detail": {"state": after["state"], "outcome": after["outcome"],
+                   "packets": run["delivered"]},
+    }
+
+
+def control_scenario_active_no_interrupt():
+    definition = scenario_definition(SCENARIO_LESSON, "low-side-pass", "bronze")
+    engine = TrainingEngine(SCENARIO_LESSON, scenario_id="low-side-pass", difficulty="bronze")
+    states = {"settle": definition["settle_state"], "starting": definition["starting_state"]}
+    roster = scenario_roster(definition)
+    activation = activate(engine, states, roster, phase=ACTIVE)
+    if not activation["ok"]:
+        return {"name": "control_scenario_active_phase_no_interrupt", "passed": False,
+                "detail": {"reason": activation["reason"]}}
+    start_car = definition["starting_state"]["car"]
+    start_ball = definition["starting_state"]["ball"]
+    cars = build_cars(roster["start_bots"], roster["human_index"], actor_car(start_car))
+    run = advance(engine, phase=ACTIVE, frame_num=activation["frame_num"], cars=cars,
+                  ball=ball_state(start_ball["position"], start_ball["velocity"]),
+                  human_index=roster["human_index"],
+                  max_seconds=0.25)
+    after = engine_snapshot(engine)
+    return {
+        "name": "control_scenario_active_phase_no_interrupt",
+        "passed": after["state"] == "active",
+        "detail": {"state": after["state"], "outcome": after["outcome"],
+                   "packets": run["delivered"]},
+    }
+
+
+# --- preconditions ----------------------------------------------------------
+def check_source_origin():
+    modules = {}
+    failures = []
+    for name in SOURCE_MODULES:
+        module = sys.modules.get(name)
+        origin = getattr(module, "__file__", None)
+        if origin is None:
+            failures.append(f"{name}: no source file")
+            continue
+        resolved = Path(origin).resolve()
+        try:
+            relative = resolved.relative_to(SRC.resolve()).as_posix()
+        except ValueError:
+            failures.append(f"{name}: outside this repository src tree")
+            continue
+        modules[name] = "src/" + relative
+    return {"passed": not failures, "modules": modules, "failures": failures}
+
+
+def check_no_uncontrolled_imports():
+    present = [name for name in FORBIDDEN_MODULES if name in sys.modules]
+    return {"passed": not present, "forbidden_modules_present": present}
+
+
+def check_no_monkeypatch():
+    engine_module = sys.modules["my_career_training.training.engine"]
+    coach_module = sys.modules["my_career_training.training.coach"]
+    checks = {
+        "TrainingEngine.update": engine_module.TrainingEngine.update is _ORIGINAL_ENGINE_UPDATE,
+        "TrainingEngine.reset": engine_module.TrainingEngine.reset is _ORIGINAL_ENGINE_RESET,
+        "GhostPlayback.update": coach_module.GhostPlayback.update is _ORIGINAL_PLAYBACK_UPDATE,
+        "GhostPlayback.pause": coach_module.GhostPlayback.pause is _ORIGINAL_PLAYBACK_PAUSE,
+        "GhostPractice.update": coach_module.GhostPractice.update is _ORIGINAL_PRACTICE_UPDATE,
+        "GhostPractice.set_enabled": (
+            coach_module.GhostPractice.set_enabled is _ORIGINAL_PRACTICE_SET_ENABLED
+        ),
+    }
+    return {"passed": all(checks.values()), "checks": checks}
+
+
+def check_phase_names():
+    engine_module = sys.modules["my_career_training.training.engine"]
+    reference = getattr(engine_module, "_MATCH_PHASE_NAMES", None)
+    if not isinstance(reference, dict):
+        return {"passed": True, "detail": "engine phase-name table not readable; local labels used"}
+    mismatches = {
+        key: {"local": PHASE_NAMES.get(key), "engine": value}
+        for key, value in reference.items() if PHASE_NAMES.get(key) != value
+    }
+    return {"passed": not mismatches, "mismatches": mismatches}
+
+
+def bounded_error(name, exc):
+    message = f"{type(exc).__name__}: {exc}"
+    return {"name": name, "error": message[:200]}
+
+
+def run_case(name, function):
+    try:
+        return function()
+    except Exception as exc:  # bounded report instead of a traceback
+        return bounded_error(name, exc)
+
+
+def main():
+    report = {
+        "tool": "research_pause_clock_probe",
+        "mode": "offline synthetic diagnostic; no game, worker, process, Qt, network, or file writes",
+        "fixture_label": FIXTURE_LABEL,
+        "source_origin": check_source_origin(),
+        "imports": check_no_uncontrolled_imports(),
+        "monkeypatch": check_no_monkeypatch(),
+        "phase_names": check_phase_names(),
+        "cases": [],
+        "controls": [],
+        "limitations": [
+            "All frames and the recording are synthetic test-only data; no real capture, "
+            "reference, or game result is claimed.",
+            "The probe observes public API behaviour only; it does not establish what the "
+            "deployed game build delivers during a real pause.",
+            "Pause-timeout behaviour is recorded as observed, not endorsed as desired "
+            "production correctness.",
+            "No packet delivery, physics, renderer, or input behaviour was measured.",
+        ],
+    }
+
+    report["cases"].append(run_case("legacy_lessons_paused_phase_advancing_clock",
+                                    case_legacy_paused_timeout))
+    report["cases"].append(run_case("scenario_bronze_low_side_pass_paused_interrupt",
+                                    case_scenario_paused_interrupt))
+    report["cases"].append(run_case("equal_clock_during_pause_then_resumed_clock",
+                                    case_equal_clock_then_resumed))
+    report["cases"].append(run_case("synthetic_private_recording_watch_and_practice",
+                                    case_ghost_clock_hold))
+    report["controls"].append(run_case("control_legacy_active_phase_timeout",
+                                       control_legacy_active_timeout))
+    report["controls"].append(run_case("control_scenario_active_phase_no_interrupt",
+                                       control_scenario_active_no_interrupt))
+
+    checks = []
+    by_name = {case.get("name"): case for case in report["cases"]}
+
+    legacy = by_name.get("legacy_lessons_paused_phase_advancing_clock") or {}
+    if "error" in legacy:
+        checks.append({"name": "legacy_lessons_activated", "passed": False,
+                       "detail": {"error": legacy["error"]}})
+    else:
+        observed = legacy.get("input_assumptions", {}).get("lesson_count_observed")
+        activated = legacy.get("activated_lesson_count")
+        checks.append({
+            "name": "legacy_lessons_activated",
+            "passed": bool(observed) and activated == observed,
+            "detail": {"activated": activated, "observed": observed},
+        })
+        checks.append({
+            "name": "legacy_lessons_no_success_without_required_events",
+            "passed": not any(item.get("success_without_required_events")
+                              for item in legacy.get("lessons", [])),
+            "detail": {"lessons": [item["lesson_id"] for item in legacy.get("lessons", [])
+                                   if item.get("success_without_required_events")]},
+        })
+
+    scenario = by_name.get("scenario_bronze_low_side_pass_paused_interrupt") or {}
+    checks.append({
+        "name": "scenario_activated",
+        "passed": bool(scenario.get("activated")),
+        "detail": {"activated": bool(scenario.get("activated")),
+                   "reason": scenario.get("activation_reason") or scenario.get("error")},
+    })
+    checks.append({
+        "name": "scenario_no_success_without_required_events",
+        "passed": not bool(scenario.get("success_without_required_events")),
+        "detail": {"success_without_required_events":
+                   bool(scenario.get("success_without_required_events"))},
+    })
+
+    equal_clock = by_name.get("equal_clock_during_pause_then_resumed_clock") or {}
+    checks.append({
+        "name": "equal_clock_case_activated",
+        "passed": bool(equal_clock.get("activated")),
+        "detail": {"activated": bool(equal_clock.get("activated")),
+                   "reason": equal_clock.get("activation_reason") or equal_clock.get("error")},
+    })
+
+    ghost = by_name.get("synthetic_private_recording_watch_and_practice") or {}
+    if "error" in ghost:
+        checks.append({"name": "ghost_fixture_valid", "passed": False,
+                       "detail": {"error": ghost["error"]}})
+    else:
+        watch = ghost.get("watch", {})
+        practice = ghost.get("practice", {})
+        checks.extend([
+            {"name": "watch_explicit_pause_holds",
+             "passed": bool(watch.get("explicit_pause_held")),
+             "detail": {"cursor_after_pause": watch.get("cursor_after_explicit_pause")}},
+            {"name": "watch_equal_clock_holds",
+             "passed": bool(watch.get("equal_clock_held")),
+             "detail": {"cursor": watch.get("cursor_after_equal_clock_packet")}},
+            {"name": "watch_advanced",
+             "passed": bool(watch.get("advanced_progressed")),
+             "detail": {"cursor": watch.get("cursor_after_advancing_clock")}},
+            {"name": "practice_equal_clock_holds",
+             "passed": bool(practice.get("equal_clock_held")),
+             "detail": {"cursor": practice.get("cursor_after_equal_clock_packet")}},
+            {"name": "practice_advanced",
+             "passed": bool(practice.get("advanced_progressed")),
+             "detail": {"cursor": practice.get("cursor_after_advancing_clock")}},
+            {"name": "fixture_is_not_a_teaching_reference",
+             "passed": watch.get("reference_eligible") is False,
+             "detail": {"reference_eligible": watch.get("reference_eligible")}},
+        ])
+
+    report["precondition_checks"] = checks
+
+    failures = []
+    for key in ("source_origin", "imports", "monkeypatch", "phase_names"):
+        if not report[key]["passed"]:
+            failures.append(key)
+    failures.extend(check["name"] for check in checks if not check["passed"])
+    failures.extend(control["name"] for control in report["controls"]
+                    if not control.get("passed"))
+    report["precondition_failures"] = failures
+    report["ok"] = not failures
+
+    json.dump(report, sys.stdout, indent=2, sort_keys=False)
+    sys.stdout.write("\n")
+    return 0 if report["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

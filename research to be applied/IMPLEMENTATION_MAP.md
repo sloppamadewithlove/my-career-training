@@ -166,3 +166,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Stock input prompt routing](campaign/input-prompt-route-01.md) traces action IDs through the native binding resolver into localized labels and glyph substitutions. BakkesMod command bindings are a separate interface; stored MCT display profiles do not establish effective game-action bindings.
 
 [Focused browser tests](campaign/browser-acceptance-tests-01.md) passed 29 parameterized cases for current-page routing, cancellation/generation handling, Workshop package identity and setup persistence. These use mocks and temporary packages; they do not prove live transfers, plugin activation, map arrival or native rendering.
+
+[Pause-clock diagnostic](campaign/pause-clock-probe-01.md) now reproduces the engine-level inconsistency with synthetic packets: seven legacy lessons time out while Paused clocks advance, Power Shots interrupts, and clock-driven ghosts advance unless explicitly held. Eleven fixture checks and two baseline controls passed; the exact installed game's pause delivery remains unmeasured by this campaign.

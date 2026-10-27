@@ -124,3 +124,4 @@ traces from static declarations or UI controls alone.
 | INPUT-PROMPT-ROUTE-01 | Stock action-to-binding-to-glyph route | Complete; native resolver boundary and refresh limitations; no device test |
 | REQUIREMENTS-COVERAGE-01 | Requested features, evidence level and remaining acceptance | Complete snapshot; indirect historical game summaries distinguished from this campaign's static/offline evidence |
 | BROWSER-ACCEPTANCE-TESTS-01 | Existing catalog-routing and Workshop identity tests | Complete; 29 focused offline cases passed; mocked transfers and no map/game launch |
+| PAUSE-CLOCK-PROBE-01 | Synthetic paused delivery versus engine/ghost clocks | Complete; separate DeepSeek build/review; 11 preconditions and 2 baseline controls passed after fixture correction |

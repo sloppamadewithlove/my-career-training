@@ -1,0 +1,47 @@
+{
+  "exit_code": 0,
+  "elapsed_seconds": 3.172,
+  "ok": true,
+  "precondition_failures": [],
+  "source_sha256": "22b0b0eb98e3d565dba376ab3d6e1fe3ef600c161ad93ac770ea5b6a8fd19fa2",
+  "stdout_sha256": "250e563c94ec832744153dd84152b22f20e438fd2889caeaf3cc819cf28085ef",
+  "stdout_bytes": 22238,
+  "stderr_bytes": 0,
+  "source_files_unchanged": 55,
+  "checks": 11,
+  "controls": [
+    {
+      "name": "control_legacy_active_phase_timeout",
+      "passed": true,
+      "detail": {
+        "state": "finished",
+        "outcome": "timeout",
+        "packets": 1199
+      }
+    },
+    {
+      "name": "control_scenario_active_phase_no_interrupt",
+      "passed": true,
+      "detail": {
+        "state": "active",
+        "outcome": "unfinished",
+        "packets": 30
+      }
+    }
+  ],
+  "recorded_utc": "2026-10-27T11:59:54.352926+00:00",
+  "interpreter_version": "3.12.13",
+  "published_source_sha256": "22b0b0eb98e3d565dba376ab3d6e1fe3ef600c161ad93ac770ea5b6a8fd19fa2",
+  "published_source_normalization": "LF/trailing whitespace only; parsed AST identical to reviewed executed source",
+  "review": "Separate DeepSeek source review plus two-call-site delta review accepted before final run",
+  "first_run": {
+    "exit_code": 1,
+    "source_sha256": "d72f27124468da0dfffb0e0d5d77b245cf7bb7902a4d2005b19e57c2ec54a968",
+    "fixture_defect": "Two baseline-control helper calls omitted required human_index; no production change"
+  },
+  "limitations": [
+    "Synthetic normalized frames and recording only",
+    "No game, worker, renderer, physics simulation or network operation",
+    "Exit success validates fixture controls, not desired production pause policy"
+  ]
+}

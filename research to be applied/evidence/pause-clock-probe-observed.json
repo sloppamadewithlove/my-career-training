@@ -1,0 +1,719 @@
+{
+  "tool": "research_pause_clock_probe",
+  "mode": "offline synthetic diagnostic; no game, worker, process, Qt, network, or file writes",
+  "fixture_label": "synthetic-test-only/private",
+  "source_origin": {
+    "passed": true,
+    "modules": {
+      "my_career_training.training.engine": "src/my_career_training/training/engine.py",
+      "my_career_training.training.coach": "src/my_career_training/training/coach.py",
+      "my_career_training.training.recordings": "src/my_career_training/training/recordings.py",
+      "my_career_training.training.catalog": "src/my_career_training/training/catalog.py",
+      "my_career_training.training.scenarios": "src/my_career_training/training/scenarios.py",
+      "my_career_training.training.cadence": "src/my_career_training/training/cadence.py",
+      "my_career_training.training.coaching": "src/my_career_training/training/coaching.py"
+    },
+    "failures": []
+  },
+  "imports": {
+    "passed": true,
+    "forbidden_modules_present": []
+  },
+  "monkeypatch": {
+    "passed": true,
+    "checks": {
+      "TrainingEngine.update": true,
+      "TrainingEngine.reset": true,
+      "GhostPlayback.update": true,
+      "GhostPlayback.pause": true,
+      "GhostPractice.update": true,
+      "GhostPractice.set_enabled": true
+    }
+  },
+  "phase_names": {
+    "passed": true,
+    "mismatches": {}
+  },
+  "cases": [
+    {
+      "name": "legacy_lessons_paused_phase_advancing_clock",
+      "input_assumptions": {
+        "fixture": "synthetic-test-only/private",
+        "lessons": "every catalog lesson except the scenario lesson",
+        "scenario_lesson_excluded": "power-shots",
+        "lesson_count_observed": 7,
+        "frames": "complete normalized 120 Hz one-step frames",
+        "phase_during_advance": "MatchPhase.Paused",
+        "clock": "game time advances while phase is Paused",
+        "poses": "stable authored settle/starting poses, no input edges"
+      },
+      "activated_lesson_count": 7,
+      "observed_outcome_counts": {
+        "timeout": 7
+      },
+      "lessons": [
+        {
+          "lesson_id": "speed-flip",
+          "activated": true,
+          "lesson_timeout_seconds": 10,
+          "success_events_required": [
+            "landed",
+            "target_crossed"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 1199,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 10.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "A clear diagonal dodge was not observed. Try the jump and diagonal dodge step before focusing on time.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "flip-reset",
+          "activated": true,
+          "lesson_timeout_seconds": 12,
+          "success_events_required": [
+            "reset_acquired"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 1439,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 12.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "A newly gained ball reset was not confirmed. Use your original flip first, then meet the ball with your underside away from arena surfaces.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "dribble-flick",
+          "activated": true,
+          "lesson_timeout_seconds": 20,
+          "success_events_required": [
+            "carry_sustained",
+            "flick",
+            "goal_target"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 2399,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 20.0,
+            "event_count": 1,
+            "event_names": [
+              "carry_sustained"
+            ],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "Observed carry time: 19.98 seconds. Keep the ball within the marked roof zone before the flick.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "skill",
+              "name": "carry_sustained"
+            },
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "shot-placement",
+          "activated": true,
+          "lesson_timeout_seconds": 15,
+          "success_events_required": [
+            "ball_contact",
+            "goal_target"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 1799,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 15.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "Aim the next contact toward the marked goal rectangle. Review the measured crossing location when one was observed.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "fast-aerial",
+          "activated": true,
+          "lesson_timeout_seconds": 12,
+          "success_events_required": [
+            "gate_0"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 1439,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 12.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "You reached 0 ordered gates. Aim through the next gate, then recover on your wheels.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "aerial-air-roll",
+          "activated": true,
+          "lesson_timeout_seconds": 25,
+          "success_events_required": [
+            "gate_0",
+            "gate_1",
+            "gate_2",
+            "landed"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 2999,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 25.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "You reached 0 ordered gates. Aim through the next gate, then recover on your wheels.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        },
+        {
+          "lesson_id": "flight-recovery",
+          "activated": true,
+          "lesson_timeout_seconds": 25,
+          "success_events_required": [
+            "gate_0",
+            "gate_1",
+            "recovered"
+          ],
+          "before": {
+            "state": "settling",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "active_before_paused_delivery": {
+            "state": "active",
+            "outcome": "unfinished",
+            "duration_seconds": 0.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 0,
+            "first_observation": null,
+            "attempt_id_present": true
+          },
+          "paused_packets_delivered": 2999,
+          "after": {
+            "state": "finished",
+            "outcome": "timeout",
+            "duration_seconds": 25.0,
+            "event_count": 0,
+            "event_names": [],
+            "packet_gaps": 0,
+            "gates": 0,
+            "observation_count": 1,
+            "first_observation": "You reached 0 ordered gates. Aim through the next gate, then recover on your wheels.",
+            "attempt_id_present": true
+          },
+          "events_during_paused_delivery": [
+            {
+              "type": "completed",
+              "outcome": "timeout"
+            }
+          ],
+          "success_without_required_events": false
+        }
+      ]
+    },
+    {
+      "name": "scenario_bronze_low_side_pass_paused_interrupt",
+      "input_assumptions": {
+        "fixture": "synthetic-test-only/private",
+        "lesson": "power-shots",
+        "scenario_id": "low-side-pass",
+        "difficulty": "bronze",
+        "bot_indices": [],
+        "human_index": 0,
+        "frames": "complete normalized 120 Hz one-step frames with full actor roster",
+        "pause_packets": 1,
+        "phase_during_pause": "MatchPhase.Paused"
+      },
+      "activated": true,
+      "before": {
+        "state": "settling",
+        "outcome": "unfinished",
+        "duration_seconds": 0.0,
+        "event_count": 0,
+        "event_names": [],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 0,
+        "first_observation": null,
+        "attempt_id_present": true
+      },
+      "active_before_pause": {
+        "state": "active",
+        "outcome": "unfinished",
+        "duration_seconds": 0.0,
+        "event_count": 1,
+        "event_names": [
+          "launch_observed"
+        ],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 0,
+        "first_observation": null,
+        "attempt_id_present": true
+      },
+      "active_packets_before_pause": 30,
+      "state_before_pause_packet": {
+        "state": "active",
+        "outcome": "unfinished",
+        "duration_seconds": 0.258333,
+        "event_count": 1,
+        "event_names": [
+          "launch_observed"
+        ],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 0,
+        "first_observation": null,
+        "attempt_id_present": true
+      },
+      "paused_packet_events": [
+        {
+          "type": "completed",
+          "outcome": "interrupted"
+        }
+      ],
+      "after": {
+        "state": "interrupted",
+        "outcome": "interrupted",
+        "duration_seconds": 0.258333,
+        "event_count": 1,
+        "event_names": [
+          "launch_observed"
+        ],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 1,
+        "first_observation": "The attempt was interrupted by MatchPhase.Paused. Retry to establish a clean start.",
+        "attempt_id_present": true
+      },
+      "interrupted": true,
+      "success_without_required_events": false
+    },
+    {
+      "name": "equal_clock_during_pause_then_resumed_clock",
+      "input_assumptions": {
+        "fixture": "synthetic-test-only/private",
+        "lesson": "speed-flip",
+        "stalled_delivery": "one packet repeating the previous game timestamp",
+        "resumed_delivery": "one packet 10.0 game seconds later, same Paused phase"
+      },
+      "activated": true,
+      "before_stall": {
+        "state": "active",
+        "outcome": "unfinished",
+        "duration_seconds": 0.108333,
+        "event_count": 0,
+        "event_names": [],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 0,
+        "first_observation": null,
+        "attempt_id_present": true
+      },
+      "stalled_packet_event_count": 0,
+      "stalled_packet_events": [],
+      "after_stalled_packet": {
+        "state": "active",
+        "outcome": "unfinished",
+        "duration_seconds": 0.108333,
+        "event_count": 0,
+        "event_names": [],
+        "packet_gaps": 0,
+        "gates": 0,
+        "observation_count": 0,
+        "first_observation": null,
+        "attempt_id_present": true
+      },
+      "resumed_packet_events": [
+        {
+          "type": "completed",
+          "outcome": "timeout"
+        }
+      ],
+      "after_resumed_packet": {
+        "state": "finished",
+        "outcome": "timeout",
+        "duration_seconds": 10.108333,
+        "event_count": 0,
+        "event_names": [],
+        "packet_gaps": 1,
+        "gates": 0,
+        "observation_count": 2,
+        "first_observation": "A clear diagonal dodge was not observed. Try the jump and diagonal dodge step before focusing on time.",
+        "attempt_id_present": true
+      },
+      "stalled_packet_changed_state": false,
+      "resumed_packet_changed_state": true
+    },
+    {
+      "name": "synthetic_private_recording_watch_and_practice",
+      "input_assumptions": {
+        "fixture": "synthetic-test-only/private",
+        "recording": "synthetic private (kind=local_player), not a teaching reference",
+        "sample_count": 11,
+        "sample_interval_seconds": 0.1,
+        "delivery": "advancing game clocks labelled simulated-paused delivery",
+        "watch_mode": "watch, normal speed, loop off",
+        "practice": "enabled with a supplied player pose"
+      },
+      "watch": {
+        "loaded_status": "playing",
+        "cursor_after_load": 0.0,
+        "cursor_after_mid_clock": 0.25,
+        "cursor_after_advancing_clock": 0.5,
+        "cursor_after_explicit_pause": 0.5,
+        "paused_status": "paused",
+        "cursor_after_resume_first_packet": 0.5,
+        "cursor_after_equal_clock_packet": 0.5,
+        "advanced_progressed": true,
+        "explicit_pause_held": true,
+        "equal_clock_held": true,
+        "provenance_label": "Your recorded attempt",
+        "reference_eligible": false
+      },
+      "practice": {
+        "loaded_status": "ready",
+        "cursor_after_enable": 0.0,
+        "cursor_after_mid_clock": 0.25,
+        "cursor_after_advancing_clock": 0.5,
+        "cursor_after_equal_clock_packet": 0.5,
+        "advanced_progressed": true,
+        "equal_clock_held": true,
+        "visible": true,
+        "provenance_label": "Your recorded attempt"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "name": "control_legacy_active_phase_timeout",
+      "passed": true,
+      "detail": {
+        "state": "finished",
+        "outcome": "timeout",
+        "packets": 1199
+      }
+    },
+    {
+      "name": "control_scenario_active_phase_no_interrupt",
+      "passed": true,
+      "detail": {
+        "state": "active",
+        "outcome": "unfinished",
+        "packets": 30
+      }
+    }
+  ],
+  "limitations": [
+    "All frames and the recording are synthetic test-only data; no real capture, reference, or game result is claimed.",
+    "The probe observes public API behaviour only; it does not establish what the deployed game build delivers during a real pause.",
+    "Pause-timeout behaviour is recorded as observed, not endorsed as desired production correctness.",
+    "No packet delivery, physics, renderer, or input behaviour was measured."
+  ],
+  "precondition_checks": [
+    {
+      "name": "legacy_lessons_activated",
+      "passed": true,
+      "detail": {
+        "activated": 7,
+        "observed": 7
+      }
+    },
+    {
+      "name": "legacy_lessons_no_success_without_required_events",
+      "passed": true,
+      "detail": {
+        "lessons": []
+      }
+    },
+    {
+      "name": "scenario_activated",
+      "passed": true,
+      "detail": {
+        "activated": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "scenario_no_success_without_required_events",
+      "passed": true,
+      "detail": {
+        "success_without_required_events": false
+      }
+    },
+    {
+      "name": "equal_clock_case_activated",
+      "passed": true,
+      "detail": {
+        "activated": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "watch_explicit_pause_holds",
+      "passed": true,
+      "detail": {
+        "cursor_after_pause": 0.5
+      }
+    },
+    {
+      "name": "watch_equal_clock_holds",
+      "passed": true,
+      "detail": {
+        "cursor": 0.5
+      }
+    },
+    {
+      "name": "watch_advanced",
+      "passed": true,
+      "detail": {
+        "cursor": 0.5
+      }
+    },
+    {
+      "name": "practice_equal_clock_holds",
+      "passed": true,
+      "detail": {
+        "cursor": 0.5
+      }
+    },
+    {
+      "name": "practice_advanced",
+      "passed": true,
+      "detail": {
+        "cursor": 0.5
+      }
+    },
+    {
+      "name": "fixture_is_not_a_teaching_reference",
+      "passed": true,
+      "detail": {
+        "reference_eligible": false
+      }
+    }
+  ],
+  "precondition_failures": [],
+  "ok": true
+}
