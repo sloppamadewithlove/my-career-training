@@ -1,0 +1,78 @@
+{
+  "checkpoint": 5,
+  "scheduled_utc": "2026-10-27T11:54:12+00:00",
+  "recorded_utc": "2026-10-27T11:54:12.004852+00:00",
+  "coordinator_checked_utc": "2026-10-27T11:55:00.531210+00:00",
+  "window_ended": false,
+  "missed_checkpoints": 0,
+  "document_snapshot": {
+    "files": 128,
+    "total_bytes": 1235161,
+    "changed_paths": [
+      "CHECKPOINTS.md",
+      "IMPLEMENTATION_MAP.md",
+      "IMPLEMENTATION_WAVES.md",
+      "PLUGIN_CONTROL_MATRIX.md",
+      "README.md",
+      "TASKS.md",
+      "campaign/browser-acceptance-tests-01.md",
+      "campaign/controller-evidence-01.md",
+      "campaign/controller-overlay-source-01.md",
+      "campaign/custom-shot-flow-01.md",
+      "campaign/cvar-semantics-01.md",
+      "campaign/defender-plugin-01.md",
+      "campaign/dribble-plugin-01.md",
+      "campaign/garage-catalog-01.md",
+      "campaign/ghost-visual-01.md",
+      "campaign/input-prompt-route-01.md",
+      "campaign/map-geometry-01.md",
+      "campaign/mechanical-plugin-01.md",
+      "campaign/native-feature-delta-01.md",
+      "campaign/native-navigation-01.md",
+      "campaign/native-pack-row-01.md",
+      "campaign/native-reset-signal-01.md",
+      "campaign/pause-clock-01.md",
+      "campaign/rebound-plugin-01.md",
+      "campaign/recovery-plugin-01.md",
+      "campaign/redirect-plugin-01.md",
+      "campaign/requirements-coverage-01.md",
+      "campaign/telemetry-01.md",
+      "campaign/workshop-plugin-01.md",
+      "checkpoints/hour-04.json",
+      "evidence/pack-row-inspection-01.json"
+    ],
+    "truncated": false
+  },
+  "publication_commit_at_check": "f64ab978b0fb4023f42c2461a925be54e575200c",
+  "approved_campaign_reports": 88,
+  "initial_reports": 10,
+  "worker_check": {
+    "coordinator": "running; monitor process confirmed alive",
+    "luna_pack_load_api_01": "running source/API research",
+    "luna_cosmetic_code_01": "completed; report pending coordinator reconciliation",
+    "deepseek_pause_clock_probe": "revised builder source; second independent review confirmed live, not executed"
+  },
+  "source_freshness": {
+    "checked_at_utc": "2026-10-27T11:53:46.051341+00:00",
+    "selected_paths": 21,
+    "comparison_to": "2026-10-27T07:33:35.853112+00:00",
+    "changes": [],
+    "scope": "Selected source only; docs and fullbuild notcovered"
+  },
+  "verification_this_hour": [
+    "Native browser row local geometry and exact class hashes verified; imported art/fonts remain distinct",
+    "Pause-clock documented schema contract verified; synthetic diagnostic remains under review",
+    "Power Shots separate rank route corrected after tracing panel renderer; unused enum is not a product gap",
+    "Exact Controller Overlay archive/DLL and prior receipts rehashed; physical device behavior unmeasured",
+    "Current-map assumptions and ghost rendering primitives audited; no arbitrary geometry or textured mesh claim",
+    "29 focused offline browser cases passed; first shell attempt incompletely observed, no unique cumulative count claimed",
+    "Requested-feature matrix separates static/offline evidence from indirect historical game summaries"
+  ],
+  "limits": [
+    "Document activity does not prove uninterrupted worker activity or wake Codex",
+    "No new live game operation, attachment, loaded-file replacement or full native compilation by this campaign",
+    "Selected source freshness excludes changing docs and does not identify deployed artifacts",
+    "Raw game assets, decompiler output and private game logs remain private"
+  ],
+  "next_checkpoint_utc": "2026-10-27T12:54:12Z"
+}
