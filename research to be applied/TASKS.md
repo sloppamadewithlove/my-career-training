@@ -18,8 +18,8 @@ analysis substitutes for actual gameplay verification.
 | SDK-01 | Shipped host interfaces versus pinned wrapper declarations | Complete; Luna; installed export evidence recorded |
 | PACK-01 | Native training-pack metadata, progress, history and offline limits | In progress; Luna |
 | CURRICULUM-01 | Existing eight lessons and mechanic-specific rank expansion | Queued |
-| OUTCOMES-01 | Success/failure/timing feedback and durable attempt acknowledgement | In progress; DeepSeek; main requested evidence corrections |
-| PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | Queued |
+| OUTCOMES-01 | Success/failure/timing feedback and durable attempt acknowledgement | Complete; DeepSeek research reconciled against callers by main |
+| PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | In progress; DeepSeek |
 | CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | In progress; Luna |
 | TELEMETRY-01 | Packet clocks, gaps, pauses, speed changes and recovery | Queued |
 | PERFORMANCE-01 | Rendering/update budgets, cache paging and observable latency | Queued |
