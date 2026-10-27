@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""Offline research probe for docs/import-identity.md (IMPORT-IDENTITY-01).
+
+Drives the real Backend dispatch route import_recording -> _store_recording ->
+_recordings -> play_recording(kind="personal_best") against explicitly synthetic
+fixtures that *claim* metadata.source.kind == "local_player". It records what the
+production code actually selects; it does not assert that any behaviour is a flaw.
+
+Every host-facing surface (game process detection, native launcher, online launch,
+graceful close, file dialog, browser media staging) is replaced by a stub, and the
+store lives in a TemporaryDirectory under the caller-supplied --work-root. No game
+is launched, attached to, or given input; no network, install, or user store is
+touched. Output is sanitized JSON: hashes and small facts only, never temp paths or
+a full recording body.
+
+Usage:
+    python tools/research_import_probe.py --work-root /tmp/probe-root
+    python tools/research_import_probe.py --work-root /tmp/probe-root --self-test
+"""
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from PySide6.QtCore import QProcess  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+from my_career_training import bridge, browser_images, training  # noqa: E402
+from my_career_training.training import recordings as recordings_module  # noqa: E402
+
+LESSON_ID = "speed-flip"
+ACTIONS = {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0, "roll": 0.0,
+           "jump": False, "boost": False, "handbrake": False}
+LIMITS = [
+    "game process detection, native launcher pending, is_alive, graceful_close and "
+    "launch_online are stubbed; no game process is started or observed",
+    "QFileDialog is replaced by a stub returning a synthetic fixture path",
+    "browser image staging and BrowserImageService are stubbed; no media is fetched",
+    "the worker transport is a FakeProcess that records commands and runs no physics",
+    "the store is a TemporaryDirectory under --work-root; no user store is opened",
+    "fixtures are hand-authored and only *claim* source.kind=local_player; they are "
+    "not captured telemetry and prove nothing about who recorded a file",
+]
+
+
+class _StubDialog:
+    path = None
+    calls = 0
+
+    @staticmethod
+    def getOpenFileName(*_args, **_kwargs):
+        _StubDialog.calls += 1
+        return (str(_StubDialog.path) if _StubDialog.path else "", "")
+
+
+class _StubMedia:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    def rehydrate(self, *_args):
+        pass
+
+    def close(self):
+        pass
+
+
+class FakeProcess:
+    """Records worker commands; never runs game code or physics."""
+
+    def __init__(self):
+        self.current_state = QProcess.Running
+        self.writes = []
+
+    def state(self):
+        return self.current_state
+
+    def write(self, value):
+        self.writes.append(bytes(value))
+        return len(value)
+
+    def readAllStandardOutput(self):
+        return b""
+
+    def waitForFinished(self, _timeout):
+        self.current_state = QProcess.NotRunning
+        return True
+
+    def kill(self):
+        self.current_state = QProcess.NotRunning
+
+
+def install_stubs():
+    """Replace only host-facing surfaces; every call is counted so the report can
+    show the stub was consulted rather than merely installed."""
+    calls = {"launch": [], "detect": 0, "processes": 0, "launcher_pending": 0,
+             "is_alive": 0, "graceful_close": 0, "dialog": 0, "media": 0}
+    _StubDialog.calls = 0
+
+    def counted(key, value):
+        calls[key] += 1
+        return value
+
+    bridge.native_launcher_pending = lambda: counted("launcher_pending", False)
+    bridge.detect_installations = lambda: counted("detect", [])
+    bridge.game_processes = lambda: counted("processes", [])
+    bridge.is_alive = lambda _identity: counted("is_alive", False)
+    bridge.graceful_close = lambda _identity: counted("graceful_close", None)
+    bridge.launch_online = lambda launcher: (calls["launch"].append(str(launcher)) or "stub")
+    bridge.QFileDialog = _StubDialog
+    browser_images.stage_lesson_images = lambda *_a, **_k: counted("media", {})
+    browser_images.BrowserImageService = _StubMedia
+    return calls
+
+
+def make_recording(*, speeds=None, duration=2.0, source_kind="local_player",
+                   outcome="success", truncated=False, setup=None, label="Synthetic probe fixture"):
+    lesson = training.configure_lesson(LESSON_ID)
+    starting = copy.deepcopy(lesson["starting_state"])
+    if speeds is None:
+        # The lesson's own starting_state carries a default game_speed, so a
+        # fully omitted-speed fixture must drop it explicitly; otherwise the
+        # "omitted" case would still declare normal speed.
+        starting.pop("game_speed", None)
+    else:
+        starting["game_speed"] = speeds
+    samples = []
+    for time in (0.0, duration):
+        sample = {"time": time, "position": [0.0, 0.0, 17.0], "rotation": [0.0, 0.0, 0.0],
+                  "actions": dict(ACTIONS)}
+        if speeds is not None:
+            sample["game_speed"] = speeds
+        samples.append(sample)
+    metadata = {"game_version": "synthetic probe", "framework_version": "synthetic probe",
+                "car_hitbox": "synthetic probe", "map": lesson["map"], "mutators": {},
+                "starting_state": starting, "time_base": "game_seconds",
+                "source": {"kind": source_kind,
+                           "origin": "synthetic probe fixture; not captured telemetry"},
+                "permission": {"distribute": False, "basis": "Synthetic probe fixture"},
+                "success_evidence": []}
+    if setup:
+        metadata.update(copy.deepcopy(setup))
+    return {"schema_version": 1, "lesson_id": lesson["id"], "lesson_version": lesson["version"],
+            "variant": lesson.get("variant"), "metadata": metadata, "outcome": outcome,
+            "duration": duration, "events": [], "samples": samples, "truncated": truncated,
+            "label": label}
+
+
+def _canonical_hash(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
+def _identity_hash(recording):
+    """Hash every field except the derived `label`.
+
+    `personal_best()` rewrites `label` on its deepcopy (recordings.py:200), so the
+    command payload can never equal the stored file byte-for-byte. Excluding only
+    that derived field keeps the comparison meaningful; the original and selected
+    labels are reported separately as observations.
+    """
+    body = {key: value for key, value in recording.items() if key != "label"}
+    return _canonical_hash(body)
+
+
+def _speeds_present(recording):
+    return any("game_speed" in sample for sample in recording.get("samples", []))
+
+
+def run_case(work_root, name, fixtures, app):
+    with tempfile.TemporaryDirectory(dir=str(work_root), prefix="probe-") as directory:
+        calls = install_stubs()
+        instance = bridge.Backend(Path(directory))
+        facts = {"case": name, "imports": [], "selected": None, "notice": "", "error": "",
+                 "store_isolated": Path(directory).resolve().is_relative_to(work_root),
+                 "worker_transport": "fake"}
+        try:
+            instance.process = FakeProcess()
+            instance.request = {"lesson_id": LESSON_ID}
+            instance.session_state = "Playing"
+            for index, fixture in enumerate(fixtures):
+                source = Path(directory) / f"source-{index}.json"
+                raw = json.dumps(fixture, allow_nan=False).encode()
+                source.write_bytes(raw)
+                _StubDialog.path = source
+                before = len(instance.document["recordings"])
+                instance.dispatch("import_recording", {})
+                after = len(instance.document["recordings"])
+                fact = {
+                    "index": index,
+                    "source_sha256": hashlib.sha256(raw).hexdigest(),
+                    "fixture_label": fixture.get("label"),
+                    "fixture_duration": fixture.get("duration"),
+                    "entries_added": after - before,
+                    "import_error": instance.error,
+                    "import_notice": instance.notice,
+                }
+                if after != before + 1:
+                    # A rejected fixture must be reported, never indexed blindly.
+                    fact["stored"] = False
+                    facts["imports"].append(fact)
+                    continue
+                entry = instance.document["recordings"][-1]
+                stored_path = Path(directory) / "recordings" / entry["filename"]
+                stored = json.loads(stored_path.read_text(encoding="utf-8"))
+                fact.update({
+                    "stored": True,
+                    "stored_sha256": hashlib.sha256(stored_path.read_bytes()).hexdigest(),
+                    "stored_identity_sha256": _identity_hash(stored),
+                    "stored_label": stored.get("label"),
+                    "import_status": stored.get("import_status"),
+                    "source_kind": stored.get("metadata", {}).get("source", {}).get("kind"),
+                    "entry_source_kind": entry.get("source", {}).get("kind"),
+                    "entry_keys": sorted(entry),
+                    "capture_origin_present": "capture_origin" in entry,
+                    "speeds_present": _speeds_present(stored),
+                    "duration": stored.get("duration"),
+                    "variant": stored.get("variant"),
+                })
+                facts["imports"].append(fact)
+            instance.dispatch("play_recording", {"id": LESSON_ID, "kind": "personal_best"})
+            facts["notice"] = instance.notice
+            facts["error"] = instance.error
+            commands = [json.loads(w) for w in instance.process.writes]
+            plays = [c for c in commands if c.get("type") == "play_recording"]
+            facts["command_types"] = [c.get("type") for c in commands]
+            if plays:
+                command = plays[-1]
+                recording = command.get("recording") or {}
+                digest = _identity_hash(recording)
+                match = next((item["index"] for item in facts["imports"]
+                              if item.get("stored_identity_sha256") == digest), None)
+                stored_label = next((item.get("stored_label") for item in facts["imports"]
+                                     if item["index"] == match), None)
+                facts["selected"] = {
+                    "label": recording.get("label"),
+                    "stored_label": stored_label,
+                    "label_rewritten": (stored_label is not None
+                                        and stored_label != recording.get("label")),
+                    "source_kind": recording.get("metadata", {}).get("source", {}).get("kind"),
+                    "import_status": recording.get("import_status"),
+                    "duration": recording.get("duration"),
+                    "variant": recording.get("variant"),
+                    "lesson_id": recording.get("lesson_id"),
+                    "speeds_present": _speeds_present(recording),
+                    "identity_sha256": digest,
+                    "matches_stored_index": match,
+                    "practice": command.get("practice"),
+                    "mode": command.get("mode"),
+                }
+        finally:
+            instance.timer.stop()
+            instance.close()
+        facts["external_calls"] = {"launch": list(calls["launch"]), "detect": calls["detect"],
+                                   "processes": calls["processes"],
+                                   "launcher_pending": calls["launcher_pending"],
+                                   "is_alive": calls["is_alive"],
+                                   "graceful_close": calls["graceful_close"],
+                                   "dialog": _StubDialog.calls,
+                                   "media": calls["media"]}
+        return facts
+
+
+def build_cases():
+    incompatible = {"game_version": "other build", "car_hitbox": "other hitbox",
+                    "map": "other map", "mutators": {"ball": "cube"},
+                    "starting_state": {"position": [9.0, 9.0, 9.0], "game_speed": 1.0}}
+    return [
+        ("omitted_speeds", [make_recording(speeds=None, duration=2.0)]),
+        ("explicit_normal_speed", [make_recording(speeds=1.0, duration=1.5)]),
+        ("explicit_slow_speed", [make_recording(speeds=0.5, duration=1.0)]),
+        ("shorter_incompatible_beside_compatible",
+         [make_recording(speeds=1.0, duration=2.0),
+          make_recording(speeds=1.0, duration=0.5, setup=incompatible)]),
+    ]
+
+
+def evaluate(cases):
+    by_name = {case["case"]: case for case in cases}
+    omitted = by_name["omitted_speeds"]
+    normal = by_name["explicit_normal_speed"]
+    slow = by_name["explicit_slow_speed"]
+    mixed = by_name["shorter_incompatible_beside_compatible"]
+    stored = [item for case in cases for item in case["imports"] if item.get("stored")]
+    checks = {
+        "route_exercised": all(
+            case["selected"] is not None or bool(case["error"]) for case in cases),
+        "all_fixtures_imported": all(
+            item.get("stored") and item.get("entries_added") == 1
+            for case in cases for item in case["imports"]),
+        "command_is_play_recording": all(
+            case["selected"] is None or "play_recording" in case["command_types"] for case in cases),
+        "command_payload_from_store": all(
+            case["selected"] is None or case["selected"]["matches_stored_index"] is not None
+            for case in cases),
+        "normal_speed_control_selected": normal["selected"] is not None,
+        "slow_speed_control_not_selected": slow["selected"] is None and bool(slow["error"]),
+        "import_status_preserved": bool(stored) and all(
+            item["import_status"] == "Imported personal recording" for item in stored),
+        "store_isolated": all(case["store_isolated"] for case in cases),
+        "no_external_launch": all(
+            not case["external_calls"]["launch"] for case in cases),
+        # Counts stub invocations, not observed processes: the stub returns [] and
+        # never enumerates the host, so this proves only that the probe's own
+        # replacement was consulted.
+        "game_processes_not_consulted": all(
+            not case["external_calls"]["processes"] for case in cases),
+    }
+    # Observations are reported, not asserted: the probe records what the
+    # production route did and makes no claim that it is or is not a flaw.
+    observations = {
+        "omitted_speeds_selected": omitted["selected"] is not None,
+        "omitted_speeds_selected_label": (omitted["selected"] or {}).get("label"),
+        "omitted_speeds_selected_import_status": (omitted["selected"] or {}).get("import_status"),
+        "omitted_speeds_selected_speeds_present": (omitted["selected"] or {}).get("speeds_present"),
+        "slow_speed_error": slow["error"],
+        "slow_speed_notice": slow["notice"],
+        "mixed_selected_index": (mixed["selected"] or {}).get("matches_stored_index"),
+        "mixed_selected_duration": (mixed["selected"] or {}).get("duration"),
+        "mixed_selected_variant": (mixed["selected"] or {}).get("variant"),
+        "mixed_import_durations": [item.get("duration") for item in mixed["imports"]],
+        "mixed_selected_label": (mixed["selected"] or {}).get("label"),
+        "mixed_selected_stored_label": (mixed["selected"] or {}).get("stored_label"),
+        "label_rewritten": (mixed["selected"] or {}).get("label_rewritten"),
+        "capture_origin_in_any_index_entry": any(
+            item.get("capture_origin_present") for item in stored),
+        "import_errors": [item.get("import_error") for case in cases for item in case["imports"]],
+    }
+    return checks, observations
+
+
+def self_test():
+    """Protocol and control assertions; deliberately silent on the probe's question."""
+    results = {}
+    good = make_recording(speeds=1.0)
+    recordings_module.validate_recording(good)
+    results["valid_fixture_accepted"] = True
+    negative = copy.deepcopy(good)
+    negative["duration"] = -1
+    try:
+        recordings_module.validate_recording(negative)
+        results["negative_duration_rejected"] = False
+    except ValueError:
+        results["negative_duration_rejected"] = True
+    results["non_local_source_not_selected"] = recordings_module.personal_best(
+        [make_recording(speeds=1.0, source_kind="synthetic_probe")]) is None
+    results["slow_speed_not_selected"] = recordings_module.personal_best(
+        [make_recording(speeds=0.5)]) is None
+    best = recordings_module.personal_best([make_recording(speeds=1.0)])
+    results["normal_speed_selected_with_label"] = bool(
+        best and best["label"] == "Your Best Attempt"
+        and best["metadata"]["source"]["kind"] == "local_player")
+    process = FakeProcess()
+    written = process.write(b"{}\n")
+    results["fake_transport_protocol"] = (
+        written == 3 and process.state() == QProcess.Running
+        and process.waitForFinished(1) and process.state() == QProcess.NotRunning)
+    return results
+
+
+def _sanitize(payload, work_root):
+    text = json.dumps(payload, indent=2, sort_keys=True)
+    if work_root:
+        text = text.replace(str(work_root), "<work-root>")
+    return text
+
+
+def _emit(payload, output, work_root):
+    text = _sanitize(payload, work_root)
+    if output:
+        Path(output).write_text(text + "\n", encoding="utf-8")
+    print(text)
+
+
+def source_hashes():
+    """Hash the implementation files this probe drives, by public relative name.
+
+    These are the requested *source* hashes (bridge/recordings/storage plus this
+    diagnostic), not fixture bytes; fixture bytes are hashed per import instead.
+    """
+    root = Path(__file__).resolve().parents[1]
+    targets = [Path(__file__).resolve(),
+               root / "src" / "my_career_training" / "bridge.py",
+               root / "src" / "my_career_training" / "training" / "recordings.py",
+               root / "src" / "my_career_training" / "storage.py"]
+    hashes = {}
+    for path in targets:
+        try:
+            name = path.relative_to(root).as_posix()
+        except ValueError:
+            name = path.name
+        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Offline import-identity research probe.")
+    parser.add_argument("--work-root", required=True,
+                        help="explicit directory that holds the isolated temporary stores")
+    parser.add_argument("--self-test", action="store_true",
+                        help="run protocol/control assertions only; no Backend is built")
+    parser.add_argument("--output", default="", help="optional path for the sanitized JSON")
+    args = parser.parse_args(argv)
+    if args.self_test:
+        results = self_test()
+        payload = {"tool": "research_import_probe", "mode": "self-test",
+                   "checks": results, "ok": all(results.values()), "limits": LIMITS,
+                   "source_hashes": source_hashes()}
+        _emit(payload, args.output, "")
+        return 0 if payload["ok"] else 1
+    work_root = Path(args.work_root).resolve()
+    work_root.mkdir(parents=True, exist_ok=True)
+    app = QApplication.instance() or QApplication(["research-import-probe"])
+    cases = [run_case(work_root, name, fixtures, app) for name, fixtures in build_cases()]
+    checks, observations = evaluate(cases)
+    payload = {"tool": "research_import_probe", "mode": "probe",
+               "contract": "docs/import-identity.md",
+               "route": "dispatch(import_recording) -> _store_recording -> _recordings -> "
+                        "dispatch(play_recording, kind=personal_best)",
+               "fixture_claim": "synthetic fixtures claim metadata.source.kind=local_player; "
+                                "no capture identity is established",
+               "source_hashes": source_hashes(),
+               "cases": cases, "checks": checks, "observations": observations,
+               "limits": LIMITS}
+    text = _sanitize(payload, work_root)
+    payload["checks"]["output_sanitized"] = str(work_root) not in text
+    payload["checks"]["no_raw_recording"] = '"samples"' not in text
+    _emit(payload, args.output, work_root)
+    return 0 if all(payload["checks"].values()) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

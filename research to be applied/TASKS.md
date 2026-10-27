@@ -85,8 +85,8 @@ traces from static declarations or UI controls alone.
 
 | HUD-FLOW-01 | HUD timer, progress, visibility and action prompts | Complete; twenty-eight selected classes; timer/control/safe-zone flow traced |
 | GAMEINFO-METADATA-01 | Training Editor and Tutorial package class/function boundaries | Complete; object metadata, no Function/State exports |
-| IMPORT-PROBE-01 | Actual bridge import-to-personal-best diagnostic | In progress; DeepSeek builder; offline synthetic transport only |
+| IMPORT-PROBE-01 | Actual bridge import-to-personal-best diagnostic | Complete; DeepSeek build/review; coordinator executed four cases/twelve checks |
 
 | ATTEMPT-END-01 | Current MCT terminal ball/HUD/save/retry behavior | Complete; no terminal ball write in traced path |
-| HUD-TIMELINE-01 | Authored label coordinates and parent transform | In progress; Luna; private timeline metadata |
-| BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | In progress; Luna; public SDK and adapters |
+| HUD-TIMELINE-01 | Authored label coordinates and parent transform | Complete; clip-local geometry; screen-space placement unproven |
+| BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | Complete; named fade pair is a candidate, Soccar effects unverified |
