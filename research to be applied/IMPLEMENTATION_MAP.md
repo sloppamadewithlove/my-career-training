@@ -154,3 +154,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Implementation waves](IMPLEMENTATION_WAVES.md) turns the accumulated findings into scoped builder tasks and acceptance gates. It is a proposed order, not completed implementation.
 
 [CVar semantics](campaign/cvar-semantics-01.md) proves that installed numeric getters forward to the core. Public parser helpers do not establish the core getter behavior; core analysis timed out. Do not infer range re-sampling, clamping or correlated X/Y values from tuple-looking defaults.
+
+[Exact controller overlay artifact](campaign/controller-overlay-source-01.md) matches the pinned 1.0.7 archive and DLL. Imports and calibration strings support XInput/Raw Input intent; public v1.0.4 source cannot establish this newer binary's device handling. MCT only controls five cvars and forces PS4 artwork. Physical controller behavior remains unmeasured.
