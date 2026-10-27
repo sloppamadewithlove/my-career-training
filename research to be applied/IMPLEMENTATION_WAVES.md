@@ -19,7 +19,7 @@ Acceptance needs an owned offline session with exact artifact identities: settle
 
 **Player result:** selecting a lesson opens Bronze through Supersonic Legend on a separate page; Back restores the selected lesson and the chosen tier reaches setup and grading.
 
-The frozen candidate has an unused `LessonDifficulty` page builder, a side-panel rank route for Power Shots, and direct launches for the other lessons. Wiring the page is necessary but does not create the missing rank content. Only Power Shots currently has twelve situations and eight profiles. Author real geometry, timing, required evidence and failure conditions for the other lesson/tier combinations. Keep target completion distinct from technique grading where current completion rules do not establish the named mechanic.
+The frozen candidate already opens a separate Power Shots rank surface via `Lesson` and its active panel renderer. The unused `LessonDifficulty` builder is not required for that behavior. Preserve that route and extend selection to the other lessons when their profiles exist. Only Power Shots currently has twelve situations and eight profiles. Author real geometry, timing, required evidence and failure conditions for the other lesson/tier combinations. Keep target completion distinct from technique grading where current completion rules do not establish the named mechanic.
 
 Start in `NativeCareerLayout.h`, authored menu actions, `bridge.py`, `training/catalog.py` and scenario/profile selection. Carry stable lesson/tier/situation/version IDs rather than row indices. Evidence: [navigation](campaign/native-navigation-01.md), [curriculum](campaign/curriculum-01.md), [eight-lesson matrix](LESSON_EVIDENCE_MATRIX.md), [shot picker](campaign/custom-shot-flow-01.md).
 
