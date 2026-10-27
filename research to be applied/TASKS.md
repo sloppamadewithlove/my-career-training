@@ -133,3 +133,4 @@ traces from static declarations or UI controls alone.
 | RENDER-MESSAGE-BUDGET-01 | Serialized render limits and group replacement | Complete; 65,535-byte client payload cap; conservative 127-message bound, game-side budget unknown |
 | BOOST-RESOURCE-RESET-01 | Car meters, pad cooldowns and repeatability | Complete; actor boost reset/readiness traced; pad history and ordinary mutator acknowledgement absent |
 | RANK-TRANSITION-01 | Rank selection after Return and worker cleanup | Complete; all rank changes use idle/new-session route, including same-roster pairs; live traversal unverified |
+| RENDER-CLEANUP-01 | Core clear-queue progress and disconnect cleanup | Complete; conditional counter/lock no-progress path; runtime reachability and waiter behavior unverified |
