@@ -180,3 +180,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Stock feedback cues](campaign/stock-feedback-cues-01.md) identifies countdown, round-change, shuffle and randomization calls. A round-change cue is not proof of success. Audible playback and a supported MCT cue interface remain unverified.
 
 [Native replay import](campaign/replay-import-feasibility-01.md) is a possible separate personal trajectory viewer. Replay actor updates and partial replicated controls cannot be inserted unchanged into the live MCT recording contract. Parser compatibility, player attribution and complete input reconstruction need independent acceptance.
+
+[Render transport](campaign/render-message-budget-01.md) establishes a 65,535-byte serialized client-packet ceiling and explains why an oversized rejected replacement can leave the previous group visible. Measure packed bytes and clear ownership; the conservative primitive count does not prove a game-side no-drop budget.
