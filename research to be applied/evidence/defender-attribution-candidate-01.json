@@ -1,0 +1,178 @@
+{
+  "kind": "isolated_reviewed_defender_attribution_candidate",
+  "production_integrated": false,
+  "game_tested": false,
+  "baseline_engine_sha256": "37028379a268d6f6e19d42b32a9e3c20778ed4f41d87bfbd3bc76955c61c602a",
+  "reviewed_inputs": [
+    {
+      "path": "src/my_career_training/training/engine.py",
+      "bytes": 64322,
+      "sha256": "c68c68090aaecfb9f2b05dfea5092d7bbe3e57aa5053c929a3c0985bc86bb440"
+    },
+    {
+      "path": "tests/test_defender_attribution.py",
+      "bytes": 16966,
+      "sha256": "da3f1349f67e8e0db73813048d19dad5f776051c4c4960d1cca331bf59d48cce"
+    },
+    {
+      "path": "docs/defender-attribution-contract.md",
+      "bytes": 5541,
+      "sha256": "d568730716d2c63a5d8a3cb7941f5f63858d628c2225894a45c55c10771bd8ec"
+    },
+    {
+      "path": "tools/research_outcome_probe.py",
+      "bytes": 25890,
+      "sha256": "8e87a42cdb2738e3078bbd64e491995616db7ec2743bcc220d3af1370cc74e7e"
+    }
+  ],
+  "project_source_difference_paths": [
+    "src/my_career_training/training/engine.py"
+  ],
+  "source_files_compared": 55,
+  "comparison_source": "Exact published frozen-python archive, not the mutable shared checkout",
+  "review": {
+    "model": "deepseek-v4-1-flash-1017",
+    "role": "independent reviewer distinct from builder",
+    "verdict": "accepted_with_scope_limits",
+    "receipt_text_sha256": "b4b99e4b1de63505247c6318d1d20e9cfc1e8ca03683373cdc08bbc4f224ff54",
+    "scope": "source review only; test execution by Luna afterward"
+  },
+  "patch": {
+    "path": "experiments/defender-attribution.patch.json",
+    "sha256": "2f58a7b7767c636e46af62317843ebaed0999d0cc8a044bed9dea8bc67d917e0",
+    "bytes": 19443,
+    "applies_to": "archived frozen source; original engine hash must match before application",
+    "files": [
+      "src/my_career_training/training/engine.py",
+      "tests/test_defender_attribution.py"
+    ],
+    "storage": "JSON utf8_text preserves exact unified-diff whitespace; decode to bytes and verify sha256 before git apply"
+  },
+  "pytest_version": "pytest 9.0.2",
+  "runs": [
+    {
+      "run": "candidate-focused",
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "tests/test_defender_attribution.py",
+        "-q",
+        "--tb=short"
+      ],
+      "environment": {
+        "QT_QPA_PLATFORM": "offscreen",
+        "PYTEST_ADDOPTS": "-p no:cacheprovider",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "start_utc": "2026-10-27T14:29:27.553Z",
+      "end_utc": "2026-10-27T14:29:29.071Z",
+      "exit_code": 0,
+      "stdout_sha256": "eae8c6a8c45fa37bf0aea05fad807710b8bce1a2c49c8d65722a56e797d169ea",
+      "stdout_bytes": 101,
+      "stderr_bytes": 0,
+      "source_candidate": "reviewed patched candidate"
+    },
+    {
+      "run": "candidate-regressions",
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "tests/test_power_shot_scenarios.py",
+        "tests/test_training.py",
+        "tests/test_training_cadence.py",
+        "tests/test_adapter_contract.py",
+        "-q",
+        "--tb=short"
+      ],
+      "environment": {
+        "QT_QPA_PLATFORM": "offscreen",
+        "PYTEST_ADDOPTS": "-p no:cacheprovider",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "start_utc": "2026-10-27T14:29:40.056Z",
+      "end_utc": "2026-10-27T14:29:43.42Z",
+      "exit_code": 0,
+      "stdout_sha256": "665e8843d4b67d7f7edc58632bcd268d7331cd515c8d78afb74adfc587760828",
+      "stdout_bytes": 426,
+      "stderr_bytes": 0,
+      "source_candidate": "reviewed patched candidate"
+    },
+    {
+      "run": "candidate-probe-self-test",
+      "arguments": [
+        "-B",
+        "tools/research_outcome_probe.py",
+        "--self-test"
+      ],
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "QT_QPA_PLATFORM": "offscreen"
+      },
+      "start_utc": "2026-10-27T14:29:51.932Z",
+      "end_utc": "2026-10-27T14:29:53.637Z",
+      "exit_code": 0,
+      "stdout_sha256": "cb179e2adbe88f89d3cd62e76d4baa8963f17cd4e9bbcce8dee06ceb097d6bc8",
+      "stdout_bytes": 27794,
+      "stderr_bytes": 0,
+      "source_candidate": "reviewed patched candidate"
+    },
+    {
+      "run": "baseline-counterfactual-expected-failure",
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "tests/test_defender_attribution.py",
+        "-q",
+        "--tb=short"
+      ],
+      "environment": {
+        "QT_QPA_PLATFORM": "offscreen",
+        "PYTEST_ADDOPTS": "-p no:cacheprovider",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "start_utc": "2026-10-27T14:30:39.173Z",
+      "end_utc": "2026-10-27T14:30:40.904Z",
+      "exit_code": 1,
+      "stdout_sha256": "c80057acbfe0541bbe4a0d8a070e8edbe406f3d663b7fafbf753c0005ed0659d",
+      "stdout_bytes": 2860,
+      "stderr_bytes": 0,
+      "source_candidate": "unchanged baseline engine"
+    }
+  ],
+  "results": {
+    "focused": "15 passed",
+    "existing_regressions": "298 passed across four selected files; may overlap earlier campaign runs",
+    "probe": "six cases, 33 checks passed; later defender blocks success in Active and GoalScored fixtures",
+    "unchanged_baseline": "6 failed, 9 passed; six KeyError:1 failures at defender latest_touch assertions in later/tie/retouch cases; expected negative control"
+  },
+  "limits": [
+    "synthetic packets, no live physics/game or full native compile",
+    "one low-side-pass situation at Diamond plus Gold positive control; not 96-cell game acceptance",
+    "latest_touch now contains qualifying defender keys; summary evidence serializes this map",
+    "scoring rule remains latest Human among all configured actors; this patch does not redesign grading",
+    "older recordings/results are not regraded or invalidated; reconcile policy/version and best-attempt compatibility before production integration",
+    "builder contract artifact was written before execution and records that historical state"
+  ],
+  "published_source_reconstruction": {
+    "stage": "published-source-patch-reconstruction",
+    "end_utc": "2026-10-27T14:39:23.4073028Z",
+    "start_utc": "2026-10-27T14:39:21.6841423Z",
+    "git_configuration": "core.autocrlf=false",
+    "arguments": [
+      "-B",
+      "-m",
+      "pytest",
+      "tests/test_defender_attribution.py",
+      "-q",
+      "--tb=short"
+    ],
+    "source": "60 published archive records plus reviewed patch payload; engine and test bytes identical to reviewed candidate",
+    "exit_code": 0,
+    "stdout_sha256": "e102b803c500e076132301938fc4434f2206ae508482a1700bc5bd5a1ca0de35",
+    "result": "15 passed; same focused tests, not additional unique coverage",
+    "first_reconstruction_note": "Default Git autocrlf produced CRLF files with identical normalized text but different byte hashes. A fresh reconstruction with core.autocrlf=false produced exact reviewed bytes; those were tested."
+  }
+}

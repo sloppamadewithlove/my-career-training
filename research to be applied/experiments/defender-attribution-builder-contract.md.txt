@@ -1,0 +1,111 @@
+# Defender-touch attribution contract (research candidate)
+
+Status: **source candidate only**. Nothing here is deployed product work, and no
+test in this change has been executed. The root runs the commands below after
+independent review.
+
+## Reproduced defect
+
+`docs/outcome-probe-01.md` records that a fresh later defender touch reaches
+`TrainingEngine.scenario_state["seen_touch"]` but is omitted from
+`latest_touch`, so the strict latest-human comparison cannot see it and an
+invalid Human success is awarded on both the Active (3) and GoalScored (4)
+goal-edge paths.
+
+Cause in the inspected source: `_scenario_observe_touches()` scans every
+configured bot plus the human into `seen_touch`, while `_scenario()` built its
+attribution list from the human and the optional keeper only.
+
+## Exact changed behaviour
+
+`src/my_career_training/training/engine.py`, inside `_scenario()` only:
+
+1. The attribution list now contains the human, the keeper (when the scenario
+   defines one) and **every remaining configured bot index** from
+   `self.bot_indices`. Those extra actors are appended with no event key.
+2. The per-actor loop is otherwise unchanged: the same pre-reset baseline
+   exclusion, the same `started_at <= stamp <= now` finite/not-in-the-future
+   window, and the same strictly-increasing `latest_touch` update.
+3. The first-touch event/state write is now guarded by `key is not None`, so
+   only the human (`human_touch`) and the keeper (`keeper_touch`) still emit
+   their existing event and state field. No defender event key was added.
+
+Net effect: a fresh defender touch now enters `latest_touch`, so the existing
+strict latest-human predicate (`human_latest > stamp` for every other actor,
+equal stamps ambiguous) rejects the chain. A later keeper touch, an equal-time
+opponent tie, a pre-reset stamp and a future stamp behave exactly as before.
+
+## Unchanged scope
+
+- No change to the success predicate, its ordering, or its evidence fields.
+- No change to roster identity, gap invalidation, score gates, target gates,
+  timeouts, tolerances, cadence, metrics, event schema or summary shape.
+- No new defender event key, no ranked thresholds, no scoring semantics
+  expansion, no refactor of unrelated engine code.
+- `tools/research_outcome_probe.py`, `docs/outcome-probe-01.md` and all existing
+  tests are untouched.
+
+## Tests declared (not executed)
+
+`tests/test_defender_attribution.py` drives only the public flow
+(`TrainingEngine(...)` then `update(frame)`) through settle, ready, go, human
+touch, optional opponent touch, optional human retouch, goal edge and drain. It
+reads `scenario_state`, `_emitted` and `outcome`; it never writes engine state,
+methods, metrics, clocks or event lists. Frames are synthetic packets built by a
+local full-roster fixture (keeper 0, defender 1, human 2 at diamond), because the
+existing keeper-only `_frame` helper in `test_power_shot_scenarios.py` omits the
+defender.
+
+Coverage, each on both goal-edge phases (3 and 4) unless noted:
+
+- Human-only success (positive control).
+- Lower-rank Gold, no defender actor, success (positive control).
+- Later defender touch blocks success; asserts the supplied role/index and the
+  fresh ordered stamp reached `seen_touch` and now `latest_touch`.
+- Equal-time defender tie blocks success (strictly-later rule preserved).
+- Later keeper touch remains blocked (unchanged behaviour).
+- Human retouch after an older defender touch can succeed (existing policy).
+- Pre-reset defender stamp excluded and does not block.
+- Future defender stamp excluded and does not block.
+
+Baseline-failure intent: the later-defender and equal-time-tie cases assert
+`not _succeeded(engine)` and that the defender appears in `latest_touch`. Against
+the unchanged engine the defender is absent from `latest_touch` and the attempt
+succeeds, so those cases are expected to fail before the source patch and pass
+after it. The positive controls and the keeper case are expected to pass both
+before and after.
+
+## Expected commands
+
+```
+python -m pytest tests/test_defender_attribution.py -q
+python -m pytest tests/test_power_shot_scenarios.py tests/test_training.py -q
+python -B tools/research_outcome_probe.py --self-test
+```
+
+The third command is the existing diagnostic; it asserts only input acceptance
+for the defender case and is not expected to change.
+
+## Fixture limitations and no game proof
+
+- All frames are synthetic. No game, network, process, physics simulation or
+  machine configuration is involved, and none was run for this change.
+- The ball follows an authored linear path, not simulated physics. Contacts are
+  timestamp injections without car/ball proximity; cars stay at their supplied
+  poses.
+- Only `low-side-pass` at diamond (and gold for the no-defender control) is
+  exercised. Other scenarios, ranks, mirroring and production packet scheduling
+  between phases 3 and 4 are not covered.
+- This is not evidence that the situation is reachable or frequent in a real
+  game, and it is not a mastery or grading signal.
+
+## Separated concerns
+
+- **Source fix (this change):** which actors participate in latest-touch
+  attribution.
+- **Policy/calibration (not addressed):** whether "human must be the latest
+  toucher among all configured actors" is the right grading rule, and how
+  keeper/defender difficulty should be tuned.
+- **Telemetry reliability (not addressed):** whether production delivers the
+  defender touch, and with what ordering, between the shot and the goal edge.
+  Validating the rule still requires an owned game trace.

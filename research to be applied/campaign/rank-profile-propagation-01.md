@@ -1,5 +1,7 @@
 # Power Shots rank-profile propagation
 
+The defender omission documented in this baseline audit has a later [isolated candidate and regression evidence](defender-attribution-candidate-01.md). That patch is not installed and does not change the profile values or grading-policy limits below.
+
 ## Scope and evidence
 
 This is a source-only audit of the frozen `work/reviewed-training` checkout. I enumerated `scenario_definition` for the 12 implemented situations at all eight profile labels (96 definitions); this was an inline read-only calculation, not a test run or gameplay evaluation. The coordinator independently repeated the enumeration and retained the [96-definition calculation receipt](../evidence/rank-profile-propagation-01.json), including source hashes, projected windows and Silver-to-Gold deltas. These calculated values are not measured ball trajectories.

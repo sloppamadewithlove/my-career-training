@@ -1,5 +1,7 @@
 # OUTCOME-PROBE-01 — defender-touch attribution experiment
 
+Follow-up: a [reviewed isolated candidate](defender-attribution-candidate-01.md) now includes the defender in attribution and passes its recorded offline checks. The original reproduction below remains evidence for the archived baseline; it is not a claim that the candidate is deployed.
+
 The isolated Power Shots engine still awards success when a newer defender
 touch is supplied before the goal. A corresponding newer keeper touch prevents
 success. This was reproduced with synthetic input on both the Active and
