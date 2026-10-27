@@ -131,3 +131,4 @@ traces from static declarations or UI controls alone.
 | STOCK-TRAINING-PROGRESSION-01 | Built-in drill badges versus pack progress and MCT completion | Complete; stable lesson/rank/situation identity proposed; native score thresholds unresolved |
 | STOCK-FEEDBACK-CUES-01 | Stock HUD cue calls and visible feedback | Complete; source calls traced; audible playback and public cue adapter unverified |
 | RENDER-MESSAGE-BUDGET-01 | Serialized render limits and group replacement | Complete; 65,535-byte client payload cap; conservative 127-message bound, game-side budget unknown |
+| BOOST-RESOURCE-RESET-01 | Car meters, pad cooldowns and repeatability | Complete; actor boost reset/readiness traced; pad history and ordinary mutator acknowledgement absent |

@@ -182,3 +182,5 @@ The [pause follow-up](campaign/pause-clock-01.md#documented-elapsed-clock-contra
 [Native replay import](campaign/replay-import-feasibility-01.md) is a possible separate personal trajectory viewer. Replay actor updates and partial replicated controls cannot be inserted unchanged into the live MCT recording contract. Parser compatibility, player attribution and complete input reconstruction need independent acceptance.
 
 [Render transport](campaign/render-message-budget-01.md) establishes a 65,535-byte serialized client-packet ceiling and explains why an oversized rejected replacement can leave the previous group visible. Measure packed bytes and clear ownership; the conservative primitive count does not prove a game-side no-drop budget.
+
+[Boost/resource reset](campaign/boost-resource-reset-01.md) distinguishes the observed 100-boost ready gate from the requested Normal Boost mutator and unreset pad cooldowns. Scenario bots can use active pads, so identical poses, start meters and random seeds do not prove identical pressure. Ordinary recordings currently carry empty mutator metadata; preserve that uncertainty in comparisons.
