@@ -1,0 +1,151 @@
+{
+  "observed_at_utc": "2026-10-27T08:00:18.752728+00:00",
+  "method": "unauthenticated public HTML, notice element inline styles only",
+  "limitations": [
+    "No rendered browser or post-JavaScript visibility observation",
+    "Search/page text extraction includes hidden notice text and cannot establish removal/incompatibility status",
+    "No subscription action or account request performed"
+  ],
+  "pages": [
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1421195368",
+      "response_sha256": "1050bbfe800c898a1606909aad79452087c52ee04358f4a4ca70446fbaeb6116",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1429288182",
+      "response_sha256": "693ed66ad9de75cb8108c29cf2dc007f97431dc38267118ae2afe16e37740f04",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1671658424",
+      "response_sha256": "480e2f73ae8e293947af032a695238e94c760f2204993eedc955b5e0f8911c9a",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1694288506",
+      "response_sha256": "832d131c818b3d3070ea7d18f372db43501bd1c533ac41be5c3d18664ae07f55",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1827631206",
+      "response_sha256": "37179644c0cc6312e1ab368f977d948da6d135f14a4c7a9306636b78bf4bad10",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1843822064",
+      "response_sha256": "24101af9ffd35d06d9f29a2140731969a2743f4fe2551c94dd8823d5d2cd66fd",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=1906378036",
+      "response_sha256": "d2b6363390c1d8fc6a9670575f5488208b51776d1a7c31c4cfb97b9d52850d13",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2025564083",
+      "response_sha256": "a91a135d8b73016a67209183a8dd6fda3d0f72fc45e31fe7737898834812cc1d",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2468375059",
+      "response_sha256": "bde38abe67999f1b8f7b7fe5a3a5312713ea187c21ada0be40c859711e588183",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    },
+    {
+      "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=3109906046",
+      "response_sha256": "c7fe25af256ee87e04cb61ac3d0fb05b07af35b94a7feba3a21b2a8144ff9d24",
+      "notice_elements": {
+        "bannedNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        },
+        "incompatibleNotification": {
+          "found": true,
+          "inline_style": "display: none"
+        }
+      }
+    }
+  ]
+}

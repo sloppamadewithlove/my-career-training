@@ -57,3 +57,14 @@ Retain source and artifact hashes with that record. Existing test totals may
 overlap; report each invocation without adding them into a fabricated unique
 total. The campaign's [task board](TASKS.md) tracks remaining research, and this
 map will be updated as new evidence arrives.
+
+## Additional evidence ready for builders
+
+- [Native getter bodies](campaign/sdk-03.md) distinguish field access from timer/ball lifecycle logic; [shipped defaults](campaign/native-config-01.md) identify stock training action names without claiming effective user bindings.
+- [Map-to-lesson fit](campaign/content-01.md) separates standalone Workshop courses from authored lesson geometry. Hidden Steam status notices are not evidence of a removed map.
+- [Paired ghost playback](campaign/ghost-02.md) specifies one clock and gap policy for the car, ball and input depiction.
+- [Restoration paths](campaign/restore-01.md) distinguish hub return, online handoff and exit, including journal and in-memory ownership limits.
+- [Usability settings](campaign/accessibility-01.md) traces text scale, reduced motion, input labels and visible feedback consumers.
+- [Performance budgets](campaign/performance-01.md) records configured limits and measurements still needed; no live latency benchmark is claimed.
+- [Stats and progress](campaign/stats-01.md) separates attempt evidence, match telemetry and account information.
+- [Build provenance](campaign/build-01.md) labels the publication baseline separately from the actual candidate; its addendum verifies twelve selected candidate menu hashes.

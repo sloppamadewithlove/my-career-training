@@ -1,0 +1,89 @@
+{
+  "observed_at_utc": "2026-10-27T08:05:55.450824+00:00",
+  "scope": "isolated research source candidate, authored source/ABC correspondence only",
+  "limits": [
+    "No compilation, source semantic verification, staging or runtime execution",
+    "Does not identify currently installed or loaded plugin",
+    "Library/composer/stager closure is outside this selected comparison"
+  ],
+  "files": [
+    {
+      "path": "native_ui/menus/MctRootMenu.as",
+      "declared_sha256": "d0ceb137836a8154e30304d7bc2193841eebd138dcd9a2548624781be9c18025",
+      "actual_sha256": "d0ceb137836a8154e30304d7bc2193841eebd138dcd9a2548624781be9c18025",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctMainMenuScreen.as",
+      "declared_sha256": "edbcdd58c731550a0ff82f9c09ef03ab3106a13d87cd5af1c10f90a039d67e7d",
+      "actual_sha256": "edbcdd58c731550a0ff82f9c09ef03ab3106a13d87cd5af1c10f90a039d67e7d",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctRootMenuMovie.as",
+      "declared_sha256": "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432",
+      "actual_sha256": "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432",
+      "matches": true
+    },
+    {
+      "path": "native_ui/compiled/MctRootMenu.abc",
+      "declared_sha256": "3f20a2ef392cdfb2ea0881222f223231a03869c657d07f6db3a1a5c06644d4d2",
+      "actual_sha256": "3f20a2ef392cdfb2ea0881222f223231a03869c657d07f6db3a1a5c06644d4d2",
+      "bytes": 55346,
+      "declared_bytes": 55346,
+      "matches": true
+    },
+    {
+      "path": "native_ui/menus/MctPauseMenu.as",
+      "declared_sha256": "ac74a0e3020b3c40356bb75739bb03fbc70385ce277522441a48b8feee86edc2",
+      "actual_sha256": "ac74a0e3020b3c40356bb75739bb03fbc70385ce277522441a48b8feee86edc2",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctPauseMenuScreen.as",
+      "declared_sha256": "829791dea145b2251faf7a34956c5ed6b47369d531bb36409f51527f8f608062",
+      "actual_sha256": "829791dea145b2251faf7a34956c5ed6b47369d531bb36409f51527f8f608062",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctPauseMenuMovie.as",
+      "declared_sha256": "e83e7c63db253503c677bd2c149d7acf989a682bb0653e2d0895b235cad28653",
+      "actual_sha256": "e83e7c63db253503c677bd2c149d7acf989a682bb0653e2d0895b235cad28653",
+      "matches": true
+    },
+    {
+      "path": "native_ui/compiled/MctPauseMenu.abc",
+      "declared_sha256": "237a82c4c060a2090be5c48f22c85340f70b6e6485795dc2ee5b9033431ee829",
+      "actual_sha256": "237a82c4c060a2090be5c48f22c85340f70b6e6485795dc2ee5b9033431ee829",
+      "bytes": 25736,
+      "declared_bytes": 25736,
+      "matches": true
+    },
+    {
+      "path": "native_ui/menus/MctResultsMenu.as",
+      "declared_sha256": "0b37e35fe314e225e9fac201d48ec248570248332f67d543b15b6c127128399f",
+      "actual_sha256": "0b37e35fe314e225e9fac201d48ec248570248332f67d543b15b6c127128399f",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctResultsMenuScreen.as",
+      "declared_sha256": "56788df6ff86bc2c8f6f7c23a3f73cbc964a36c2cc84435394481e2eff4d13f2",
+      "actual_sha256": "56788df6ff86bc2c8f6f7c23a3f73cbc964a36c2cc84435394481e2eff4d13f2",
+      "matches": true
+    },
+    {
+      "path": "native_ui/MctResultsMenuMovie.as",
+      "declared_sha256": "15083968df55fc13d0c468336566d080376c8464a70b1a06a464f086db4e792c",
+      "actual_sha256": "15083968df55fc13d0c468336566d080376c8464a70b1a06a464f086db4e792c",
+      "matches": true
+    },
+    {
+      "path": "native_ui/compiled/MctResultsMenu.abc",
+      "declared_sha256": "c7c365db1c31f826356af576149ef88374a1531728940ba3468378dbdd854315",
+      "actual_sha256": "c7c365db1c31f826356af576149ef88374a1531728940ba3468378dbdd854315",
+      "bytes": 25630,
+      "declared_bytes": 25630,
+      "matches": true
+    }
+  ]
+}

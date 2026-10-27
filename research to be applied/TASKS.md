@@ -24,14 +24,14 @@ analysis substitutes for actual gameplay verification.
 | PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | Complete; DeepSeek; coordinator corrected platform/backup claims |
 | CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | Complete; Luna; camera declarations and source gaps checked |
 | TELEMETRY-01 | Packet clocks, gaps, pauses, speed changes and recovery | Complete; DeepSeek; coordinator checked clocks and four classifier examples |
-| PERFORMANCE-01 | Rendering/update budgets, cache paging and observable latency | Queued |
+| PERFORMANCE-01 | Rendering/update budgets, cache paging and observable latency | Complete; DeepSeek survey reconciled by coordinator; configured budgets only |
 | ARTIFACT-01 | Training/HUD/map package boundaries and reusable public interfaces | Complete; Luna; package map and explicit format boundary |
-| BUILD-01 | Native/authored/frozen packaging provenance and reproducible acceptance | Queued |
-| STATS-01 | Official telemetry/StatsAPI and native feature opportunities | Queued |
-| RESTORE-01 | Return/exit/failure recovery across game, plugins, files and saves | In progress; DeepSeek |
-| CONTENT-01 | Installed training map mechanics and fit with lesson progression | In progress; Luna |
+| BUILD-01 | Native/authored/frozen packaging provenance and reproducible acceptance | Complete; baseline audit plus selected actual-candidate hash addendum |
+| STATS-01 | Official telemetry/StatsAPI and native feature opportunities | Complete; official docs and shipped default config checked |
+| RESTORE-01 | Return/exit/failure recovery across game, plugins, files and saves | Complete; DeepSeek caller trace reconciled by coordinator |
+| CONTENT-01 | Installed training map mechanics and fit with lesson progression | Complete; map fit and hidden Steam notice correction |
 | GARAGE-02 | Product metadata, thumbnails, paint variants and richer browsing | Complete; Luna; catalog/instance/paint/preview interfaces |
-| GHOST-02 | Requirements for synchronized ball/car playback and truthful comparison | In progress; Luna |
+| GHOST-02 | Requirements for synchronized ball/car playback and truthful comparison | Complete; synchronized car/ball requirements |
 
 The queue can be refined when evidence reveals a more valuable question. Repeated
 investigation of a completed scope needs a new hypothesis or missing evidence.
@@ -52,3 +52,14 @@ DeepSeek build/review and appropriate lightweight checks. Heavy native builds st
 deferred while parallel timing/physics activity is unknown. Do not claim account
 item ownership, online mod support, successful map arrival or verified instruction
 traces from static declarations or UI controls alone.
+
+## Subsequent research tasks
+
+| ID | Scope | Status |
+| --- | --- | --- |
+| SDK-03 | Actual installed timing/visibility getter bodies | Complete; Luna/REA; four direct accessors, no causal lifecycle proof |
+| ACCESSIBILITY-01 | Native text, motion, color, scaling and feedback consumers | Complete; Luna; source-only |
+| NATIVE-CONFIG-01 | Shipped input defaults and training package inventory | Complete; Luna; no effective binding/runtime claim |
+| NATIVE-EVENTS-01 | Public source event hooks and lifecycle writer evidence | In progress; Luna |
+| REPLAY-01 | Replay-based review/training integration and information loss | In progress; Luna |
+| OUTCOME-PROBE-01 | Synthetic defender-touch goal attribution experiment | In progress; DeepSeek builder; independent review and execution pending |
