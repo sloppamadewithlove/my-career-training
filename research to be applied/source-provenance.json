@@ -1,0 +1,139 @@
+{
+  "observed_at_utc": "2026-10-27T07:33:35.853112+00:00",
+  "research_snapshot_base_commit": "1fe8c85839a5e72166ee1d5cc3066627548d9fa2",
+  "scope": "Selected source files used by the research reports, not a full source or build manifest.",
+  "limitations": [
+    "The research snapshot contains captured uncommitted source and reviewed isolated patches.",
+    "Base commit alone does not reproduce these files; hashes identify actual bytes.",
+    "Active checkout equality is a point-in-time observation; another chat may continue editing.",
+    "No artifact/runtime equivalence or acceptance is established by this manifest."
+  ],
+  "files": [
+    {
+      "path": "src/my_career_training/bridge.py",
+      "research_snapshot_sha256": "ac502d1f19810baca479a534aa766a6afbea7ba57a405452835cc9dcff379ac2",
+      "active_checkout_sha256_at_observation": "3494a8a212b282f4c08ac81a13d858653ad184534fff9b5e606b55d3178672cc",
+      "equal_at_observation": false
+    },
+    {
+      "path": "src/my_career_training/game_worker.py",
+      "research_snapshot_sha256": "2e3982dfc352e4fafcd667898b3cb1f76538b61447c2b6e47adc6d9f862e89c2",
+      "active_checkout_sha256_at_observation": "b7edca8a4ffd67db11ba366df572fa805d4b2276ab309c72f95ec4389078b2b4",
+      "equal_at_observation": false
+    },
+    {
+      "path": "src/my_career_training/community_plugins.py",
+      "research_snapshot_sha256": "f308d070a291b678dba9e408ec47c8dee088bf9d2488d683ec4bb935472c5c21",
+      "active_checkout_sha256_at_observation": "f308d070a291b678dba9e408ec47c8dee088bf9d2488d683ec4bb935472c5c21",
+      "equal_at_observation": true
+    },
+    {
+      "path": "src/my_career_training/workshop.py",
+      "research_snapshot_sha256": "4dea4b359f612389d6186c6fed640c2ee207bf92b4ad1bd6b4e4d56bfb9eb945",
+      "active_checkout_sha256_at_observation": "4dea4b359f612389d6186c6fed640c2ee207bf92b4ad1bd6b4e4d56bfb9eb945",
+      "equal_at_observation": true
+    },
+    {
+      "path": "src/my_career_training/training/catalog.py",
+      "research_snapshot_sha256": "1c05fe5ed75296c5c75848f26e7c01a77160b16938c76c55e15536828f58fe73",
+      "active_checkout_sha256_at_observation": "e000f45466aec5f7299dd58929020df032b09ed401880079a3e9c86798872172",
+      "equal_at_observation": false
+    },
+    {
+      "path": "src/my_career_training/training/scenarios.py",
+      "research_snapshot_sha256": "35714a224aa8765ae62be6fde3df6dc87c088c32d297adcda3795d0bc682d979",
+      "active_checkout_sha256_at_observation": "0ead2665b1a56bea5cc63d36a4155d8775de3f1588032cd63c4a157e699409aa",
+      "equal_at_observation": false
+    },
+    {
+      "path": "src/my_career_training/training/engine.py",
+      "research_snapshot_sha256": "37028379a268d6f6e19d42b32a9e3c20778ed4f41d87bfbd3bc76955c61c602a",
+      "active_checkout_sha256_at_observation": "9a0e4172038a02d608050dd98b044b1d47f72f690c972cfe02c99754049010ed",
+      "equal_at_observation": false
+    },
+    {
+      "path": "src/my_career_training/training/coach.py",
+      "research_snapshot_sha256": "0807fda8daf33ae67a9d1f31ccf93ecb10acccd21bb7efa3d9fb8a7fec905325",
+      "active_checkout_sha256_at_observation": "0807fda8daf33ae67a9d1f31ccf93ecb10acccd21bb7efa3d9fb8a7fec905325",
+      "equal_at_observation": true
+    },
+    {
+      "path": "src/my_career_training/training/coaching.py",
+      "research_snapshot_sha256": "3b8336a54f4997479f1ce56f787377eb748683a117c8ba24a82e6e3c03b25d3b",
+      "active_checkout_sha256_at_observation": "3b8336a54f4997479f1ce56f787377eb748683a117c8ba24a82e6e3c03b25d3b",
+      "equal_at_observation": true
+    },
+    {
+      "path": "src/my_career_training/training/recordings.py",
+      "research_snapshot_sha256": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+      "active_checkout_sha256_at_observation": "8effb8f438b39c4abe4901d683dc6e5e0424baa7f696dc35143b282cc5aa96f1",
+      "equal_at_observation": true
+    },
+    {
+      "path": "src/my_career_training/training/cadence.py",
+      "research_snapshot_sha256": "fdbcda80e4fadb135713314e0fb65e2bcf2a3cf848f9261413fc2803555ee240",
+      "active_checkout_sha256_at_observation": "fdbcda80e4fadb135713314e0fb65e2bcf2a3cf848f9261413fc2803555ee240",
+      "equal_at_observation": true
+    },
+    {
+      "path": "plugin/CMakeLists.txt",
+      "research_snapshot_sha256": "489e7323fddf44634321a3c341dc34aa54cead9e432c71aa2bff7bb3eea148b7",
+      "active_checkout_sha256_at_observation": "489e7323fddf44634321a3c341dc34aa54cead9e432c71aa2bff7bb3eea148b7",
+      "equal_at_observation": true
+    },
+    {
+      "path": "plugin/include/NativeCareerLayout.h",
+      "research_snapshot_sha256": "17d2ec0a82c79fad1949715ad62840bcace4177cbbe137da3aa675289109eb78",
+      "active_checkout_sha256_at_observation": "78b08868d0fc840d3e883e4b1b1dc1fb73e45f915d892dce0db2be91858683d0",
+      "equal_at_observation": false
+    },
+    {
+      "path": "plugin/include/NativeMatchLayout.h",
+      "research_snapshot_sha256": "a986f0ed827f11ef2716c8fc6bb196d55f822cc22c6b5316b0fde0bb278a8d53",
+      "active_checkout_sha256_at_observation": "4bc93f367ad7a571b642cb9d034e5992684e96b77cc919dd336404a62d767b77",
+      "equal_at_observation": false
+    },
+    {
+      "path": "plugin/include/NativeWorkshopLauncher.h",
+      "research_snapshot_sha256": "a8ce39f52c4d9c1aabc30aa6a70d7331d3ca87f71e1772939ad941f7952f6a32",
+      "active_checkout_sha256_at_observation": "a8ce39f52c4d9c1aabc30aa6a70d7331d3ca87f71e1772939ad941f7952f6a32",
+      "equal_at_observation": true
+    },
+    {
+      "path": "plugin/include/NativeWorkshopContext.h",
+      "research_snapshot_sha256": "d9738656718437f28af56bed5ecce86f8af8f42ee5c3a534b7af3e7700fdc6c4",
+      "active_checkout_sha256_at_observation": "d9738656718437f28af56bed5ecce86f8af8f42ee5c3a534b7af3e7700fdc6c4",
+      "equal_at_observation": true
+    },
+    {
+      "path": "plugin/include/WorkshopLoadPlan.h",
+      "research_snapshot_sha256": "d7266e99106d468699607a1b792d5185311e9715f2341dad8fb3e8860e66f7bf",
+      "active_checkout_sha256_at_observation": "d7266e99106d468699607a1b792d5185311e9715f2341dad8fb3e8860e66f7bf",
+      "equal_at_observation": true
+    },
+    {
+      "path": "plugin/include/NativeReturnGate.h",
+      "research_snapshot_sha256": "960e4042e1092dc1ad791ccbb8f1ccf800584f1c931a85ef71012ba8a385219d",
+      "active_checkout_sha256_at_observation": "960e4042e1092dc1ad791ccbb8f1ccf800584f1c931a85ef71012ba8a385219d",
+      "equal_at_observation": true
+    },
+    {
+      "path": "native_ui/menus/MctRootMenu.as",
+      "research_snapshot_sha256": "d0ceb137836a8154e30304d7bc2193841eebd138dcd9a2548624781be9c18025",
+      "active_checkout_sha256_at_observation": "d0ceb137836a8154e30304d7bc2193841eebd138dcd9a2548624781be9c18025",
+      "equal_at_observation": true
+    },
+    {
+      "path": "native_ui/menus/MctPauseMenu.as",
+      "research_snapshot_sha256": "ac74a0e3020b3c40356bb75739bb03fbc70385ce277522441a48b8feee86edc2",
+      "active_checkout_sha256_at_observation": "668c45a450005ffad172acfb57dbab03357b68fe3c8d092d1f76c9ab7889bce5",
+      "equal_at_observation": false
+    },
+    {
+      "path": "native_ui/menus/MctResultsMenu.as",
+      "research_snapshot_sha256": "0b37e35fe314e225e9fac201d48ec248570248332f67d543b15b6c127128399f",
+      "active_checkout_sha256_at_observation": "0b37e35fe314e225e9fac201d48ec248570248332f67d543b15b6c127128399f",
+      "equal_at_observation": true
+    }
+  ]
+}

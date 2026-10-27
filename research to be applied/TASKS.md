@@ -12,15 +12,15 @@ analysis substitutes for actual gameplay verification.
 | COMPAT-01 | Current build/host/EAC evidence and counterevidence | Complete; Luna; verified for integration |
 | DOWNLOAD-01 | Plugin lookup/download/cache/progress/cancel/retry | Complete; Luna; verified for integration |
 | SETTINGS-01 | Training checkboxes, persistence, actual effect and restoration | Complete; DeepSeek; corrected caller trace |
-| PHYSICS-01 | Shot setup, units, velocity, rank actors and whole-state retry | In progress; DeepSeek |
-| MAP-01 | Workshop package identity, prepare/arrival/Return/cleanup | In progress; Luna |
-| NATIVEUI-01 | Native composition, focus/repeat, image refresh and scaling | In progress; Luna |
-| SDK-01 | Shipped host interfaces versus pinned wrapper declarations | Queued |
-| PACK-01 | Native training-pack metadata, progress, history and offline limits | Queued |
+| PHYSICS-01 | Shot setup, units, velocity, rank actors and whole-state retry | Complete; DeepSeek; primary-source cross-check complete |
+| MAP-01 | Workshop package identity, prepare/arrival/Return/cleanup | Complete; Luna; reviewed for publication |
+| NATIVEUI-01 | Native composition, focus/repeat, image refresh and scaling | Complete; Luna; final text integrated |
+| SDK-01 | Shipped host interfaces versus pinned wrapper declarations | Complete; Luna; installed export evidence recorded |
+| PACK-01 | Native training-pack metadata, progress, history and offline limits | In progress; Luna |
 | CURRICULUM-01 | Existing eight lessons and mechanic-specific rank expansion | Queued |
-| OUTCOMES-01 | Success/failure/timing feedback and durable attempt acknowledgement | Queued |
+| OUTCOMES-01 | Success/failure/timing feedback and durable attempt acknowledgement | In progress; DeepSeek; main requested evidence corrections |
 | PERSIST-01 | Save/import/backup, Unicode paths and separate career/training state | Queued |
-| CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | Queued |
+| CAMERA-01 | Camera/input preferences, bindings and replay-view consistency | In progress; Luna |
 | TELEMETRY-01 | Packet clocks, gaps, pauses, speed changes and recovery | Queued |
 | PERFORMANCE-01 | Rendering/update budgets, cache paging and observable latency | Queued |
 | ARTIFACT-01 | Training/HUD/map package boundaries and reusable public interfaces | Queued |

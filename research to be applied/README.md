@@ -43,3 +43,9 @@ extracted game assets stay outside this folder and outside GitHub. Public API
 declarations and native names do not establish actual call order or grant ownership
 of cosmetics. Garage research will distinguish catalog/preview support from
 account-owned items and online visibility.
+
+## Campaign navigation
+
+- [Task board and coverage](TASKS.md)
+- [Research source identity](source-provenance.json): selected file hashes and active-checkout comparison, not a build manifest.
+- [Campaign reports](campaign): ghost playback, garage, compatibility, downloads, settings, native UI, shot physics, Workshop loading and SDK exports.
