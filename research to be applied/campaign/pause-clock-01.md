@@ -23,15 +23,36 @@ In the fallback ImGui path, `Resume Play` queues a local Resume request (`Career
 
 ## Worker and clock connection
 
-The overlay does not tell `GameWorker` to suspend. For each RLBot packet that reaches it, the worker processes it and feeds the same packet `frame["time"]` to the engine, Watch/Lead playback, and Practice (`game_worker.py:1227–1269, 1340–1345`). Thus if the underlying game remains Active and `seconds_elapsed` advances, the attempt and ghost clocks continue; if the game actually pauses, the phase and clock behavior follow the telemetry rules in [TELEMETRY-01](telemetry-01.md). That report already covers cadence gaps, Active/non-Active handling, scenario interruption, game-clock timeouts, wall-clock recovery/ack deadlines, and the unresolved question of whether `seconds_elapsed` freezes in Paused/Replay. [GHOST-PLAYBACK-01](ghost-playback-01.md) covers game-time playback and clock rewind behavior. This report adds the menu-to-worker distinction and does not duplicate those clock algorithms.
+The overlay does not tell `GameWorker` to suspend. For each RLBot packet that reaches it, the worker processes it and feeds the same packet `frame["time"]` to the engine, Watch/Lead playback, and Practice (`game_worker.py:1227–1269, 1340–1345`). Thus if the underlying game remains Active and `seconds_elapsed` advances, the attempt and ghost clocks continue; if the game actually pauses, the phase and clock behavior follow the telemetry rules in [TELEMETRY-01](telemetry-01.md). That report already covers cadence gaps, Active/non-Active handling, scenario interruption, game-clock timeouts, wall-clock recovery/ack deadlines, and the then-unresolved question of whether `seconds_elapsed` freezes in Paused/Replay. The documented contract is now clarified below. [GHOST-PLAYBACK-01](ghost-playback-01.md) covers game-time playback and clock rewind behavior. This report adds the menu-to-worker distinction and does not duplicate those clock algorithms.
 
 One player-visible consequence is source-supported: an actual pause-menu edge is not equivalent to opening the ImGui Settings overlay. For Power Shots, a Paused phase interrupts the active scenario attempt; Ended has its own terminal path, as TELEMETRY-01 details. Overlay-open alone does not send either phase transition. The renderer’s settings/ghost controls can still send their explicit preference messages while shown. Whether packets continue at all during either screen and whether physics advances behind the fallback overlay must be observed in the exact owned game build.
+
+## Documented elapsed-clock contract (coordinator follow-up)
+
+The pinned [RLBot schema](https://github.com/RLBot/flatbuffers-schema/blob/e27de77b4ae2cd9fef5bfea53994be7e24454b47/schema/gamedata.fbs)
+explicitly describes `MatchInfo.seconds_elapsed` as advancing during kickoff,
+replay and pause (lines 333-335). The installed `rlbot_flatbuffers` 0.19.0
+`__init__.pyi` repeats that contract at lines 4038-4042: 162,320 bytes,
+SHA-256 `5a89d86c709198b9b5748d67cf9fd6045c9c5bc445f13cd7222719fa35e3ca1e`.
+The coordinator read and hashed that local stub. This resolves the documentation
+question left open by TELEMETRY-01; delivery and observed values in the actual
+owned game session remain unmeasured.
+
+The consequence is conditional source behavior: when advancing-clock packets
+are delivered during pause, the seven non-scenario lessons still take their
+ordinary elapsed-time and event path, while Watch/Practice ghost playback can
+advance from that same clock. They do not acquire a pause hold merely because
+the clock is called game time. Power Shots instead observes phase and interrupts
+an active attempt on Paused. If delivery stops during pause and resumes with an
+advanced clock, the first later delta can also spend legacy timeout and move a
+ghost cursor. Define the desired pause policy explicitly and test both packet
+patterns. This is a source/contract inference, not an observed paused attempt.
 
 ## Remaining runtime questions and acceptance
 
 - Is the deployed plugin built with `MCT_ENABLE_NATIVE_MOVIE_TRIAL`? The source default is OFF, but no compile artifact/configuration was identified for this inspection.
 - With the default ImGui overlay opened during an active owned lesson, does Rocket League continue physics and `seconds_elapsed`, or does the BakkesMod host pause/suspend the match as a side effect of `openmenu`? Does `ShouldBlockInput()` block all relevant controller input or only UI clicks in the actual host?
-- With the real pause menu open, does the worker continue receiving packets while `match_phase` is Paused, and does `seconds_elapsed` freeze? TELEMETRY-01 records the source behavior and this runtime question.
+- With the real pause menu open, does the worker continue receiving packets while `match_phase` is Paused, and do observed timestamps follow the documented advancing-clock contract? Verify both packet delivery and timestamp behavior; the contract does not prove either in the deployed build.
 - Does the player expect “open settings” to suspend the current attempt? Current source does not make the fallback overlay a pause command. Acceptance should record both active-match shortcut opening and native Pause → Settings separately, including `IsPaused`, top menu, match phase, `seconds_elapsed`, input actions, active attempt state, visible timer, and ghost cursor before/during/after. Confirm Resume sends Escape only after explicit Resume, then verify one observed resume edge and no unintended retry or second ghost action.
 
 No tests, builds, game interactions, or input actions were performed.

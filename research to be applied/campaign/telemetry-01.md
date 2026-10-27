@@ -1,5 +1,7 @@
 # TELEMETRY-01 — clocks, cadence, recovery and HUD timer
 
+Follow-up: [PAUSE-CLOCK-01](pause-clock-01.md) now verifies that both the pinned RLBot schema and installed 0.19.0 stub document `seconds_elapsed` advancing during pause/replay. Earlier UNKNOWN statements below describe the original inspection; the remaining uncertainty is deployed packet delivery/value behavior, not the documented clock contract.
+
 SCOPE READ
 Full: training/cadence.py. engine.py 1–420, 420–540, 539–620, 600–720, 700–1000, 1000–1200, 1199–1318, 1318–1346 (now complete). game_worker.py 600–720, 800–920, 950–1010, 1180–1320, 1320–1560, 1556–1594. adapter.py 1–220. coach.py 230–350. plugin/include/TrainingLessonInput.h 320–440. docs/INTEGRATION_CONTRACT.md 80–140.
 NOT read: game_worker.py 1–600, 720–800, 920–950, 1010–1180, 1594–1706; bridge.py bodies; scenarios.py, scenario_setup.py, recordings.py bodies; the ghost-practice module behind `self.practice`. Grep-only for tests and plugin/src. This is not approval of unread paths.

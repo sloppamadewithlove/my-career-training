@@ -114,3 +114,4 @@ traces from static declarations or UI controls alone.
 | GARAGE-CATALOG-01 | Catalog, compatibility, preview and ownership boundaries | Complete; 15 browse categories/11 local slots; no live inventory or appearance proof |
 | PAUSE-CLOCK-01 | Overlay visibility versus actual pause and worker clocks | Complete; source default/trial paths distinguished; runtime unmeasured |
 | NATIVE-FEATURE-DELTA-01 | Current official feedback features and regression leads | Complete; primary documentation checked; API and runtime applicability pending |
+| CONTROLLER-EVIDENCE-01 | Physical device, logical action and prompt identity | Complete; separate display/event thresholds, fixed skin and unused profile routing documented |
