@@ -90,3 +90,5 @@ map will be updated as new evidence arrives.
 [Ball Prediction research](campaign/ball-prediction-01.md) also shows why its checkbox requires adapter work: ordinary MCT Power Shots uses an RLBot Soccar session, while the stock plugin declares Freeplay/Custom Training contexts and keeps a cached predictor across resets. Test reseeding and cleanup with other overlays before presenting it as supported.
 
 [Shot selection](campaign/custom-shot-flow-01.md) now traces an exact static route: table indices drive the list, displayed shot numbers add one, and the chosen index reaches `StartAtPlaylistIndex` unchanged. Keep MCT scenario IDs independent of this stock host API; preserve the selected practice tier when opening an in-session situation picker. Numeric progress status meanings and actual host-call success remain unverified.
+
+[Installed drawable wrapper](campaign/sdk-drawable-01.md) delegates through an unresolved host interface, so it does not establish per-plugin cleanup scope. [HUD inventory](campaign/hud-inventory-01.md) now provides current-artifact source identity for a focused timer/progress/control trace.

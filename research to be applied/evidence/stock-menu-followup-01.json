@@ -126,6 +126,20 @@
         }
       ],
       "total_bytes": 9735
+    },
+    {
+      "selection": "shot-status-export",
+      "movie": "CustomTrainingSelectShotMenu.gfx",
+      "movie_sha256": "5c8507cf9b0543ce778d8c71854c9e88d6b96aceaa9f762e050138427e2280d7",
+      "observed_exit_code": 0,
+      "files": [
+        {
+          "name": "scripts/tagame/api/ETrainingRoundAttempt.as",
+          "bytes": 468,
+          "sha256": "3f9c89e78a7f7c4714b9ca209a9bcdfc9044b16850260fbb8c1d5e07892e8a8f"
+        }
+      ],
+      "total_bytes": 468
     }
   ]
 }

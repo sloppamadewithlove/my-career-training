@@ -80,5 +80,9 @@ traces from static declarations or UI controls alone.
 | CUSTOM-SHOT-FLOW-01 | Current stock shot-selector state and native API route | Complete; eleven selected classes trace zero-based dispatch and one-based display |
 | BALL-PREDICTION-01 | Exact checkbox lifecycle, event context and drawable ownership | Complete; source-only; targeted SDK cleanup follow-up underway |
 
-| SDK-DRAWABLE-01 | Installed SDK unregister-drawables body and ownership scope | In progress; Luna/REA static artifact |
-| HUD-INVENTORY-01 | Exact training HUD movie script names | In progress; DeepSeek helper build and independent review |
+| SDK-DRAWABLE-01 | Installed SDK unregister-drawables body and ownership scope | Complete; indirect host interface leaves cleanup scope unresolved |
+| HUD-INVENTORY-01 | Exact training HUD movie script names | Complete; reviewed helper executed; fifteen selected source classes exported |
+
+| HUD-FLOW-01 | HUD timer, progress, visibility and action prompts | In progress; Luna; fifteen current selected source classes |
+| GAMEINFO-METADATA-01 | Training Editor and Tutorial package class/function boundaries | In progress; Luna; metadata only |
+| IMPORT-PROBE-01 | Actual bridge import-to-personal-best diagnostic | In progress; DeepSeek builder; offline synthetic transport only |

@@ -1,0 +1,157 @@
+{
+  "action_script_export": false,
+  "bounds": {
+    "class_list_bytes": 1048576,
+    "class_list_lines": 20000,
+    "movie_bytes": 16777216,
+    "note": "post-hoc checks on files and buffers, not live process limits",
+    "package_bytes": 67108864,
+    "timeout_seconds": 90
+  },
+  "mode": "class_inventory_only",
+  "reader": {
+    "bytes": 38287,
+    "name": "scripts/native_package_reader.py",
+    "sha256": "89a408904fa3b824c074ab9fb4ff1fad92cd51e667a46e3683e2ed01cff4c90a"
+  },
+  "status": "class_inventory_only",
+  "targets": [
+    {
+      "class_list": {
+        "bytes": 25337,
+        "dump_entries": 741,
+        "name": "private/logs/HUD.classes.txt",
+        "nonblank_lines": 742,
+        "sha256": "7194f1d284090d6d380dbaca319320b520ff2b86a3666d4d92433e4eee50cb43"
+      },
+      "export": "HUD",
+      "movie": "HUD.gfx",
+      "movie_bytes": 1145308,
+      "movie_sha256": "65535317cbc36b2added175b2ff3c817b9093a2ea83951e08d7349c15c1073ef",
+      "package": "GFX_Hud_SF.upk",
+      "package_bytes": 1260419,
+      "package_sha256": "1a6c92191333c5612711b84fa4570d4f088bc977feb7cad58f4ec4343d0e5a59",
+      "returncode": 0
+    }
+  ],
+  "tools": {
+    "ffdec": {
+      "bytes": 5271501,
+      "sha256": "80f8ced0bfde98b434c28e9807e91fe5558255b2f712051a0e65221519bd392a"
+    },
+    "java": {
+      "bytes": 50344,
+      "sha256": "5f6248f9c0f32b38ffaba813819bf3331536a48c7ddc45b18e73acd15a6cf7ef"
+    }
+  },
+  "helper_sha256": "bc4db63a76fba083484cdc2f0e4a5bf7d757abb43aa469110a4e13e167220d99",
+  "validation": {
+    "helper_sha256": "bc4db63a76fba083484cdc2f0e4a5bf7d757abb43aa469110a4e13e167220d99",
+    "exact_package_pin_matches": true,
+    "checks": [
+      {
+        "case": "empty",
+        "rejected": true
+      },
+      {
+        "case": "banner",
+        "rejected": true
+      },
+      {
+        "case": "error",
+        "rejected": true
+      },
+      {
+        "case": "mixed",
+        "nonblank_lines": 3,
+        "dump_entries": 2
+      }
+    ]
+  },
+  "review": "Separate DeepSeek builder and source reviewer; coordinator executed",
+  "observed_exit_code": 0,
+  "followup_source_export": {
+    "method": "Direct pinned FFDec CLI exact-class selection",
+    "observed_exit_code": 0,
+    "format": "script:as",
+    "autoDeobfuscate": 0,
+    "files": [
+      {
+        "name": "scripts/tagame/api/ETrainingRoundAttempt.as",
+        "bytes": 468,
+        "sha256": "3f9c89e78a7f7c4714b9ca209a9bcdfc9044b16850260fbb8c1d5e07892e8a8f"
+      },
+      {
+        "name": "scripts/tagame/api/ETrainingType.as",
+        "bytes": 451,
+        "sha256": "6da78ca2e89f132ad693455d4eec0f5aa8a0f49b384bb0a4bb626cb400eacbe3"
+      },
+      {
+        "name": "scripts/tagame/api/GameEvent.as",
+        "bytes": 23498,
+        "sha256": "e8224a8d8690bcffc4e250c5233275e50c85f78b53fd8d5290031cf571e2ddde"
+      },
+      {
+        "name": "scripts/tagame/api/Training.as",
+        "bytes": 10998,
+        "sha256": "ec806f97bca48e655cc8e9500b5b8815de50e3c8d0b4997504b7b0ecb9cd6ad2"
+      },
+      {
+        "name": "scripts/tagame/api/TrainingProgressPerShot.as",
+        "bytes": 2152,
+        "sha256": "39c776645771f570320d4b493a33a5d2358ffbcbc831e6c1982371ae9c34bbc6"
+      },
+      {
+        "name": "scripts/tagame/api/TrainingProgressPerShotRow.as",
+        "bytes": 1727,
+        "sha256": "86ff42cb2837e032462a7bf5fa5ad733a873f3d707726beba3c8869b7e2be654"
+      },
+      {
+        "name": "scripts/tagame/api/TrainingUseActions.as",
+        "bytes": 2131,
+        "sha256": "98c07ea662d85159c5c4f2df0b4f811840a03a16bcf0b473602e35615f733bee"
+      },
+      {
+        "name": "scripts/tagame/api/TrainingUseActionsRow.as",
+        "bytes": 1741,
+        "sha256": "b9a9b44cb562b6708ff048377f99761c96191bb344ac4ae98ecea1f1cc6ab411"
+      },
+      {
+        "name": "scripts/tagame/hud/TrainingView.as",
+        "bytes": 30691,
+        "sha256": "95bb46f99e46b7bbe6e44d6fa641fd22058d4160a4f39180adee3c758fd60528"
+      },
+      {
+        "name": "scripts/TrainingScoreLabel_v2.as",
+        "bytes": 296,
+        "sha256": "ee1e77c228698f85ecc0482e9a6fb2bf521dc2aa7cf27d1eccce8b11c093d842"
+      },
+      {
+        "name": "scripts/TrainingShotLabel.as",
+        "bytes": 288,
+        "sha256": "ab90bcdafec2c019605a900f8a3ebdcfff5d1d6b3ffe7aa1c6bbaaa8f1a050da"
+      },
+      {
+        "name": "scripts/TrainingShotTotalLabel.as",
+        "bytes": 298,
+        "sha256": "855d2bf5b6d96ac1334682e7d8da7b94cae7b7d3d8158843c78f8fd4a9af3062"
+      },
+      {
+        "name": "scripts/TrainingTimeLabel_v2.as",
+        "bytes": 294,
+        "sha256": "5126cd1ee46260f7eff4869ce715dfa18dcd10f6da91d18868a442d194f276f7"
+      },
+      {
+        "name": "scripts/TrainingViewMovie.as",
+        "bytes": 283,
+        "sha256": "30d2104fcc8390e5a15ff144613de2b2eb0a43b9add215b1217640dcdb221a29"
+      },
+      {
+        "name": "scripts/TrainingViewMovie_v2.as",
+        "bytes": 289,
+        "sha256": "5d35f2c38037ac4ae3c0904e85e350ed670f1e4c6b00443c80aaecc19cf9ef5b"
+      }
+    ],
+    "total_bytes": 75605
+  }
+}
