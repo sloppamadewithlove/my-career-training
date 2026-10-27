@@ -83,6 +83,10 @@ traces from static declarations or UI controls alone.
 | SDK-DRAWABLE-01 | Installed SDK unregister-drawables body and ownership scope | Complete; indirect host interface leaves cleanup scope unresolved |
 | HUD-INVENTORY-01 | Exact training HUD movie script names | Complete; reviewed helper executed; fifteen selected source classes exported |
 
-| HUD-FLOW-01 | HUD timer, progress, visibility and action prompts | In progress; Luna; fifteen current selected source classes |
-| GAMEINFO-METADATA-01 | Training Editor and Tutorial package class/function boundaries | In progress; Luna; metadata only |
+| HUD-FLOW-01 | HUD timer, progress, visibility and action prompts | Complete; twenty-eight selected classes; timer/control/safe-zone flow traced |
+| GAMEINFO-METADATA-01 | Training Editor and Tutorial package class/function boundaries | Complete; object metadata, no Function/State exports |
 | IMPORT-PROBE-01 | Actual bridge import-to-personal-best diagnostic | In progress; DeepSeek builder; offline synthetic transport only |
+
+| ATTEMPT-END-01 | Current MCT terminal ball/HUD/save/retry behavior | Complete; no terminal ball write in traced path |
+| HUD-TIMELINE-01 | Authored label coordinates and parent transform | In progress; Luna; private timeline metadata |
+| BALL-VISIBILITY-01 | Candidate expiry mutation interfaces and Soccar applicability | In progress; Luna; public SDK and adapters |

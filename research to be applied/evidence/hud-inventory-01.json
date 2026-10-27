@@ -153,5 +153,79 @@
       }
     ],
     "total_bytes": 75605
+  },
+  "dependency_source_export": {
+    "method": "Direct pinned FFDec CLI exact-class selection",
+    "observed_exit_code": 0,
+    "format": "script:as",
+    "autoDeobfuscate": 0,
+    "files": [
+      {
+        "name": "scripts/projectx/api/InputTypes.as",
+        "bytes": 526,
+        "sha256": "0ee9c21e6c63688e2e388d80d96698e5e4fe01ed71cb780804c0a2903133b747"
+      },
+      {
+        "name": "scripts/projectx/api/ShellAPI.as",
+        "bytes": 2887,
+        "sha256": "7faf82cda315fff00825cf3a63b8345e419aae8eef6d9ad2f4c086f3eb014c9a"
+      },
+      {
+        "name": "scripts/projectx/core/UIScreen.as",
+        "bytes": 11700,
+        "sha256": "9e26e1599db761f62c018aa16e73f8dc21195a85557cabfcbe01d4755cf556ab"
+      },
+      {
+        "name": "scripts/projectx/core/UIView.as",
+        "bytes": 5523,
+        "sha256": "a2fe593a1c68f0dd90daf97146083e1aa1f7ae845908e8dc692e970ab18ced50"
+      },
+      {
+        "name": "scripts/projectx/managers/InteractionManager.as",
+        "bytes": 26686,
+        "sha256": "0353bf514d1afce294ef426f4dcd9f2ddefb2fb1d7eb5dfe0cb644dcb9bcbbbd"
+      },
+      {
+        "name": "scripts/projectx/managers/SystemIconManager.as",
+        "bytes": 17107,
+        "sha256": "384e8cdf3b6c309dfadab4be245c80bae7d6eafa8e1d148fc17bb7734efbde39"
+      },
+      {
+        "name": "scripts/projectx/utils/DateTimeUtils.as",
+        "bytes": 25551,
+        "sha256": "0dfe33dac2a4d7a3c438536e6848bc3839883e9b43ee67975d24e69e724a1028"
+      },
+      {
+        "name": "scripts/tagame/api/EControlsVisibilityType.as",
+        "bytes": 454,
+        "sha256": "8b5b7bef8fcebfc82a887250d535f270446dabef1706ce14990c6909800e572a"
+      },
+      {
+        "name": "scripts/tagame/api/Shell.as",
+        "bytes": 16475,
+        "sha256": "b542ad5cc406290ff85cb2c556da7a448ba50cda11a70c34b77449aa4bf4eff6"
+      },
+      {
+        "name": "scripts/tagame/constants/GameState.as",
+        "bytes": 1255,
+        "sha256": "02416b25588042def2b9b7b7f8d66dc29ccefaf03066416bb8d42fdbe6b22103"
+      },
+      {
+        "name": "scripts/tagame/constants/MatchType.as",
+        "bytes": 1027,
+        "sha256": "843b9f6e1f8fa2cf61458e40440a91dd8bb776e5f90c0ed65afe77184b9c89e0"
+      },
+      {
+        "name": "scripts/tagame/events/ControlBindingEvent.as",
+        "bytes": 843,
+        "sha256": "d50dc4aa543e175457a0b23a91baf173969bf4677410ba65b5b6db70121d1bf1"
+      },
+      {
+        "name": "scripts/tagame/managers/ControlBindingsManager.as",
+        "bytes": 5899,
+        "sha256": "1d42c5179abe61f00b3a08b60046f4e317361f780e56871d49cfb9d359782c63"
+      }
+    ],
+    "total_bytes": 115933
   }
 }
