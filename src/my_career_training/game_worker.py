@@ -665,8 +665,9 @@ class GameSession:
         if (self.request.get("lesson_id") != "power-shots" or self.scenario is None
                 or self.engine is None):
             raise ValueError("Situation switching is available only in a running Power Shots lesson.")
-        if self.engine.finished or self.attempt_sent is not None:
-            raise RuntimeError("Save or retry the completed attempt before changing situations.")
+        if ((self.engine.finished or self.attempt_sent is not None)
+                and not (self.attempt_sent == self.engine.attempt_id and self.attempt_acked)):
+            raise RuntimeError("Wait for the completed attempt to save before changing challenges.")
         if self.telemetry_recovery_pending:
             raise RuntimeError("Wait for fresh play telemetry before changing situations.")
         from .training import TrainingEngine
@@ -1344,6 +1345,10 @@ class GameSession:
                 elif self.engine.finished:
                     label = "Goal!" if self.engine.outcome == "success" else "Time up"
                     renderer.draw_string_2d(label, .03, .13, 1)
+                elif self.engine.state == "settling":
+                    renderer.draw_string_2d("Release controls to reset", .03, .13, .8)
+                elif self.engine.state == "ready":
+                    renderer.draw_string_2d("Ready", .03, .13, 1)
                 return
             if preferences["explanations"]:
                 renderer.draw_string_2d(self.engine.lesson["title"], .03, .05, 1.2)

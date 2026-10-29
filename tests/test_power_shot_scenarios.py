@@ -571,8 +571,9 @@ def test_active_clock_really_times_out_without_advancing_the_situation():
     ("bouncing-side-pass", 1, "low-side-pass"),
     ("low-side-pass", 1, "bouncing-side-pass"),
 ])
+@pytest.mark.parametrize("saved_result", [False, True])
 def test_worker_scenario_step_wraps_same_rank_and_resets_engine_controllers_and_request(
-    monkeypatch, start_id, direction, expected
+    monkeypatch, start_id, direction, expected, saved_result
 ):
     events = []
     request = {"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
@@ -583,6 +584,10 @@ def test_worker_scenario_step_wraps_same_rank_and_resets_engine_controllers_and_
     session.human_index = session.training_actor_index = session.engine.human_index
     session.descriptors = scenario_descriptors(request)
     session.controllers = scenario_actor_controllers(session.scenario)
+    if saved_result:
+        session.engine.state, session.engine.outcome = "finished", "timeout"
+        session.attempt_sent = session.engine.attempt_id
+        session.attempt_acked = True
     previous_engine = session.engine
     previous_controllers = session.controllers
     writes = []
@@ -661,3 +666,39 @@ def test_scenario_metadata_is_additive_and_legacy_recordings_remain_readable():
     legacy = TrainingEngine("power-shots").recording()
     assert legacy["schema_version"] == 1 and legacy["lesson_id"] == "power-shots"
     assert not ({"scenario_id", "difficulty", "scenario_version"} & set(legacy["metadata"]))
+
+
+def test_power_shots_hud_shows_only_challenge_timer_controls_and_state():
+    from contextlib import nullcontext
+    session = GameSession({"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
+        "scenario_id": "low-side-pass", "difficulty": "bronze"}, lambda event: None)
+    session.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="bronze")
+    session.scenario = session.engine.scenario
+    drawn = []
+    session.renderer = NS(can_render=True, context=lambda _: nullcontext(),
+        draw_string_2d=lambda text, *_: drawn.append(text))
+    session.render({})
+    assert drawn == ["1/2    0:15", "Left / Right: challenge    Up: retry", "Release controls to reset"]
+    drawn.clear()
+    session.engine.state, session.engine.outcome = "finished", "timeout"
+    session.engine.active_elapsed = session.engine.scenario["timeout"]
+    session.render({})
+    assert drawn == ["1/2    0:00", "Left / Right: challenge    Up: retry", "Time up"]
+
+
+@pytest.mark.parametrize("rank", ["gold", "platinum"])
+def test_ground_keeper_suppresses_delegate_jump_and_boost(monkeypatch, rank):
+    definition = scenario_definition("power-shots", "low-side-pass", rank)
+    controller = scenario_actor_controllers(definition)[0]
+    car = _actor(definition["starting_state"]["bots"][0], 0, 1, True)
+    car["position"][1] = 5050.0
+    frame = {"time": 10.0, "cars": [car], "ball": definition["starting_state"]["ball"]}
+    calls = []
+    def delegate(*_args, **_kwargs):
+        calls.append(True)
+        return {**_actions(), "jump": True, "boost": True}
+    monkeypatch.setattr(controller.delegate, "step", delegate)
+    controller.step(frame, 0)
+    frame["time"] += 5
+    controls = controller.step(frame, 0)
+    assert calls and controls["jump"] is controls["boost"] is False
