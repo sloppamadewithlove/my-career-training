@@ -1636,3 +1636,34 @@ def test_saved_result_blocks_other_launches_before_any_side_effect(backend, monk
     assert instance.state["session"]["results_pending_choice"] is True
     assert instance.store.path.read_bytes() == before
     instance.process = None
+
+
+@pytest.mark.parametrize("identity", ["missing", "stale", "request_mismatch", "valid"])
+def test_gold_automatic_last_to_first_persists_only_the_matching_session(backend, identity):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    start = {"scenario_id": "central-return-bounce", "difficulty": "gold"}
+    finish = {"scenario_id": "low-side-pass", "difficulty": "gold"}
+    instance.request.update(start)
+    instance.document["lesson_scenarios"] = {"power-shots": start}
+    instance.latest_attempt = {"id": "gold-last-attempt"}
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    event = {"type": "training_scenario_advanced", "session_id": instance.session_id,
+             "attempt_id": "gold-last-attempt", "before": start, "setup": finish}
+    if identity == "missing":
+        del event["session_id"]
+    elif identity == "stale":
+        event["session_id"] = "stale-session"
+    elif identity == "request_mismatch":
+        instance.request["session_id"] = "stale-session"
+    instance._event(event)
+    if identity == "valid":
+        assert instance.request["scenario_id"] == "low-side-pass"
+        assert instance.request["difficulty"] == "gold"
+        assert instance.store.load()["lesson_scenarios"]["power-shots"] == finish
+        assert len(instance.state["lesson_scenario_options"]["power-shots"]) == 12
+    else:
+        assert instance.store.path.read_bytes() == before
+        assert instance.request["scenario_id"] == "central-return-bounce"
+    instance.process = None

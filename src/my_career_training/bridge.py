@@ -189,7 +189,7 @@ class Backend(QObject):
             "selected_lesson": selected, "settings": self.document["settings"],
             "lesson_preferences": self.document["lesson_preferences"], "setup_required": self.setup_required,
             "lesson_scenarios": lesson_scenarios,
-            "lesson_scenario_options": {"power-shots": scenario_options()},
+            "lesson_scenario_options": {"power-shots": scenario_options(lesson_scenarios["power-shots"]["difficulty"])},
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
                 bool(self.native_community and any(self.native_community.state().get(key)
                      for key in ("busy", "requires_restart"))) or

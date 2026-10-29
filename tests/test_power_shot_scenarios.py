@@ -14,6 +14,7 @@ from my_career_training.game_worker import GameSession
 from my_career_training.training.engine import InvalidTrainingTelemetry, TrainingEngine
 from my_career_training.training.scenarios import (
     IMPLEMENTED_SCENARIOS,
+    implemented_scenarios,
     RANKS,
     scenario_actor_controllers,
     scenario_definition,
@@ -82,8 +83,9 @@ def _update(engine, t, touches, *, scores=(0, 0), ball=None, gap=False):
     return engine.update(frame)
 
 
-@pytest.mark.parametrize("scenario_id", IMPLEMENTED_SCENARIOS)
-@pytest.mark.parametrize("rank", RANKS)
+@pytest.mark.parametrize(("scenario_id", "rank"), [
+    (scenario, rank) for rank in RANKS for scenario in implemented_scenarios(rank)
+])
 def test_all_situations_and_ranks_build_dynamic_roster_and_controllers(scenario_id, rank):
     request = {"lesson_id": "power-shots", "scenario_id": scenario_id, "difficulty": rank}
     definition = scenario_definition(**request)
@@ -101,8 +103,12 @@ def test_all_situations_and_ranks_build_dynamic_roster_and_controllers(scenario_
         **{role: 1 for role in definition["roles"] if role != "human"}, "human": 0}
     assert "passer" not in definition["roles"]
     assert "teammate" not in definition["description"].lower()
-    assert definition["arrival_seconds"] > 1.0
-    assert definition["shot_window_seconds"] >= 6
+    if rank != "gold":
+        assert definition["arrival_seconds"] > 1.0
+        assert definition["shot_window_seconds"] >= 6
+    else:
+        assert definition["timeout"] in {5.0, 10.0}
+        assert definition["implemented_total"] == 12
 
 
 
@@ -142,11 +148,12 @@ def test_rank_pressure_orders_keeper_before_chasing_defender_and_tightens():
 
 
 @pytest.mark.parametrize("scenario_id", IMPLEMENTED_SCENARIOS)
-def test_each_situation_is_adjusted_monotonically_across_all_eight_ranks(scenario_id):
-    definitions = [scenario_definition("power-shots", scenario_id, rank) for rank in RANKS]
+def test_provisional_situations_scale_across_ranks_without_the_replaced_gold_pack(scenario_id):
+    ranks = [rank for rank in RANKS if rank != "gold"]
+    definitions = [scenario_definition("power-shots", scenario_id, rank) for rank in ranks]
     speeds = [item["pressure"]["launch_speed"] for item in definitions]
     limits = [item["timeout"] for item in definitions]
-    assert speeds == sorted(speeds) and len(set(speeds)) == len(RANKS)
+    assert speeds == sorted(speeds) and len(set(speeds)) == len(ranks)
     assert limits == sorted(limits, reverse=True)
 
 
@@ -154,7 +161,7 @@ def test_each_situation_is_adjusted_monotonically_across_all_eight_ranks(scenari
 def test_forgiving_keeper_starts_far_from_lane_and_waits_before_safe_input(rank):
     definition = scenario_definition("power-shots", "low-side-pass", rank)
     keeper = definition["starting_state"]["bots"][0]
-    lane = definition["receiving_lane"]
+    lane = definition.get("receiving_lane", definition["starting_state"]["car"]["position"])
     controller = scenario_actor_controllers(definition)[0]
     frame = {
         "time": 10.0,
@@ -469,7 +476,7 @@ def test_bouncing_beginner_settles_earlier_than_gold_low_volley():
     bronze = scenario_definition("power-shots", "bouncing-side-pass", "bronze")
     gold = scenario_definition("power-shots", "bouncing-side-pass", "gold")
     assert bronze["execution"] == "settled-bounce"
-    assert gold["execution"] == "low-volley"
+    assert gold["execution"] == "reference-power-shot"
     assert bronze["starting_state"]["ball"]["position"][2] < gold["starting_state"]["ball"]["position"][2]
     assert math.hypot(*bronze["starting_state"]["ball"]["velocity"][:2]) < 1000
 
@@ -570,20 +577,23 @@ def test_active_clock_really_times_out_without_advancing_the_situation():
     assert events[-1]["type"] == "completed"
 
 
-@pytest.mark.parametrize(("start_id", "direction", "expected"), [
-    ("low-side-pass", -1, "bouncing-side-pass"),
-    ("bouncing-side-pass", 1, "low-side-pass"),
-    ("low-side-pass", 1, "bouncing-side-pass"),
+@pytest.mark.parametrize(("rank", "start_id", "direction", "expected"), [
+    ("diamond", "low-side-pass", -1, "bouncing-side-pass"),
+    ("diamond", "bouncing-side-pass", 1, "low-side-pass"),
+    ("diamond", "low-side-pass", 1, "bouncing-side-pass"),
+    ("gold", "low-side-pass", -1, "central-return-bounce"),
+    ("gold", "central-return-bounce", 1, "low-side-pass"),
+    ("gold", "bouncing-side-pass", 1, "left-diagonal-pass"),
 ])
 @pytest.mark.parametrize("saved_result", [False, True])
 def test_worker_scenario_step_wraps_same_rank_and_resets_engine_controllers_and_request(
-    monkeypatch, start_id, direction, expected, saved_result
+    monkeypatch, rank, start_id, direction, expected, saved_result
 ):
     events = []
     request = {"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
-               "scenario_id": start_id, "difficulty": "diamond"}
+               "scenario_id": start_id, "difficulty": rank}
     session = GameSession(request, events.append)
-    session.engine = TrainingEngine("power-shots", scenario_id=start_id, difficulty="diamond")
+    session.engine = TrainingEngine("power-shots", scenario_id=start_id, difficulty=rank)
     session.scenario = session.engine.scenario
     session.human_index = session.training_actor_index = session.engine.human_index
     session.descriptors = scenario_descriptors(request)
@@ -603,13 +613,13 @@ def test_worker_scenario_step_wraps_same_rank_and_resets_engine_controllers_and_
                             "session_id": session.session_id, "direction": direction})
 
     assert session.request["scenario_id"] == expected
-    assert session.request["difficulty"] == "diamond"
+    assert session.request["difficulty"] == rank
     assert session.engine is not previous_engine and session.engine.state == "settling"
     assert session.controllers is not previous_controllers and set(session.controllers) == {0}
     assert writes and writes[-1][1] == session.human_index and set(writes[-1][2]) == {0}
     assert events[-1] == {"type": "training_scenario_step_ack", "session_id": session.session_id,
                           "id": "step-1", "accepted": True,
-                          "scenario_id": expected, "difficulty": "diamond"}
+                          "scenario_id": expected, "difficulty": rank}
 
 
 @pytest.mark.parametrize("payload", [{}, {"direction": 0}, {"direction": True},
@@ -666,8 +676,8 @@ def test_scenario_metadata_is_additive_and_legacy_recordings_remain_readable():
     recording = scenario.recording()
     validate_recording(recording)
     assert recording["metadata"]["scenario_id"] == "low-side-pass"
-    assert recording["metadata"]["scenario_version"] == 3
-    assert "No validated teaching" in scenario.scenario["reference_status"]
+    assert recording["metadata"]["scenario_version"] == 4
+    assert "no validated teaching" in scenario.scenario["reference_status"].lower()
 
     legacy = TrainingEngine("power-shots").recording()
     assert legacy["schema_version"] == 1 and legacy["lesson_id"] == "power-shots"
@@ -745,7 +755,8 @@ def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins
     session.last_frame = {"phase": 3}
     session._try_training_control()
     assert len(writes) == 1 and session.pending_training_control is None
-    assert session.request["scenario_id"] == ("low-side-pass" if manual == "retry_lesson" else "bouncing-side-pass")
+    assert session.request["scenario_id"] == ("low-side-pass" if manual == "retry_lesson" else
+        "central-return-bounce" if manual == "training_scenario_step" else "bouncing-side-pass")
     if manual != "retry_lesson":
         assert old.outcome == "interrupted"  # Progression did not forge technique credit.
     session._try_training_control()

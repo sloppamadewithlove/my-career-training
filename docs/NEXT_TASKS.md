@@ -6,27 +6,29 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder | Integrate only independently verified source fixes and evidence | Rejected Gold candidate closed; no game input while owner uses PC |
-| DeepSeek training REA worker | Native timer, retry producer/consumer, goal lifecycle and twelve-shot import requirements | Exact-source and retained-body evidence; deadline 10:16:20 UTC; no live input |
-| DeepSeek lifecycle REA worker | Garage cleanup, Workshop arrival/return, plugin activation/unload | Exact caller/helper proof; same deadline; no game/process interaction |
-| Luna career_test_investigation | Independently verify training findings | Reject XInput-only allegation: keyboard polling exists; trace actual path |
-| Luna browser_investigation | Independently verify lifecycle findings | Separate hub Return from Quit; inspect cosmetic helper before accepting ownership claims |
-| Luna rea_research | Completed public implementation comparison | Custom-training converter/timer precedent found; Soccar expiry still unknown |
-| Scheduled improvement worker | PR #11 privacy check delivered | Branch aligned at d2e7beb; Windows CI passed; no gameplay/release claim |
+| Main builder/operator | Integrate Gold catalog and repair lifecycle; sole game input owner | Catalog reviewed; build one coherent candidate after reset/timer changes; no loaded-file replacement |
+| DeepSeek builder | Rank-aware catalog handoff completed; clock telemetry forwarding proposed | Main reviews exact patch, tests, then integrates |
+| Luna career_test_investigation | Reset confirmation investigation complete | Post-bounce failure reproduced; independently test the bounded repair |
+| Luna browser_investigation | Gold catalog review | 265 checks passed; final four-case Gold persistence delta under review |
+| Luna rea_research | Native clock integration seam verified | SDK setters are real; pre-expiry HUD/readback probe and zero behavior still require live evidence |
+| Scheduled improvement worker | PR #11 privacy check delivered | Aligned d2e7beb, Windows CI passed; claim separate reproducible work, do not repeat unchanged status |
 
-The owner handed the PC back. Root alone owns input to a fresh standard Steam
-reference session; other agents remain source/test-only. Poquito was downloaded
-and opened; Skogur acquisition/decoding is next. Background research completed its
-finite queue; two scoped DeepSeek fixes passed independent tests and are integrated.
-[Current receipt](evidence/2026-10-29-background-diagnosis.md).
+The owner is away and has authorized continued testing. Root is the sole input
+operator. Standard-game pack inspection is complete and that session was closed
+normally. The bounded DeepSeek REA campaign finished nine training/eight lifecycle
+topics; no idle agent is reported as doing new research. Follow-ups must name an
+unresolved question and use the retained evidence before a new analysis run.
 
 ## Next proof sequence
 
-1. After the owner hands back game control, prove Up whole reset and Left/Right at timeout/goal with acknowledgements, attempt identity and actor positions. Use an OS key hold; SendKeys pulses were not observed by the input poll. Distinguish automatic retry from requested retry.
-2. Prove the RLBot DisableGoalReset mutator with a real scored goal and retained defender. Its presence in the pause menu is not gameplay acceptance.
-3. Implement/prove the native clock. A bounded pre-expiry field/flag probe can establish UI/count direction; zero may invoke match-level finish/overtime, so no zero behavior is claimed from a setter body.
-4. Identify actual Poquito/Skogur packs and select 12 distinct Gold challenges with varied geometry/speed and a ground keeper. No invented reference contents or cosmetic duplication.
-5. Obtain owner feel acceptance, then expand the proven flow to other ranks and remaining product areas. Build a new coherent candidate for source changes; never replace files loaded by a live game.
+1. Repair the confirmed pre-bounce reset assumption without widening unrelated
+   actor validation. Verify native clocks with independent RLBot readback.
+2. Build the current GitHub candidate and prove Up retry, Left/Right including
+   1/12 and 12/12, timeout disappearance/restoration and scored-goal advancement.
+3. Test actual Gold shooting geometry and keeper interference; do not ask for
+   owner acceptance until those mechanics work together.
+4. Expand the proven flow to other ranks and remaining product functions. Keep
+   the downloadable mod small; update the website for verified major releases.
 
 ## Product backlog
 
