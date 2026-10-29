@@ -12,6 +12,10 @@ HOME_PATHS = (
         r"(?!(?:Public|Default|All Users|user|username|<[^>]+>|%[^%]+%|\$\{[^}]+\})[\\/])[^\\/\s<>]+"
     ),
     re.compile(
+        r"(?i)(?<![A-Z0-9_])(?:\\\\\?\\UNC\\|\\\\|//)[^\\/\s]+[\\/]+(?:Users|home)[\\/]+"
+        r"(?!(?:Public|Default|All Users|Shared|Guest|user|username|<[^>]+>|%[^%]+%|\$\{[^}]+\})[\\/])[^\\/\s<>]+"
+    ),
+    re.compile(
         r"(?i)(?<![\w/])/(?:Users|home)/"
         r"(?!(?:Shared|Guest|user|username|<[^>]+>|%[^%]+%|\$\{[^}]+\})/)[^/\s<>]+"
     ),
@@ -31,16 +35,21 @@ PLATFORM_ID = re.compile(
 PRIVATE_KEY = re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----", re.IGNORECASE)
 GITHUB_TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b")
 AWS_ACCESS_KEY = re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")
+AUTHORIZATION_BEARER = re.compile(
+    r"(?i)\b(?:proxy-)?authorization\s*[:=]\s*Bearer\s+"
+    r"(?P<value>[A-Z0-9._~+/=\-]{8,})"
+)
 CREDENTIAL_ASSIGNMENT = re.compile(
     r"(?i)\b(?:api[ _-]?key|access[ _-]?key|private[ _-]?key|"
-    r"secret|token|password|passwd|key)\b\s*[:=]\s*"
-    r"(?P<value>[^\s,;'\"`]+)"
+    r"set[ _-]?cookies?|cookies?|session(?:[ _-]?id)?|secret|token|password|passwd|key)\b\s*[:=]\s*"
+    r"['\"]?(?P<value>[^\s,;'\"`]+)"
 )
 PLACEHOLDERS = {
     "...", "example", "example-key", "example-token", "n/a", "none", "null",
     "placeholder", "redacted", "<redacted>", "[redacted]", "<secret>", "[secret]",
-    "value", "string", "your_key", "your-key", "your_password", "your-password",
-    "your_secret", "your-secret", "your_token", "your-token",
+    "<placeholder>", "[placeholder]", "<example>", "[example]", "value", "string",
+    "your_key", "your-key", "your_password", "your-password", "your_secret", "your-secret",
+    "your_token", "your-token",
 }
 
 
@@ -48,7 +57,7 @@ def _is_placeholder(value: str) -> bool:
     value = value.strip().lower()
     return (
         value in PLACEHOLDERS
-        or value.startswith(("<", "[", "redacted", "placeholder", "example-", "example_", "your-", "your_"))
+        or value.startswith(("redacted", "placeholder", "example-", "example_", "your-", "your_"))
         or re.fullmatch(r"(?:x{3,}|0{4,}|\*{3,}|\.{3,})", value) is not None
     )
 
@@ -72,9 +81,15 @@ def rules_for_line(line: str) -> tuple[str, ...]:
         rules.append("github-token")
     if AWS_ACCESS_KEY.search(line):
         rules.append("aws-access-key")
+    if any(not _is_placeholder(match.group("value")) for match in AUTHORIZATION_BEARER.finditer(line)):
+        rules.append("credential-assignment")
     if any(not _is_placeholder(match.group("value")) for match in CREDENTIAL_ASSIGNMENT.finditer(line)):
         rules.append("credential-assignment")
     return tuple(rules)
+
+
+def _path_sort_key(path: str) -> tuple[str, str]:
+    return path.casefold(), path
 
 
 def _display_path(path: Path, root: Path) -> str:
@@ -93,20 +108,28 @@ def scan_paths(inputs: list[str], root: Path) -> list[tuple[str, int, str]]:
         candidate = Path(raw_path)
         if not candidate.is_absolute():
             candidate = root / candidate
-        candidate = candidate.resolve()
+        try:
+            candidate = candidate.resolve()
+        except (OSError, RuntimeError, ValueError):
+            findings.append(("<path-resolution>", 0, "read-error"))
+            continue
         if not candidate.is_relative_to(root):
             findings.append(("<outside-repository>", 0, "outside-path"))
             continue
         if candidate.is_dir():
             try:
-                children = sorted(candidate.rglob("*"), key=lambda item: item.as_posix().casefold())
-            except OSError:
+                children = sorted(candidate.rglob("*"), key=lambda item: _path_sort_key(item.as_posix()))
+            except (OSError, RuntimeError, ValueError):
                 findings.append((_display_path(candidate, root), 0, "read-error"))
                 continue
             for child in children:
                 if child.suffix.lower() != ".md":
                     continue
-                resolved = child.resolve()
+                try:
+                    resolved = child.resolve()
+                except (OSError, RuntimeError, ValueError):
+                    findings.append(("<path-resolution>", 0, "read-error"))
+                    continue
                 if not resolved.is_relative_to(root):
                     findings.append(("<outside-repository>", 0, "outside-path"))
                 elif resolved.is_file():
@@ -116,7 +139,7 @@ def scan_paths(inputs: list[str], root: Path) -> list[tuple[str, int, str]]:
         else:
             findings.append((_display_path(candidate, root), 0, "read-error"))
 
-    for path, display in sorted(files.items(), key=lambda item: item[1].casefold()):
+    for path, display in sorted(files.items(), key=lambda item: _path_sort_key(item[1])):
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError):
@@ -126,7 +149,7 @@ def scan_paths(inputs: list[str], root: Path) -> list[tuple[str, int, str]]:
             for rule in rules_for_line(line):
                 findings.append((display, line_number, rule))
 
-    return sorted(findings, key=lambda item: (item[0].casefold(), item[1], item[2]))
+    return sorted(findings, key=lambda item: (*_path_sort_key(item[0]), item[1], item[2]))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -144,5 +167,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-

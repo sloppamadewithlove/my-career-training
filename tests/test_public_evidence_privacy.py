@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -7,6 +8,10 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "check_public_evidence_privacy.py"
+SPEC = importlib.util.spec_from_file_location("public_evidence_privacy", SCRIPT)
+assert SPEC is not None and SPEC.loader is not None
+PRIVACY_GUARD = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(PRIVACY_GUARD)
 
 
 @pytest.mark.parametrize(
@@ -15,6 +20,8 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "check_public_evidence_privacy.
         (r"source: C:\Users\synthetic-person\Documents\save", "home-path", "synthetic-person"),
         ("source: /Users/synthetic-person/Documents/save", "home-path", "synthetic-person"),
         ("source: /home/synthetic-person/save", "home-path", "synthetic-person"),
+        (r"source: \\fileserver\Users\synthetic-person\Documents\save", "home-path", "synthetic-person"),
+        (r"source: \\?\UNC\fileserver\Users\synthetic-person\save", "home-path", "synthetic-person"),
         (
             "contact: synthetic-lint-fixture-0001@private.co",
             "private-email",
@@ -22,9 +29,34 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "check_public_evidence_privacy.
         ),
         ("SteamID: fixture-account-123456", "platform-id", "fixture-account-123456"),
         ("-----BEGIN OPENSSH PRIVATE KEY-----", "private-key", "OPENSSH PRIVATE KEY"),
-        ("ghp_syntheticFixtureToken000000000", "github-token", "ghp_syntheticFixtureToken000000000"),
+        (
+            "ghp_syntheticFixtureToken000000000",
+            "github-token",
+            "ghp_syntheticFixtureToken000000000",
+        ),
         ("AKIASYNTHETIC000001X", "aws-access-key", "AKIASYNTHETIC000001X"),
         ("password = syntheticSensitiveValue123!", "credential-assignment", "syntheticSensitiveValue123!"),
+        (
+            'password="syntheticQuotedValue123!"',
+            "credential-assignment",
+            "syntheticQuotedValue123!",
+        ),
+        ("api_key: 'syntheticQuotedApiKey123!'", "credential-assignment", "syntheticQuotedApiKey123!"),
+        (
+            "Authorization: Bearer syntheticBearerToken123456789",
+            "credential-assignment",
+            "syntheticBearerToken123456789",
+        ),
+        (
+            "Set-Cookie: session=syntheticCookieValue123456",
+            "credential-assignment",
+            "syntheticCookieValue123456",
+        ),
+        (
+            "key=[syntheticBracketedSecret123]",
+            "credential-assignment",
+            "syntheticBracketedSecret123",
+        ),
     ],
 )
 def test_sensitive_values_fail_without_echoing_them(tmp_path, content, rule, sensitive_value):
@@ -54,6 +86,8 @@ def test_example_and_redaction_placeholders_pass(tmp_path):
 
 """
         """Redacted fields: token=<redacted>; password=YOUR_PASSWORD; key=placeholder; SteamID=<id>
+"""
+        """Authorization: Bearer <redacted>; cookie=[redacted]
 """,
         encoding="utf-8",
     )
@@ -87,8 +121,7 @@ def test_recursive_scan_is_sorted_and_reports_read_errors_safely(tmp_path):
     )
 
     assert result.returncode == 1
-    lines = result.stdout.splitlines()
-    assert lines == [
+    assert result.stdout.splitlines() == [
         "docs/evidence/bad.md:0:read-error",
         "docs/evidence/nested/a.md:1:credential-assignment",
         "docs/evidence/z.md:1:credential-assignment",
@@ -96,3 +129,21 @@ def test_recursive_scan_is_sorted_and_reports_read_errors_safely(tmp_path):
     assert "SyntheticValue" not in result.stdout + result.stderr
     assert str(tmp_path) not in result.stdout + result.stderr
 
+
+def test_path_resolution_errors_are_redacted(monkeypatch, tmp_path):
+    original_resolve = Path.resolve
+
+    def fail_for_loop(path, *args, **kwargs):
+        if path.name == "loop.md":
+            raise OSError("private local path detail")
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", fail_for_loop)
+    findings = PRIVACY_GUARD.scan_paths(["docs/evidence/loop.md"], tmp_path)
+
+    assert findings == [("<path-resolution>", 0, "read-error")]
+    assert "private local path detail" not in repr(findings)
+
+
+def test_sort_key_breaks_casefold_ties():
+    assert sorted(("a.md", "A.md"), key=PRIVACY_GUARD._path_sort_key) == ["A.md", "a.md"]
