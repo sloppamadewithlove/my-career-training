@@ -706,7 +706,7 @@ def test_service_refuses_an_outstanding_session_while_a_game_is_open(tmp_path, m
     assert "will not start another session" in _box_holder["box"].criticals[-1][1]
 
 
-def test_service_warns_and_preserves_a_legacy_autoload_line(tmp_path, monkeypatch):
+def test_service_preserves_legacy_autoload_without_blocking_bridge_startup(tmp_path, monkeypatch):
     layout = _bakkes(tmp_path, cfg=b"plugin load MyCareerTraining\nplugin load alpha\n")
     original = layout.cfg.read_bytes()
     _service_fakes(monkeypatch, layout, lambda *_args, **_kwargs: _Started(), lambda: False)
@@ -715,7 +715,8 @@ def test_service_warns_and_preserves_a_legacy_autoload_line(tmp_path, monkeypatc
     assert bootstrap.run_service(layout.data) == 0
     assert layout.cfg.read_bytes() == original
     assert layout.dll.read_bytes() == b"old-dll"
-    assert any("did not remove" in text for _title, text in qt_widgets.QMessageBox.warnings)
+    assert not qt_widgets.QMessageBox.warnings
+    assert any("did not remove" in text for text in bootstrap.plugin_session_notices(layout.data))
 
 
 def test_service_reports_a_conflicting_restore_and_keeps_the_other_dll(tmp_path, monkeypatch):

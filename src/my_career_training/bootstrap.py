@@ -294,7 +294,9 @@ def run_service(directory, *, native_movie_trial=False):
         return 1
     notices = plugin_session_notices(directory)
     if notices:
-        QMessageBox.warning(None, "BakkesMod plugin setup", "\n".join(notices))
+        # Existing configuration notices must not stop bridge startup behind
+        # the game window. The restoration report retains the same guidance.
+        backend.notice = "\n".join(notices)
     if native_session is not None:
         from .native_community_binding import NativeCommunityBinding
         backend.native_community = None

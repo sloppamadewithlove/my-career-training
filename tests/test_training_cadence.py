@@ -26,6 +26,8 @@ def _frame(time, frame_num=None, **extra):
         (1, True, False, False),
         (2, False, False, True),
         (2, True, True, False),
+        (3, False, False, True),
+        (3, True, True, False),
     ],
 )
 def test_supported_training_cadence_matches_physics_steps(
@@ -42,13 +44,13 @@ def test_supported_training_cadence_matches_physics_steps(
     if expected_gap:
         assert result["reason"] == "step_count_exceeded"
     else:
-        assert result["reason"] == ("coarse_continuous" if steps == 2 else "continuous")
+        assert result["reason"] == ("coarse_continuous" if steps > 1 else "continuous")
 
 
 @pytest.mark.parametrize(
     ("current", "reason"),
     [
-        (_frame(3 * PHYSICS_STEP, 3), "step_count_exceeded"),
+        (_frame(4 * PHYSICS_STEP, 4), "step_count_exceeded"),
         (_frame(2 * PHYSICS_STEP, 1), "physics_step_mismatch"),
         (_frame(3 * PHYSICS_STEP, 2), "physics_step_mismatch"),
         (_frame(0.0, 0), "non_increasing_clock"),
@@ -416,3 +418,13 @@ def test_strict_capture_settle_timeout_interrupts_once_with_actionable_reason():
     assert "continuous telemetry cadence" in completed[0]["summary"]["feedback"].lower()
     assert engine.update(_engine_frame(engine, (index + 1) / 60, 2_000 + 2 * (index + 1))) == []
     assert len(engine.observations) == 1
+
+
+@pytest.mark.parametrize("dt", [0.025, 0.0250091552734375])
+def test_observed_gold_coalesced_packet_retains_explicit_gap_detection(dt):
+    before = _frame(10.0, 1200)
+    sample = _frame(10.0 + dt, 1203)
+    assert classify_cadence(before, sample)["gap"] is False
+    assert classify_cadence(before, sample, strict=True)["gap"] is True
+    sample["packet_gap"] = True
+    assert classify_cadence(before, sample)["reason"] == "explicit_packet_gap"
