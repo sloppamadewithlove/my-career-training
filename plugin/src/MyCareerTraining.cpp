@@ -882,7 +882,8 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
         commandId = bridge_->sendWithId(
             "ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.ghostEnabled}}); break;
     case mct::TrainingLessonInput::Action::Retry:
-        commandId = bridge_->sendWithId("retry_lesson", Json::object()); break;
+        commandId = bridge_->sendWithId("retry_lesson",
+            Json{{"expected_session_id", stringValue(objectValue(state, "session"), "id")}}); break;
     case mct::TrainingLessonInput::Action::None:
         return;
     }

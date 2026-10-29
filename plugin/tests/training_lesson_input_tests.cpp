@@ -34,7 +34,7 @@ static Json trainingState() {
         {"telemetry", {{"lesson_id", "power-shots"},
             {"coaching", {{"scenario_index", 3}, {"scenario_total", 12}, {"scenario_title", "Near-post strike"},
                 {"rank_title", "Silver"}, {"time_limit_seconds", 30.0}, {"time_remaining_seconds", 12.4},
-                {"phase", "ready"}, {"countdown", "READY"}}},
+                {"phase", "ready"}, {"attempt_id", "attempt-a"}, {"countdown", "READY"}}},
             {"ghost_practice", {{"available", true}, {"enabled", false}}},
             {"ghost_practice_support", {{"supported", true}}}, {"ghost_practice_pending", false}}}
     };
@@ -140,6 +140,10 @@ static void acknowledgementsAndGhostAvailabilityFailClosed() {
     retry.observe(liveScope(), state, pad(), 0.03);
     require(retry.latched(), "Retry dispatch acknowledgement replaced the worker reset acknowledgement");
     state["telemetry"]["coaching"]["phase"] = "settle";
+    retry.observe(liveScope(), state, pad(), 0.035);
+    require(retry.latched(), "A phase change alone acknowledged retry");
+    state["telemetry"]["coaching"]["attempt_id"] = "attempt-b";
+    state["telemetry"]["coaching"]["phase"] = "active";
     retry.observe(liveScope(), state, pad(), 0.04);
     require(!retry.latched(), "The worker retry transition did not release the latch");
     retry.observe(liveScope(), state, pad(), 0.05);

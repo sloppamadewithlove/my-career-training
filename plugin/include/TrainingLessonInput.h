@@ -116,8 +116,9 @@ public:
                 scenario > 0 && latchScenario_ > 0 && scenario != latchScenario_;
             const bool ghostAck = latchedAction_ == Action::ToggleGhost &&
                 (ghostEnabled != latchGhostEnabled_ || (latchSawGhostPending_ && !ghostPending));
-            const bool retryAck = latchedAction_ == Action::Retry && phase == "settle" &&
-                !latchPhase_.empty() && (latchPhase_ != phase || !text(coaching, "attempt_id").empty() && text(coaching, "attempt_id") != latchAttempt_);
+            const auto attempt = text(coaching, "attempt_id");
+            const bool retryAck = latchedAction_ == Action::Retry && !latchAttempt_.empty() &&
+                !attempt.empty() && attempt != latchAttempt_;
             if (rejected || scenarioAck || ghostAck || retryAck || now >= latchDeadline_ || now < latchStarted_)
                 clearLatch();
         }
