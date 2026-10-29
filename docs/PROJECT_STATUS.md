@@ -1,5 +1,14 @@
 # Current project status
 
+## Current recovery work
+
+See [issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) and branch `fix/training-browser-career-stability`. The eight-hour REA campaign is on `research/rocket-league-2026-10-27`, under `research to be applied/`; it is research evidence, not game acceptance. Existing unpublished scenario/menu work is under selective salvage assessment.
+
+The first patch stops Career team mutations after the SDK reports match end and corrects a CI test that wrongly expected a valid boolean preference to fail. Separate DeepSeek source review found no blockers for those two deltas. GitHub CI and exact-candidate gameplay are pending. This does not yet prove the reported automatic-lobby failure fixed: stale bridge intervals can revoke the results timer hold. No new release or local game pass is claimed.
+
+Current requirements: three Training tabs (Lessons/Workshop/Mods), no Favorites UI, lesson then rank then 12 challenges per rank; Up retries, Down toggles a supported lesson-specific ghost; clean Power Shots HUD; results wait for an explicit choice. Historical checkpoint details below retain their original evidence scope.
+
+
 Updated 26 October 2026. Current entry point, not a release claim.
 Next: [task board](NEXT_TASKS.md). Product: [blueprint](BUILD_SPEC.md) and
 [Training/browser contract](TRAINING_WORKSHOP_DIRECTION.md). Process:

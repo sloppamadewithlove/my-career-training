@@ -1,5 +1,10 @@
 # Next work and acceptance board
 
+## Active recovery queue
+
+[Issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) tracks current confirmed decisions and source recovery. First patch: post-end Career team-write guard and stale CI assertion correction, pending CI/live proof. Next: select useful unpublished scenario/input/browser work; simplify to three tabs; apply Up retry/Down lesson-specific ghost; prove clean Power Shots; diagnose stale-bridge results countdown loss; test plugin effects/restoration and Workshop arrival; then Garage/options/Quit regression. Prior Favorites and universal-ghost task wording below is superseded by the current training contract. No worker owns game input by this document.
+
+
 Updated 26 October 2026. Main owns this board. Read current status before assigning work.
 Ask unresolved product questions before broad implementation; never repeat confirmed
 ones. EVERY unique function uses the six-part contract in DEVELOPMENT_WORKFLOW.md.
