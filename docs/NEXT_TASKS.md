@@ -1,28 +1,29 @@
 # Next work and acceptance board
 
-## Active recovery queue
+Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
-Current next action is the owner-playable Power Shots candidate from [PR #10](https://github.com/sloppamadewithlove/my-career-training/pull/10), source `dca3817`: 319 focused Python and six scoped native checks passed. First two feeds are **not approved**. Freeze the candidate, verify Up whole-level reset and timer-zero disappearance/restoration, then hand input to the owner for speed/power/feel assessment. The remaining ten challenge proposals are not approved or implemented.
+## Active assignments
 
+| Owner | Bounded work | Acceptance / next action |
+| --- | --- | --- |
+| Main builder | PR #10 controls/transition integration and saved-result choice guard | Regression for result saved + worker stopped + no explicit Return; exact-source native build; owned game retry/step proof |
+| Luna career_test_investigation | Independent testing/review | 282 scoped Python checks at `6f7c342` passed; 3 native headers at `66a24aa` passed. Review next immutable delta, then verify real effects |
+| Luna rea_research | Native training clock and goal-reset behavior | SDK reset no-op established; inspect native-training/defender compatibility and identify decisive runtime probe; no claimed runtime effects from symbols |
+| Luna browser_investigation | Combined 12-shot Gold reference | Poquito/Skogur source shortlist and scoped cache discovery complete; actual shot contents remain unverified |
+| Scheduled improvement worker | One completed improvement per actionable run | Read ownership here, claim a disjoint lane in issue #8, perform research/test/build correction, publish result and next handoff; no audit-only completion |
 
-[Issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) tracks confirmed decisions and selective recovery. The Career post-end team-write guard and corrected CI assertion passed both Windows build pipelines at `52021d8`. The three-tab browser source passed four native checks and compiled; matching published assets and integrity tests are now ready for the next focused test run. No live acceptance or full lobby fix is claimed.
+The owner finished the `dca3817` Gold playtest. Its owned game exited after a normal close request. No new game input owner is assigned until the next candidate/reference run is explicitly recorded.
 
-Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove retry, expiry and a useful feed with the owner before expanding to 12 challenges; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
+## Next proof sequence
 
-The [45-minute workflow audit](IMPROVEMENT_HEARTBEAT.md) is active in the desktop Scheduled page (GPT-6 Luna Max, Important updates only). Next: confirm the first run at 01:26 America/New_York on 29 October and its GitHub access. No Windows scheduler was created.
+1. Complete saved-results-choice regression and source integration; keep saved Career training access correct.
+2. Build one coherent candidate after code review; do not rebuild for documentation-only changes.
+3. Prove keyboard Up and D-pad Up whole reset, queued Left/Right after a goal/timeout, all actor resets and cancellation. Preserve actual attempt saves.
+4. Prove native clock and goal-to-challenge transition. ServerWrapper DisableGoalReset is a shipped no-op; choose an evidence-backed alternative, not that shortcut.
+5. Inspect actual Poquito/Skogur shots and select 12 materially distinct Gold challenges with varied geometry/speed and a ground keeper. No invented pack contents or cosmetic duplication.
+6. Obtain owner feel acceptance, then expand the proven flow to other ranks and remaining product areas.
 
-
-
-Updated 26 October 2026. Main owns this board. Read current status before assigning work.
-Ask unresolved product questions before broad implementation; never repeat confirmed
-ones. EVERY unique function uses the six-part contract in DEVELOPMENT_WORKFLOW.md.
-
-## Priority
-
-This update consolidates instructions, blueprint and future-original licensing; it does
-not implement runtime scenarios. Next recommended outcome: one real Power Shot pass/keeper
-situation, then a validated ghost, before scaling to 12 scenarios. No game-input owner or
-runtime worker is assigned by this document.
+## Product backlog
 
 | ID | Outcome / state | First proof / next action |
 | --- | --- | --- |
@@ -41,33 +42,5 @@ runtime worker is assigned by this document.
 | T13 | Build/startup efficiency — planned | Helpers validate interpreter/import root/toolchain before work; measure build/launch/review waits and optimize measured bottleneck |
 | T14 | Privacy/security — unresolved | Privately classify historical path/email and source literals; propose cleanup without automatic history rewrite; separately audit dependencies/workflows/releases |
 
-## Material details still open
 
-- Exact first Power Shot geometry and remaining 12-level cards. Teammate pass+keeper,
-  mechanically different setups and increasing pressure are approved.
-- Ghost placement is resolved: shots/flip resets use fixed lesson start and a faint
-  non-contact demonstration ball. Do not ask the owner to choose this again.
-- Tutorial/thumbnail sources and rights; unavailable media must be described honestly.
-- Visibility and attribution are resolved in LICENSE/status; do not reopen by default.
-
-## Known failures to reuse
-
-| Failed approach | Evidence / confidence | Next distinct experiment |
-| --- | --- | --- |
-| Static Free Play as Power Shot | Owner observed no meaningful shot/feedback; rejected | T01 real pass/keeper; no relabeling |
-| Offline exact-code pack load | 5b293d2 FeatureDisabled, stayed frontend; high confidence for that route | Custom scenarios; revisit packs only with different supported route and real launch proof |
-| Strict capture never settled | Actual packet gaps; ordinary-preparation fix is not trace validation | Measure acquisition/timing; prove successful reference without weakening truth checks |
-| Search dropped focus/edits | Fixed through 099fad1 with live slow typing/Escape | Reinvestigate only if current candidate reproduces |
-| Build imported another checkout | Mismatched allowlists; explicit project path resolved | T13 import-root guard before expensive build |
-
-After two failures of the same hypothesis, record expected/actual, evidence, cause
-confidence and a different next experiment. Keep raw logs private; don't create another
-general history file or abandon the goal merely because two tries failed.
-
-## Assignment / receipt
-
-Task ID, outcome, base revision, owned files, interface, dependencies, actual worker/model,
-time/token/cost bound, acceptance and failure cases. Return immutable patch, actual checks,
-evidence, risks and next action. Independent review precedes integration; main releases
-file ownership and updates this board/status at handoff. Planned, implemented, unverified,
-verified and blocked are distinct. A preview is never gameplay proof.
+Ghosts remain lesson-specific and require valid recordings. Browser tabs are Lessons / Workshop / Mods; Favorites is removed. Up retries, Down toggles a supported ghost, Left/Right selects challenges. A live Career match must be left/ended before Training; a saved schedule does not restrict it. Results await explicit Next or Return. Major verified releases update the Vercel website; draft source changes are not public release claims.

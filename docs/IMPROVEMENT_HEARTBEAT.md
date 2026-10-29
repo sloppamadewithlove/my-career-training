@@ -1,36 +1,33 @@
-# Improvement heartbeat
+# Improvement heartbeat: execution contract
 
-Configured 29 October 2026 through the desktop app Scheduled interface.
+The desktop scheduled task runs every 45 minutes using GPT-6 Luna Max on this computer, retains its chat, and uses Important updates only. Windows Task Scheduler is not used. A scheduled audit ran on 29 October 2026; the owner rejected its audit-only output. This contract replaces that behavior.
 
-- Name: Audit My Career Training improvements
-- State: Active; interval: every 45 minutes
-- Model: GPT-6 Luna; effort: Max
-- Local computer execution selected; same task chat retained between runs
-- Notifications: Important updates only
-- First scheduled run displayed: 01:26 America/New_York, 29 October 2026
-- Verification: task appears under Active; edit view confirms saved 45-minute interval and notification setting. Actual scheduled execution/GitHub write access remain to be observed.
-- Windows Task Scheduler was not used or changed.
+## Required outcome
 
-The initial CLI-only capability check was insufficient: the user showed the desktop Scheduled page, and normal UI interaction created the task successfully. Future capability checks should distinguish absent chat tools from available application UI.
+For an actionable run, finish one bounded improvement before reporting: corrected build/test failure, a meaningful regression test with executed evidence, a researched uncertainty resolved into an implementation decision, an applied workflow/handoff improvement, or a reviewed source patch on an isolated GitHub branch. Merely listing stale docs, recommending a test, reporting missing gh, or saying a builder was not dispatched is not completion. Research counts only when it resolves a named uncertainty with reusable evidence and a concrete next action.
 
-## Saved instructions
+1. Read live PR heads, issue #8, PROJECT_STATUS, NEXT_TASKS and DEVELOPMENT_WORKFLOW. Reuse the existing REA campaign and previous receipts. Detect what changed, not every historical issue.
+2. Claim one disjoint lane in issue #8 with owner, exact base, files/interfaces, failure hypothesis, acceptance command and expiry. Consult the active builder assignments before edits. If main owns a changing source file, independently reproduce the failure, test an isolated alternative or improve a separate research/workflow artifact. Do not overwrite or move main's branch.
+3. Execute. Luna researches/reviews/tests; use the configured DeepSeek builder for bounded code proposals, then independently inspect and run targeted checks. A timeout, token-exhausted response or null content is a failed task, not approval. Bound context/output; after two failed attempts use a different concrete approach instead of repeating the same request.
+4. Publish source/records through GitHub. Temporary local checkouts are compilation/testing material only. Preserve private game/account data. Record exact candidate, test scope, operator/input ownership, actual result and limitations; do not add counts from overlapping suites or conflate PR head with loaded DLL.
+5. Verify the write by reading it back. Reconcile the task board/status/PR description if the completed action changed them. Post one concise issue #8 receipt linking the commit/test evidence and next owned action. Close/release the claim.
 
-My Career Training improvement heartbeat.
+## Working access, not assumed blockers
 
-Every run, audit and improve how the My Career Training team researches, builds, reviews, communicates, tests and ships. GitHub repository https://github.com/sloppamadewithlove/my-career-training is the source of truth. Read current AGENTS.md, docs/PROJECT_STATUS.md, docs/NEXT_TASKS.md, docs/DEVELOPMENT_WORKFLOW.md, issue #8 and active pull requests on the current development branch (initially fix/windows-startup-and-download; active work initially PR #9). The recovered REA campaign is branch research/rocket-league-2026-10-27, folder "research to be applied/"; use relevant existing evidence before repeating research.
+Prefer a working connector. This session's GitHub connector returned Unknown tool and gh is absent; **authenticated REST using the existing Git credential helper has repeatedly succeeded**. Missing gh or an environment token does not imply write access is absent. The scheduled prompt supplies the private local helper route. Use git credential fill for protocol=https/host=github.com with prompts disabled; consume stdout only in memory, send Authorization only to api.github.com, never print/log/persist the credential or put it in a URL/command line. Do not change global login settings. Verify one scoped repo read before a write. Public-safe source/evidence goes in this repo only.
 
-Compare new work and failures against the previous audit. Find the highest-impact bottleneck or recurring error in research quality, agent handoffs, code integration, build speed, game testing, regression coverage, package size or website accuracy. Make one evidence-backed improvement within existing authorization, or create a concrete scoped follow-up for the builder. Prefer measurements and exact revisions; distinguish source checks from live gameplay. Record meaningful findings, actions and remaining acceptance in GitHub issue #8 and the current task board without duplicating unchanged reports.
+The DeepSeek route is a private Python helper, not an ALL_TOOLS entry. Use the local location supplied in the scheduled prompt; inspect its public request interface/example, not its secret store. Record actual model, returned answer, usage/cost and limits. No invented agents or substituted models.
 
-Use GPT-6 Luna Max for research/testing and the configured DeepSeek route for bounded research/build tasks when available; report actual models and unavailable tools honestly. Follow REA, ponytail and project testing skills where relevant. Do not invent agent activity or alter global credentials. Coordinate with active workers through GitHub before assigning overlapping work. This audit does not independently take game input or restart an active game; one acknowledged operator owns local testing. Source changes and project records remain in GitHub; local use is limited to authorized compilation/testing and private evidence. Do not use Windows Task Scheduler.
+## Agent communication
 
-Preserve confirmed product choices: Lessons/Workshop/Mods, no Favorites; lesson then rank Bronze through SSL; 12 challenges per lesson per rank; Up retries the whole level, Down toggles only a supported lesson ghost. Prove clean Power Shots first with real gameplay thumbnails: Bronze/Silver solo, Gold/Platinum one ground keeper, Diamond/Champion one advancing defender, GC/SSL two defenders. Career results wait for explicit Next or Return. Keep downloads compact and offline play straightforward; update my-career-training.vercel.app after major verified changes. Ask the owner before unresolved product choices, not routine authorized work.
+Assignments carry an exact SHA, owned paths, output contract and acceptance check. Resume idle named subagents with followup_task; send_message alone does not start work. Give the reviewer the actual producer/consumer contract and changed delta. Keep GitHub ownership claims current so separate chats do not duplicate or overwrite work. A handoff names the defect, reproducer, immutable patch/evidence, reviewer result and remaining acceptance, not just a suggestion to investigate.
 
-Stay quiet if nothing actionable changed. Notify only for a meaningful improvement, verified completion, new failure or required user action. Do not claim the full mod or live acceptance is complete without evidence.
+## Test/build quality
 
-## Workflow corrections observed during recovery
+For a player-visible bug, first preserve the failing input/state, then verify its result through the real route. A passing helper test does not prove keyboard polling, game clock, rendering or native state changes. Inspect exact SDK method bodies when behavior is uncertain; this run found ServerWrapper goal-reset functions are no-op stubs despite their names. Use exact-source narrow checks; broaden when changes/failures justify it. Track full plugin/frozen/live results separately. Keep heavyweight builds out of live physics acceptance. A failed build yields its first actionable error and a fix attempt, not a CI status digest.
 
-- Resume an idle existing subagent with a follow-up task; a queued message alone does not start work. Reuse named bounded research/testing workers and verify their running/completed state.
-- Bound DeepSeek context and requested output. Several broad requests exhausted their budget in reasoning with no visible answer; those are failed reviews, never approvals. Small concrete input reviews produced actionable defects.
-- Separate exact-source unit, native, package, and gameplay evidence. Do not label two provisional feeds approved because their structural tests pass.
-- Local MSVC long include paths required a shorter SDK dependency copy. The unchanged Workshop test binary also needed a shorter private build fixture path to exercise its alternate-data-stream rejection instead of the path-length rejection; its bytes were hash-checked after relocation and its assertions passed unchanged.
-- A review found retry acknowledgement must use the new attempt identity, because the telemetry publisher can skip a brief preparing phase. Tests now cover that missed-phase case and reject phase-only acknowledgements.
+The heartbeat never independently takes game input, restarts a game, changes product choices, merges/releases a candidate or claims full-mod acceptance. It may prepare a concrete reviewed result and use existing authorization for ordinary fixes. User interaction remains with the acknowledged game operator.
+
+## Notifications
+
+Stay quiet while unchanged or non-actionable. Notify only for an actual improvement/completion, a newly reproduced failure, or a required user decision. State what changed, evidence and the next action in a few sentences. If truly blocked after trying available routes, record the exact failure and a concrete fallback; do not repeat unchanged blocker reports every run.
