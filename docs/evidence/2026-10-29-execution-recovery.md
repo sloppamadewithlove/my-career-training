@@ -29,3 +29,12 @@ The pause UI lists Match Length Unlimited and Respawn Time Disable Goal Reset. T
 One 1,820-prompt-token builder request with a 6,000-completion cap returned `length` (5,165 reasoning tokens, reported $0.003873, 18.94 seconds); its incomplete JSON was rejected. Main implemented the source fix and Luna tested it. A separate bounded two-snippet provider experiment returned valid JSON with `stop`: 205 prompt / 917 completion tokens, 849 reported reasoning tokens, $0.00058095, 7.56 seconds. Both actual returned model IDs were `deepseek-v4-1-flash-1017`.
 
 The experiment requested `thinking.type=disabled`, but reasoning tokens were still reported; do not claim this gateway disabled reasoning. The supported improvement is smaller, explicit output contracts and mandatory completion/JSON checks. This was a capability probe for an already tested fix, not a second implementation or a controlled latency comparison. Upstream parameter reference: https://api-docs.deepseek.com/guides/thinking_mode/ .
+
+
+## Completed heartbeat CI and build progress policy
+
+Scheduled worker closed its claim with [issue #8 receipt](https://github.com/sloppamadewithlove/my-career-training/issues/8#issuecomment-6490660251). PR11 at `20755a9` passed Windows run 40833194805, including source checks, pinned runtime staging, installer/package smoke, install/reinstall/helper migration/uninstall and artifact retention; Vercel also passed. Its base snapshot is older than current PR10, so main must align/recheck before integration. This is a completed improvement, not a full gameplay/release claim.
+
+Both CI concurrency groups now use `cancel-in-progress: false`. Independent Luna review confirmed that this keeps the running candidate alive and, under GitHub's default single-pending behavior, replaces older pending work with the newest request. Job/check names and all verification steps are unchanged. [Official semantics](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency).
+
+This applies to all events sharing the ref, not only documentation, and can consume current plus newest-pending builds. It prevents repeated cancellation rather than skipping packaging. A docs-only newest commit does not mean a docs-only PR: the PR's earlier runtime changes still need testing. No path-only bypass or false candidate reuse was added. Runtime observation of the changed concurrency policy remains to be confirmed by subsequent runs.

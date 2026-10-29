@@ -8,9 +8,9 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 | --- | --- | --- |
 | Main builder | PR #10 input/lifecycle/native clock integration | Loaded `af8871d`; Right -> challenge 2 observed; Up/goal/native timer not accepted. Latest source `af08455` fixes Calibration result bypass |
 | Luna career_test_investigation | Independent exact-source verification | `af08455`: 5 result-boundary + 41 continuation tests passed. PR11 `20755a9`: 25 privacy tests, scan, Ruff passed |
-| Luna rea_research | Actual pack geometry and native timer | Read-only community `.tem` parser identified; decode local metadata before choosing shots. Native timer pre-expiry probe specified; expiry semantics unknown |
+| Luna rea_research | Actual pack geometry and native timer | Local metadata decoded with valid CRCs and unchanged originals; neither target pack is cached. Acquire target packs normally before choosing shots. Native timer pre-expiry probe specified; expiry semantics unknown |
 | Luna browser_investigation | Caller review and builder handoff | Calibration bypass verified and fixed; Workshop is not currently launchable. Bounded DeepSeek full-test proposal truncated and rejected |
-| Scheduled improvement worker | T14 public evidence privacy check, draft PR11 | Three disjoint paths claimed in issue #8; immutable independent review passed at `20755a9`; finish current CI/receipt and release claim |
+| Scheduled improvement worker | T14 public evidence privacy check, draft PR11 | Three disjoint paths claimed in issue #8; immutable independent review passed at `20755a9`; Windows/installer and Vercel checks passed; receipt posted and claim released; main aligns stacked branch before integration |
 
 The replacement `af8871d` game uses a copied Unicode-path save. Root's recorded input lease covers the replacement route/controls only. An unexplained Pause appeared; root stopped automated input and asked whether the owner has taken control. No agent may assume permission to resume input or replace loaded files.
 
@@ -38,7 +38,7 @@ The replacement `af8871d` game uses a copied Unicode-path save. Root's recorded 
 | T10 | Garage — planned | Opus design, builders implement installed catalog/search/filter/images/preview/apply/restore; one full equip path before expansion |
 | T11 | Controller/tutorial — partial/planned | Opus reviews DS4 silhouette avoiding boost HUD; builder fixes; distinguish human/ghost inputs; permitted in-game tutorial |
 | T12 | Career/release regression — partial | Changed-boundary checks; exact frozen match/result/save/next/Return/install/recovery before release; 12-second continuation target unachieved |
-| T13 | Build/startup efficiency — planned | Helpers validate interpreter/import root/toolchain before work; measure build/launch/review waits and optimize measured bottleneck |
+| T13 | Build/startup efficiency — partial | Both CI concurrency layers preserve the active candidate and retain newest pending work; validate completion under subsequent updates. Further runtime-input equivalence/cache work must preserve exact provenance |
 | T14 | Privacy/security — unresolved | Privately classify historical path/email and source literals; propose cleanup without automatic history rewrite; separately audit dependencies/workflows/releases |
 
 
