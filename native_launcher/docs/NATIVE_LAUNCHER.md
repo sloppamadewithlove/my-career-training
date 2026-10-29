@@ -17,7 +17,7 @@ The helper does not accept an executable, a DLL, a process id, or extra argument
   "protocol": 1,
   "session": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   "game_root": "D:\\Games\\rocketleague",
-  "private_package": "C:\\Users\\me\\AppData\\Local\\MyCareerTraining\\private\\GFX_MainMenu_SF.upk",
+  "private_package": "C:\\Users\\<username>\\AppData\\Local\\MyCareerTraining\\private\\GFX_MainMenu_SF.upk",
   "private_package_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 }
 ```
@@ -78,7 +78,7 @@ Stdout is one JSON object per line. After resume the helper writes a launch rece
   "source_package_sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
   "source_executable_sha256": "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7",
   "private_package_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "private_package": "C:\\Users\\me\\AppData\\Local\\MyCareerTraining\\private\\GFX_MainMenu_SF.upk",
+  "private_package": "C:\\Users\\<username>\\AppData\\Local\\MyCareerTraining\\private\\GFX_MainMenu_SF.upk",
   "production_ready": false,
   "game_verified": false,
   "file_view_observed": false

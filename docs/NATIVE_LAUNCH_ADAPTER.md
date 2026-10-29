@@ -62,7 +62,7 @@ One JSON object is written to stdin, then stdin is closed:
   "protocol": 1,
   "session": "12345678-1234-4234-8234-123456789abc",
   "game_root": "C:\\Games\\Rocket League",
-  "private_package": "C:\\Users\\me\\AppData\\Local\\MyCareer\\private\\menu.upk",
+  "private_package": "C:\\Users\\<username>\\AppData\\Local\\MyCareer\\private\\menu.upk",
   "private_package_sha256": "<64 lowercase hex>"
 }
 ```
@@ -107,7 +107,7 @@ Launch, after the helper has resumed the child:
   "source_package_sha256": "d3e0eeadd2766fa1fb10c2d220c22a84ab2f26fb6bbb89b414a26ef1fd6e2f65",
   "source_executable_sha256": "56b499a85ad927c6b5cc47cb4813f956dd9263405fdf4eddc65b669b53185bc7",
   "private_package_sha256": "<same hash as the request>",
-  "private_package": "C:\\Users\\me\\AppData\\Local\\MyCareer\\private\\menu.upk",
+  "private_package": "C:\\Users\\<username>\\AppData\\Local\\MyCareer\\private\\menu.upk",
   "production_ready": false,
   "game_verified": false,
   "file_view_observed": false
@@ -171,7 +171,7 @@ writer and a real anonymous-pipe reader without launching any process.
 | --- | --- |
 | session | `aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee` |
 | executable | `C:\Games\rocketleague\Binaries\Win64\RocketLeague.exe` |
-| private package | `C:\Users\me\AppData\Local\MyCareerTraining\private\GFX_MainMenu_SF.upk` |
+| private package | `C:\Users\<username>\AppData\Local\MyCareerTraining\private\GFX_MainMenu_SF.upk` |
 | private package SHA-256 | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
 | pid | `4242` |
 | create_time | `1710000000.25` |
