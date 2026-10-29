@@ -353,7 +353,7 @@ def test_uncertain_helper_does_not_restore_before_child_appears(tmp_path, monkey
     assert b"plugin load MyCareerTraining" in layout.cfg.read_bytes()
 
 
-def _service_fakes(monkeypatch, layout, popen, game_running):
+def _service_fakes(monkeypatch, layout, popen, game_running, *, backend_instances=None):
     _patch_launch(monkeypatch, layout, popen, game_running=game_running)
     monkeypatch.setattr(bootstrap, "bakkes_ready", lambda: layout.root)
 
@@ -373,10 +373,14 @@ def _service_fakes(monkeypatch, layout, popen, game_running):
             self.in_game = False
             self.plugin_status = {}
             self.error = ""
+            self.notice = ""
+            self.diagnostics_info = {}
             self.owned_game = None
             self.dispatch = lambda *_args, **_kwargs: None
             self.state = {}
             self.lifecycle = SimpleNamespace(frozen=False, state="Idle", last_error="")
+            if backend_instances is not None:
+                backend_instances.append(self)
 
         def _refresh_workshop(self):
             return None
@@ -706,16 +710,21 @@ def test_service_refuses_an_outstanding_session_while_a_game_is_open(tmp_path, m
     assert "will not start another session" in _box_holder["box"].criticals[-1][1]
 
 
-def test_service_warns_and_preserves_a_legacy_autoload_line(tmp_path, monkeypatch):
+def test_service_preserves_legacy_autoload_without_blocking_bridge_startup(tmp_path, monkeypatch):
     layout = _bakkes(tmp_path, cfg=b"plugin load MyCareerTraining\nplugin load alpha\n")
     original = layout.cfg.read_bytes()
-    _service_fakes(monkeypatch, layout, lambda *_args, **_kwargs: _Started(), lambda: False)
+    backend_instances = []
+    _service_fakes(monkeypatch, layout, lambda *_args, **_kwargs: _Started(), lambda: False,
+                   backend_instances=backend_instances)
     import PySide6.QtWidgets as qt_widgets
 
     assert bootstrap.run_service(layout.data) == 0
     assert layout.cfg.read_bytes() == original
     assert layout.dll.read_bytes() == b"old-dll"
-    assert any("did not remove" in text for _title, text in qt_widgets.QMessageBox.warnings)
+    assert not qt_widgets.QMessageBox.warnings
+    assert any("did not remove" in text for text in bootstrap.plugin_session_notices(layout.data))
+    assert backend_instances[0].notice == ""
+    assert backend_instances[0].diagnostics_info["plugin_session_notices"] == bootstrap.plugin_session_notices(layout.data)
 
 
 def test_service_reports_a_conflicting_restore_and_keeps_the_other_dll(tmp_path, monkeypatch):

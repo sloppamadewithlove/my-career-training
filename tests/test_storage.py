@@ -248,3 +248,31 @@ def test_browser_favorites_are_bounded_namespaced_public_metadata(tmp_path):
 
     with storage.Store(tmp_path):
         pass
+
+
+def test_scenario_preferences_survive_restart_and_legacy_save_without_them_loads(tmp_path):
+    with storage.Store(tmp_path) as store:
+        state = storage.default_state()
+        state["lesson_scenarios"]["power-shots"] = {
+            "scenario_id": "bouncing-side-pass", "difficulty": "grand-champion"}
+        store.save(state)
+        assert store.load()["lesson_scenarios"] == state["lesson_scenarios"]
+    legacy = storage.default_state()
+    del legacy["lesson_scenarios"]
+    legacy_path = tmp_path / "legacy"
+    with storage.Store(legacy_path) as store:
+        store.save(legacy)
+        assert "lesson_scenarios" not in store.load()
+
+
+@pytest.mark.parametrize("bad", [
+    [],
+    {"speed-flip": {"scenario_id": "low-side-pass", "difficulty": "bronze"}},
+    {"power-shots": {"scenario_id": "low-side-pass"}},
+    {"power-shots": {"scenario_id": "unknown", "difficulty": "bronze"}},
+])
+def test_storage_rejects_malformed_scenario_preferences(tmp_path, bad):
+    state = storage.default_state()
+    state["lesson_scenarios"] = bad
+    with storage.Store(tmp_path) as store, pytest.raises(ValueError):
+        store.save(state)

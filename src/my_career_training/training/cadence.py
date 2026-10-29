@@ -1,15 +1,15 @@
 """Shared packet-cadence classification for training telemetry.
 
-Normal human training may observe the game at 60 Hz or 120 Hz while physics
-runs at 120 Hz, so one observed packet can legitimately cover one or two
-physics steps. A two-step sample is coarse but continuous, not a telemetry gap.
+Normal human training may observe the game at 40 Hz, 60 Hz or 120 Hz while physics
+runs at 120 Hz, so one observed packet can legitimately cover one to three
+physics steps. A multi-step sample is coarse but continuous, not a telemetry gap.
 Strict reference capture requires exactly one physics step per packet so a
 candidate recording never mixes cadences.
 
 This module is the single source of truth for both the worker and the engine.
 Neither may invent a gap nor hide one on its own.
 
-Frames that carry frame numbers must show one or two physics steps (one in
+Frames that carry frame numbers must show one to three physics steps (one in
 strict capture) and a clock interval matching that step count within the
 documented clock quantization tolerance. Legacy frames are accepted from the
 game clock alone only when BOTH frames omit a frame number; a partially or
@@ -24,7 +24,8 @@ PHYSICS_STEP_SECONDS = 1 / 120
 # The game clock is quantized, so an exact 1/120 s or 1/60 s step can be
 # reported a few milliseconds off. This is the documented tolerance.
 CLOCK_QUANTIZATION_SECONDS = 0.002
-MAX_NORMAL_STEPS = 2
+# The Gold playtest observed clock-consistent 25 ms / three-step packets.
+MAX_NORMAL_STEPS = 3
 FRAME_NUMBER_MODULUS = 2 ** 32
 
 
@@ -39,7 +40,7 @@ def classify_cadence(previous, frame, *, max_packet_interval=0.05, strict=False)
 
     Returns ``gap`` (bool), ``reason`` (str), ``dt`` (float or None),
     ``steps`` (int or None) and ``coarse`` (bool). ``coarse`` marks a
-    continuous two-step sample that ordinary training accepts and strict
+    continuous multi-step sample that ordinary training accepts and strict
     capture rejects.
     """
     if not isinstance(strict, bool):

@@ -218,7 +218,7 @@ std::string LocalBridge::error() const {
 bool LocalBridge::allowedAction(const std::string& action) {
     static const std::set<std::string> actions = {
         "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
-        "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson",
+        "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson", "lesson_scenario", "training_scenario_step",
         "retry_lesson", "stop_session", "assistance", "settings", "diagnostics", "loadout",
         "restore_explanations", "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "browser_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
         "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording",
@@ -266,6 +266,10 @@ void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::stri
 }
 
 bool LocalBridge::send(const std::string& action, Json payload) {
+    return sendWithId(action, std::move(payload)).has_value();
+}
+
+std::optional<std::string> LocalBridge::sendWithId(const std::string& action, Json payload) {
     try {
         if (!allowedAction(action) || !payload.is_object()) throw std::runtime_error("This action is not available in the offline career.");
         Json snapshot = state();
@@ -283,11 +287,11 @@ bool LocalBridge::send(const std::string& action, Json payload) {
         atomicWrite(directory_ / "commands" / (id + ".json"), encoded, false);
         std::lock_guard<std::mutex> guard(mutex_);
         error_.clear();
-        return true;
+        return id;
     } catch (const std::exception& exception) {
         std::lock_guard<std::mutex> guard(mutex_);
         error_ = exception.what();
-        return false;
+        return std::nullopt;
     }
 }
 

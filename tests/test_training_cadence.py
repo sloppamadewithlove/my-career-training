@@ -26,6 +26,8 @@ def _frame(time, frame_num=None, **extra):
         (1, True, False, False),
         (2, False, False, True),
         (2, True, True, False),
+        (3, False, False, True),
+        (3, True, True, False),
     ],
 )
 def test_supported_training_cadence_matches_physics_steps(
@@ -42,13 +44,13 @@ def test_supported_training_cadence_matches_physics_steps(
     if expected_gap:
         assert result["reason"] == "step_count_exceeded"
     else:
-        assert result["reason"] == ("coarse_continuous" if steps == 2 else "continuous")
+        assert result["reason"] == ("coarse_continuous" if steps > 1 else "continuous")
 
 
 @pytest.mark.parametrize(
     ("current", "reason"),
     [
-        (_frame(3 * PHYSICS_STEP, 3), "step_count_exceeded"),
+        (_frame(4 * PHYSICS_STEP, 4), "step_count_exceeded"),
         (_frame(2 * PHYSICS_STEP, 1), "physics_step_mismatch"),
         (_frame(3 * PHYSICS_STEP, 2), "physics_step_mismatch"),
         (_frame(0.0, 0), "non_increasing_clock"),
@@ -169,6 +171,94 @@ def test_60hz_samples_can_settle_confirm_reset_and_start_training():
 
     assert engine.state == "active"
     assert [event["type"] for event in go_events] == ["go"]
+
+
+def test_ordinary_reset_confirmation_uses_complete_pose_across_cadence_gap():
+    engine = TrainingEngine("speed-flip")
+    first_frame_num = 2_000
+    for index in range(20):
+        engine.update(_engine_frame(engine, index / 60, first_frame_num + 2 * index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    start_index = index + 1
+    observed = _engine_frame(
+        engine, start_index / 60, first_frame_num + 2 * start_index, starting=True
+    )
+    observed.update(
+        packet_gap=True,
+        phase=3,
+        cadence_details={
+            "gap": True,
+            "reason": "step_count_exceeded",
+            "dt": 1 / 60,
+            "steps": 2,
+            "coarse": False,
+        },
+    )
+
+    events = engine.update(observed)
+
+    assert engine.state == "active"
+    assert [event["type"] for event in events] == ["go"]
+    assert engine.preparation["ready"]["observed_state_applied"] is True
+    assert engine.preparation["ready"]["cadence"]["reason"] == "step_count_exceeded"
+
+
+@pytest.mark.parametrize("reason", ["invalid_frame_number", "physics_step_mismatch"])
+def test_ordinary_reset_confirmation_rejects_corrupt_cadence(reason):
+    engine = TrainingEngine("speed-flip")
+    first_frame_num = 3_000
+    for index in range(20):
+        engine.update(_engine_frame(engine, index / 60, first_frame_num + 2 * index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    start_index = index + 1
+    observed = _engine_frame(
+        engine, start_index / 60, first_frame_num + 2 * start_index, starting=True
+    )
+    observed["cadence_details"] = {
+        "gap": True,
+        "reason": reason,
+        "dt": 1 / 60,
+        "steps": 2,
+        "coarse": False,
+    }
+
+    assert engine.update(observed) == []
+    assert engine.state == "ready"
+    assert engine.preparation["ready"]["observed_state_applied"] is True
+    assert engine.preparation["ready"]["cadence"]["reason"] == reason
+
+
+def test_strict_reset_confirmation_still_requires_continuous_cadence():
+    engine = TrainingEngine("speed-flip", strict_capture=True)
+    first_frame_num = 4_000
+    for index in range(40):
+        engine.update(_engine_frame(engine, index / 120, first_frame_num + index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    observed = _engine_frame(
+        engine, (index + 1) / 120, first_frame_num + index + 1, starting=True
+    )
+    observed.update(
+        packet_gap=True,
+        cadence_details={
+            "gap": True,
+            "reason": "explicit_packet_gap",
+            "dt": None,
+            "steps": None,
+            "coarse": False,
+        },
+    )
+
+    assert engine.update(observed) == []
+    assert engine.state == "ready"
 
 
 def test_ordinary_preparation_accepts_stationary_samples_with_explicit_packet_gaps():
@@ -328,3 +418,13 @@ def test_strict_capture_settle_timeout_interrupts_once_with_actionable_reason():
     assert "continuous telemetry cadence" in completed[0]["summary"]["feedback"].lower()
     assert engine.update(_engine_frame(engine, (index + 1) / 60, 2_000 + 2 * (index + 1))) == []
     assert len(engine.observations) == 1
+
+
+@pytest.mark.parametrize("dt", [0.025, 0.0250091552734375])
+def test_observed_gold_coalesced_packet_retains_explicit_gap_detection(dt):
+    before = _frame(10.0, 1200)
+    sample = _frame(10.0 + dt, 1203)
+    assert classify_cadence(before, sample)["gap"] is False
+    assert classify_cadence(before, sample, strict=True)["gap"] is True
+    sample["packet_gap"] = True
+    assert classify_cadence(before, sample)["reason"] == "explicit_packet_gap"

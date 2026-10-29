@@ -17,6 +17,19 @@ from .recordings import Recorder, euler_quaternion, _rotate
 # A pre-start attempt that never reaches "go" is bounded in game seconds so the
 # player gets one actionable interruption instead of an endless settle loop.
 SETTLE_TIMEOUT_SECONDS = 5.0
+_MATCH_PHASE_NAMES = {
+    0: "MatchPhase.Inactive", 1: "MatchPhase.Countdown", 2: "MatchPhase.Kickoff",
+    3: "MatchPhase.Active", 4: "MatchPhase.GoalScored", 5: "MatchPhase.Replay",
+    6: "MatchPhase.Paused", 7: "MatchPhase.Ended",
+}
+
+
+class InvalidTrainingTelemetry(ValueError):
+    """A packet cannot support truthful training observation."""
+
+    def __init__(self, message, fields):
+        super().__init__(message)
+        self.fields = tuple(fields)
 
 
 def _length(value):
@@ -97,6 +110,8 @@ class TrainingEngine:
         max_samples=36000,
         tolerances=None,
         strict_capture=False,
+        scenario_id=None,
+        difficulty="gold",
     ):
         if not isinstance(strict_capture, bool):
             raise ValueError("Strict capture cadence must be an explicit boolean.")
@@ -104,10 +119,35 @@ class TrainingEngine:
         self.lesson = configure_lesson(
             lesson_id, side=side, target_zone=target_zone, angle=angle, simplified=simplified
         )
+        # An explicit scenario is validated before any match or core launch.
+        # Reference capture never runs a scenario, and no scenario_id preserves
+        # every legacy lesson/capture behaviour exactly.
+        self.scenario = None
+        if scenario_id is not None:
+            if strict_capture:
+                raise ValueError("Reference capture cannot run a ball-launch scenario.")
+            from .scenarios import scenario_definition
+            definition = scenario_definition(lesson_id, scenario_id, difficulty)
+            self.scenario = definition
+            self.lesson = {
+                **self.lesson,
+                "title": definition["title"],
+                "description": definition["description"],
+                "steps": deepcopy(definition["steps"]),
+                "starting_state": deepcopy(definition["starting_state"]),
+                "settle_state": deepcopy(definition["settle_state"]),
+                "targets": deepcopy(definition["targets"]),
+                "success_events": [],
+                "timeout": definition["timeout"],
+            }
+            self.bot_indices = sorted(definition["starting_state"]["bots"])
+            self.human_index = definition["roles"]["human"]
+        else:
+            self.bot_indices = []
+            self.human_index = None
         self.preferences = assistance_preferences(preferences)
-        if strict_capture:
-            # Reference capture is one physics step per packet and never retries
-            # itself; the worker also refuses these preferences explicitly.
+        if strict_capture or self.scenario is not None:
+            # Scenarios wait for manual retry on timeout; successful goals advance separately.
             self.preferences["auto_reset"] = False
         self.metadata = deepcopy(metadata or {})
         self.max_samples = max_samples
@@ -146,16 +186,22 @@ class TrainingEngine:
 
     @property
     def starting_state(self):
-        return deepcopy(self.lesson["starting_state"])
+        return deepcopy(self.launch_state)
 
     def set_preference(self, key, value):
-        self.preferences = assistance_preferences({**self.preferences, key: value})
+        preferences = assistance_preferences({**self.preferences, key: value})
+        if self.scenario is not None:
+            preferences["auto_reset"] = False
+        self.preferences = preferences
         return deepcopy(self.preferences)
 
     def reset(self):
+        self.launch_state = deepcopy(self.lesson["starting_state"])
         self.attempt_id = uuid.uuid4().hex
         self.state = "settling"
         self.started_at = None
+        self.active_elapsed = 0.0
+        self.match_phase = None
         self.last_frame = None
         self.settle_start = None
         self.settle_first_time = None
@@ -169,11 +215,13 @@ class TrainingEngine:
             "sampled": not self.strict_capture,
         }
         self.reset_requested_at = None
+        self.launch_resends = 0
         self.events = []
         self.observations = []
         self.metrics = {"carry_seconds": 0.0, "gates": 0, "boost_seconds": 0.0, "packet_gaps": 0}
         self.outcome = "unfinished"
         self.recorder = Recorder(self.lesson, self.metadata, max_samples=self.max_samples)
+        self._scenario_recording_metadata()
         self.last_touch_time = None
         self.spent_flip_time = None
         self.last_surface_time = None
@@ -188,7 +236,44 @@ class TrainingEngine:
         self.contact_pending = None
         self._recent_frames = []
         self._emitted = set()
+        # Scenario bookkeeping is cleared on every retry so no old launch,
+        # touch, score baseline or controller state can be counted again.
+        self.scenario_state = {
+            "launch_baseline": None,
+            "human_touch": None,
+            "keeper_touch": None,
+            "ball_out": False,
+            "score_baseline": None,
+            "score_after": None,
+            # A new observed team0 score edge is recorded once, with its own
+            # time, so an earlier goal can never complete a later chain.
+            "score_edge": None,
+            "goal_evidence": None,
+            # Absolute time of the goal-target crossing that belongs to this
+            # attempt; a stale crossing before the shot is never reused.
+            "goal_target_time": None,
+            # Latest touch observed per actor before the attempt started. Any
+            # touch equal to these is pre-reset and never counted.
+            "seen_touch": {},
+            "baseline_touch": {},
+            # Latest attributed in-attempt touch for every actor, so a fresh
+            # keeper contact can invalidate an older Human touch.
+            "latest_touch": {},
+            "chain_valid": True,
+        }
         return deepcopy(self.lesson["settle_state"])
+
+    def _scenario_recording_metadata(self):
+        """Retain scenario identity in the recording metadata, scenario runs only.
+
+        Legacy lesson/capture recordings keep exactly their previous metadata;
+        nothing is added when no scenario is active.
+        """
+        if self.scenario is None:
+            return
+        self.recorder.metadata["scenario_id"] = self.scenario["id"]
+        self.recorder.metadata["difficulty"] = self.scenario["difficulty"]
+        self.recorder.metadata["scenario_version"] = self.scenario["version"]
 
     def _event(self, name, frame, *, confidence="observed", details=None):
         event = {
@@ -210,6 +295,9 @@ class TrainingEngine:
 
     def cadence(self, previous, frame):
         """Classify cadence with the shared helper; strict capture is one step."""
+        observed = frame.get("cadence_details") if isinstance(frame, dict) else None
+        if isinstance(observed, dict):
+            return deepcopy(observed)
         return classify_cadence(
             previous,
             frame,
@@ -235,15 +323,25 @@ class TrainingEngine:
             or not math.isfinite(frame["time"])
             or frame["time"] < 0
         ):
-            raise ValueError("Training requires a finite game timestamp.")
+            raise InvalidTrainingTelemetry("Training requires a finite game timestamp.", ("time",))
         car, ball = frame.get("car", {}), frame.get("ball", {})
-        if any(not _finite_vector(car.get(k)) for k in ("position", "velocity", "rotation")) or any(
-            not _finite_vector(ball.get(k)) for k in ("position", "velocity")
-        ):
-            raise ValueError("Training requires actual finite car and ball telemetry.")
+        invalid_bodies = [
+            f"car.{key}" for key in ("position", "velocity", "rotation")
+            if not _finite_vector(car.get(key))
+        ] + [
+            f"ball.{key}" for key in ("position", "velocity")
+            if not _finite_vector(ball.get(key))
+        ]
+        if invalid_bodies:
+            raise InvalidTrainingTelemetry(
+                "Training requires actual finite car and ball telemetry.", invalid_bodies
+            )
         if "angular_velocity" in car and not _finite_vector(car["angular_velocity"]):
-            raise ValueError("Training requires finite angular velocity.")
+            raise InvalidTrainingTelemetry(
+                "Training requires finite angular velocity.", ("car.angular_velocity",)
+            )
         actions = frame.get("actions", {})
+        invalid_actions = []
         for key in ("throttle", "steer", "pitch", "yaw", "roll"):
             value = actions.get(key)
             if (
@@ -252,15 +350,274 @@ class TrainingEngine:
                 or not math.isfinite(value)
                 or not -1 <= value <= 1
             ):
-                raise ValueError("Training requires observed analog game actions.")
-        if any(not isinstance(actions.get(key), bool) for key in ("jump", "boost", "handbrake")):
-            raise ValueError("Training requires observed jump, boost, and handbrake actions.")
+                invalid_actions.append(f"actions.{key}")
+        if invalid_actions:
+            raise InvalidTrainingTelemetry(
+                "Training requires observed analog game actions.", invalid_actions
+            )
+        invalid_buttons = [
+            f"actions.{key}" for key in ("jump", "boost", "handbrake")
+            if not isinstance(actions.get(key), bool)
+        ]
+        if invalid_buttons:
+            raise InvalidTrainingTelemetry(
+                "Training requires observed jump, boost, and handbrake actions.", invalid_buttons
+            )
+
+    def interrupt_unavailable_telemetry(self, fields):
+        """Invalidate the current attempt without accepting the bad packet."""
+        was_active = self.state == "active"
+        already_finished = self.finished
+        if not already_finished:
+            self.state, self.outcome = "interrupted", "interrupted"
+            self.observations.append(
+                "Live telemetry became unavailable. This attempt was interrupted and received no credit."
+            )
+        return {
+            "type": "telemetry_interrupted",
+            "attempt_id": self.attempt_id,
+            "outcome": self.outcome,
+            "attempt_started": was_active,
+            "attempt_interrupted": not already_finished,
+            "invalid_fields": list(fields),
+            "message": "Telemetry was interrupted; waiting for fresh live data before resetting the whole situation.",
+        }
+
+    def _scenario_bot(self, frame, index):
+        cars = frame.get("cars")
+        if not isinstance(cars, (list, tuple)) or index >= len(cars):
+            return None
+        car = cars[index]
+        if not isinstance(car, dict):
+            return None
+        if any(not _finite_vector(car.get(key)) for key in ("position", "velocity", "rotation")):
+            return None
+        return car
+
+    def _bots_ready(self, frame, target, elapsed=0.0, tolerance=None):
+        """Every scenario bot must be observed in its expected pose.
+
+        A missing or stale actor never passes preparation: the whole situation
+        is retried instead of starting with a fictional actor.
+        """
+        if not self.bot_indices:
+            return True
+        tolerance = tolerance or self.tolerances["reset_position"]
+        for index in self.bot_indices:
+            car = self._scenario_bot(frame, index)
+            expected = target["bots"][index]
+            if car is None:
+                return False
+            predicted = [p + v * elapsed for p, v in zip(expected["position"], expected["velocity"])]
+            if _distance(car["position"], predicted) >= tolerance:
+                return False
+            if _distance(car["velocity"], expected["velocity"]) >= self.tolerances["reset_velocity"]:
+                return False
+            if _rotation_distance(car["rotation"], expected["rotation"]) >= self.tolerances["reset_rotation"]:
+                return False
+            if not _finite_vector(car.get("angular_velocity")):
+                return False
+            if _distance(car["angular_velocity"], expected["angular_velocity"]) >= self.tolerances[
+                    "reset_angular_velocity"]:
+                return False
+            boost = car.get("boost")
+            if (isinstance(boost, bool) or not isinstance(boost, (int, float))
+                    or not math.isfinite(boost)
+                    or abs(boost - expected.get("boost", 100)) >= self.tolerances["reset_boost"]):
+                return False
+        return True
+
+    def _scenario_touch(self, frame, index):
+        """Latest attributed touch for one actor, or None."""
+        car = self._scenario_bot(frame, index)
+        if car is None:
+            return None
+        touch = _touch(car, frame.get("ball") or {})
+        if not touch:
+            return None
+        stamp = touch.get("game_seconds", touch.get("time"))
+        if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or not math.isfinite(stamp):
+            return None
+        return stamp
+
+    def _scenario_observe_touches(self, frame):
+        """Track the latest observed touch per scenario actor.
+
+        Called during preparation as well as during the attempt, so a touch
+        that happened before the reset can never be counted as this attempt's
+        pass, shot or save.
+        """
+        if self.scenario is None:
+            return
+        seen = self.scenario_state["seen_touch"]
+        for index in list(self.bot_indices) + [self.human_index]:
+            stamp = self._scenario_touch(frame, index)
+            if stamp is not None:
+                seen[index] = stamp
+
+    def _scenario_ball_ready(self, frame, target):
+        """Confirm the parked ball as part of the whole-situation settle."""
+        if self.scenario is None:
+            return True
+        ball = frame.get("ball") or {}
+        expected = target["ball"]
+        return (
+            _finite_vector(ball.get("position"))
+            and _finite_vector(ball.get("velocity"))
+            and _distance(ball["position"], expected["position"])
+            < self.tolerances["reset_ball_position"]
+            and _distance(ball["velocity"], expected["velocity"])
+            < self.tolerances["reset_velocity"]
+        )
+
+    def _scenario(self, frame, previous, gap):
+        """Observed launch -> human shot -> authoritative goal chain.
+
+        Success needs the verified one-shot launch baseline, the Human's own NEW
+        touch as the latest observed touch, and an unambiguous observed +team0
+        score with goal-target/ball-movement evidence. A ball
+        crossing the target alone is never an authoritative goal, and a
+        telemetry gap permanently invalidates the attribution chain.
+        """
+        if self.scenario is None:
+            return
+        state = self.scenario_state
+        if any(self._scenario_bot(frame, index) is None for index in self.bot_indices):
+            # Production validates the whole roster too; keep direct engine use
+            # fail-closed when a configured opponent disappears mid-attempt.
+            state["chain_valid"] = False
+            return
+        self._scenario_observe_touches(frame)
+        if gap:
+            # A gap can hide an intervening touch, so the chain cannot be
+            # proven continuous. No later score may resurrect it.
+            state["chain_valid"] = False
+        scores = frame.get("scores")
+        if (isinstance(scores, (list, tuple)) and len(scores) == 2
+                and all(isinstance(x, int) and not isinstance(x, bool) for x in scores)):
+            if state["score_baseline"] is None:
+                state["score_baseline"] = list(scores)
+            state["score_after"] = list(scores)
+        baseline = state["baseline_touch"] or {}
+        now = frame["time"]
+        actor_keys = [(self.human_index, "human_touch")]
+        keeper_index = self.scenario["roles"].get("keeper")
+        if keeper_index is not None:
+            actor_keys.append((keeper_index, "keeper_touch"))
+        for index, key in actor_keys:
+            stamp = self._scenario_touch(frame, index)
+            if stamp is None:
+                continue
+            if stamp == baseline.get(index):
+                continue  # Pre-reset touch, not this attempt.
+            # Strictly observed: a touch stamped after this packet is not yet
+            # evidence, and no tolerance is added.
+            if not (self.started_at <= stamp <= now):
+                continue
+            # Track the latest attributed touch for every actor, not only the
+            # first one seen, so a later keeper contact is visible.
+            if stamp > (state["latest_touch"].get(index) or -math.inf):
+                state["latest_touch"][index] = stamp
+            if state[key] is None:
+                state[key] = stamp
+                self._once(key, frame, details={"contact_time": stamp})
+        ball = frame.get("ball") or {}
+        position = ball.get("position")
+        if _finite_vector(position) and (
+                abs(position[0]) > 4096 or abs(position[1]) > 5120 or position[2] > 2044):
+            state["ball_out"] = True
+        before, after = state["score_baseline"], state["score_after"]
+        scored = (
+            before is not None and after is not None
+            and after[0] == before[0] + 1 and after[1] == before[1]
+        )
+        if gap:
+            if scored:
+                self._interrupt("A team goal was observed, but the shot trace was incomplete. No technique credit.")
+            return
+        if scored and state["score_edge"] is None:
+            # Record the observed score edge once, with its own time.
+            state["score_edge"] = {
+                "time": now,
+                "team0_before": before[0],
+                "team0_after": after[0],
+            }
+            state["goal_evidence"] = {
+                "team0_before": before[0],
+                "team0_after": after[0],
+                "score_edge_time": now,
+                "target_hit": self.metrics.get("target_hit"),
+                "ball_speed": _length(ball.get("velocity") or [0, 0, 0]),
+            }
+        human = state["human_touch"]
+        latest = state["latest_touch"]
+        human_latest = latest.get(self.human_index)
+        # The Human must be the latest attributed touch of every actor: a fresh
+        # keeper contact after the shot invalidates the chain.
+        # Strictly later: an equal timestamp is an ambiguous tie, so a non-human
+        # contact stamped at the same instant can never be treated as older.
+        latest_is_human = human_latest is not None and all(
+            human_latest > stamp for index, stamp in latest.items() if index != self.human_index
+        )
+        edge = state["score_edge"]
+        target_time = state["goal_target_time"]
+        chain = (
+            state["chain_valid"]
+            and state["launch_baseline"] is not None
+            and human is not None
+            and state["launch_baseline"]["time"] <= human
+            and latest_is_human
+            and target_time is not None
+            and human <= target_time
+            and edge is not None
+            and edge["time"] >= target_time
+        )
+        if chain and "goal_target" in self._emitted:
+            self._once("scenario_success", frame, details=deepcopy(state["goal_evidence"]))
+            self._finish("success")
+        elif scored:
+            self._interrupt("A team goal was observed without a verified player-shot chain. No technique credit.")
 
     def update(self, frame):
         self._validate_frame(frame)
         if self.finished:
             return []
         now, car = frame["time"], frame["car"]
+        phase = frame.get("phase")
+        if self.scenario is not None and phase is not None and phase != 3:
+            # Countdown, kickoff, goal replay and pauses are not attempt time.
+            # In particular, READY's two-second confirmation budget begins only
+            # after actual Active play resumes.
+            self.match_phase = frame.get("phase_name", _MATCH_PHASE_NAMES.get(phase, str(phase)))
+            if self.state == "settling":
+                self.settle_start = None
+                self.settle_first_time = None
+                self.settle_samples = 0
+            elif self.state == "ready":
+                self.reset_requested_at = now
+            elif self.state == "active":
+                previous = self.last_frame
+                if phase == 4 and previous is not None:
+                    cadence = self.cadence(previous, frame)
+                    terminal = deepcopy(frame)
+                    terminal["packet_gap"] = cadence["gap"]
+                    terminal["cadence"] = cadence["reason"]
+                    self.recorder.append(terminal)
+                    self._contacts(terminal, previous, cadence["gap"])
+                    self._targets(terminal, previous, cadence["gap"], cadence["dt"] or 0.0)
+                    self._scenario(terminal, previous, cadence["gap"])
+                    self.last_frame = terminal
+                    if self.finished:
+                        return [{"type": "completed", "summary": self.summary(),
+                                 "auto_reset": self.preferences["auto_reset"]}]
+                self.scenario_state["chain_valid"] = False
+                return self._interrupt(
+                    f"The attempt was interrupted by {self.match_phase}. Retry to establish a clean start."
+                )
+            self.last_frame = None
+            return []
+        if self.scenario is not None:
+            self.match_phase = frame.get("phase_name", _MATCH_PHASE_NAMES.get(phase, "MatchPhase.Active"))
         if self.last_frame and now == self.last_frame["time"]:
             return []
         if self.last_frame and now < self.last_frame["time"]:
@@ -291,6 +648,8 @@ class TrainingEngine:
                 and _length(car.get("angular_velocity", [0, 0, 0])) < 0.2
                 and (not cadence["gap"] if self.strict_capture else
                      _sampled_interval_ok(self.last_frame, frame, 0.05))
+                and self._bots_ready(frame, self.lesson["settle_state"])
+                and self._scenario_ball_ready(frame, self.lesson["settle_state"])
             )
             if valid:
                 if self.settle_start is None:
@@ -300,11 +659,21 @@ class TrainingEngine:
                 self.settle_start = None
                 self.settle_samples = 0
             self.preparation["valid_samples"] = self.settle_samples
+            self._scenario_observe_touches(frame)
             if self.settle_first_time is None:
                 self.settle_first_time = now
             self.last_frame = deepcopy(frame)
             if (self.settle_start is not None and now - self.settle_start >= 0.25
                     and (self.strict_capture or self.settle_samples >= 3)):
+                # Pack ground spawns sit above the suspension's settled height.
+                # Preserve the verified ground pose instead of dropping the car again.
+                launch_car = self.launch_state["car"]
+                if (self.scenario is not None and not self.strict_capture
+                        and 0 <= launch_car["position"][2] <= 40
+                        and _length(launch_car["velocity"]) == 0
+                        and abs(launch_car["rotation"][0]) <= .15
+                        and abs(launch_car["rotation"][2]) <= .15):
+                    launch_car["position"][2] = car["position"][2]
                 self.state = "ready"
                 self.reset_requested_at = now
                 return [
@@ -325,7 +694,10 @@ class TrainingEngine:
             return []
         if self.state == "ready":
             # Confirm the game applied the reset. No confirmation means no fictional attempt.
-            target = self.lesson["starting_state"]
+            # Some ground feeds hit the floor before the next packet. A narrowly
+            # bounded vertical collision response may confirm those launches;
+            # car, roster, horizontal ball motion and cadence checks still apply.
+            target = self.launch_state
             elapsed = now - self.reset_requested_at
             expected_ball = [
                 p + v * elapsed for p, v in zip(target["ball"]["position"], target["ball"]["velocity"])
@@ -339,7 +711,19 @@ class TrainingEngine:
             ]
             boost = car.get("boost")
             cadence = self.cadence(self.last_frame, frame)
-            applied = (
+            ball_applied = (
+                _distance(frame["ball"]["position"], expected_ball)
+                < self.tolerances["reset_ball_position"]
+                and _distance(frame["ball"]["velocity"], expected_ball_velocity)
+                < self.tolerances["reset_velocity"]
+            )
+            floor_response = (
+                self.scenario is not None and not self.strict_capture
+                and _early_floor_response(target["ball"], frame["ball"], elapsed,
+                                          self.tolerances["reset_ball_position"],
+                                          self.tolerances["reset_velocity"])
+            )
+            observed_state_applied = (
                 _distance(car["position"], expected_car) < self.tolerances["reset_position"]
                 and _rotation_distance(car["rotation"], target["car"]["rotation"])
                 < self.tolerances["reset_rotation"]
@@ -353,23 +737,82 @@ class TrainingEngine:
                 and abs(boost - target["car"]["boost"]) < self.tolerances["reset_boost"]
                 and _grounded(car)
                 and all(car.get(key) is False for key in ("has_jumped", "has_double_jumped", "has_dodged"))
-                and _distance(frame["ball"]["position"], expected_ball)
-                < self.tolerances["reset_ball_position"]
-                and _distance(frame["ball"]["velocity"], expected_ball_velocity)
-                < self.tolerances["reset_velocity"]
-                and not cadence["gap"]
+                and (ball_applied or floor_response)
                 and elapsed < 2.0
+                and self._bots_ready(frame, target, elapsed)
             )
+            # Ordinary play may coalesce packets under load. A complete observed
+            # actor/ball state can confirm the reset only for those known gaps;
+            # strict capture still requires continuous one-step cadence.
+            ordinary_coalescing = cadence["reason"] in {
+                "step_count_exceeded", "interval_exceeded"
+            }
+            applied = observed_state_applied and (
+                not cadence["gap"] or (not self.strict_capture and ordinary_coalescing)
+            )
+            self.preparation["ready"] = {
+                "elapsed": round(elapsed, 6),
+                "phase": frame.get("phase"),
+                "cadence": deepcopy(cadence),
+                "expected_car": {"position": expected_car, "velocity": target["car"]["velocity"]},
+                "observed_car": {"position": list(car["position"]), "velocity": list(car["velocity"])},
+                "expected_ball": {"position": expected_ball, "velocity": expected_ball_velocity},
+                "observed_ball": {"position": list(frame["ball"]["position"]),
+                                  "velocity": list(frame["ball"]["velocity"]),
+                                  "angular_velocity": deepcopy(frame["ball"].get("angular_velocity"))},
+                "observed_state_applied": observed_state_applied,
+                "early_floor_response": floor_response,
+            }
+            # Keep the first observed launch response even when the bridge samples
+            # later packets. A retry creates a fresh preparation object.
+            if "first_ready" not in self.preparation:
+                self.preparation["first_ready"] = deepcopy(self.preparation["ready"])
             if not applied:
+                # A coarse first packet can still be the parked settle ball. Reissue
+                # once; never treat that stale response as a verified moving launch.
+                if (self.scenario is not None and not self.strict_capture and
+                        self.launch_resends == 0 and 0 < elapsed <= 0.05 and cadence["gap"] and
+                        _distance(frame["ball"]["position"], self.lesson["settle_state"]["ball"]["position"]) < 5 and
+                        _distance(frame["ball"]["velocity"], [0, 0, 0]) < 5):
+                    self.launch_resends += 1
+                    self.reset_requested_at = now
+                    self.preparation["launch_resends"] = self.launch_resends
+                    self.last_frame = deepcopy(frame)
+                    self._scenario_observe_touches(frame)
+                    return [{"type": "set_state", "state": self.starting_state}]
                 if elapsed >= 2.0:
                     return self._interrupt(
-                        "The starting state was not confirmed. Enable state setting and retry."
+                        "The starting position could not be confirmed. Retry when play resumes."
                     )
                 self.last_frame = deepcopy(frame)
+                self._scenario_observe_touches(frame)
                 return []
             self.state, self.started_at = "active", now
+            self.active_elapsed = 0.0
+            if self.scenario is not None:
+                # Freeze the pre-attempt touch and score baselines at "go".
+                self.scenario_state["baseline_touch"] = dict(self.scenario_state["seen_touch"])
+                self.scenario_state["chain_valid"] = True
+                self.scenario_state["latest_touch"] = {}
+                self.scenario_state["score_edge"] = None
+                self.scenario_state["goal_target_time"] = None
+                self.scenario_state["launch_baseline"] = {
+                    "time": now,
+                    "position": list(frame["ball"]["position"]),
+                    "velocity": list(frame["ball"]["velocity"]),
+                }
+                self._once(
+                    "launch_observed", frame,
+                    details=deepcopy(self.scenario_state["launch_baseline"]),
+                )
+                scores = frame.get("scores")
+                if (isinstance(scores, (list, tuple)) and len(scores) == 2
+                        and all(isinstance(x, int) and not isinstance(x, bool) for x in scores)):
+                    self.scenario_state["score_baseline"] = list(scores)
+                    self.scenario_state["score_after"] = list(scores)
             self.last_frame = None
             self.recorder = Recorder(self.lesson, self.metadata, max_samples=self.max_samples)
+            self._scenario_recording_metadata()
             self.last_touch_time = (_touch(car, frame["ball"]) or {}).get(
                 "game_seconds", (_touch(car, frame["ball"]) or {}).get("time")
             )
@@ -377,8 +820,16 @@ class TrainingEngine:
             self.last_frame = deepcopy(frame)
             return [{"type": "go", "message": "Go", "attempt_id": self.attempt_id}]
         previous = self.last_frame
+        if previous is None:
+            # First packet after a non-play phase establishes a fresh cadence
+            # baseline without inventing contact, target, or score evidence.
+            self.recorder.append(frame)
+            self.last_frame = deepcopy(frame)
+            return []
         cadence = self.cadence(previous, frame)
         dt = cadence["dt"] if cadence["dt"] is not None else now - previous["time"]
+        if self.scenario is not None:
+            self.active_elapsed += max(0.0, now - previous["time"])
         gap = cadence["gap"]
         frame = deepcopy(frame)
         frame["packet_gap"] = gap
@@ -396,8 +847,17 @@ class TrainingEngine:
         self._actions(frame, previous, gap)
         self._contacts(frame, previous, gap)
         self._targets(frame, previous, gap, dt)
-        if now - self.started_at >= self.lesson["timeout"]:
+        self._scenario(frame, previous, gap)
+        if self.finished:
+            # A scenario success decided above is final for this packet.
+            pass
+        elif ((self.active_elapsed if self.scenario is not None else now - self.started_at)
+              >= self.lesson["timeout"]):
             self._finish("timeout")
+        elif self.scenario is not None:
+            # Scenario success is decided only by the observed launch -> human
+            # shot -> authoritative score chain, never by target crossing alone.
+            pass
         else:
             needed = set(self.lesson["success_events"])
             if self.lesson["id"] == "speed-flip":
@@ -731,7 +1191,11 @@ class TrainingEngine:
                         },
                     )
                     if hit and "ball_contact" in self._emitted:
-                        self._once("goal_target", frame)
+                        emitted = self._once("goal_target", frame)
+                        if emitted is not None and self.scenario is not None:
+                            # Absolute time of this attempt's own crossing, so a
+                            # stale pre-shot crossing can never be reused.
+                            self.scenario_state["goal_target_time"] = frame["time"]
             elif target["type"] == "recovery":
                 x, y, _ = car["position"]
                 if (
@@ -753,6 +1217,13 @@ class TrainingEngine:
     def _finish(self, outcome):
         self.state, self.outcome = "finished", outcome
         lesson_id = self.lesson["id"]
+        if self.scenario is not None:
+            self._scenario_feedback(outcome)
+            if self.metrics["packet_gaps"]:
+                self.observations.append(
+                    "Telemetry gaps limit technique/timing conclusions; missing actions were not invented."
+                )
+            return
         if outcome == "success":
             self.observations.append(
                 "You completed the drill's observed target. Repeat the same setup to compare your next attempt."
@@ -795,11 +1266,47 @@ class TrainingEngine:
                 "Telemetry gaps limit technique/timing conclusions; missing actions were not invented."
             )
 
+    def _scenario_feedback(self, outcome):
+        """Honest feedback: only observed facts, never invented causes."""
+        state = self.scenario_state
+        if outcome == "success":
+            self.observations.append(
+                "Observed the configured launch, your touch and a team score increase. "
+                "Repeat the same situation to compare your next attempt."
+            )
+            return
+        if (state["keeper_touch"] is not None and state["human_touch"] is not None
+                and state["keeper_touch"] > state["human_touch"]):
+            self.observations.append(
+                "The keeper touched the ball after your shot. The attempt was not scored."
+            )
+            return
+        if state["ball_out"]:
+            self.observations.append("The ball left the playable area. Retry the situation.")
+            return
+        if state["launch_baseline"] is None:
+            self.observations.append(
+                "The configured ball launch was not observed, so this attempt received no credit."
+            )
+            return
+        if state["human_touch"] is None:
+            self.observations.append(
+                "The launch was observed but no fresh touch by you was observed before the attempt ended."
+            )
+            return
+        if outcome == "timeout":
+            self.observations.append(
+                "The attempt ended without an observed team score increase. Retry the whole situation."
+            )
+            return
+        self.observations.append("The attempt ended without an observed team score increase.")
+
     def summary(self):
         duration = (
             0
             if self.started_at is None
-            else max(0, (self.last_frame or {"time": self.started_at})["time"] - self.started_at)
+            else (self.active_elapsed if self.scenario is not None
+                  else max(0, (self.last_frame or {"time": self.started_at})["time"] - self.started_at))
         )
         return {
             "id": self.attempt_id,
@@ -816,6 +1323,22 @@ class TrainingEngine:
             "timing_comparison": "No validated equivalent teaching reference is installed.",
             "preferences": deepcopy(self.preferences),
             "coaching": self._coaching(),
+            "scenario": (
+                None if self.scenario is None else {
+                    "lesson_id": self.scenario["lesson_id"],
+                    "id": self.scenario["id"],
+                    "title": self.scenario["title"],
+                    "difficulty": self.scenario["difficulty"],
+                    "rank_title": self.scenario["rank_title"],
+                    "version": self.scenario["version"],
+                    "planned_total": self.scenario["planned_total"],
+                    "implemented_total": self.scenario["implemented_total"],
+                    "scenario_index": self.scenario["implemented_scenarios"].index(self.scenario["id"]) + 1,
+                    "scenario_total": self.scenario["implemented_total"],
+                    "rank_note": "Intended difficulty only; not a certified bot rank.",
+                    "evidence": deepcopy(self.scenario_state),
+                }
+            ),
         }
 
     def _coaching(self):
@@ -831,8 +1354,75 @@ class TrainingEngine:
             if reason:
                 coaching["message"] = reason
                 coaching["interruption_reason"] = reason
+        if self.scenario is not None:
+            scenario_index = self.scenario["implemented_scenarios"].index(self.scenario["id"]) + 1
+            phase = {"settling": "settle", "ready": "ready", "active": "active",
+                     "finished": "finished", "interrupted": "interrupted"}.get(
+                         self.state, self.state)
+            coaching.update(
+                attempt_id=self.attempt_id,
+                outcome=self.outcome,
+                scenario_index=scenario_index,
+                scenario_total=self.scenario["implemented_total"],
+                scenario_title=self.scenario["title"],
+                rank_title=self.scenario["rank_title"],
+                time_limit_seconds=self.scenario["timeout"],
+                time_remaining_seconds=round(max(
+                    0.0, self.scenario["timeout"] - self.active_elapsed), 3),
+                phase=phase,
+                countdown={"settle": "SETTLE", "ready": "READY", "active": "GO"}.get(phase),
+                match_phase=self.match_phase,
+            )
         return coaching
 
     def recording(self):
         summary = self.summary()
         return self.recorder.export(outcome=self.outcome, events=self.events, duration=summary["duration"])
+
+
+def _early_floor_response(target, observed, elapsed, position_tolerance, velocity_tolerance):
+    """Bound a first-packet floor response without guessing a rebound coefficient.
+
+    The first 50ms may include floor friction as well as a vertical rebound.
+    Bound the measured opposing impulse by normal impulse, retaining the elastic
+    energy envelope and existing position checks. This confirms a reset only;
+    it is not a prediction model for subsequent gameplay.
+    """
+    if not 0 < elapsed <= 0.05:
+        return False
+    position, velocity = target["position"], target["velocity"]
+    floor = 93.15
+    height = position[2] - floor
+    if not 0 <= height <= 30 or velocity[2] >= -80:
+        return False
+    impact = (velocity[2] + math.sqrt(velocity[2] ** 2 + 1300 * height)) / 650
+    if impact > elapsed:
+        return False
+    after = elapsed - impact
+    impact_speed = -velocity[2] + 650 * impact
+    expected_xy = [position[i] + velocity[i] * elapsed for i in range(2)]
+    horizontal_position_error = math.hypot(*(observed["position"][i] - expected_xy[i] for i in range(2)))
+    horizontal_velocity_error = math.hypot(*(observed["velocity"][i] - velocity[i] for i in range(2)))
+    horizontal_applied = horizontal_velocity_error < velocity_tolerance
+    if not horizontal_applied and _length(target.get("angular_velocity", [0, 0, 0])) == 0:
+        speed = math.hypot(*velocity[:2])
+        impulse = [observed["velocity"][i] - velocity[i] for i in range(2)]
+        normal_impulse = observed["velocity"][2] - (velocity[2] - 650 * elapsed)
+        opposition = -sum(impulse[i] * velocity[i] for i in range(2))
+        # Measured Gold floor contacts cluster at 0.352-0.355. Keep a bounded
+        # margin and reject acceleration, wrong-way response and a parked ball.
+        horizontal_applied = (
+            speed > 0 and normal_impulse > 0
+            and horizontal_velocity_error <= .38 * normal_impulse + 6
+            and opposition >= .9 * horizontal_velocity_error * speed
+            and math.hypot(*observed["velocity"][:2]) <= speed
+        )
+    vertical_energy = observed["velocity"][2] ** 2 + 1300 * max(0, observed["position"][2] - floor)
+    return (
+        horizontal_position_error < position_tolerance
+        and horizontal_applied
+        and floor - 5 <= observed["position"][2] <= floor + impact_speed * after + 20
+        and -650 * after - velocity_tolerance <= observed["velocity"][2]
+        <= impact_speed - 650 * after + 6
+        and vertical_energy <= (impact_speed + 6) ** 2
+    )

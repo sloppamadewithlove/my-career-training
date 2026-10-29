@@ -1,8 +1,10 @@
 #include "MyCareerTraining.h"
+#include <cmath>
 #include "ExecutableHash.h"
 #include "NativeCareerLayout.h"
 #include "bakkesmod/wrappers/PluginManagerWrapper.h"
 #include "CosmeticDesignCode.h"
+#include "bakkesmod/wrappers/GameObject/BallWrapper.h"
 #include "NativeWorkshopDispatch.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
@@ -134,6 +136,17 @@ void MyCareerTraining::onLoad() {
             [this] { return nativeWorkshopContext(); },
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
+        for (const auto command : {"mct_training_previous", "mct_training_next", "mct_training_retry", "mct_training_ghost"})
+            cvarManager->registerNotifier(command,
+                std::function<void(std::vector<std::string>)>([](std::vector<std::string>) {}),
+                "Scoped offline Power Shots control", PERMISSION_OFFLINE);
+        trainingKeysAvailable_ = true;
+        for (std::size_t index = 0; index < trainingKeyNames_.size(); ++index) {
+            trainingKeyNames_[index] = gameWrapper->GetFNameIndexByString(mct::TrainingBindingGuard::keys[index]);
+            trainingKeysAvailable_ = trainingKeysAvailable_ && trainingKeyNames_[index] > 0 &&
+                gameWrapper->GetFNameByIndex(trainingKeyNames_[index]) == mct::TrainingBindingGuard::keys[index];
+        }
+
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
             if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
@@ -151,6 +164,14 @@ void MyCareerTraining::onLoad() {
         cvarManager->registerNotifier("mct_native_hub", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::OpenNativeMenu);
         }, "Try supported native career dialogs in the owned offline frontend", PERMISSION_OFFLINE);
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+        cvarManager->registerNotifier("mct_probe_training_clock", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::ProbeTrainingClock);
+        }, "Development-only five-second native training clock probe", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_probe_training_clock_zero", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::ProbeTrainingClockZero);
+        }, "Development-only two-second native clock zero-expiry diagnostic", PERMISSION_OFFLINE);
+#endif
         cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::StartProbe);
         }, "Opt in to a bounded read-only native menu diagnostic", PERMISSION_OFFLINE);
@@ -170,6 +191,11 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    try { updateTrainingClock(Json::object(), true); } catch (...) {}
+    try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
+    try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
+    releaseTrainingBindings();
+    trainingLessonInput_.reset();
     alive_.reset();
     nativeMovieReady_ = false;
     if (nativeMovie_) nativeMovie_->stop();
@@ -803,27 +829,27 @@ bool referenceCaptureActive(const mct::Json& state) {
 }
 }  // namespace
 
-void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRuntime& runtime) {
-    // Observe only: one XInput sample per existing tick, no new thread, no
-    // binding, no consumption and no vehicle input. Exactly one connected
-    // controller slot is required; zero or several slots produce no toggle.
-    mct::TrainingGhostInput::Pad pad;
-    int connected = 0;
-    int slot = -1;
-    bool dpadLeft = false;
-    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
-        XINPUT_STATE sample{};
-        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
-        ++connected;
-        slot = static_cast<int>(index);
-        dpadLeft = (sample.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0;
+bool MyCareerTraining::updateTrainingBindings(bool active) {
+    const auto read = [this](const std::string& key) { return cvarManager->getBindStringForKey(key); };
+    const auto write = [this](const std::string& key, const std::string& command) { cvarManager->setBind(key, command); };
+    const auto remove = [this](const std::string& key) { cvarManager->removeBind(key); };
+    if (!active) {
+        trainingBindings_.release(read, write, remove);
+        return false;
     }
-    if (connected == 1) {
-        pad.slot = slot;
-        pad.dpadLeft = dpadLeft;
-    }
+    return trainingBindings_.acquire(read, write, remove);
+}
 
-    mct::TrainingGhostInput::Scope scope;
+void MyCareerTraining::releaseTrainingBindings() {
+    if (!cvarManager) return;
+    const auto read = [this](const std::string& key) { return cvarManager->getBindStringForKey(key); };
+    const auto write = [this](const std::string& key, const std::string& command) { cvarManager->setBind(key, command); };
+    const auto remove = [this](const std::string& key) { cvarManager->removeBind(key); };
+    trainingBindings_.release(read, write, remove);
+}
+
+void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRuntime& runtime) {
+    mct::TrainingLessonInput::Scope scope;
     scope.owned = offlineReady_.load() && ownedOfflineNow();
     scope.fresh = bridge_ && bridge_->fresh();
     scope.foreground = foregroundIsThisProcess();
@@ -833,19 +859,269 @@ void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRunti
     scope.paused = runtime.paused;
     scope.matchEnded = runtime.matchEnded;
     scope.nativeMenuActive = menuOpen_ || ShouldBlockInput() || nativeDialogActive_.load() || nativeProbe_.active() ||
-        lower(runtime.menu).find("pause") != std::string::npos;
+        lower(runtime.menu).find("pause") != std::string::npos ||
+        imguiKeyboardCaptured_.load();
     scope.referenceCaptureActive = referenceCaptureActive(state);
 
-    // The helper samples the button edge before any eligibility test, so a
-    // held button across a career/training, pause/resume, focus or session
-    // transition can never become a new press.
-    const auto decision = trainingGhostInput_.observe(scope, state, pad, mct::unixTime());
-    if (!decision.toggle) return;
-    // Same ACK path as the native pause menu: no direct file write and no
-    // worker bypass. The local latch inside the helper suppresses duplicates
-    // until the observed pending flag clears, the enabled state changes or the
-    // five-second deadline expires.
-    bridge_->send("ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.enabled}});
+    const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
+    mct::TrainingLessonInput::Pad pad;
+    int connected = 0;
+    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
+        XINPUT_STATE sample{};
+        if (XInputGetState(index, &sample) == ERROR_SUCCESS) ++connected;
+    }
+    if (bindingsReady) {
+        pad.slot = connected <= 1 ? -2 : -3;
+        // Poll keyboard arrows as well as the logical controller. A held key
+        // still passes through the same release/edge and owned-session gates.
+        pad.left = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0;
+        pad.right = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0;
+        pad.up = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
+        pad.down = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0;
+        if (connected <= 1 && trainingKeysAvailable_) {
+            pad.left = pad.left || gameWrapper->IsKeyPressed(trainingKeyNames_[0]);
+            pad.right = pad.right || gameWrapper->IsKeyPressed(trainingKeyNames_[1]);
+            pad.up = pad.up || gameWrapper->IsKeyPressed(trainingKeyNames_[2]);
+            pad.down = pad.down || gameWrapper->IsKeyPressed(trainingKeyNames_[3]);
+        }
+    }
+
+    const auto decision = trainingLessonInput_.observe(scope, state, pad, mct::unixTime());
+    std::optional<std::string> commandId;
+    switch (decision.action) {
+    case mct::TrainingLessonInput::Action::Previous:
+        commandId = bridge_->sendWithId("training_scenario_step", Json{{"direction", -1}}); break;
+    case mct::TrainingLessonInput::Action::Next:
+        commandId = bridge_->sendWithId("training_scenario_step", Json{{"direction", 1}}); break;
+    case mct::TrainingLessonInput::Action::ToggleGhost:
+        commandId = bridge_->sendWithId(
+            "ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.ghostEnabled}}); break;
+    case mct::TrainingLessonInput::Action::Retry:
+        commandId = bridge_->sendWithId("retry_lesson",
+            Json{{"expected_session_id", stringValue(objectValue(state, "session"), "id")}}); break;
+    case mct::TrainingLessonInput::Action::None:
+        return;
+    }
+    if (commandId) trainingLessonInput_.commandSent(*commandId);
+    else trainingLessonInput_.commandFailed();
+}
+
+
+void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, bool cleanup,
+                                                float startRemaining, bool zeroExpiry) {
+    if (arm) updateTrainingClock(Json::object(), true);
+    // Reacquire the current wrapper. Never restore through an address saved from
+    // another event, an online session, or a replay.
+    if (!gameWrapper || !gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame() ||
+        gameWrapper->IsInReplay()) return;
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) return;
+    if (clockProbe_ && clockProbe_->event != server.memory_address) {
+        clockProbe_.reset();
+        cvarManager->log("Native clock probe detached from a replaced event without writing to it.");
+        return;
+    }
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto nonce = stringValue(state, "bridge_session");
+    const auto sessionId = stringValue(session, "id");
+    const auto attempt = stringValue(coaching, "attempt_id");
+    const auto matchGuid = server.GetMatchGUID();
+    const auto owned = objectValue(state, "owned_game");
+    const double created = mct::numberValue(owned, "created", -1);
+    // A stale bridge clears its document. This plugin instance cannot outlive
+    // its process; the saved current event address still binds cleanup. Local
+    // RLBot matches can have no GUID; a captured GUID is an additional check.
+    const bool hasState = !state.empty();
+    const bool sameProcess = GetCurrentProcessId() == processScope_.pid && (!hasState ||
+        (mct::numberValue(owned, "pid", -1) == processScope_.pid &&
+         std::isfinite(created) && std::abs(created - processScope_.created) < 0.01));
+    if (clockProbe_ && (!sameProcess || (hasState && (nonce != clockProbe_->nonce ||
+        sessionId != clockProbe_->session)) ||
+        (!clockProbe_->matchGuid.empty() && matchGuid != clockProbe_->matchGuid))) {
+        clockProbe_.reset();
+        cvarManager->log("Native clock probe detached from changed session identity without restoring into it.");
+        return;
+    }
+    const bool eligible = !cleanup && sameProcess && offlineReady_ && ownedOfflineNow() &&
+        !gameWrapper->IsPaused() && stringValue(session, "kind") == "training" &&
+        stringValue(session, "state") == "training" && mct::boolValue(session, "worker_running") &&
+        !nonce.empty() && !sessionId.empty() && !attempt.empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" &&
+        stringValue(coaching, "phase") == "active" &&
+        !referenceCaptureActive(state) &&
+        !server.GetbOverTime() && !server.GetbMatchEnded() && server.GetbRoundActive();
+    if (clockProbe_) {
+        const auto lease = *clockProbe_;
+        const float currentRemaining = server.GetGameTimeRemaining();
+        const bool finiteRemaining = std::isfinite(currentRemaining);
+        const bool sameAttempt = nonce == lease.nonce && sessionId == lease.session && attempt == lease.attempt;
+        const float restoreAt = lease.zeroExpiry ? 0.0f : 80.0f;
+        if (eligible && sameAttempt && mct::unixTime() < lease.deadline &&
+            finiteRemaining && currentRemaining > restoreAt) return;
+        if (lease.zeroExpiry) {
+            std::string result = "eligibility_lost";
+            if (server.GetbMatchEnded()) result = "match_ended";
+            else if (server.GetbOverTime()) result = "overtime";
+            else if (!server.GetbRoundActive()) result = "round_inactive";
+            else if (finiteRemaining && currentRemaining <= 0.0f) result = "zero_or_negative";
+            else if (mct::unixTime() >= lease.deadline) result = "lease_deadline";
+            else if (!sameAttempt) result = "attempt_changed";
+            else if (cleanup) result = "cleanup";
+            cvarManager->log(std::string("Native zero-expiry result: ") + result +
+                " remaining_finite=" + (finiteRemaining ? "true" : "false") +
+                " remaining=" + (finiteRemaining ? std::to_string(currentRemaining) : "nonfinite") +
+                " round_active=" + (server.GetbRoundActive() ? "true" : "false") +
+                " overtime=" + (server.GetbOverTime() ? "true" : "false") +
+                " match_ended=" + (server.GetbMatchEnded() ? "true" : "false"));
+        }
+        // Keep the lease until readback confirms cleanup, so a failed write can retry.
+        server.SetbUnlimitedTime(lease.unlimited);
+        server.SetGameTimeRemaining(lease.remaining);
+        const float restoredTime = server.GetGameTimeRemaining();
+        if (server.GetbUnlimitedTime() != lease.unlimited ||
+            !std::isfinite(restoredTime) || std::abs(restoredTime - lease.remaining) > 0.1f)
+            throw std::runtime_error("Native clock probe could not confirm restoration.");
+        clockProbe_.reset();
+        cvarManager->log("Native training clock probe restored its original time and unlimited flag.");
+        return;
+    }
+    if (!arm) return;
+    cvarManager->log("Native clock probe eligibility: " + Json{
+        {"eligible", eligible}, {"phase", stringValue(coaching, "phase")},
+        {"offline_ready", offlineReady_.load()}, {"owned_offline", ownedOfflineNow()},
+        {"kind", stringValue(session, "kind")}, {"session_state", stringValue(session, "state")},
+        {"worker_running", mct::boolValue(session, "worker_running")},
+        {"scope_ids_present", !nonce.empty() && !sessionId.empty() && !attempt.empty()},
+        {"lesson", stringValue(telemetry, "lesson_id")}, {"reference_capture", referenceCaptureActive(state)},
+        {"cursor_visibility", gameWrapper->IsCursorVisible()},
+        {"imgui_keyboard_captured", imguiKeyboardCaptured_.load()},
+        {"paused", gameWrapper->IsPaused()}, {"match_guid_present", !matchGuid.empty()},
+        {"native_unlimited", server.GetbUnlimitedTime() != 0},
+        {"native_round_active", server.GetbRoundActive() != 0},
+        {"native_overtime", server.GetbOverTime() != 0},
+        {"native_match_ended", server.GetbMatchEnded() != 0},
+        {"observed_unlimited", mct::boolValue(telemetry, "is_unlimited_time")}
+    }.dump());
+    if (!eligible || !server.GetbUnlimitedTime() ||
+        !mct::boolValue(telemetry, "is_unlimited_time") ||
+        !telemetry.contains("is_overtime") || !telemetry["is_overtime"].is_boolean() ||
+        telemetry["is_overtime"].get<bool>())
+        throw std::runtime_error("Native clock probe needs an active owned unlimited Power Shots attempt.");
+    const float remaining = server.GetGameTimeRemaining();
+    if (!std::isfinite(remaining)) throw std::runtime_error("Native clock snapshot is unavailable.");
+    const float requiredStart = zeroExpiry ? 2.0f : 90.0f;
+    if (!std::isfinite(startRemaining) || std::abs(startRemaining - requiredStart) > 0.001f)
+        throw std::runtime_error("Native clock diagnostic received an unsupported start time.");
+    clockProbe_ = ClockProbe{server.memory_address, remaining, server.GetbUnlimitedTime(),
+                            mct::unixTime() + 5.0, startRemaining, zeroExpiry,
+                            nonce, sessionId, attempt, matchGuid};
+    try {
+        server.SetGameTimeRemaining(startRemaining);
+        server.SetbUnlimitedTime(0UL);
+        const float observedTime = server.GetGameTimeRemaining();
+        if (!std::isfinite(observedTime) || std::abs(observedTime - startRemaining) > 0.1f || server.GetbUnlimitedTime())
+            throw std::runtime_error("Native clock probe could not confirm its temporary fields.");
+    } catch (...) {
+        clockProbe_->deadline = 0;
+        try { updateTrainingClockProbe(state, false, true); } catch (...) {}
+        throw;
+    }
+    cvarManager->log(zeroExpiry
+        ? "Native zero-expiry diagnostic armed at two seconds for at most five seconds."
+        : "Native training clock probe started at 90 seconds for at most five seconds.");
+}
+
+void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup) {
+    const bool offline = gameWrapper && gameWrapper->IsInGame() &&
+        !gameWrapper->IsInOnlineGame() && !gameWrapper->IsInReplay();
+    if (!offline) {
+        trainingClock_.update(0, false, false, {}, false, 0, {}, {});
+        trainingClockStatus_ = Json::object();
+        return;
+    }
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) return;
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto phase = stringValue(coaching, "phase");
+    const auto nonce = stringValue(state, "bridge_session");
+    const auto id = stringValue(session, "id");
+    const double remaining = mct::numberValue(coaching, "time_remaining_seconds", -1);
+    const double limit = mct::numberValue(coaching, "time_limit_seconds", -1);
+    const bool validTime = std::isfinite(remaining) && std::isfinite(limit) &&
+        limit > 0 && limit <= 3600 && remaining >= 0 && remaining <= limit;
+    const bool eligible = !cleanup && !clockProbe_ && offlineReady_ && ownedOfflineNow() &&
+        stringValue(session, "kind") == "training" && stringValue(session, "state") == "training" &&
+        mct::boolValue(session, "worker_running") && !nonce.empty() && !id.empty() &&
+        !stringValue(coaching, "attempt_id").empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" && validTime &&
+        (phase == "settle" || phase == "ready" || phase == "active" || phase == "finished") &&
+        !referenceCaptureActive(state) && !server.GetbOverTime() && !server.GetbMatchEnded();
+    auto read = [&] { return mct::TrainingClock::Value{
+        server.GetGameTimeRemaining(), server.GetbUnlimitedTime() != 0, server.GetSecondsRemaining()}; };
+    auto write = [&](mct::TrainingClock::Value value) {
+        const auto before = read();
+        server.SetbUnlimitedTime(value.unlimited ? 1UL : 0UL);
+        server.SetGameTimeRemaining(value.remaining);
+        server.SetSecondsRemaining(value.seconds);
+        // The native HUD reads the integer cache, not the floating-point field.
+        if (before.seconds != value.seconds || before.unlimited != value.unlimited)
+            server.OnGameTimeUpdated();
+        const auto observed = read();
+        if (observed.seconds != value.seconds || observed.unlimited != value.unlimited || !std::isfinite(observed.remaining) ||
+            std::abs(observed.remaining - value.remaining) > 0.1f)
+            throw std::runtime_error("Training native clock readback failed.");
+    };
+    trainingClock_.update(server.memory_address, offline, eligible, nonce + ":" + id,
+        gameWrapper->IsPaused(), remaining, read, write);
+    const auto observed = read();
+    trainingClockStatus_ = {{"active", trainingClock_.active()},
+        {"remaining", observed.remaining}, {"unlimited", observed.unlimited},
+        {"seconds_remaining", server.GetSecondsRemaining()},
+        {"seconds_countdown", server.GetSecondsRemainingCountdown()},
+        {"match_ended", server.GetbMatchEnded() != 0}, {"overtime", server.GetbOverTime() != 0},
+        {"round_active", server.GetbRoundActive() != 0}, {"phase", phase},
+        {"attempt_id", stringValue(coaching, "attempt_id")}};
+}
+
+void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allowHide) {
+    // This experimental SDK path still needs exact-candidate visual acceptance.
+    // Cleanup may outlive bridge freshness, but never writes online or in replay.
+    const bool offlineLive = gameWrapper && gameWrapper->IsInGame() &&
+        !gameWrapper->IsInOnlineGame() && !gameWrapper->IsInReplay();
+    if (!offlineLive) {
+        trainingBallVisibility_.update(0, 0, false, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) {
+        trainingBallVisibility_.update(0, 0, true, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
+    auto ball = server.GetBall();
+    if (!ball) {
+        trainingBallVisibility_.update(0, 0, true, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto attempt = stringValue(coaching, "attempt_id");
+    const bool hide = allowHide && offlineReady_ && ownedOfflineNow() &&
+        stringValue(session, "kind") == "training" && stringValue(session, "state") == "training" &&
+        mct::boolValue(session, "worker_running") && !stringValue(session, "id").empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" &&
+        stringValue(coaching, "phase") == "finished" && stringValue(coaching, "outcome") == "timeout" &&
+        mct::numberValue(coaching, "time_remaining_seconds", -1) == 0;
+    trainingBallVisibility_.update(server.memory_address, ball.memory_address, offlineLive, hide, attempt,
+        [&] { return ball.GetbHidden() != 0; }, [&](bool hidden) {
+            ball.SetHidden2(hidden ? 1UL : 0UL);
+            if ((ball.GetbHidden() != 0) != hidden)
+                throw std::runtime_error("Training ball visibility did not acknowledge the requested state.");
+        });
 }
 
 void MyCareerTraining::tick() {
@@ -954,6 +1230,7 @@ void MyCareerTraining::tick() {
                     {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"native_community_status", communityStatus()},
+                    {"native_training_clock", trainingClockStatus_},
                     {"native_training_pack", trainingPackStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
@@ -978,6 +1255,7 @@ void MyCareerTraining::tick() {
                 Json status = {{"version", "0.3.0"}, {"online", next.online}, {"in_game", next.inGame},
                     {"in_replay", next.replay}, {"frontend", !next.inGame && !next.replay && !next.online},
                     {"pid", GetCurrentProcessId()}, {"native_community_status", communityStatus()},
+                    {"native_training_clock", trainingClockStatus_},
                     {"native_training_pack", trainingPackStatus()},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"runtime_verified", false}, {"production_ready", false}};
@@ -995,13 +1273,20 @@ void MyCareerTraining::tick() {
         // Sampled on every tick, after the offline branch has refreshed the
         // runtime and enforceCareer has updated matchEnded. The helper decides
         // eligibility itself and always tracks the button edge.
-        pollTrainingGhostToggle(publishedState, next);
+        updateTrainingClockProbe(publishedState);
+        updateTrainingClock(publishedState);
+        updateTrainingBallVisibility(publishedState, true);
+        pollTrainingLessonControls(publishedState, next);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
-        trainingGhostInput_.reset();
+        try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
+        try { updateTrainingClock(Json::object(), true); } catch (...) {}
+        try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
+        releaseTrainingBindings();
+        trainingLessonInput_.reset();
         restoreCosmetics();
         nativeProbe_.clear();
         removeProbeHooks();
@@ -1089,6 +1374,14 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
         try {
             if (request.type == LocalRequest::RefreshProducts) {
                 scanningProducts_ = true; productScanCursor_ = 0; productScan_.clear();
+            } else if (request.type == LocalRequest::ProbeTrainingClock) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+                updateTrainingClockProbe(bridge_->state(), true);
+#endif
+            } else if (request.type == LocalRequest::ProbeTrainingClockZero) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+                updateTrainingClockProbe(bridge_->state(), true, false, 2.0f, true);
+#endif
             } else if (request.type == LocalRequest::StartProbe) {
                 closeNativeMenu();
                 startNativeProbe();
@@ -1169,6 +1462,9 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 probeExecutableSha256_.clear();
                 probeSaveFailed_ = false;
                 probeMessage_ = std::string("Menu capture failed: ") + error.what();
+            } else if (request.type == LocalRequest::ProbeTrainingClock ||
+                       request.type == LocalRequest::ProbeTrainingClockZero) {
+                cvarManager->log(std::string("Native clock probe refused: ") + error.what());
             } else result.cosmeticMessage = error.what();
         }
     }
@@ -1289,6 +1585,7 @@ void MyCareerTraining::SetImGuiContext(uintptr_t context) {
     guiContext_ = next;
     ImGui::SetCurrentContext(next);
     hasContext_ = next != nullptr;
+    if (!next) imguiKeyboardCaptured_.store(false);
 }
 void MyCareerTraining::updateNavigationFlags(bool active) {
     if (!guiContext_) return;
@@ -1310,10 +1607,19 @@ void MyCareerTraining::OnOpen() {
 }
 void MyCareerTraining::OnClose() {
     windowOpen_ = false; menuOpen_ = false;
+    imguiKeyboardCaptured_.store(false);
     updateNavigationFlags(false);
 }
 
 void MyCareerTraining::Render() {
+    if (hasContext_ && guiContext_) {
+        ImGuiContext* previous = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(guiContext_);
+        imguiKeyboardCaptured_.store(ImGui::GetIO().WantCaptureKeyboard);
+        ImGui::SetCurrentContext(previous);
+    } else {
+        imguiKeyboardCaptured_.store(false);
+    }
     updateNavigationFlags(!MCT_ENABLE_NATIVE_MOVIE_TRIAL && hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
         bridge_ && bridge_->fresh() && !nativeDialogActive_ && !nativeMovieReady_);
     // Native candidates own all menu surfaces even before a ready message.

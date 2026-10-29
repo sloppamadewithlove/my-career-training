@@ -1,29 +1,41 @@
 # Next work and acceptance board
 
-## Active recovery queue
+Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
-[Issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) tracks confirmed decisions and selective recovery. The Career post-end team-write guard and corrected CI assertion passed both Windows build pipelines at `52021d8`. The three-tab browser source passed four native checks and compiled; matching published assets and integrity tests are now ready for the next focused test run. No live acceptance or full lobby fix is claimed.
+## Active assignments
 
-Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove a clean 12-challenge loop; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
+| Owner | Bounded work | Acceptance / next action |
+| --- | --- | --- |
+| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | 0a879 repeated reset/navigation 26/26 passed; Return preserved Career and reached hub; production clock and goal-transition proof next |
+| DeepSeek builder/research | Manual retry proposal reviewed and corrected; native training/bot route investigated | Native Tutorial/TrainingEditor bot inheritance is plausible source evidence, not live compatibility; bounded floor-response follow-up pending |
+| Luna career_test_investigation | Independent manual-retry review complete | Actual Backend/native gate runner added to candidate pipeline; wrong Training confirmation fixed and tested; missed retry traced to transient command read failure |
+| Luna browser_investigation | Console/input ownership investigation active | Console open/closed retry distinction observed; embedded real gameplay thumbnail route reviewed for small offline package |
+| Luna rea_research | Floor-friction reset investigation active | 23 replacement first-worker snapshots reviewed; three post-bounce samples on one geometry; zero probe reviewed, sustained zero hold remains open |
+| Scheduled improvement worker | PR #11 privacy check delivered | PR #11 integrated at c14cb5d after exact combined c969569 checks; privacy tool is available on this branch |
 
-The [45-minute workflow audit](IMPROVEMENT_HEARTBEAT.md) is active in the desktop Scheduled page (GPT-6 Luna Max, Important updates only). Next: confirm the first run at 01:26 America/New_York on 29 October and its GitHub access. No Windows scheduler was created.
+The owner is away and has authorized continued testing. Root is the sole input
+operator. Standard-game pack inspection is complete and that session was closed
+normally. The bounded DeepSeek REA campaign finished nine training/eight lifecycle
+topics; no idle agent is reported as doing new research. Follow-ups must name an
+unresolved question and use the retained evidence before a new analysis run.
 
+## Next proof sequence
 
+1. Repair measured early-floor friction and console input capture, then build the
+   reviewed manual-retry/clock diagnostic candidate. Establish native clock readback
+   and safe zero behavior separately from the 90-second probe.
+2. Build the current GitHub candidate and prove Up retry, Left/Right including
+   1/12 and 12/12, timeout disappearance/restoration and scored-goal advancement.
+3. Test actual Gold shooting geometry and keeper interference; do not ask for
+   owner acceptance until those mechanics work together.
+4. Expand the proven flow to other ranks and remaining product functions. Keep
+   the downloadable mod small; update the website for verified major releases.
 
-Updated 26 October 2026. Main owns this board. Read current status before assigning work.
-Ask unresolved product questions before broad implementation; never repeat confirmed
-ones. EVERY unique function uses the six-part contract in DEVELOPMENT_WORKFLOW.md.
-
-## Priority
-
-This update consolidates instructions, blueprint and future-original licensing; it does
-not implement runtime scenarios. Next recommended outcome: one real Power Shot pass/keeper
-situation, then a validated ghost, before scaling to 12 scenarios. No game-input owner or
-runtime worker is assigned by this document.
+## Product backlog
 
 | ID | Outcome / state | First proof / next action |
 | --- | --- | --- |
-| T01 | Power Shot situation — planned | Prove approved low side-pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
+| T01 | Power Shot situation — planned | Rework the rejected provisional feeds and prove useful pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
 | T02 | Scenario lifecycle — planned | Stable IDs, actor roles, reset/settle, seeds, success/failure; prove switching removes old bots/timers |
 | T03 | DS4 controls — planned | Adjustable Left previous/Right next/Up retry/Down supported ghost only in lessons; physical USB DS4, stock-conflict suppression, boundaries 1/12 and 12/12, restore outside |
 | T04 | Ghost — blocked on valid trace | Capture successful actual skill; validate car/ball/action trace. For shots/flip resets render at fixed lesson start with faint non-contact demonstration ball/controller; prove no effect on real attempt/physics/scoring |
@@ -35,36 +47,8 @@ runtime worker is assigned by this document.
 | T10 | Garage — planned | Opus design, builders implement installed catalog/search/filter/images/preview/apply/restore; one full equip path before expansion |
 | T11 | Controller/tutorial — partial/planned | Opus reviews DS4 silhouette avoiding boost HUD; builder fixes; distinguish human/ghost inputs; permitted in-game tutorial |
 | T12 | Career/release regression — partial | Changed-boundary checks; exact frozen match/result/save/next/Return/install/recovery before release; 12-second continuation target unachieved |
-| T13 | Build/startup efficiency — planned | Helpers validate interpreter/import root/toolchain before work; measure build/launch/review waits and optimize measured bottleneck |
+| T13 | Build/startup efficiency — partial | Both CI concurrency layers preserve the active candidate and retain newest pending work; validate completion under subsequent updates. Further runtime-input equivalence/cache work must preserve exact provenance |
 | T14 | Privacy/security — unresolved | Privately classify historical path/email and source literals; propose cleanup without automatic history rewrite; separately audit dependencies/workflows/releases |
 
-## Material details still open
 
-- Exact first Power Shot geometry and remaining 12-level cards. Teammate pass+keeper,
-  mechanically different setups and increasing pressure are approved.
-- Ghost placement is resolved: shots/flip resets use fixed lesson start and a faint
-  non-contact demonstration ball. Do not ask the owner to choose this again.
-- Tutorial/thumbnail sources and rights; unavailable media must be described honestly.
-- Visibility and attribution are resolved in LICENSE/status; do not reopen by default.
-
-## Known failures to reuse
-
-| Failed approach | Evidence / confidence | Next distinct experiment |
-| --- | --- | --- |
-| Static Free Play as Power Shot | Owner observed no meaningful shot/feedback; rejected | T01 real pass/keeper; no relabeling |
-| Offline exact-code pack load | 5b293d2 FeatureDisabled, stayed frontend; high confidence for that route | Custom scenarios; revisit packs only with different supported route and real launch proof |
-| Strict capture never settled | Actual packet gaps; ordinary-preparation fix is not trace validation | Measure acquisition/timing; prove successful reference without weakening truth checks |
-| Search dropped focus/edits | Fixed through 099fad1 with live slow typing/Escape | Reinvestigate only if current candidate reproduces |
-| Build imported another checkout | Mismatched allowlists; explicit project path resolved | T13 import-root guard before expensive build |
-
-After two failures of the same hypothesis, record expected/actual, evidence, cause
-confidence and a different next experiment. Keep raw logs private; don't create another
-general history file or abandon the goal merely because two tries failed.
-
-## Assignment / receipt
-
-Task ID, outcome, base revision, owned files, interface, dependencies, actual worker/model,
-time/token/cost bound, acceptance and failure cases. Return immutable patch, actual checks,
-evidence, risks and next action. Independent review precedes integration; main releases
-file ownership and updates this board/status at handoff. Planned, implemented, unverified,
-verified and blocked are distinct. A preview is never gameplay proof.
+Ghosts remain lesson-specific and require valid recordings. Browser tabs are Lessons / Workshop / Mods; Favorites is removed. Up retries, Down toggles a supported ghost, Left/Right selects challenges. A live Career match must be left/ended before Training; a saved schedule does not restrict it. Results await explicit Next or Return. Major verified releases update the Vercel website; draft source changes are not public release claims.

@@ -503,13 +503,28 @@ int main() {
         require(simplified.payload == Json({{"id", "flip-reset"}, {"key", "simplified"}, {"value", true}}), "Simplified payload");
         choose(layout, findChoice(layout.view(scope, state), "nav.back"), scope, state, false);
         choose(layout, findChoice(layout.view(scope, state), "training.lesson.power-shots"), scope, state, true);
-        auto zone = choose(layout, findChoice(layout.view(scope, state), "training.zone.left"), scope, state, true);
-        require(zone.payload["key"] == "target_zone" && zone.payload["value"] == "left", "Target zone payload");
+        auto pendingCareer = state;
+        pendingCareer["career"]["pending_session"] = {{"fixture_id", "saved-fixture"}, {"session_id", "saved-session"}};
+        pendingCareer["session"]["kind"] = "career";
+        require(findChoice(layout.view(scope, pendingCareer), "training.rank.gold").enabled,
+            "A saved Career with no running worker blocked Training");
+        pendingCareer["session"]["worker_running"] = true;
+        require(!findChoice(layout.view(scope, pendingCareer), "training.rank.gold").enabled,
+            "A live Career worker allowed direct Training launch");
+        auto savedResults = state;
+        savedResults["session"]["results_pending_choice"] = true;
+        require(!findChoice(layout.view(scope, savedResults), "training.rank.gold").enabled,
+            "Saved Career results bypassed explicit Next or Return");
+        const auto ranks = layout.view(scope, state);
+        require(ranks.choices.size() == 9, "Power Shots must offer eight ranks and Back");
+        auto bronze = choose(layout, findChoice(ranks, "training.rank.bronze"), scope, state, true);
+        require(bronze.action == "start_lesson" && bronze.payload == Json({{"id", "power-shots"},
+            {"scenario_id", "low-side-pass"}, {"difficulty", "bronze"}}), "Bronze launch payload");
         auto running = state;
         running["session"]["kind"] = "training";
-        require(!findChoice(layout.view(scope, running), "training.zone.left").enabled, "In-progress lesson still changes setup");
-        require(findChoice(layout.view(scope, running), "training.help.explanations").enabled,
-            "Lesson explanations were blocked during practice");
+        running["session"]["worker_running"] = true;
+        require(!findChoice(layout.view(scope, running), "training.rank.bronze").enabled,
+            "In-progress lesson still launches another rank");
 
         auto paged = state;
         paged["lessons"] = Json::array();
@@ -669,6 +684,34 @@ int main() {
         for (const auto& choice : layout.view(scope, catalogs).choices)
             lookups += choice.id.rfind("community.lookup.", 0) == 0;
         require(lookups == 8 && !hasChoice(layout.view(scope, catalogs), "community.lookup.abc"), "Community catalog was not capped");
+
+        auto setupNoticeState = state;
+        setupNoticeState["diagnostics"] = {{"plugin_session_notices", Json::array({
+            "BakkesMod's plugins.cfg already loads MyCareerTraining. My Career did not remove the line this session did not create."})}};
+        layout.open(scope, setupNoticeState);
+        auto setupNoticeRoot = layout.view(scope, setupNoticeState);
+        require(setupNoticeRoot.body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the native hub");
+        choose(layout, findChoice(setupNoticeRoot, NativeCareerLayout::kCareer), scope, setupNoticeState, false);
+        require(layout.view(scope, setupNoticeState).body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the Career page");
+        layout.open(scope, setupNoticeState);
+        choose(layout, findChoice(layout.view(scope, setupNoticeState), NativeCareerLayout::kTraining),
+            scope, setupNoticeState, false);
+        require(layout.view(scope, setupNoticeState).body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the Training/rank page");
+        layout.open(scope, setupNoticeState);
+        choose(layout, findChoice(layout.view(scope, setupNoticeState), NativeCareerLayout::kSettings),
+            scope, setupNoticeState, false);
+        auto settingsWithNotice = layout.view(scope, setupNoticeState);
+        require(settingsWithNotice.body.find("plugins.cfg") != std::string::npos,
+            "Plugin setup advisory was not available in Settings/Diagnostics");
+        auto recoveryFailure = setupNoticeState;
+        recoveryFailure["error"] = "The plugin recovery journal is still active.";
+        const auto failureSettings = layout.view(scope, recoveryFailure);
+        require(failureSettings.body.find("Could not finish: The plugin recovery journal is still active.") == 0 &&
+            failureSettings.body.find("plugins.cfg") != std::string::npos,
+            "Plugin setup advisory obscured the real recovery failure");
 
         layout.open(scope, state);
         choose(layout, findChoice(layout.view(scope, state), NativeCareerLayout::kSettings), scope, state, false);

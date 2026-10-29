@@ -294,7 +294,9 @@ def run_service(directory, *, native_movie_trial=False):
         return 1
     notices = plugin_session_notices(directory)
     if notices:
-        QMessageBox.warning(None, "BakkesMod plugin setup", "\n".join(notices))
+        # Keep the ownership advisory in Diagnostics/Settings. A persistent
+        # setup note should not cover every hub and lesson page.
+        backend.diagnostics_info["plugin_session_notices"] = notices
     if native_session is not None:
         from .native_community_binding import NativeCommunityBinding
         backend.native_community = None

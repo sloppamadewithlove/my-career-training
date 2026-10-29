@@ -600,6 +600,10 @@ public:
         effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
         effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
         effect.action = row->action; effect.payload = row->payload; effect.leaveMenu = leavesMenu(row->action);
+        if (row->action == "select_lesson") {
+            lessonId_ = row->itemId;
+            page_ = CareerLayoutPage::Lesson;
+        }
         effect.page = page_; return effect;
     }
 
@@ -1081,6 +1085,14 @@ private:
         return phaseOk && !busy(state) && !flag(state, "setup_required", true) && !pending(careerOf(state));
     }
 
+    static bool lessonReady(const Json& state) {
+        const auto session = sessionOf(state);
+        const auto phase = text(session, "state");
+        return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
+            !busy(state) && !flag(session, "worker_running", true) &&
+            !flag(session, "results_pending_choice", false) && !flag(state, "setup_required", true);
+    }
+
     static bool workerLikely(const Json& state) {
         const auto session = sessionOf(state);
         const auto kind = text(session, "kind");
@@ -1216,7 +1228,7 @@ private:
                 else if (phase == "Playing") addLine(view.body, "Your match is in progress.");
                 else addLine(view.body, "Return from the current activity before restarting this match.");
             } else {
-                addLine(view.body, "Your last match did not finish. Restart it before playing or training.");
+                addLine(view.body, "Your last match did not finish. Restart it before playing another Career match.");
                 navigate(view, "career.recover", "Restart unfinished match", CareerLayoutPage::RecoverCareer);
             }
         }
@@ -1331,33 +1343,22 @@ private:
         };
         if (tab == TrainingBrowserTab::Lessons) {
             const auto lessons = lessonsOf(state);
-            const auto packs = array(state, "training_packs");
             const auto stop = (std::min)(lessons.size(), kMaxLessons);
             for (std::size_t i = 0; i < stop; ++i) {
                 const auto id = text(lessons[i], "id"); if (!safeId(id)) continue;
-                if (id == "power-shots" && !packs.empty()) continue;
                 TrainingBrowserRow row;
                 row.key = "lesson:" + id; row.type = "lesson"; row.itemId = id;
                 row.title = text(lessons[i], "title", "Lesson"); row.subtitle = "Training lesson";
                 row.detail = text(lessons[i], "description"); row.primaryLabel = "Start lesson";
-                row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
+                row.primaryEnabled = lessonReady(state); row.reason = row.primaryEnabled ? "" : kRecover;
                 row.action = "start_lesson"; row.payload = {{"id", id}};
+                if (id == "power-shots") {
+                    row.primaryLabel = "Choose rank";
+                    row.action = "select_lesson";
+                    row.primaryEnabled = !busy(state);
+                    row.reason = row.primaryEnabled ? "" : kWait;
+                }
                 row.favorite = browserFavorite(state, row.type, id); add(std::move(row));
-            }
-            for (std::size_t i = 0; i < (std::min)(packs.size(), std::size_t(6)); ++i) {
-                const auto id = text(packs[i], "id"); if (!safeId(id)) continue;
-                TrainingBrowserRow row;
-                row.type = "lesson"; row.itemId = "pack:" + id; row.key = "lesson:" + row.itemId;
-                row.title = text(packs[i], "title", "Power shots");
-                row.subtitle = text(packs[i], "rank") + " | " + text(packs[i], "author");
-                row.detail = text(packs[i], "description") + " | Featured by Psyonix | " + text(packs[i], "code");
-                // Real offline playtest: Training/GetTrainingData is FeatureDisabled.
-                // Keep discovery/favorites, but do not offer a known failing load.
-                row.primaryLabel = "Unavailable offline";
-                row.primaryEnabled = false;
-                row.reason = "This pack needs Rocket League's training service. Offline loading is not available yet.";
-                row.action = "start_training_pack"; row.payload = {{"id", id}};
-                row.favorite = browserFavorite(state, row.type, row.itemId); add(std::move(row));
             }
             return rows;
         }
@@ -1524,6 +1525,21 @@ private:
         const auto lessons = lessonsOf(state);
         const auto lesson = findLesson(lessons, lessonId_);
         const auto page = shownLessonPage(lessons.size());
+        if (!lesson.empty() && lessonId_ == "power-shots") {
+            view.title = "Power Shots";
+            addLine(view.body, "Choose your rank.");
+            struct Rank { const char* id; const char* label; };
+            const Rank ranks[] = {{"bronze", "Bronze"}, {"silver", "Silver"},
+                {"gold", "Gold"}, {"platinum", "Platinum"}, {"diamond", "Diamond"},
+                {"champion", "Champion"}, {"grand-champion", "Grand Champion"},
+                {"supersonic-legend", "Supersonic Legend"}};
+            for (const auto& rank : ranks)
+                dispatch(view, std::string("training.rank.") + rank.id, rank.label,
+                    lessonReady(state), kRecover, "start_lesson",
+                    {{"id", lessonId_}, {"scenario_id", "low-side-pass"}, {"difficulty", rank.id}});
+            back(view, CareerLayoutPage::Training, page);
+            return;
+        }
         if (lesson.empty()) addLine(view.body, "This lesson is no longer available.");
         else {
             addLine(view.body, plain(text(lesson, "title", "Lesson"), 80));
@@ -1532,7 +1548,7 @@ private:
             const auto stop = (std::min)(steps.size(), static_cast<std::size_t>(6));
             for (std::size_t i = 0; i < stop; ++i)
                 if (steps[i].is_string()) addLine(view.body, std::to_string(i + 1) + ". " + plain(steps[i].get<std::string>(), 120));
-            const bool canPractice = ready(state);
+            const bool canPractice = lessonReady(state);
             CareerLayoutChoice start;
             start.id = "training.practice";
             start.label = "Start practice";
@@ -1540,7 +1556,7 @@ private:
             start.action = "start_lesson";
             start.lessonId = lessonId_;
             start.enabled = canPractice;
-            start.reason = canPractice ? "" : "Practice is unavailable until the session is ready and any unfinished match is resolved.";
+            start.reason = canPractice ? "" : "Leave the current activity before starting another lesson.";
             start.payload = {{"id", lessonId_}};
             push(view, std::move(start));
             const char* helpKeys[] = {"explanations", "actions", "timing", "auto_reset"};
@@ -2102,6 +2118,8 @@ private:
 
     void buildSettings(CareerLayoutView& view, const Json& state) const {
         view.title = "Settings";
+        for (const auto& notice : array(object(state, "diagnostics"), "plugin_session_notices"))
+            if (notice.is_string()) addLine(view.body, plain(notice.get<std::string>(), 320));
         addLine(view.body, "Game options stay the game's own screen.");
         addLine(view.body, "Training help below uses the saved training display.");
         CareerLayoutChoice options;

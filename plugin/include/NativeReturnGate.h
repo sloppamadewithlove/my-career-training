@@ -250,7 +250,18 @@ private:
             return false;
         if (!state.contains("career") || (!state["career"].is_null() && !state["career"].is_object())) return false;
         const auto career = objectValue(state, "career");
-        if (state["career"].is_object() && (!career.contains("pending_session") || !career["pending_session"].is_null())) return false;
+        if (state["career"].is_object()) {
+            if (!career.contains("pending_session")) return false;
+            const auto& pending = career["pending_session"];
+            if (!pending.is_null()) {
+                const auto pendingSession = stringValue(pending, "session_id");
+                const auto pendingFixture = stringValue(pending, "fixture_id");
+                const bool preserveForNonCareerReturn = action_ == "return_hub" && fixture_.empty() &&
+                    pending.is_object() && pendingSession != activity_ && !pendingSession.empty() && pendingSession.size() <= 128 &&
+                    !pendingFixture.empty() && pendingFixture.size() <= 128;
+                if (!preserveForNonCareerReturn) return false;
+            }
+        }
         if (action_ == "prepare_next_match" && (!state["career"].is_object() ||
             !nextReady(state) || !prepareResult(state))) return false;
         if (action_ == "forfeit_match" && !forfeitCommitted(state)) return false;

@@ -13,7 +13,7 @@ from .storage import Store
 ALLOWED_ACTIONS = frozenset({
     "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
     "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson",
-    "start_lesson", "retry_lesson", "stop_session", "assistance", "settings", "setup_finish",
+    "start_lesson", "lesson_scenario", "training_scenario_step", "retry_lesson", "stop_session", "assistance", "settings", "setup_finish",
     "diagnostics", "loadout", "restore_explanations", "lesson_variant", "play_recording",
     "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",
@@ -86,11 +86,24 @@ class FileBridge:
 
     def poll(self):
         for path in sorted(self.commands.glob("*.json"))[:32]:
-            command_id = ""
             try:
                 if path.is_symlink() or path.stat().st_size > 65536:
                     raise ValueError("Invalid command file.")
-                command = json.loads(path.read_text(encoding="utf-8"))
+                raw = path.read_text(encoding="utf-8")
+            except PermissionError:
+                # A short-lived Windows sharing/permission lock must not turn
+                # a published command into a false blank-ID acknowledgement.
+                # Leave it in place for the next poll; never infer its ID from
+                # the untrusted filename.
+                continue
+            except (ValueError, OSError) as exc:
+                self.ack = {"id": "", "ok": False, "error": str(exc)}
+                path.unlink(missing_ok=True)
+                continue
+
+            command_id = ""
+            try:
+                command = json.loads(raw)
                 command_id = command.get("id", "")
                 if str(uuid.UUID(command_id)) != command_id or path.stem != command_id:
                     raise ValueError("Invalid command identity.")

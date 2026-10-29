@@ -44,6 +44,12 @@ def match_config(request):
     # cannot obtain a capture match layout without passing every gate.
     from .reference_capture import validate_capture_request
     capture = validate_capture_request(request)
+    # An explicit scenario is validated before any match layout is built. The
+    # capture gate above already rejected capture+scenario combinations.
+    scenario = None
+    if request.get("scenario_id") is not None:
+        from .training.scenarios import scenario_descriptors
+        scenario = scenario_descriptors(request)
     f = flat_module()
     fixture = request.get("fixture") or {}
     training = bool(request.get("lesson_id"))
@@ -68,6 +74,19 @@ def match_config(request):
                 custom_color_id=loadout.get("secondary_color", 0)))
         descriptors[0] = descriptor
         players.append(f.PlayerConfiguration(variety=variety, team=descriptor["team"]))
+    elif scenario is not None:
+        # Explicit ball-launch scenario: zero or one known keeper, then the
+        # Human appended last. No caller-supplied actor data is used.
+        for index in sorted(scenario):
+            descriptor = scenario[index]
+            loadout = descriptor["loadout"]
+            variety = f.CustomBot(name=descriptor["name"], root_dir=str(Path.cwd()), run_command="",
+                agent_id=f"my-career-training/team-{descriptor['team']}", hivemind=True,
+                loadout=f.PlayerLoadout(car_id=loadout.get("car_id", 23), wheels_id=376,
+                    team_color_id=loadout.get("primary_color", 27),
+                    custom_color_id=loadout.get("secondary_color", 0)))
+            descriptors[index] = descriptor
+            players.append(f.PlayerConfiguration(variety=variety, team=descriptor["team"]))
     elif not training:
         from .career import bot_runtime_snapshot
         for bot in bot_runtime_snapshot(fixture):
@@ -88,6 +107,10 @@ def match_config(request):
     mutators = f.MutatorSettings(match_length=f.MatchLengthMutator.Unlimited if training else f.MatchLengthMutator.FiveMinutes,
         max_score=f.MaxScoreMutator.Unlimited, overtime=f.OvertimeMutator.Unlimited,
         multi_ball=f.MultiBallMutator.One, boost_amount=f.BoostAmountMutator.NormalBoost)
+    if request.get("lesson_id") == "power-shots" and capture is None:
+        # Use the RLBot match mutator, not the shipped SDK's no-op reset methods.
+        # Exact native no-kickoff behavior still requires the owned game test.
+        mutators.respawn_time = f.RespawnTimeMutator.DisableGoalReset
     config = f.MatchConfiguration(launcher=f.Launcher.NoLaunch if request.get("owned_game") else (f.Launcher.Steam if launcher == "steam" else f.Launcher.Epic),
         launcher_arg="", auto_start_agents=False, wait_for_agents=True, game_map_upk=arena,
         player_configurations=players, script_configurations=[], game_mode=f.GameMode.Soccar,
@@ -139,15 +162,39 @@ def normalized_packet(packet, prediction=None, field_info=None):
     if prediction is not None:
         predictions = [{"time": s.game_seconds, "position": vector(s.physics.location)}
                        for s in prediction.slices[::6]]
-    return {"time": packet.match_info.seconds_elapsed, "frame_num": packet.match_info.frame_num,
-            "is_kickoff": packet.match_info.match_phase == f.MatchPhase.Kickoff,
-            "game_speed": packet.match_info.game_speed, "cars": cars, "boosts": boosts,
+    match_info = packet.match_info
+    return {"time": match_info.seconds_elapsed,
+            "game_time_remaining": getattr(match_info, "game_time_remaining", None),
+            "is_unlimited_time": getattr(match_info, "is_unlimited_time", None),
+            "is_overtime": getattr(match_info, "is_overtime", None),
+            "frame_num": match_info.frame_num,
+            "is_kickoff": match_info.match_phase == f.MatchPhase.Kickoff,
+            "game_speed": match_info.game_speed, "cars": cars, "boosts": boosts,
             "ball": physics(packet.balls[0].physics) if packet.balls else {}, "prediction": predictions}
 
 
-def desired_state(state, human_index):
+def desired_state(state, human_index, bot_states=None):
+    """Whole-actor desired state in one write.
+
+    ``bot_states`` is an optional bounded mapping of bot index -> actor state.
+    Indexes must be non-negative integers that do not overlap the Human, and
+    every actor is written together so a reset cannot half-apply.
+    """
     f = flat_module()
     from rlbot.utils import fill_desired_game_state
+    if type(human_index) is not int or human_index < 0:
+        raise ValueError("A non-negative integer Human index is required.")
+    if bot_states is None:
+        bot_states = {}
+    if not isinstance(bot_states, dict):
+        raise ValueError("Bot states must be a mapping of bot index to actor state.")
+    cars = {}
+    for index, actor in bot_states.items():
+        if type(index) is not int or index < 0 or index == human_index:
+            raise ValueError("Bot indexes must be non-negative integers that do not overlap the Human.")
+        if not isinstance(actor, dict) or not isinstance(actor.get("position"), (list, tuple)):
+            raise ValueError("Every bot state needs an observed position.")
+        cars[index] = actor
     def body(data):
         return f.DesiredPhysics(location=f.Vector3Partial(*data["position"]),
             velocity=f.Vector3Partial(*data.get("velocity", [0, 0, 0])),
@@ -155,9 +202,13 @@ def desired_state(state, human_index):
             angular_velocity=f.Vector3Partial(*data.get("angular_velocity", [0, 0, 0])))
     # b56's convenience set_game_state passes an obsolete fourth argument. The
     # public relay and three-argument builder match the current schema.
+    desired = {index: f.DesiredCarState(physics=body(actor), boost_amount=actor.get("boost", 100))
+               for index, actor in cars.items()}
+    desired[human_index] = f.DesiredCarState(physics=body(state["car"]),
+                                             boost_amount=state["car"].get("boost", 100))
     return fill_desired_game_state(
         balls={0: f.DesiredBallState(physics=body(state["ball"]))},
-        cars={human_index: f.DesiredCarState(physics=body(state["car"]), boost_amount=state["car"].get("boost", 100))},
+        cars=desired,
         match_info=None)
 
 

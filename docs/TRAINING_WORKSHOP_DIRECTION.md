@@ -17,21 +17,27 @@ a feature works in the real game.
   scenario from the release catalog.
 - Most skills also offer a **simple practice** mode: free repetition of the
   mechanic without scenario progression.
-- Core match scenarios are **custom-authored** for this product. They are not
-  replaced by downloaded community packs.
+- Core scenarios are authored for this product. The owner's later Gold Power
+  Shots decision explicitly approves combining twelve challenges from Poquito
+  Ground Shots and Skogur Powershot Practice as references, with our defenders.
+  This approval supersedes the older blanket restriction on community-pack input;
+  it does not authorize copying entire pack catalogs or shipping pack binaries.
 - The non-overlapping flip-reset bands below resolve the example's shared endpoints.
   Propose and review the remaining skill-specific scenario cards before building
   a broad catalog; do not present an unreviewed or partial set as the finished 12.
 
 ## Power Shots
 
-- The teammate makes a **real pass**; the keeper protects part of the goal.
+- The ball starts from the challenge's defined launch or rolling setup; a
+  passing teammate is not required. The rank-appropriate keeper protects the goal.
 - The player must aim with a proper angle and speed, and the attempt ends in an
   **actual goal or explicit feedback** — not an inert drill.
 - Easier settings give more space and slower bots using **normal game physics**;
   harder settings add pressure. No fake physics or scripted outcomes.
-- Downloaded/featured shot packs are not the core scenario source. Any pack
-  route must be verified before it is offered as playable training.
+- Gold uses the twelve approved Poquito/Skogur reference setups. Preserve creator
+  attribution and verify actual numeric geometry. The earlier two provisional
+  feeds were rejected, not approved. Other ranks and lessons still need reviewed
+  distinct setups; a copied label is not a new challenge.
 
 ## Flip resets
 
@@ -58,8 +64,13 @@ a feature works in the real game.
   selection. The selected rank starts its first challenge. Assistance settings
   stay in the running session's Training options.
 - All lessons are selectable; there is no career gating of training content.
-- After a pass the default is to **remain on the current level** until the player
-  moves on manually. No progression gating.
+- An actual scored goal advances to the next challenge, without a regular
+  kickoff spawn. Left/Right can change challenge immediately after a goal.
+- Timeout hides the ball and waits for **Up** to retry or Left/Right to select;
+  it does not automatically retry. There is no progression gating.
+- The countdown must be the actual native game timer. An additional custom HUD
+  timer is not an accepted substitute. Native expiry and ball restoration must
+  be verified together before this requirement is considered complete.
 - Level selection uses D-pad **Left = previous, Right = next**. These defaults
   are adjustable, not hard-locked.
 - Training bindings are configurable and suppress conflicting stock Free Play

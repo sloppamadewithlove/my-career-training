@@ -23,8 +23,15 @@ import uuid
 
 PROTOCOL = 1
 MAX_COMMAND = 28 * 1024 * 1024
+TRAINING_TELEMETRY_RECOVERY_SECONDS = 5.0
 HANDLER_NAMES = ("on_connect_handlers", "packet_handlers", "field_info_handlers", "match_config_handlers",
                  "match_comm_handlers", "ball_prediction_handlers", "controllable_team_info_handlers", "raw_handlers")
+
+
+def neutral_controls():
+    """Ordinary neutral controls for a scenario bot that must not move."""
+    return {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0, "roll": 0.0,
+            "jump": False, "boost": False, "handbrake": False}
 
 
 def isolated_relay(relay):
@@ -246,6 +253,8 @@ class GameSession:
         self.engine = None
         # Development-only real bot capture. ``None`` for every ordinary session.
         self.capture = None
+        # Explicit ball-launch scenario definition, or ``None``.
+        self.scenario = None
         self.capture_controller = None
         self.capture_ready = False
         self.capture_aborted = None
@@ -274,6 +283,13 @@ class GameSession:
         self.attempt_retryable = False
         self.auto_reset_at = None
         self.applied_reset = False
+        self.pending_training_control = None
+        self.goal_progression_attempt = None
+        self.telemetry_recovery_deadline = None
+        self.telemetry_recovery_pending = False
+        self.telemetry_recovery_fields = ()
+        self.telemetry_recovery_phase = None
+        self.telemetry_recovery_fresh = False
         self.stop_id = None
         self.stopping = False
         self.stop_deadline = 0
@@ -422,6 +438,16 @@ class GameSession:
         # The capture gate runs here as well as inside adapter.match_config, so
         # neither entry point alone can reach a capture session.
         self.capture = validate_capture_request(self.request)
+        # An explicit scenario is validated before any match or core launch.
+        # Reference capture never runs a ball-launch scenario.
+        self.scenario = None
+        if self.request.get("scenario_id") is not None:
+            if self.capture is not None:
+                raise ValueError("Reference capture cannot run a ball-launch scenario.")
+            from .training.scenarios import scenario_definition
+            self.scenario = scenario_definition(
+                self.request.get("lesson_id"), self.request["scenario_id"],
+                self.request.get("difficulty", "gold"))
         preflight(self.owned)
         if self.capture is not None and self.owned is not None:
             self.game_version = game_file_version(self.owned.executable)
@@ -470,6 +496,8 @@ class GameSession:
                 engine_metadata.update(self.capture_metadata)
             self.engine = TrainingEngine(self.request["lesson_id"], self.request.get("preferences"),
                                          metadata=engine_metadata, strict_capture=self.capture is not None,
+                                         scenario_id=self.request.get("scenario_id"),
+                                         difficulty=self.request.get("difficulty", "gold"),
                                          **allowed)
         from .training import GhostPlayback, GhostPractice, practice_context, practice_support
         from .training import coaching_preferences
@@ -496,10 +524,17 @@ class GameSession:
             self.recording = self.request["recording"]
         self.event("session", state="starting", message="Loading the selected offline bots.")
         if self.capture is None:
+            scenario_controllers = {}
+            if self.scenario is not None:
+                from .training.scenarios import scenario_actor_controllers
+                scenario_controllers = scenario_actor_controllers(self.scenario)
             for index, descriptor in descriptors.items():
                 self.check_cancel()
-                self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
-                    descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
+                if index in scenario_controllers:
+                    self.controllers[index] = scenario_controllers[index]
+                else:
+                    self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
+                        descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
                 self.check_cancel()
         runtime = Path(self.request["data_dir"]).resolve() / "runtime" / self.session_id
         runtime.mkdir(parents=True, exist_ok=True)
@@ -571,6 +606,10 @@ class GameSession:
     def reset(self):
         if self.cancel_start.is_set() or self.stopping:
             return
+        if self.telemetry_recovery_pending:
+            raise RuntimeError(
+                "Training is waiting for fresh live telemetry. Stop or Return remains available."
+            )
         if self.capture is not None:
             from .reference_capture import recheck_capture
             target = self.capture["target_index"]
@@ -585,7 +624,18 @@ class GameSession:
         if self.attempt_sent and not self.attempt_acked:
             raise RuntimeError("The previous attempt is still being saved. Wait before retrying.")
         settle_state = self.engine.reset()
-        self.manager.rlbot_interface.send_msg(desired_state(settle_state, self.training_actor_index))
+        bot_states = settle_state.get("bots") or {}
+        if bot_states:
+            # Only a scenario with known bot actors passes the third argument.
+            message = desired_state(settle_state, self.training_actor_index, bot_states)
+        else:
+            # Legacy lessons keep the exact two-argument call.
+            message = desired_state(settle_state, self.training_actor_index)
+        self.manager.rlbot_interface.send_msg(message)
+        if self.scenario is not None:
+            # Every scenario controller restarts from its beginning on retry.
+            for controller in self.controllers.values():
+                controller.reset()
         self.applied_reset = True
         self.attempt_sent = None
         self.attempt_acked = False
@@ -606,6 +656,260 @@ class GameSession:
                 True, player_pose={"position": reset_car.get("position"),
                                    "rotation": reset_car.get("rotation")})
         self.event("session", state="training", message="Settling the car before the drill.")
+
+    def _step_training_scenario(self, command):
+        """Replace one Power Shots setup in the current match, then reset every actor."""
+        if (not isinstance(command, dict)
+                or set(command) - {"id", "type", "command", "session_id", "direction"}):
+            raise ValueError("The Power Shots step command is malformed.")
+        if self.cancel_start.is_set() or self.stopping:
+            raise RuntimeError("The lesson is stopping; its situation cannot change.")
+        if (self.request.get("lesson_id") != "power-shots" or self.scenario is None
+                or self.engine is None):
+            raise ValueError("Situation switching is available only in a running Power Shots lesson.")
+        if ((self.engine.finished or self.attempt_sent is not None)
+                and not (self.attempt_sent == self.engine.attempt_id and self.attempt_acked)):
+            raise RuntimeError("Wait for the completed attempt to save before changing challenges.")
+        if self.telemetry_recovery_pending:
+            raise RuntimeError("Wait for fresh play telemetry before changing situations.")
+        from .training import TrainingEngine
+        from .training.scenario_setup import step_setup
+        from .training.scenarios import (scenario_actor_controllers, scenario_definition,
+                                         scenario_descriptors)
+        from .adapter import desired_state
+
+        next_setup = step_setup(
+            {"scenario_id": self.request["scenario_id"],
+             "difficulty": self.request["difficulty"]},
+            {"direction": command.get("direction")},
+        )
+        next_request = {**self.request, **next_setup}
+        definition = scenario_definition(
+            "power-shots", next_setup["scenario_id"], next_setup["difficulty"])
+        descriptors = scenario_descriptors(next_request)
+        if ({index: (item["team"], item["role"]) for index, item in descriptors.items()}
+                != {index: (item["team"], item["role"]) for index, item in self.descriptors.items()}):
+            raise RuntimeError("That situation needs a different actor roster and cannot replace this match.")
+        replacement = TrainingEngine(
+            "power-shots", self.engine.preferences, metadata=self.engine.metadata,
+            max_samples=self.engine.max_samples, tolerances=self.engine.tolerances,
+            scenario_id=next_setup["scenario_id"], difficulty=next_setup["difficulty"],
+        )
+        if replacement.human_index != self.human_index:
+            raise RuntimeError("That situation changed the Human actor and cannot replace this match.")
+        controllers = scenario_actor_controllers(definition)
+        settle_state = replacement.reset()
+        message = desired_state(
+            settle_state, self.training_actor_index, settle_state.get("bots") or None)
+
+        # The state write is the only fallible external operation. Everything
+        # after it is prepared local assignment, so the accepted transition
+        # cannot expose a half-old engine/controller/request combination.
+        self.manager.rlbot_interface.send_msg(message)
+        self.request.update(next_setup)
+        self.scenario = definition
+        self.engine = replacement
+        self.controllers = controllers
+        self.descriptors = descriptors
+        self.last_frame = None
+        self.attempt_sent = None
+        self.attempt_acked = False
+        self.attempt_retryable = False
+        self.auto_reset_at = None
+        self.playback_origin = None
+        if self.coach:
+            self.coach.restart()
+        self.event("session", state="training", message="Settling the selected Power Shots situation.")
+        return next_setup
+
+    def _queue_training_control(self, command, *, automatic=False):
+        if self.engine is None or self.scenario is None:
+            raise ValueError("Start Power Shots before changing its challenge.")
+        kind = command.get("type", command.get("command"))
+        if kind == "training_scenario_step":
+            from .training.scenario_setup import step_setup
+            if set(command) - {"id", "type", "command", "session_id", "direction"}:
+                raise ValueError("The Power Shots step command is malformed.")
+            step_setup({"scenario_id": self.request["scenario_id"],
+                        "difficulty": self.request["difficulty"]},
+                       {"direction": command.get("direction")})
+        if command.get("session_id", self.session_id) != self.session_id:
+            raise ValueError("The training session changed.")
+        current = self.pending_training_control
+        if current:
+            if automatic or current["command"].get("id") == command.get("id"):
+                return
+            if not current["automatic"]:
+                raise ValueError("A challenge change is already waiting to finish.")
+        self.pending_training_control = {
+            "command": dict(command), "attempt_id": self.engine.attempt_id,
+            "automatic": automatic, "deadline": time.monotonic() + 15.0,
+        }
+        # A completed attempt may have finished just before its publication tick.
+        if self.engine.finished and self.attempt_sent != self.engine.attempt_id:
+            self.publish_attempt()
+        self._try_training_control()
+
+    def _try_training_control(self):
+        pending = self.pending_training_control
+        if not pending:
+            return
+        if self.cancel_start.is_set() or self.stopping:
+            self.pending_training_control = None
+            return
+        command = pending["command"]
+        kind = command.get("type", command.get("command"))
+        error = None
+        if not self.engine or pending["attempt_id"] != self.engine.attempt_id:
+            error = "The attempt changed before its requested control could run."
+        elif time.monotonic() >= pending["deadline"]:
+            error = "The challenge change timed out waiting for its saved result or live play. Retry or Return."
+        elif (self.telemetry_recovery_pending or
+              (self.attempt_sent and not self.attempt_acked) or
+              (self.last_frame is not None and self.last_frame.get("phase", 3) != 3)):
+            return
+        self.pending_training_control = None
+        before = {key: self.request[key] for key in ("scenario_id", "difficulty")}
+        if error is None:
+            try:
+                if kind == "training_scenario_step":
+                    setup = self._step_training_scenario(command)
+                else:
+                    self.reset()
+            except (ValueError, RuntimeError, KeyError) as exc:
+                error = str(exc)
+        if pending["automatic"]:
+            if error:
+                self.event("training_control_notice", message=error)
+            else:
+                self.event("training_scenario_advanced", before=before, setup=setup,
+                           attempt_id=pending["attempt_id"])
+        elif kind == "training_scenario_step":
+            self.event("training_scenario_step_ack", id=command.get("id"),
+                       accepted=error is None, **({"error": error} if error else setup))
+        elif error:
+            self.event("training_control_notice", message=error)
+
+    def _queue_goal_progression(self, frame):
+        # Navigation follows the actual team score, independently of whether
+        # the coaching trace proved the player's technique. Never invent credit.
+        if (self.scenario is None or not self.engine or not self.engine.finished
+                or frame.get("phase") not in {3, 4} or self.pending_training_control
+                or self.goal_progression_attempt == self.engine.attempt_id):
+            return
+        before = self.engine.scenario_state.get("score_baseline")
+        after = frame.get("scores")
+        if (not isinstance(before, (list, tuple)) or not isinstance(after, (list, tuple))
+                or len(before) != 2 or len(after) != 2
+                or after[0] != before[0] + 1 or after[1] != before[1]):
+            return
+        self.goal_progression_attempt = self.engine.attempt_id
+        self._queue_training_control({"id": "goal-" + self.engine.attempt_id,
+            "type": "training_scenario_step", "session_id": self.session_id,
+            "direction": 1}, automatic=True)
+
+    def _neutralize_scenario_bots(self, flat):
+        """Release only the known scenario actors; never send Human input."""
+        if self.scenario is None or self.cancel_start.is_set() or self.stopping:
+            return
+        indices = set(getattr(self.engine, "bot_indices", ()))
+        for team, mapped in self.mapping.items():
+            for index in mapped:
+                if index in indices:
+                    self.relays[team].send_msg(
+                        flat.PlayerInput(index, flat.ControllerState(**neutral_controls()))
+                    )
+
+    def _telemetry_timeout_error(self):
+        if self.telemetry_recovery_fresh and self.attempt_sent and not self.attempt_acked:
+            return RuntimeError(
+                "Fresh training telemetry returned, but the previous attempt save was not "
+                "acknowledged before recovery timed out. Return to the hub and retry the lesson."
+            )
+        fields = ", ".join(self.telemetry_recovery_fields) or "unknown"
+        phase = self.telemetry_recovery_phase
+        return RuntimeError(
+            "Training telemetry remained unavailable for "
+            f"{TRAINING_TELEMETRY_RECOVERY_SECONDS:.0f} seconds "
+            f"(phase {phase}; invalid: {fields}). Return to the hub and retry the lesson."
+        )
+
+    def _check_telemetry_recovery_timeout(self):
+        if (self.telemetry_recovery_deadline is not None
+                and time.monotonic() >= self.telemetry_recovery_deadline):
+            raise self._telemetry_timeout_error()
+
+    def _wait_for_training_telemetry(self, error, phase, flat):
+        """Interrupt one ordinary attempt and enter a bounded recovery wait."""
+        if not self.telemetry_recovery_pending:
+            self.telemetry_recovery_pending = True
+            self.telemetry_recovery_fresh = False
+            event = self.engine.interrupt_unavailable_telemetry(error.fields)
+            event["packet_phase"] = str(phase)
+            self.event("training_event", event=event)
+        active_phase = getattr(getattr(flat, "MatchPhase", None), "Active", 3)
+        if phase == active_phase and self.telemetry_recovery_deadline is None:
+            self.telemetry_recovery_deadline = time.monotonic() + TRAINING_TELEMETRY_RECOVERY_SECONDS
+        self.telemetry_recovery_fields = tuple(error.fields)
+        self.telemetry_recovery_phase = str(phase)
+        self._neutralize_scenario_bots(flat)
+        self._check_telemetry_recovery_timeout()
+
+    def _reset_after_training_telemetry(self, flat, phase=None):
+        """Resolve recovery without scoring; reset only an interrupted attempt."""
+        if not self.telemetry_recovery_pending:
+            return False
+        self._neutralize_scenario_bots(flat)
+        active_phase = getattr(getattr(flat, "MatchPhase", None), "Active", 3)
+        if phase is not None and phase != active_phase:
+            return True
+        if self.telemetry_recovery_deadline is None:
+            self.telemetry_recovery_deadline = time.monotonic() + TRAINING_TELEMETRY_RECOVERY_SECONDS
+        self.telemetry_recovery_fresh = True
+        if self.attempt_sent and not self.attempt_acked:
+            self._check_telemetry_recovery_timeout()
+            return True
+        fields = list(self.telemetry_recovery_fields)
+        self.telemetry_recovery_deadline = None
+        self.telemetry_recovery_pending = False
+        self.telemetry_recovery_fields = ()
+        self.telemetry_recovery_phase = None
+        self.telemetry_recovery_fresh = False
+        self.last_frame = None
+        if self.attempt_sent:
+            # A published result owns the screen until the player's normal
+            # retry policy acts. Recovery must not silently bypass Auto Reset
+            # Off or its acknowledgement-based feedback delay.
+            self.event("training_event", event={
+                "type": "telemetry_recovered",
+                "invalid_fields": fields,
+                "message": "Fresh live telemetry returned; the finished result was preserved.",
+            })
+            return True
+        self.reset()
+        self.event("training_event", event={
+            "type": "telemetry_recovered",
+            "invalid_fields": fields,
+            "message": "Fresh live telemetry returned; the whole situation was reset.",
+        })
+        return True
+
+    def _check_auto_reset(self):
+        """Apply a due saved-attempt retry only while telemetry is trustworthy."""
+        if (self.pending_training_control is not None or self.auto_reset_at is None or time.monotonic() < self.auto_reset_at
+                or self.telemetry_recovery_pending
+                or self.telemetry_recovery_deadline is not None):
+            return
+        # A telemetry gap may outlast the feedback deadline. Keep the deadline
+        # intact during that gap, then perform exactly one normal-policy check.
+        self.auto_reset_at = None
+        if (self.engine and self.engine.preferences["auto_reset"]
+                and self.attempt_acked and self.attempt_retryable
+                and not self.cancel_start.is_set() and not self.stopping):
+            try:
+                self.reset()
+            except (ValueError, RuntimeError) as error:
+                self.event("error", message=str(error))
 
     def _player_pose(self):
         """Current human car pose from the last normalized frame, or None."""
@@ -662,10 +966,21 @@ class GameSession:
             raise ValueError(message)
         if kind in {"stop", "shutdown"}:
             self.stop_id = command.get("id")
+            self.pending_training_control = None
             self.stopping = True
             self.stop_deadline = time.monotonic() + .2
         elif kind in {"retry", "retry_lesson"}:
-            self.reset()
+            if self.scenario is not None:
+                self._queue_training_control(command)
+            else:
+                self.reset()
+        elif kind == "training_scenario_step":
+            command_id = command.get("id")
+            try:
+                self._queue_training_control(command)
+            except (ValueError, RuntimeError, KeyError) as error:
+                self.event("training_scenario_step_ack", id=command_id, accepted=False,
+                           error=str(error))
         elif kind == "attempt_ack":
             if command.get("attempt_id") == self.attempt_sent:
                 self.attempt_acked = True
@@ -922,24 +1237,32 @@ class GameSession:
             self.event("session", state="training" if self.engine else "running", message="Offline game connected.")
         now = time.monotonic()
         frame["match_ended"] = packet.match_info.match_phase == flat.MatchPhase.Ended
-        if (phase in {2, 3} and not self.cancel_start.is_set() and not self.stopping
-                and now - self.last_controls >= 1 / 120):
-            if self.capture is not None:
-                # Capture drives only the designated bot through its own relay.
-                self._capture_controls(frame, flat)
-            else:
-                intents = [controller.intent for controller in self.controllers.values() if controller.intent]
-                for team, indices in self.mapping.items():
-                    for index in indices:
-                        actions = self.controllers[index].step(frame, index, intents)
-                        if not self.cancel_start.is_set() and not self.stopping:
-                            self.relays[team].send_msg(flat.PlayerInput(index, flat.ControllerState(**actions)))
-            self.last_controls = now
         human = humans[0]
+        observed_scores = adapter.observed_score(packet)
         # The engine observes the Human in every normal mode and the designated
         # capture bot only in the development capture mode.
         actor = frame["cars"][self.training_actor_index] if self.capture is not None else human
         prior = self.last_frame
+        frame.update(car=actor, actions=actor.get("actions", {}))
+        # The observed team score is attached before validation/update so a
+        # scenario can compare it against its own pre-attempt baseline.
+        frame["scores"] = list(observed_scores) if observed_scores is not None else None
+        validator = getattr(self.engine, "_validate_frame", None)
+        if validator is not None and self.applied_reset:
+            from .training.engine import InvalidTrainingTelemetry
+            try:
+                validator(frame)
+            except InvalidTrainingTelemetry as error:
+                # Reference capture remains strict: no invalid sample is
+                # recovered into a trace and no bot input is sent from it.
+                if self.capture is not None:
+                    raise
+                self._wait_for_training_telemetry(error, phase, flat)
+                return
+            if self._reset_after_training_telemetry(flat, phase):
+                # This packet proves availability only. The attempt starts
+                # after the requested whole-actor state is observed afresh.
+                return
         # The shared classifier decides cadence once for the worker and the
         # engine. Normal human training accepts a continuous two-step (60 Hz)
         # sample; strict reference capture requires one physics step per packet.
@@ -953,8 +1276,31 @@ class GameSession:
         frame.update(car=actor, actions=actor["actions"],
                      dt=frame["time"] - prior["time"] if prior else 0,
                      packet_gap=bool(frame.get("packet_gap")) or cadence["gap"],
-                     cadence=cadence["reason"])
+                     cadence=cadence["reason"], cadence_details=cadence,
+                     phase=phase, phase_name=str(packet.match_info.match_phase))
         self.last_frame = frame
+        if (phase in {2, 3} and not self.cancel_start.is_set() and not self.stopping
+                and now - self.last_controls >= 1 / 120):
+            if self.capture is not None:
+                # Capture drives only the designated bot through its own relay.
+                self._capture_controls(frame, flat)
+            else:
+                intents = [controller.intent for controller in self.controllers.values() if controller.intent]
+                # Scenario bots stay neutral until the attempt is actually
+                # running, and again once it is finished, so they cannot move
+                # during a reset.
+                scenario_idle = self.scenario is not None and (
+                    self.engine is None or self.engine.state != "active")
+                scenario_indices = set(getattr(self.engine, "bot_indices", ()))
+                for team, indices in self.mapping.items():
+                    for index in indices:
+                        if scenario_idle and index in scenario_indices:
+                            actions = neutral_controls()
+                        else:
+                            actions = self.controllers[index].step(frame, index, intents)
+                        if not self.cancel_start.is_set() and not self.stopping:
+                            self.relays[team].send_msg(flat.PlayerInput(index, flat.ControllerState(**actions)))
+            self.last_controls = now
         if self.engine and not self.cancel_start.is_set() and not self.stopping:
             if self.capture is not None and (self.capture_aborted is not None or not self.capture_ready):
                 return
@@ -970,18 +1316,27 @@ class GameSession:
             else:
                 for event in self.engine.update(frame):
                     if event["type"] == "set_state" and not self.cancel_start.is_set():
-                        self.manager.rlbot_interface.send_msg(
-                            adapter.desired_state(event["state"], self.training_actor_index))
+                        bot_states = event["state"].get("bots") or {}
+                        if bot_states:
+                            # Only a scenario with known bot actors passes the
+                            # third argument; legacy lessons keep two arguments.
+                            message = adapter.desired_state(
+                                event["state"], self.training_actor_index, bot_states)
+                        else:
+                            message = adapter.desired_state(
+                                event["state"], self.training_actor_index)
+                        self.manager.rlbot_interface.send_msg(message)
                     elif event["type"] == "completed":
                         self.publish_attempt()
                     else:
                         self.event("training_event", event=event)
             if self.engine.finished:
                 self.publish_attempt()
+                self._queue_goal_progression(frame)
+            self._try_training_control()
             if now - self.last_render >= 1 / 30:
                 self.render(frame)
                 self.last_render = now
-        observed_scores = adapter.observed_score(packet)
         if not self.engine and not self.request.get("workshop"):
             self.review.update(frame, observed_scores)
             scores = adapter.final_score(packet, self.seen_active)
@@ -1022,6 +1377,9 @@ class GameSession:
                         "has_double_jumped", "has_dodged", "actions") if key in actor})
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
+                       game_time_remaining=frame.get("game_time_remaining"),
+                       is_unlimited_time=frame.get("is_unlimited_time"),
+                       is_overtime=frame.get("is_overtime"),
                        scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
                        ghost_practice=self.practice_snapshot,
                        ghost_practice_support=dict(self.practice_support),
@@ -1070,6 +1428,21 @@ class GameSession:
         summary = self.engine.summary()
         coaching = summary.get("coaching") or {}
         with renderer.context("my-career-training"):
+            if self.scenario is not None:
+                renderer.draw_string_2d(
+                    f"{coaching['scenario_index']}/{coaching['scenario_total']}", .03, .05, 1.2)
+                renderer.draw_string_2d("Left / Right: challenge    Up: retry", .03, .09, .8)
+                if self.engine.state == "interrupted":
+                    renderer.draw_string_2d(str(coaching.get("interruption_reason") or
+                        "Attempt interrupted. Press Up to retry.")[:110], .03, .13, .8)
+                elif self.engine.finished:
+                    label = "Goal!" if self.engine.outcome == "success" else "Time up"
+                    renderer.draw_string_2d(label, .03, .13, 1)
+                elif self.engine.state == "settling":
+                    renderer.draw_string_2d("Release controls to reset", .03, .13, .8)
+                elif self.engine.state == "ready":
+                    renderer.draw_string_2d("Ready", .03, .13, 1)
+                return
             if preferences["explanations"]:
                 renderer.draw_string_2d(self.engine.lesson["title"], .03, .05, 1.2)
                 for index, step in enumerate(self.engine.lesson["steps"][:6]):
@@ -1201,19 +1574,15 @@ class GameSession:
                     raise RuntimeError("The offline game runtime exited. Close the game and retry.")
                 if not self.first_packet and time.monotonic() - self.started_monotonic > 120:
                     raise RuntimeError("Rocket League did not connect within two minutes. Check launcher setup and retry.")
-                if self.auto_reset_at is not None and time.monotonic() >= self.auto_reset_at:
-                    # The saved feedback stayed visible for at least one second.
-                    self.auto_reset_at = None
-                    if (self.engine and self.engine.preferences["auto_reset"]
-                            and self.attempt_acked and self.attempt_retryable
-                            and not self.cancel_start.is_set() and not self.stopping):
-                        try:
-                            self.reset()
-                        except (ValueError, RuntimeError) as error:
-                            self.event("error", message=str(error))
+                self._try_training_control()
+                self._check_auto_reset()
                 try:
                     kind, value = self.events.get(timeout=.1)
                 except queue.Empty:
+                    # Wall time bounds recovery even if the transition stops
+                    # producing packets; queued Stop/Return commands are still
+                    # handled before this empty-queue check can fire.
+                    self._check_telemetry_recovery_timeout()
                     continue
                 if kind == "packet":
                     self.process_packet(value)

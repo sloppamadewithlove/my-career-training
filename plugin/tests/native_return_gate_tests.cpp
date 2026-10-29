@@ -276,6 +276,36 @@ int main(int argc, char** argv) {
         NativeReturnGate training;
         require(training.arm(c.nonce, payload(""), kIntent) && training.poll(c, readyState("")),
             "Training return incorrectly required a career fixture");
+        auto preserved = readyState("");
+        preserved["career"]["pending_session"] = {{"session_id", "saved-career-session"},
+                                                  {"fixture_id", "saved-career-fixture"}};
+        NativeReturnGate trainingWithSavedCareer;
+        require(trainingWithSavedCareer.arm(c.nonce, payload(""), kIntent) &&
+            trainingWithSavedCareer.poll(c, preserved),
+            "Durable training Return was blocked by an unrelated saved Career fixture");
+        require(trainingWithSavedCareer.markConsumed(c, preserved, "pause", "3") &&
+            trainingWithSavedCareer.noteExecutePublished("pause", "3") &&
+            trainingWithSavedCareer.markIssued(c, preserved, "pause", "3"),
+            "Preserved Career fixture blocked the typed training Return navigation");
+        for (int variant = 0; variant < 6; ++variant) {
+            auto invalid = preserved;
+            switch (variant) {
+            case 0: invalid["career"]["pending_session"] = "malformed"; break;
+            case 1: invalid["career"]["pending_session"].erase("session_id"); break;
+            case 2: invalid["career"]["pending_session"]["fixture_id"] = ""; break;
+            case 3: invalid["career"]["pending_session"]["session_id"] = "activity-1"; break;
+            case 4: invalid["career"].erase("pending_session"); break;
+            case 5: invalid["native_return_ready"]["session_id"] = "other-activity"; break;
+            }
+            NativeReturnGate refused;
+            require(refused.arm(c.nonce, payload(""), kIntent) && !refused.poll(c, invalid),
+                "Malformed or unrelated training Return receipt authorized navigation");
+        }
+        auto careerStillPending = preserved;
+        careerStillPending["native_return_ready"]["fixture_id"] = "fixture-1";
+        auto careerReturn = armed();
+        require(!careerReturn.poll(c, careerStillPending),
+            "Career Return was relaxed while a pending fixture remained");
         std::cout << "Native return gate tests passed\n";
         return 0;
     } catch (const std::exception& error) {

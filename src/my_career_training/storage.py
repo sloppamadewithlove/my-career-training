@@ -25,7 +25,8 @@ def default_state() -> dict:
     return {"schema_version": 1, "career": None, "settings": {
         "launcher": "steam", "install_path": "", "text_scale": 1.0,
         "reduced_motion": False, "binding_profile": "actions"},
-        "lesson_preferences": {}, "attempts": [], "recordings": [], "browser_favorites": []}
+        "lesson_preferences": {}, "lesson_scenarios": {}, "attempts": [], "recordings": [],
+        "browser_favorites": []}
 
 
 def validate_state(value: dict) -> None:
@@ -34,6 +35,8 @@ def validate_state(value: dict) -> None:
     for key, kind in (("settings", dict), ("lesson_preferences", dict), ("attempts", list), ("recordings", list)):
         if not isinstance(value.get(key), kind):
             raise ValueError(f"Save is missing valid {key} data.")
+    from .training.scenario_setup import validate_lesson_scenarios
+    validate_lesson_scenarios(value.get("lesson_scenarios", {}))
     if value.get("career") is not None and not isinstance(value["career"], dict):
         raise ValueError("Career data is malformed.")
     favorites = value.get("browser_favorites", [])

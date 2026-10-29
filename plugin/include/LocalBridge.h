@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 
 namespace mct {
@@ -23,6 +24,7 @@ public:
     Json state() const;
     bool fresh(double now = unixTime()) const;
     bool send(const std::string& action, Json payload = Json::object());
+    std::optional<std::string> sendWithId(const std::string& action, Json payload = Json::object());
     void publishStatus(Json status);
     std::string error() const;
     const std::filesystem::path& directory() const { return directory_; }

@@ -189,7 +189,7 @@ ApplicationWindow {
                 Copy { text: "Select Steam or Epic and check your game location in Settings. Career matches use the supported offline bot environment. Play Online saves your progress and opens the normal game entry."; tone:"muted"; scale:root.textScale; Layout.fillWidth:true }
                 RowLayout {
                     ActionButton { textScale:root.textScale; text: "Open setup & diagnostics"; onClicked: root.go("settings") }
-                    ActionButton { textScale:root.textScale; text:"Try calibration match"; enabled:!root.locked; onClicked:root.act("calibration") }
+                    ActionButton { textScale:root.textScale; text:"Try calibration match"; enabled:!root.locked && !root.session.results_pending_choice; onClicked:root.act("calibration") }
                 }
                 Copy { text:"Calibration is an optional exhibition. It does not record a league result."; tone:"small"; color:"#92a7b7"; Layout.fillWidth:true }
             }
@@ -432,7 +432,7 @@ ApplicationWindow {
                 }
                 Copy { text:"Normal game physics · Manual retry available · Core lessons use built-in arenas"; tone:"small"; color:"#91d4f5"; Layout.fillWidth:true }
                 RowLayout {
-                    ActionButton { textScale:root.textScale; text:"Start practice  →"; primary:true; enabled:!root.session.busy && !(root.career && root.career.pending_session); onClicked:root.act("start_lesson",{id:root.selectedLesson.id}) }
+                    ActionButton { textScale:root.textScale; text:"Start practice  →"; primary:true; enabled:!root.session.busy && root.session.worker_running === false && !root.session.results_pending_choice && !root.view.setup_required && ["Idle","Career Ready","training"].indexOf(root.session.state)>=0; onClicked:root.act("start_lesson",{id:root.selectedLesson.id}) }
                     ActionButton { textScale:root.textScale; text:"Retry attempt"; enabled:root.session.state==="Playing" || root.session.state==="playing" || root.session.state==="training" || root.session.state==="Career Ready"; onClicked:root.act("retry_lesson") }
                     ActionButton { textScale:root.textScale; text:"Stop session"; enabled:root.session.state==="Playing" || root.session.state==="playing" || root.session.state==="training" || root.session.state==="Career Ready"; onClicked:root.act("stop_session") }
                 }
@@ -448,6 +448,7 @@ ApplicationWindow {
                         delegate: CheckBox {
                             required property var modelData
                             text:modelData.title; checked:root.lessonPref(modelData.key,modelData.fallback)
+                            visible:modelData.key!=="auto_reset" || !root.selectedLesson || root.selectedLesson.id!=="power-shots"
                             font.pixelSize:14*root.textScale; Layout.fillWidth:true
                             onToggled: if(root.selectedLesson) root.act("assistance",{id:root.selectedLesson.id,key:modelData.key,value:checked})
                         }

@@ -12,7 +12,9 @@
 #endif
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
-#include "TrainingGhostInput.h"
+#include "TrainingLessonInput.h"
+#include "TrainingBallVisibility.h"
+#include "TrainingClock.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -64,7 +66,7 @@ public:
     void OnClose() override;
 private:
     struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu,
-        StartProbe, SaveProbe, CancelProbe, OpenNativeMenu } type; mct::Json payload; };
+        StartProbe, SaveProbe, CancelProbe, OpenNativeMenu, ProbeTrainingClock, ProbeTrainingClockZero } type; mct::Json payload; };
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
     std::unique_ptr<mct::NativeMovieHost> nativeMovie_;
@@ -88,6 +90,7 @@ private:
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};
+    std::atomic<bool> imguiKeyboardCaptured_{false};
     ImGuiContext* guiContext_ = nullptr;
     mct::SessionFlags navigationFlags_;
     mutable std::mutex runtimeMutex_;
@@ -121,7 +124,26 @@ private:
     bool scanningProducts_ = true;
     std::vector<MctProduct> productScan_;
     mct::CosmeticOverrideState cosmeticOverride_;
-    mct::TrainingGhostInput trainingGhostInput_;
+    mct::TrainingLessonInput trainingLessonInput_;
+    mct::TrainingBindingGuard trainingBindings_;
+    mct::TrainingBallVisibility trainingBallVisibility_;
+    mct::TrainingClock trainingClock_;
+    mct::Json trainingClockStatus_ = mct::Json::object();
+    void updateTrainingClock(const mct::Json& state, bool cleanup = false);
+    struct ClockProbe {
+        uintptr_t event = 0;
+        float remaining = 0;
+        unsigned long unlimited = 0;
+        double deadline = 0;
+        float startRemaining = 90.0f;
+        bool zeroExpiry = false;
+        std::string nonce, session, attempt, matchGuid;
+    };
+    std::optional<ClockProbe> clockProbe_;
+    void updateTrainingClockProbe(const mct::Json& state, bool arm = false, bool cleanup = false,
+                                  float startRemaining = 90.0f, bool zeroExpiry = false);
+    std::array<int, 4> trainingKeyNames_{};
+    bool trainingKeysAvailable_ = false;
     bool resumePending_ = false;
     bool resumeEscapeSent_ = false;
     bool pauseCaptureSuppressed_ = false;
@@ -169,7 +191,10 @@ private:
     void removeProbeHooks();
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
-    void pollTrainingGhostToggle(const mct::Json& state, const MctRuntime& runtime);
+    bool updateTrainingBindings(bool active);
+    void releaseTrainingBindings();
+    void updateTrainingBallVisibility(const mct::Json& state, bool allowHide);
+    void pollTrainingLessonControls(const mct::Json& state, const MctRuntime& runtime);
     void processLocalRequests(MctRuntime& result);
     bool restoreCosmetics();
     void advanceResume(MctRuntime& result);

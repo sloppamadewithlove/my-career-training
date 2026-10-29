@@ -9,6 +9,7 @@ import uuid
 import pytest
 
 from my_career_training import adapter, game_worker as worker
+from my_career_training.training.engine import InvalidTrainingTelemetry, TrainingEngine
 
 
 def request(tmp_path):
@@ -114,6 +115,55 @@ def simulated_session(tmp_path, monkeypatch, events):
     return instance, packet
 
 
+def training_recovery_session(tmp_path, monkeypatch, events, frames, *, auto_reset=False,
+                              capture=False):
+    """Real worker/engine validation with only the Windows SDK boundary faked."""
+    flat = NS(MatchPhase=NS(Active=3, Ended=7), ControllerState=lambda **kw: kw,
+              PlayerInput=lambda index, state: (index, state))
+    monkeypatch.setitem(sys.modules, "rlbot", NS(flat=flat))
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.human_index = 1
+    instance.human_team = 0
+    instance.training_actor_index = 0 if capture else 1
+    instance.owned = object()
+    instance.descriptors = {0: {"team": 1}}
+    instance._discover_game = lambda: None
+    instance.engine = TrainingEngine(
+        "speed-flip", preferences={"auto_reset": auto_reset}, strict_capture=capture
+    )
+    instance.applied_reset = True
+    instance.renderer = NS(can_render=False)
+    instance.last_controls = instance.last_render = instance.last_telemetry = float("inf")
+    sent = []
+    instance.manager = NS(rlbot_interface=NS(send_msg=sent.append))
+    if capture:
+        instance.capture = {"target_index": 0}
+        instance.capture_ready = True
+    samples = iter(frames)
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *_args: next(samples))
+    monkeypatch.setattr(worker, "observed_hitbox", lambda _player: {})
+    packet = NS(
+        match_info=NS(match_phase=3), players=[NS(), NS()],
+        teams=[NS(team_index=0, score=0), NS(team_index=1, score=0)],
+    )
+    return instance, packet, sent
+
+
+def training_frame(*, invalid_actor=None):
+    actions = {"throttle": 0.0, "steer": 0.0, "pitch": 0.0, "yaw": 0.0,
+               "roll": 0.0, "jump": False, "boost": False, "handbrake": False}
+    bot = {"index": 0, "team": 1, "is_bot": True, "position": [0, 0, 17],
+           "velocity": [0, 0, 0], "rotation": [0, 0, 0], "actions": dict(actions)}
+    human = {"index": 1, "team": 0, "is_bot": False, "position": [0, 0, 17],
+             "velocity": [0, 0, 0], "rotation": [0, 0, 0], "actions": dict(actions)}
+    if invalid_actor == "human":
+        human["velocity"] = [float("nan"), 0, 0]
+    elif invalid_actor == "bot":
+        bot["velocity"] = [float("nan"), 0, 0]
+    return {"time": 1.0, "frame_num": 120, "cars": [bot, human],
+            "ball": {"position": [0, 0, 93], "velocity": [0, 0, 0]}}
+
+
 def test_unowned_game_packets_never_processed(tmp_path, monkeypatch):
     events = []
     instance, packet = simulated_session(tmp_path, monkeypatch, events)
@@ -212,6 +262,157 @@ def test_prestart_attempt_ack_does_not_schedule_automatic_reset(tmp_path, monkey
     assert resets == []
 
 
+def test_stop_return_request_remains_immediate_during_telemetry_recovery(tmp_path):
+    instance = worker.GameSession(request(tmp_path), lambda _event: None)
+    instance.telemetry_recovery_deadline = 999.0
+
+    instance.command({"type": "stop", "id": "return-during-recovery"})
+
+    assert instance.cancel_start.is_set()
+    assert instance.stop_id == "return-during-recovery"
+    assert instance.events.get() == (
+        "command", {"type": "stop", "id": "return-during-recovery"}
+    )
+
+
+def test_persistent_invalid_training_telemetry_has_bounded_sanitized_error(tmp_path, monkeypatch):
+    instance = worker.GameSession(request(tmp_path), lambda _event: None)
+    instance.telemetry_recovery_deadline = 105.0
+    instance.telemetry_recovery_fields = ("ball.position",)
+    instance.telemetry_recovery_phase = "3"
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 105.0)
+
+    with pytest.raises(RuntimeError, match=r"5 seconds .*phase 3.*ball\.position"):
+        instance._check_telemetry_recovery_timeout()
+
+    # The recovery exception remains a strict ValueError subtype for capture;
+    # the worker only intercepts this exact class in ordinary training.
+    error = InvalidTrainingTelemetry("bad packet", ("car.velocity",))
+    assert isinstance(error, ValueError) and error.fields == ("car.velocity",)
+
+
+def test_finished_acknowledged_attempt_survives_recovery_when_auto_reset_disabled(
+    tmp_path, monkeypatch
+):
+    events = []
+    instance, packet, sent = training_recovery_session(
+        tmp_path, monkeypatch, events,
+        [training_frame(invalid_actor="human"), training_frame()], auto_reset=False,
+    )
+    instance.engine.state, instance.engine.outcome = "finished", "timeout"
+    instance.attempt_sent = instance.engine.attempt_id
+    instance.attempt_acked = True
+    instance.attempt_retryable = True
+    summary = instance.engine.summary()
+
+    instance.process_packet(packet)
+    instance.process_packet(packet)
+
+    assert instance.engine.summary() == summary
+    assert instance.attempt_sent == summary["id"] and instance.attempt_acked is True
+    assert instance.auto_reset_at is None and sent == []
+    assert [item["event"]["type"] for item in events if item["type"] == "training_event"] == [
+        "telemetry_interrupted", "telemetry_recovered"
+    ]
+    assert "preserved" in events[-1]["event"]["message"]
+
+
+def test_auto_reset_recovery_preserves_acknowledgement_feedback_delay(tmp_path, monkeypatch):
+    events = []
+    instance, packet, sent = training_recovery_session(
+        tmp_path, monkeypatch, events,
+        [training_frame(invalid_actor="human"), training_frame()], auto_reset=True,
+    )
+    instance.engine.state, instance.engine.outcome = "finished", "timeout"
+    instance.attempt_sent = instance.engine.attempt_id
+    instance.attempt_retryable = True
+    now = [100.0]
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now[0])
+    instance.handle_command({"type": "attempt_ack", "attempt_id": instance.attempt_sent})
+    assert instance.auto_reset_at == pytest.approx(101.0)
+
+    now[0] = 100.2
+    instance.process_packet(packet)
+    now[0] = 100.5
+    instance.process_packet(packet)
+    resets = []
+    instance.reset = lambda: resets.append(now[0])
+    instance._check_auto_reset()
+    assert resets == [] and instance.engine.state == "finished" and sent == []
+
+    now[0] = 101.0
+    instance._check_auto_reset()
+    assert resets == [101.0]
+
+
+def test_fresh_recovery_waits_for_save_ack_then_resumes_bounded_auto_reset(
+    tmp_path, monkeypatch
+):
+    events = []
+    instance, packet, _sent = training_recovery_session(
+        tmp_path, monkeypatch, events,
+        [training_frame(invalid_actor="human"), training_frame(), training_frame()],
+        auto_reset=True,
+    )
+    instance.engine.state, instance.engine.outcome = "finished", "timeout"
+    instance.attempt_sent = instance.engine.attempt_id
+    instance.attempt_retryable = True
+    now = [200.0]
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now[0])
+
+    instance.process_packet(packet)
+    deadline = instance.telemetry_recovery_deadline
+    now[0] = 201.0
+    instance.process_packet(packet)
+    assert instance.telemetry_recovery_fresh is True
+    assert instance.telemetry_recovery_deadline == deadline
+
+    now[0] = 202.0
+    instance.handle_command({"type": "attempt_ack", "attempt_id": instance.attempt_sent})
+    assert instance.auto_reset_at == pytest.approx(203.0)
+    instance.process_packet(packet)
+    assert instance.telemetry_recovery_deadline is None
+    resets = []
+    instance.reset = lambda: resets.append(now[0])
+    now[0] = 203.0
+    instance._check_auto_reset()
+    assert resets == [203.0]
+
+
+def test_strict_capture_rejects_invalid_packet_without_entering_recovery(tmp_path, monkeypatch):
+    instance, packet, sent = training_recovery_session(
+        tmp_path, monkeypatch, [], [training_frame(invalid_actor="bot")], capture=True,
+    )
+
+    with pytest.raises(InvalidTrainingTelemetry) as raised:
+        instance.process_packet(packet)
+
+    assert raised.value.fields == ("car.velocity",)
+    assert instance.telemetry_recovery_deadline is None
+    assert instance.last_frame is None and sent == []
+
+
+def test_total_packet_queue_stall_hits_telemetry_recovery_deadline(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.setup = lambda: None
+    instance.teardown = lambda: None
+    instance._discover_game = lambda: None
+    instance.core = NS(poll=lambda: None)
+    instance.first_packet = True
+    instance.telemetry_recovery_deadline = 10.0
+    instance.telemetry_recovery_fields = ("ball.position",)
+    instance.telemetry_recovery_phase = "3"
+    instance.events.get = lambda timeout=None: (_ for _ in ()).throw(worker.queue.Empty())
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 10.0)
+
+    instance.run()
+
+    errors = [item["message"] for item in events if item["type"] == "error"]
+    assert any("5 seconds" in message and "ball.position" in message for message in errors)
+    assert any(item["type"] == "session" and item.get("state") == "error" for item in events)
+
+
 def test_only_attempts_with_recorded_samples_are_eligible_for_auto_retry(tmp_path):
     instance = worker.GameSession(request(tmp_path), lambda _event: None)
     summary = {"id": "prestart", "state": "interrupted", "outcome": "interrupted"}
@@ -286,11 +487,19 @@ def test_worker_accepts_two_step_training_samples_but_keeps_capture_strict(tmp_p
     assert len(ordinary) == 2
     assert ordinary[1]["packet_gap"] is False
     assert ordinary[1]["cadence"] == "coarse_continuous"
+    assert ordinary[1]["cadence_details"]["reason"] == "coarse_continuous"
 
     strict_capture = processed_frames(capture=True)
     assert len(strict_capture) == 2
     assert strict_capture[1]["packet_gap"] is True
     assert strict_capture[1]["cadence"] == "step_count_exceeded"
+    assert strict_capture[1]["cadence_details"] == {
+        "gap": True,
+        "reason": "step_count_exceeded",
+        "dt": pytest.approx(1 / 60),
+        "steps": 2,
+        "coarse": False,
+    }
 
 
 def test_preflight_refuses_preexisting_game_and_core(monkeypatch):
@@ -714,3 +923,63 @@ def test_eof_retries_failed_cleanup_even_after_session_thread_exited(tmp_path, m
     assert calls.count("cleanup") == 2 and ("retry", 1) in calls
     assert calls.count("core-stop") >= 1
     assert not any(json.loads(line)["type"] == "stopped" for line in instance.output.getvalue().splitlines())
+
+
+@pytest.mark.parametrize("lesson_id", [None, "speed-flip", "power-shots"])
+def test_native_match_serialization_scopes_no_goal_reset_to_power_shots(lesson_id):
+    if sys.platform != "win32":
+        pytest.skip("Native RLBot flatbuffers ships with the Windows worker")
+    from rlbot import flat
+    from my_career_training.career import new_career, next_fixture
+    request = {"settings": {"launcher": "steam"}}
+    if lesson_id is None:
+        request["fixture"] = next_fixture(new_career("Mutator test", format=1))
+    else:
+        request["lesson_id"] = lesson_id
+        if lesson_id == "power-shots":
+            request.update(scenario_id="low-side-pass", difficulty="gold")
+    config, _, _ = adapter.match_config(request)
+    native = flat.MatchConfiguration.unpack(config.pack())
+    assert (native.mutators.respawn_time == flat.RespawnTimeMutator.DisableGoalReset) is (lesson_id == "power-shots")
+
+
+@pytest.mark.parametrize("clock", [None, {
+    "game_time_remaining": 88.5, "is_unlimited_time": False, "is_overtime": False,
+}, {"game_time_remaining": 0.0, "is_unlimited_time": True, "is_overtime": False}])
+def test_native_clock_observation_reaches_bridge_telemetry(tmp_path, monkeypatch, clock):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    normalize = adapter.normalized_packet
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *args: {
+        **normalize(*args), **(clock or {})})
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    event = next(event for event in events if event["type"] == "telemetry")
+    for key in ("game_time_remaining", "is_unlimited_time", "is_overtime"):
+        assert event[key] == (clock[key] if clock else None)
+    assert event["time"] == 1.0
+
+
+def test_scenario_timeout_waits_after_saved_attempt_even_with_old_auto_retry_pref(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold",
+                                     preferences={"auto_reset": True})
+    engine = instance.engine
+    assert engine.preferences["auto_reset"] is False
+    engine.set_preference("auto_reset", True)
+    assert engine.preferences["auto_reset"] is False
+    with pytest.raises(ValueError):
+        engine.set_preference("auto_reset", "invalid")
+    engine.state, engine.outcome = "finished", "timeout"
+    instance.attempt_sent = engine.attempt_id
+    instance.attempt_retryable = True
+    before = engine.summary()
+    instance.handle_command({"type": "attempt_ack", "session_id": instance.session_id,
+                             "attempt_id": engine.attempt_id})
+    assert instance.attempt_acked and instance.auto_reset_at is None
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 999999.0)
+    instance._check_auto_reset()
+    assert engine.summary() == before and not events
+    legacy = TrainingEngine("speed-flip")
+    assert legacy.preferences["auto_reset"] is True

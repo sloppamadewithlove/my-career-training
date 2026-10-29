@@ -393,7 +393,9 @@ void MyCareerTraining::renderTraining(const Json& state) {
     title(stringValue(selected, "title", "Choose a lesson"));
     paragraph(stringValue(selected, "description"));
     const auto session = objectValue(state, "session");
-    if (primary("START PRACTICE", !selectedLesson_.empty() && !boolValue(session, "busy"))) command("start_lesson", {{"id", selectedLesson_}});
+    if (primary("START PRACTICE", !selectedLesson_.empty() && !boolValue(session, "busy") &&
+        !boolValue(session, "worker_running", true) && !boolValue(session, "results_pending_choice") &&
+        !boolValue(state, "setup_required", true))) command("start_lesson", {{"id", selectedLesson_}});
     ImGui::SameLine(); if (button("RETRY", stringValue(session, "state") == "training")) command("retry_lesson");
     if (selectedLesson_.empty()) detail("Choose a lesson first.");
     else if (boolValue(session, "busy")) detail("Starting the offline practice session...");
@@ -413,6 +415,7 @@ void MyCareerTraining::renderTraining(const Json& state) {
         for (const auto& setting : std::array<std::pair<const char*, const char*>, 5>{{
             {"explanations", "Show instructions"}, {"actions", "Show controller actions"},
             {"timing", "Show timing feedback"}, {"ghost", "Show recorded ghost"}, {"auto_reset", "Automatic retry"}}}) {
+            if (selectedLesson_ == "power-shots" && std::string(setting.first) == "auto_reset") continue;
             bool value = boolValue(prefs, setting.first, true);
             if (ImGui::Checkbox(setting.second, &value)) command("assistance", {{"id", selectedLesson_}, {"key", setting.first}, {"value", value}});
         }
@@ -839,6 +842,7 @@ void MyCareerTraining::renderTrainingHud(const Json& state, const MctRuntime& ru
     // The active lesson's own Controller option also hides the silhouette. It
     // defaults to on, so only a stored false turns it off.
     const auto lessonId = stringValue(telemetry, "lesson_id");
+    if (lessonId == "power-shots") return;
     if (!lessonId.empty()) {
         const auto lessonPreferences = objectValue(objectValue(state, "lesson_preferences"), lessonId.c_str());
         if (lessonPreferences.contains("actions") && !boolValue(lessonPreferences, "actions", true)) return;
