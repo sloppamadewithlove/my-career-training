@@ -6,7 +6,7 @@
 
 Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove a clean 12-challenge loop; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
 
-The 45-minute workflow audit remains unscheduled. Codex CLI 0.164.0 exposes no native scheduler and the chat has no automation-management tool. Windows scheduling is explicitly prohibited. Await the owner's intended CLI command/extension; continue independent development.
+The [45-minute workflow audit](IMPROVEMENT_HEARTBEAT.md) is active in the desktop Scheduled page (GPT-6 Luna Max, Important updates only). Next: confirm the first run at 01:26 America/New_York on 29 October and its GitHub access. No Windows scheduler was created.
 
 
 
