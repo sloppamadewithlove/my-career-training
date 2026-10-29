@@ -1063,8 +1063,13 @@ void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup) {
     auto read = [&] { return mct::TrainingClock::Value{
         server.GetGameTimeRemaining(), server.GetbUnlimitedTime() != 0}; };
     auto write = [&](mct::TrainingClock::Value value) {
+        const auto before = read();
         server.SetbUnlimitedTime(value.unlimited ? 1UL : 0UL);
         server.SetGameTimeRemaining(value.remaining);
+        // Direct field writes do not refresh the native scoreboard's cached second.
+        if (std::ceil(before.remaining) != std::ceil(value.remaining) ||
+            before.unlimited != value.unlimited)
+            server.OnGameTimeUpdated();
         const auto observed = read();
         if (observed.unlimited != value.unlimited || !std::isfinite(observed.remaining) ||
             std::abs(observed.remaining - value.remaining) > 0.1f)
@@ -1075,6 +1080,8 @@ void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup) {
     const auto observed = read();
     trainingClockStatus_ = {{"active", trainingClock_.active()},
         {"remaining", observed.remaining}, {"unlimited", observed.unlimited},
+        {"seconds_remaining", server.GetSecondsRemaining()},
+        {"seconds_countdown", server.GetSecondsRemainingCountdown()},
         {"match_ended", server.GetbMatchEnded() != 0}, {"overtime", server.GetbOverTime() != 0},
         {"round_active", server.GetbRoundActive() != 0}, {"phase", phase},
         {"attempt_id", stringValue(coaching, "attempt_id")}};

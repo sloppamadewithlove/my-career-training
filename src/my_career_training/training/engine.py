@@ -215,6 +215,7 @@ class TrainingEngine:
             "sampled": not self.strict_capture,
         }
         self.reset_requested_at = None
+        self.launch_resends = 0
         self.events = []
         self.observations = []
         self.metrics = {"carry_seconds": 0.0, "gates": 0, "boost_seconds": 0.0, "packet_gaps": 0}
@@ -767,6 +768,18 @@ class TrainingEngine:
             if "first_ready" not in self.preparation:
                 self.preparation["first_ready"] = deepcopy(self.preparation["ready"])
             if not applied:
+                # A coarse first packet can still be the parked settle ball. Reissue
+                # once; never treat that stale response as a verified moving launch.
+                if (self.scenario is not None and not self.strict_capture and
+                        self.launch_resends == 0 and 0 < elapsed <= 0.05 and cadence["gap"] and
+                        _distance(frame["ball"]["position"], self.lesson["settle_state"]["ball"]["position"]) < 5 and
+                        _distance(frame["ball"]["velocity"], [0, 0, 0]) < 5):
+                    self.launch_resends += 1
+                    self.reset_requested_at = now
+                    self.preparation["launch_resends"] = self.launch_resends
+                    self.last_frame = deepcopy(frame)
+                    self._scenario_observe_touches(frame)
+                    return [{"type": "set_state", "state": self.starting_state}]
                 if elapsed >= 2.0:
                     return self._interrupt(
                         "The starting position could not be confirmed. Retry when play resumes."

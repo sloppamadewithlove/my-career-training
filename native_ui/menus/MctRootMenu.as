@@ -493,11 +493,12 @@ package menus
         {
             if (lessonPreviewState != 0) return;
             lessonPreviewState = 1;
-            lessonPreview.contentLoaderInfo.addEventListener(Event.COMPLETE, lessonPreviewLoaded, false, 0, true);
-            lessonPreview.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, lessonPreviewFailed, false, 0, true);
-            lessonPreview.contentLoaderInfo.addEventListener(SecurityErrorEvent.SECURITY_ERROR, lessonPreviewFailed, false, 0, true);
             try
             {
+                DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: start");
+                lessonPreview.contentLoaderInfo.addEventListener(Event.COMPLETE, lessonPreviewLoaded, false, 0, true);
+                lessonPreview.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, lessonPreviewFailed, false, 0, true);
+                DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: listeners ready");
                 var alphabet:String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
                 var bytes:ByteArray = new ByteArray();
                 var value:uint = 0;
@@ -519,13 +520,16 @@ package menus
                 }
                 if (bytes.length > 16000) throw new Error("Embedded image exceeds limit");
                 bytes.position = 0;
+                DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: load " + bytes.length);
                 lessonPreview.loadBytes(bytes);
+                DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: load dispatched");
             }
-            catch (error:Error) { lessonPreviewState = 3; lessonPreview.visible = false; }
+            catch (error:Error) { lessonPreviewState = 3; lessonPreview.visible = false; DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: synchronous failure " + error.name); }
         }
 
         private function lessonPreviewLoaded(event:Event) : void
         {
+            DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: complete");
             var bitmap:Bitmap = lessonPreview.content as Bitmap;
             if (bitmap == null || bitmap.bitmapData == null ||
                 bitmap.bitmapData.width != 400 || bitmap.bitmapData.height != 225)
@@ -533,6 +537,7 @@ package menus
                 lessonPreviewFailed(null);
                 return;
             }
+            DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: dimensions valid");
             bitmap.smoothing = true;
             lessonPreviewState = 2;
             setTimeout(renderBrowser, 0);
@@ -540,6 +545,7 @@ package menus
 
         private function lessonPreviewFailed(event:Event) : void
         {
+            DevUtil.Log("MCT_THUMBNAIL", "MCT thumbnail: failed");
             lessonPreviewState = 3;
             lessonPreview.visible = false;
             setTimeout(renderBrowser, 0);

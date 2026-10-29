@@ -22,3 +22,31 @@ Actual game decoding remains unverified until this candidate's live test.
 Informational plugin-session notices now appear in Settings rather than across
 every menu. Startup/restoration failures remain visible. Five focused Python and
 the native layout check passed for this change. Full candidate build pending.
+
+## Live 3beada6 follow-up
+
+The compiled candidate passed 38 plugin/13 launcher checks. Full Python source run
+at f9ee696: 1,641 passed, 15 skipped, one outdated overlay-timer assertion failed.
+The only subsequent source changes updated that assertion for both running/timeout;
+the complete 101-case Power Shots suite then passed. Source/native 3beada6 was rebuilt.
+
+Owned live test: the hub no longer shows the global plugin-session notice. Native
+clock visibly displayed 0:07 after Up retry; timeout hid the ball and held the same
+playable session with direct remaining=0, no overtime/end flag. However, the actual
+HUD remained at 0:01. This is a failed zero-display acceptance, not a finished timer.
+The next repair calls the SDK OnGameTimeUpdated notification on display-second
+changes and records both integer timer getters. Retained SDK wrapper analysis shows
+a no-argument Soccar event dispatch, not score/restart writes; game-side semantics
+still require live verification.
+
+The gameplay thumbnail showed its fallback. The next candidate removes the
+thumbnail's unnecessary unsupported SecurityErrorEvent listener, moves listener
+setup inside error handling, and adds bounded private runtime lifecycle markers.
+The rebuilt authored ABC is 51,926 bytes; asset checks: 87 passed, one skipped.
+
+Rapid Right navigation also reproduced a missed Gold3 launch confirmation: the
+first response was a parked ball after a four-step gap. The next repair reissues
+the launch once only when the first <=50ms response has that gap/parked signature.
+It preserves the original evidence/attempt ID and every verification gate; strict
+capture is excluded. A second failure remains a bounded interruption. CPU load as
+the cause is an inference, not established by that observation.

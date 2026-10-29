@@ -6,10 +6,10 @@ or owner-accepted Gold playlist is available.
 | Area | Current evidence |
 | --- | --- |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Last loaded candidate | `0a879b8`: 1,639 Python checks passed (15 skipped), 37 plugin/13 launcher checks; 26 consecutive reset/navigation actions passed |
+| Last loaded candidate | `3beada6`: 38 plugin/13 launcher checks; native countdown visible but zero HUD stuck at 0:01; thumbnail fallback and one delayed reset reproduced |
 | Native clock | Direct countdown/restoration observed; zero sampled before restoration with no ended/overtime flag; sustained zero hold and production timer unverified |
 | Current repair | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
-| Current game | Owned `0a879b8` source/native test; Training Return and re-entry observed |
+| Current game | Owned `3beada6` test closed normally; reviewed clock-notification/thumbnail/reset follow-up candidate pending |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 

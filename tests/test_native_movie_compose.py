@@ -245,8 +245,8 @@ def test_production_profile_pins_the_measured_layout():
     profile = compose.PRODUCTION_PROFILE
     assert profile.movie_sha256 == "57582fb10fe1e2551989bf15d8aec1df8b62392903974a1e8ea40ac2b1734ec0"
     assert profile.abc_sha256 == "97b8910be821762b36567497ee2a2e94cd05540f3536bdc7e7ac4d1411b78f42"
-    assert profile.mod_abc_sha256 == "68a50bdb99077bb449e491dbe9397e7271f747487727732c0bc0e14b9417f7ec"
-    assert profile.source_sha256 == "f397568edef048aa6b60dc350a525b5638a800a1386834e1b5d7338470eea577"
+    assert profile.mod_abc_sha256 == "550e9efa10b582c8c686f8d5b7dfb738e3eca565c958e5ac1b715ac81e88088b"
+    assert profile.source_sha256 == "07ef68ac1cf04122b2831e5ade3ca2818e05ed5fa16036affa230922a4972253"
     assert profile.screen_source_sha256 == "d4d824dc4e62963cdeab65c3f20fd30c1e49bb86cd1a3a923b8b1f8c0c1bfabd"
     assert profile.root_movie_source_sha256 == "9791d1371d8a0b9d1cc2f936e1a30b8cfb0ba9add9dfc289e7443bfc27404432"
     assert profile.super_offset == 446019
@@ -802,7 +802,7 @@ def test_compiled_abc_matches_the_public_pin():
     wrapper = (root / "native_ui" / "MctRootMenuMovie.as").read_bytes()
     manifest = json.loads((root / "native_ui" / "compiled" / "manifest.json").read_text(encoding="utf-8"))
     assert hashlib.sha256(abc).hexdigest() == compose.MOD_ABC_SHA256 == manifest["abc_sha256"]
-    assert len(abc) == manifest["abc_bytes"] == 51598
+    assert len(abc) == manifest["abc_bytes"] == 51926
     assert manifest["method_bodies"] == 138
     assert manifest["classes"] == compose.COMPILED_CLASSES
     assert manifest["authored_classes"] == compose.AUTHORED_CLASSES
