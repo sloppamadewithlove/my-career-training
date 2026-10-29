@@ -36,6 +36,11 @@ SPEC.loader.exec_module(PRIVACY_GUARD)
             "github-token",
             "ghp_syntheticFixtureToken000000000",
         ),
+        (
+            "github_pat_syntheticFixtureFineGrainedToken000000000",
+            "github-token",
+            "github_pat_syntheticFixtureFineGrainedToken000000000",
+        ),
         ("AKIASYNTHETIC000001X", "aws-access-key", "AKIASYNTHETIC000001X"),
         ("password = syntheticSensitiveValue123!", "credential-assignment", "syntheticSensitiveValue123!"),
         (
