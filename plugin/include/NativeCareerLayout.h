@@ -600,6 +600,10 @@ public:
         effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
         effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
         effect.action = row->action; effect.payload = row->payload; effect.leaveMenu = leavesMenu(row->action);
+        if (row->action == "select_lesson") {
+            lessonId_ = row->itemId;
+            page_ = CareerLayoutPage::Lesson;
+        }
         effect.page = page_; return effect;
     }
 
@@ -1331,33 +1335,22 @@ private:
         };
         if (tab == TrainingBrowserTab::Lessons) {
             const auto lessons = lessonsOf(state);
-            const auto packs = array(state, "training_packs");
             const auto stop = (std::min)(lessons.size(), kMaxLessons);
             for (std::size_t i = 0; i < stop; ++i) {
                 const auto id = text(lessons[i], "id"); if (!safeId(id)) continue;
-                if (id == "power-shots" && !packs.empty()) continue;
                 TrainingBrowserRow row;
                 row.key = "lesson:" + id; row.type = "lesson"; row.itemId = id;
                 row.title = text(lessons[i], "title", "Lesson"); row.subtitle = "Training lesson";
                 row.detail = text(lessons[i], "description"); row.primaryLabel = "Start lesson";
                 row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
                 row.action = "start_lesson"; row.payload = {{"id", id}};
+                if (id == "power-shots") {
+                    row.primaryLabel = "Choose rank";
+                    row.action = "select_lesson";
+                    row.primaryEnabled = !busy(state);
+                    row.reason = row.primaryEnabled ? "" : kWait;
+                }
                 row.favorite = browserFavorite(state, row.type, id); add(std::move(row));
-            }
-            for (std::size_t i = 0; i < (std::min)(packs.size(), std::size_t(6)); ++i) {
-                const auto id = text(packs[i], "id"); if (!safeId(id)) continue;
-                TrainingBrowserRow row;
-                row.type = "lesson"; row.itemId = "pack:" + id; row.key = "lesson:" + row.itemId;
-                row.title = text(packs[i], "title", "Power shots");
-                row.subtitle = text(packs[i], "rank") + " | " + text(packs[i], "author");
-                row.detail = text(packs[i], "description") + " | Featured by Psyonix | " + text(packs[i], "code");
-                // Real offline playtest: Training/GetTrainingData is FeatureDisabled.
-                // Keep discovery/favorites, but do not offer a known failing load.
-                row.primaryLabel = "Unavailable offline";
-                row.primaryEnabled = false;
-                row.reason = "This pack needs Rocket League's training service. Offline loading is not available yet.";
-                row.action = "start_training_pack"; row.payload = {{"id", id}};
-                row.favorite = browserFavorite(state, row.type, row.itemId); add(std::move(row));
             }
             return rows;
         }
@@ -1524,6 +1517,21 @@ private:
         const auto lessons = lessonsOf(state);
         const auto lesson = findLesson(lessons, lessonId_);
         const auto page = shownLessonPage(lessons.size());
+        if (!lesson.empty() && lessonId_ == "power-shots") {
+            view.title = "Power Shots";
+            addLine(view.body, "Choose your rank.");
+            struct Rank { const char* id; const char* label; };
+            const Rank ranks[] = {{"bronze", "Bronze"}, {"silver", "Silver"},
+                {"gold", "Gold"}, {"platinum", "Platinum"}, {"diamond", "Diamond"},
+                {"champion", "Champion"}, {"grand-champion", "Grand Champion"},
+                {"supersonic-legend", "Supersonic Legend"}};
+            for (const auto& rank : ranks)
+                dispatch(view, std::string("training.rank.") + rank.id, rank.label,
+                    ready(state), kRecover, "start_lesson",
+                    {{"id", lessonId_}, {"scenario_id", "low-side-pass"}, {"difficulty", rank.id}});
+            back(view, CareerLayoutPage::Training, page);
+            return;
+        }
         if (lesson.empty()) addLine(view.body, "This lesson is no longer available.");
         else {
             addLine(view.body, plain(text(lesson, "title", "Lesson"), 80));

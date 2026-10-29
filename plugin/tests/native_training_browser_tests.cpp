@@ -189,23 +189,17 @@ int main() {
         }
         auto packs = enterBrowserTab(packProtocol, live, packData, "lessons", 150);
         const auto& packRows = packs.at("browser").at("rows");
-        require(packRows.size() == 8, "training pack rows were not capped at six alongside two lessons");
-        bool genericPowerShots = false;
-        bool firstPackFound = false;
+        require(packRows.size() == 3, "Lessons must contain custom lessons, not unavailable service packs");
+        bool powerShotsFound = false;
         for (const auto& row : packRows) {
-            const auto key = row.at("key").get<std::string>();
-            if (key == "lesson:power-shots") genericPowerShots = true;
-            if (key == "lesson:pack:pack-0") {
-                firstPackFound = true;
-                require(row.at("title") == "Pack 0" && row.at("subtitle") == "Bronze | Psyonix" &&
-                    row.at("detail").get<std::string>().find("ABCD-1234") != std::string::npos,
-                    "training pack metadata was not placed on its browser row");
-                require(row.at("primary_label") == "Unavailable offline" && !row.at("primary_enabled").get<bool>(),
-                    "training pack offered the known failing offline service load");
+            if (row.at("key") == "lesson:power-shots") {
+                powerShotsFound = true;
+                require(row.at("primary_label") == "Choose rank", "Power Shots skipped rank selection");
             }
+            require(row.at("key").get<std::string>().find("lesson:pack:") != 0,
+                "Unavailable online service pack leaked into Lessons");
         }
-        require(firstPackFound, "first featured training pack row was missing");
-        require(!genericPowerShots, "generic Power Shots lesson remained beside featured packs");
+        require(powerShotsFound, "Power Shots missing");
         for (const auto& control : packs.at("controls"))
             require(control.at("id") != "training.next", "browser exposed a legacy More lessons control");
         const auto stalePackPrimary = browser(packs, "primary", "lesson:pack:pack-0");

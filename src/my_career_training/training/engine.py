@@ -1316,6 +1316,8 @@ class TrainingEngine:
                      "finished": "finished", "interrupted": "interrupted"}.get(
                          self.state, self.state)
             coaching.update(
+                attempt_id=self.attempt_id,
+                outcome=self.outcome,
                 scenario_index=scenario_index,
                 scenario_total=self.scenario["implemented_total"],
                 scenario_title=self.scenario["title"],

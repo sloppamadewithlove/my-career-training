@@ -134,6 +134,17 @@ void MyCareerTraining::onLoad() {
             [this] { return nativeWorkshopContext(); },
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
+        for (const auto command : mct::TrainingBindingGuard::commands)
+            cvarManager->registerNotifier(command,
+                std::function<void(std::vector<std::string>)>([](std::vector<std::string>) {}),
+                "Scoped offline Power Shots control", PERMISSION_OFFLINE);
+        trainingKeysAvailable_ = true;
+        for (std::size_t index = 0; index < trainingKeyNames_.size(); ++index) {
+            trainingKeyNames_[index] = gameWrapper->GetFNameIndexByString(mct::TrainingBindingGuard::keys[index]);
+            trainingKeysAvailable_ = trainingKeysAvailable_ && trainingKeyNames_[index] > 0 &&
+                gameWrapper->GetFNameByIndex(trainingKeyNames_[index]) == mct::TrainingBindingGuard::keys[index];
+        }
+
         cvarManager->registerNotifier("mct_menu", [this](std::vector<std::string>) {
             if (MCT_ENABLE_NATIVE_MOVIE_TRIAL) return;
             if (!offlineReady_ || !ownedOfflineNow()) return;
@@ -170,6 +181,8 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    releaseTrainingBindings();
+    trainingLessonInput_.reset();
     alive_.reset();
     nativeMovieReady_ = false;
     if (nativeMovie_) nativeMovie_->stop();
@@ -803,27 +816,27 @@ bool referenceCaptureActive(const mct::Json& state) {
 }
 }  // namespace
 
-void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRuntime& runtime) {
-    // Observe only: one XInput sample per existing tick, no new thread, no
-    // binding, no consumption and no vehicle input. Exactly one connected
-    // controller slot is required; zero or several slots produce no toggle.
-    mct::TrainingGhostInput::Pad pad;
-    int connected = 0;
-    int slot = -1;
-    bool dpadLeft = false;
-    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
-        XINPUT_STATE sample{};
-        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
-        ++connected;
-        slot = static_cast<int>(index);
-        dpadLeft = (sample.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0;
+bool MyCareerTraining::updateTrainingBindings(bool active) {
+    const auto read = [this](const std::string& key) { return cvarManager->getBindStringForKey(key); };
+    const auto write = [this](const std::string& key, const std::string& command) { cvarManager->setBind(key, command); };
+    const auto remove = [this](const std::string& key) { cvarManager->removeBind(key); };
+    if (!active) {
+        trainingBindings_.release(read, write, remove);
+        return false;
     }
-    if (connected == 1) {
-        pad.slot = slot;
-        pad.dpadLeft = dpadLeft;
-    }
+    return trainingKeysAvailable_ && trainingBindings_.acquire(read, write, remove);
+}
 
-    mct::TrainingGhostInput::Scope scope;
+void MyCareerTraining::releaseTrainingBindings() {
+    if (!cvarManager) return;
+    const auto read = [this](const std::string& key) { return cvarManager->getBindStringForKey(key); };
+    const auto write = [this](const std::string& key, const std::string& command) { cvarManager->setBind(key, command); };
+    const auto remove = [this](const std::string& key) { cvarManager->removeBind(key); };
+    trainingBindings_.release(read, write, remove);
+}
+
+void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRuntime& runtime) {
+    mct::TrainingLessonInput::Scope scope;
     scope.owned = offlineReady_.load() && ownedOfflineNow();
     scope.fresh = bridge_ && bridge_->fresh();
     scope.foreground = foregroundIsThisProcess();
@@ -836,16 +849,43 @@ void MyCareerTraining::pollTrainingGhostToggle(const Json& state, const MctRunti
         lower(runtime.menu).find("pause") != std::string::npos;
     scope.referenceCaptureActive = referenceCaptureActive(state);
 
-    // The helper samples the button edge before any eligibility test, so a
-    // held button across a career/training, pause/resume, focus or session
-    // transition can never become a new press.
-    const auto decision = trainingGhostInput_.observe(scope, state, pad, mct::unixTime());
-    if (!decision.toggle) return;
-    // Same ACK path as the native pause menu: no direct file write and no
-    // worker bypass. The local latch inside the helper suppresses duplicates
-    // until the observed pending flag clears, the enabled state changes or the
-    // five-second deadline expires.
-    bridge_->send("ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.enabled}});
+    const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
+    mct::TrainingLessonInput::Pad pad;
+    int connected = 0;
+    int slot = -1;
+    for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
+        XINPUT_STATE sample{};
+        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
+        ++connected;
+        slot = static_cast<int>(index);
+    }
+    if (bindingsReady && connected <= 1) {
+        // The SDK key path follows Rocket League's logical gamepad input. It
+        // does not expose raw USB/DS4 device identity; -2 records that limit.
+        pad.slot = connected == 1 ? slot : -2;
+        pad.left = gameWrapper->IsKeyPressed(trainingKeyNames_[0]);
+        pad.right = gameWrapper->IsKeyPressed(trainingKeyNames_[1]);
+        pad.up = gameWrapper->IsKeyPressed(trainingKeyNames_[2]);
+        pad.down = gameWrapper->IsKeyPressed(trainingKeyNames_[3]);
+    }
+
+    const auto decision = trainingLessonInput_.observe(scope, state, pad, mct::unixTime());
+    std::optional<std::string> commandId;
+    switch (decision.action) {
+    case mct::TrainingLessonInput::Action::Previous:
+        commandId = bridge_->sendWithId("training_scenario_step", Json{{"direction", -1}}); break;
+    case mct::TrainingLessonInput::Action::Next:
+        commandId = bridge_->sendWithId("training_scenario_step", Json{{"direction", 1}}); break;
+    case mct::TrainingLessonInput::Action::ToggleGhost:
+        commandId = bridge_->sendWithId(
+            "ghost_control", Json{{"operation", "toggle"}, {"enabled", decision.ghostEnabled}}); break;
+    case mct::TrainingLessonInput::Action::Retry:
+        commandId = bridge_->sendWithId("retry_lesson", Json::object()); break;
+    case mct::TrainingLessonInput::Action::None:
+        return;
+    }
+    if (commandId) trainingLessonInput_.commandSent(*commandId);
+    else trainingLessonInput_.commandFailed();
 }
 
 void MyCareerTraining::tick() {
@@ -995,13 +1035,14 @@ void MyCareerTraining::tick() {
         // Sampled on every tick, after the offline branch has refreshed the
         // runtime and enforceCareer has updated matchEnded. The helper decides
         // eligibility itself and always tracks the button edge.
-        pollTrainingGhostToggle(publishedState, next);
+        pollTrainingLessonControls(publishedState, next);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
-        trainingGhostInput_.reset();
+        releaseTrainingBindings();
+        trainingLessonInput_.reset();
         restoreCosmetics();
         nativeProbe_.clear();
         removeProbeHooks();

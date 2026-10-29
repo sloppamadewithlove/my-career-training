@@ -240,7 +240,7 @@ def test_keeper_with_unavailable_pose_returns_neutral_before_delegating(
 
 
 def test_defender_with_unavailable_pose_returns_neutral_before_delegating(monkeypatch):
-    definition = scenario_definition("power-shots", "bouncing-side-pass", "diamond")
+    definition = scenario_definition("power-shots", "bouncing-side-pass", "grand-champion")
     index = definition["roles"]["defender"]
     controller = scenario_actor_controllers(definition)[index]
     cars = [_actor(definition["starting_state"]["bots"][i], i, 1, True) for i in (0, 1)]
@@ -520,7 +520,7 @@ def test_disruptive_phase_explicitly_interrupts_and_retry_restores_full_timer():
     assert all(key in during for key in (
         "scenario_index", "scenario_total", "scenario_title", "rank_title",
         "time_limit_seconds", "time_remaining_seconds", "phase", "countdown"))
-    assert during["scenario_index"] == 1 and during["scenario_total"] == 12
+    assert during["scenario_index"] == 1 and during["scenario_total"] == len(IMPLEMENTED_SCENARIOS)
     engine.reset()
     assert engine.summary()["coaching"]["time_remaining_seconds"] == engine.scenario["timeout"]
 

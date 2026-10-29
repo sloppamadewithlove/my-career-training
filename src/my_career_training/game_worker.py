@@ -1332,6 +1332,19 @@ class GameSession:
         summary = self.engine.summary()
         coaching = summary.get("coaching") or {}
         with renderer.context("my-career-training"):
+            if self.scenario is not None:
+                remaining = max(0, math.ceil(coaching.get("time_remaining_seconds", 0)))
+                renderer.draw_string_2d(
+                    f"{coaching['scenario_index']}/{coaching['scenario_total']}    "
+                    f"{remaining // 60}:{remaining % 60:02d}", .03, .05, 1.2)
+                renderer.draw_string_2d("Left / Right: challenge    Up: retry", .03, .09, .8)
+                if self.engine.state == "interrupted":
+                    renderer.draw_string_2d(str(coaching.get("interruption_reason") or
+                        "Attempt interrupted. Press Up to retry.")[:110], .03, .13, .8)
+                elif self.engine.finished:
+                    label = "Goal!" if self.engine.outcome == "success" else "Time up"
+                    renderer.draw_string_2d(label, .03, .13, 1)
+                return
             if preferences["explanations"]:
                 renderer.draw_string_2d(self.engine.lesson["title"], .03, .05, 1.2)
                 for index, step in enumerate(self.engine.lesson["steps"][:6]):

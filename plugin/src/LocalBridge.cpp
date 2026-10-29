@@ -266,6 +266,10 @@ void LocalBridge::atomicWrite(const std::filesystem::path& path, const std::stri
 }
 
 bool LocalBridge::send(const std::string& action, Json payload) {
+    return sendWithId(action, std::move(payload)).has_value();
+}
+
+std::optional<std::string> LocalBridge::sendWithId(const std::string& action, Json payload) {
     try {
         if (!allowedAction(action) || !payload.is_object()) throw std::runtime_error("This action is not available in the offline career.");
         Json snapshot = state();
@@ -283,11 +287,11 @@ bool LocalBridge::send(const std::string& action, Json payload) {
         atomicWrite(directory_ / "commands" / (id + ".json"), encoded, false);
         std::lock_guard<std::mutex> guard(mutex_);
         error_.clear();
-        return true;
+        return id;
     } catch (const std::exception& exception) {
         std::lock_guard<std::mutex> guard(mutex_);
         error_ = exception.what();
-        return false;
+        return std::nullopt;
     }
 }
 

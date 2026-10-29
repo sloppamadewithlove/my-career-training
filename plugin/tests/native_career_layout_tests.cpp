@@ -503,13 +503,15 @@ int main() {
         require(simplified.payload == Json({{"id", "flip-reset"}, {"key", "simplified"}, {"value", true}}), "Simplified payload");
         choose(layout, findChoice(layout.view(scope, state), "nav.back"), scope, state, false);
         choose(layout, findChoice(layout.view(scope, state), "training.lesson.power-shots"), scope, state, true);
-        auto zone = choose(layout, findChoice(layout.view(scope, state), "training.zone.left"), scope, state, true);
-        require(zone.payload["key"] == "target_zone" && zone.payload["value"] == "left", "Target zone payload");
+        const auto ranks = layout.view(scope, state);
+        require(ranks.choices.size() == 9, "Power Shots must offer eight ranks and Back");
+        auto bronze = choose(layout, findChoice(ranks, "training.rank.bronze"), scope, state, true);
+        require(bronze.action == "start_lesson" && bronze.payload == Json({{"id", "power-shots"},
+            {"scenario_id", "low-side-pass"}, {"difficulty", "bronze"}}), "Bronze launch payload");
         auto running = state;
         running["session"]["kind"] = "training";
-        require(!findChoice(layout.view(scope, running), "training.zone.left").enabled, "In-progress lesson still changes setup");
-        require(findChoice(layout.view(scope, running), "training.help.explanations").enabled,
-            "Lesson explanations were blocked during practice");
+        require(!findChoice(layout.view(scope, running), "training.rank.bronze").enabled,
+            "In-progress lesson still launches another rank");
 
         auto paged = state;
         paged["lessons"] = Json::array();

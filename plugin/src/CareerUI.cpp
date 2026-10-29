@@ -839,6 +839,7 @@ void MyCareerTraining::renderTrainingHud(const Json& state, const MctRuntime& ru
     // The active lesson's own Controller option also hides the silhouette. It
     // defaults to on, so only a stored false turns it off.
     const auto lessonId = stringValue(telemetry, "lesson_id");
+    if (lessonId == "power-shots") return;
     if (!lessonId.empty()) {
         const auto lessonPreferences = objectValue(objectValue(state, "lesson_preferences"), lessonId.c_str());
         if (lessonPreferences.contains("actions") && !boolValue(lessonPreferences, "actions", true)) return;
