@@ -6,10 +6,10 @@ or owner-accepted Gold playlist is available.
 | Area | Current evidence |
 | --- | --- |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Last loaded candidate | `6424b12`: 37 plugin/13 launcher checks; all twelve Gold challenges reached by keyboard; repeated floor resets still failed |
-| Native clock | 90-second direct game-clock countdown and restoration observed; production attempt timer and zero behavior still unverified |
-| Current repair | Grounded reset height, bounded floor friction, and Training Return activity matching; source checks passed, replacement live build pending; original 6424 Windows CI passed |
-| Current game | Owned `6424b12` test closed normally after wrong Career confirmation was cancelled |
+| Last loaded candidate | `0a879b8`: 1,639 Python checks passed (15 skipped), 37 plugin/13 launcher checks; 26 consecutive reset/navigation actions passed |
+| Native clock | Direct countdown/restoration observed; zero sampled before restoration with no ended/overtime flag; sustained zero hold and production timer unverified |
+| Current repair | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
+| Current game | Owned `0a879b8` source/native test; Training Return and re-entry observed |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
@@ -21,7 +21,7 @@ command-file read failure; its read-retry repair passed a real Windows lock test
 160 focused passing checks and independent review. Other ranks still contain two
 provisional shots each; the ultimate target remains twelve per lesson per rank.
 
-Next runtime blockers: live bounce/reset confirmation, actual native countdown,
+Next runtime blockers: actual native countdown,
 zero-time ball removal/restoration, Up whole retry and goal/Left/Right transitions
 without kickoff. Physical controller acceptance is distinct from generated keys.
 Thumbnails, Workshop arrival/return, Mods enable/disable, Garage, Options and Quit

@@ -6,11 +6,11 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | 6424 full navigation passed; repeated floor resets and Return confirmation failed; measured floor repair and active-Career Return fix ready for replacement candidate |
+| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | 0a879 repeated reset/navigation 26/26 passed; Return preserved Career and reached hub; production clock and goal-transition proof next |
 | DeepSeek builder/research | Manual retry proposal reviewed and corrected; native training/bot route investigated | Native Tutorial/TrainingEditor bot inheritance is plausible source evidence, not live compatibility; bounded floor-response follow-up pending |
 | Luna career_test_investigation | Independent manual-retry review complete | Actual Backend/native gate runner added to candidate pipeline; wrong Training confirmation fixed and tested; missed retry traced to transient command read failure |
 | Luna browser_investigation | Console/input ownership investigation active | Console open/closed retry distinction observed; embedded real gameplay thumbnail route reviewed for small offline package |
-| Luna rea_research | Floor-friction reset investigation active | Nineteen first-worker snapshots reviewed; bounded friction and settled-height repair reviewed; native zero-expiry experiment preparation |
+| Luna rea_research | Floor-friction reset investigation active | 23 replacement first-worker snapshots reviewed; three post-bounce samples on one geometry; zero probe reviewed, sustained zero hold remains open |
 | Scheduled improvement worker | PR #11 privacy check delivered | PR #11 integrated at c14cb5d after exact combined c969569 checks; privacy tool is available on this branch |
 
 The owner is away and has authorized continued testing. Root is the sole input

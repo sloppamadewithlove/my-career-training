@@ -64,3 +64,29 @@ attempt, observes native zero/end/overtime flags, then restores the same-event
 clock fields under the existing five-second lease. A resulting ended match is a
 possible diagnostic outcome, not lesson-timer acceptance. No online/gameplay
 release behavior is enabled by this command's presence.
+
+## Replacement candidate 0a879b8: observed 29 October
+
+Exact source/native candidate checks: 1,639 Python passed, 15 skipped;
+37 plugin and 13 launcher checks passed, including the real Backend/FileBridge
+to native Return gate fixture. These are not a release acceptance claim.
+
+Twenty-six consecutive generated keyboard actions passed: navigation plus repeated
+Up resets on Gold challenges 3, 5 and 7, with no lost acknowledgement or interrupted
+reset. Twenty-three first-worker snapshots on those challenges confirmed the applied
+state. Three post-bounce observations exercised the new friction gate, all on challenge
+3 (two distinct measured states); this is not three independent geometries.
+
+Training Return reached the authored hub in the same owned game, with fresh frontend
+READY and RootMenuMovie observed. The copied saved Career, including its unrelated
+pending fixture, was unchanged. Re-entering Gold succeeded in the same process.
+
+The two-second native-clock diagnostic reached remaining=0.000000 with round-active
+true, overtime false and match-ended false, then immediately restored the original
+time and unlimited flag. This establishes the instant sampled, not a sustained zero
+hold or subsequent engine-tick behavior. RLBot packet time does not reflect these
+direct native writes. Production countdown/zero hold remains unimplemented.
+
+Still open: scored-goal progression without kickoff, physical controller acceptance,
+shooting/keeper difficulty acceptance, other ranks, live thumbnail rendering, Workshop,
+Mods enable/disable, Garage, Options and Quit. Raw captures and saves remain private.
