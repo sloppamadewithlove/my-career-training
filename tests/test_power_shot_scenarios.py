@@ -699,7 +699,7 @@ def test_power_shots_hud_leaves_countdown_to_native_game_clock():
     session.engine.state, session.engine.outcome = "finished", "timeout"
     session.engine.active_elapsed = session.engine.scenario["timeout"]
     session.render({})
-    assert drawn == ["1/2    0:00", "Left / Right: challenge    Up: retry", "Time up"]
+    assert drawn == ["1/2", "Left / Right: challenge    Up: retry", "Time up"]
 
 
 @pytest.mark.parametrize("rank", ["gold", "platinum"])
