@@ -189,7 +189,7 @@ ApplicationWindow {
                 Copy { text: "Select Steam or Epic and check your game location in Settings. Career matches use the supported offline bot environment. Play Online saves your progress and opens the normal game entry."; tone:"muted"; scale:root.textScale; Layout.fillWidth:true }
                 RowLayout {
                     ActionButton { textScale:root.textScale; text: "Open setup & diagnostics"; onClicked: root.go("settings") }
-                    ActionButton { textScale:root.textScale; text:"Try calibration match"; enabled:!root.locked; onClicked:root.act("calibration") }
+                    ActionButton { textScale:root.textScale; text:"Try calibration match"; enabled:!root.locked && !root.session.results_pending_choice; onClicked:root.act("calibration") }
                 }
                 Copy { text:"Calibration is an optional exhibition. It does not record a league result."; tone:"small"; color:"#92a7b7"; Layout.fillWidth:true }
             }
