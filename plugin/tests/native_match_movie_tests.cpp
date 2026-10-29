@@ -19,6 +19,49 @@ static bool hasControl(const Json& view, const char* id) {
     for (const auto& row : view.at("controls")) if (row.at("id") == id) return true;
     return false;
 }
+static void returnAbandonmentBindingChecks() {
+    CareerLayoutScope scope{true, true, true, false, "test-owned-return-scope", 1,
+                            NativeMenuSurface::Pause};
+    Json training = {{"protocol", 1}, {"offline", true}, {"bridge_session", scope.nonce},
+        {"session", {{"id", "training-activity"}, {"fixture_id", ""}, {"kind", "training"},
+            {"state", "training"}, {"worker_running", true}, {"busy", false}}},
+        {"career", {{"pending_session", {{"session_id", "saved-career-activity"},
+            {"fixture_id", "saved-career-fixture"}}}}},
+        {"telemetry", {{"lesson_id", "power-shots"}}}};
+    const auto directReturn = [&](const Json& state, const char* reason) {
+        NativeMovieProtocol host;
+        require(host.open(scope, state), "Training Return scope did not open");
+        const auto view = host.publish(scope, state, 100);
+        require(!hasControl(view, "match.confirm_return") &&
+            control(view, "pause.return")["return_commit"] == true, reason);
+        require(host.readyMessage(ready(view), scope), "Training Return view did not become ready");
+        const auto effect = host.select(command(view, "pause.return"), scope, state, true);
+        require(effect.accepted && effect.action == "return_hub" &&
+            effect.payload["expected_session_id"] == stringValue(objectValue(state, "session"), "id") &&
+            effect.payload["expected_fixture_id"] == stringValue(objectValue(state, "session"), "fixture_id") &&
+            effect.payload["abandon"] == false, reason);
+    };
+    directReturn(training, "Unrelated pending Career forced training Return confirmation");
+
+    auto trainingIdentityCollision = training;
+    trainingIdentityCollision["session"]["id"] = "saved-career-activity";
+    trainingIdentityCollision["session"]["fixture_id"] = "saved-career-fixture";
+    directReturn(trainingIdentityCollision, "Training activity identity collision was treated as Career");
+
+    auto careerWrongFixture = training;
+    careerWrongFixture["session"]["kind"] = "career";
+    careerWrongFixture["session"]["id"] = "saved-career-activity";
+    careerWrongFixture["session"]["fixture_id"] = "another-career-fixture";
+    careerWrongFixture["session"]["state"] = "Playing";
+    directReturn(careerWrongFixture, "Mismatched Career fixture triggered abandon confirmation");
+
+    auto careerWrongSession = training;
+    careerWrongSession["session"]["kind"] = "career";
+    careerWrongSession["session"]["id"] = "another-career-activity";
+    careerWrongSession["session"]["fixture_id"] = "saved-career-fixture";
+    careerWrongSession["session"]["state"] = "Playing";
+    directReturn(careerWrongSession, "Mismatched Career session triggered abandon confirmation");
+}
 static void forfeitChecks() {
     CareerLayoutScope scope{true, true, true, false, "test-owned-forfeit-session", 1, NativeMenuSurface::Pause};
     scope.matchInProgress = true;
@@ -348,6 +391,7 @@ static void continuationChecks() {
 }
 int main() {
     try {
+        returnAbandonmentBindingChecks();
         forfeitChecks();
         forfeitResultLabels();
         continuationChecks();

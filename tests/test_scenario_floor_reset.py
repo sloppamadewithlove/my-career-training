@@ -90,14 +90,14 @@ def test_preimpact_and_upward_launch_still_use_original_confirmation(scenario_id
 def test_failed_first_launch_snapshot_survives_later_packets_and_clears_on_retry():
     engine = _ready("midfield-cross")
     first = _bounce(engine)
-    first["ball"]["velocity"][0] -= 170
+    first["ball"]["velocity"][0] += 170
     first["ball"]["angular_velocity"] = [-1.9, 4.75, 0.0]
     assert not engine.update(first)
     saved = copy.deepcopy(engine.preparation["first_ready"])
     assert saved["observed_ball"]["angular_velocity"] == [-1.9, 4.75, 0.0]
     assert saved["observed_state_applied"] is False
     later = _bounce(engine, .045)
-    later["ball"]["velocity"][0] -= 175
+    later["ball"]["velocity"][0] += 175
     later["ball"]["angular_velocity"] = [-2.0, 4.8, 0.0]
     assert not engine.update(later)
     assert engine.preparation["first_ready"] == saved
@@ -105,3 +105,75 @@ def test_failed_first_launch_snapshot_survives_later_packets_and_clears_on_retry
     assert engine.preparation["ready"]["observed_ball"]["angular_velocity"] == [-2.0, 4.8, 0.0]
     engine.reset()
     assert "first_ready" not in engine.preparation
+
+
+@pytest.mark.parametrize("scenario_id", ["left-diagonal-pass", "midfield-cross", "left-cutback"])
+def test_first_floor_packet_accepts_bounded_opposing_friction(scenario_id):
+    engine = _ready(scenario_id)
+    frame = _bounce(engine)
+    velocity = engine.starting_state["ball"]["velocity"]
+    normal = frame["ball"]["velocity"][2] - (velocity[2] - 650*.04)
+    speed = math.hypot(*velocity[:2])
+    for i in range(2):
+        frame["ball"]["velocity"][i] -= .355 * normal * velocity[i] / speed
+    assert [event["type"] for event in engine.update(frame)] == ["go"]
+    assert engine.preparation["ready"]["early_floor_response"] is True
+
+
+@pytest.mark.parametrize("fault", ["stale_zero", "excess_friction", "wrong_direction", "energy_gain", "strict"])
+def test_floor_friction_does_not_accept_unrelated_ball_state(fault):
+    engine = _ready("midfield-cross")
+    frame = _bounce(engine)
+    velocity = engine.starting_state["ball"]["velocity"]
+    normal = frame["ball"]["velocity"][2] - (velocity[2] - 650*.04)
+    speed = math.hypot(*velocity[:2])
+    coefficient = .6 if fault == "excess_friction" else .355
+    for i in range(2):
+        frame["ball"]["velocity"][i] -= coefficient * normal * velocity[i] / speed
+    if fault == "stale_zero":
+        frame["ball"]["velocity"] = [0., 0., 0.]
+    elif fault == "wrong_direction":
+        frame["ball"]["velocity"][0] = velocity[0]
+        frame["ball"]["velocity"][1] = velocity[1] - .355*normal
+    elif fault == "energy_gain":
+        frame["ball"]["velocity"][:2] = [v*1.1 for v in velocity[:2]]
+    elif fault == "strict":
+        engine.strict_capture = True
+    assert not engine.update(frame)
+    assert engine.state == "ready"
+
+
+@pytest.mark.parametrize("excluded", [None, "strict", "airborne", "moving", "tilted"])
+def test_ground_launch_uses_verified_settled_height_only(excluded):
+    engine = TrainingEngine("power-shots", scenario_id="left-diagonal-pass", difficulty="gold")
+    if excluded == "strict":
+        engine.strict_capture = True
+    elif excluded == "airborne":
+        engine.lesson["starting_state"]["car"]["position"][2] = 300
+    elif excluded == "moving":
+        engine.lesson["starting_state"]["car"]["velocity"][0] = 100
+    elif excluded == "tilted":
+        engine.lesson["starting_state"]["car"]["rotation"][0] = .3
+    engine.reset()
+    authored = copy.deepcopy(engine.lesson["starting_state"])
+    for index in range(1, 80):
+        frame = _frame(engine, index/120)
+        frame["frame_num"] = index
+        frame["car"]["position"][2] = 17.01
+        events = engine.update(frame)
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+    expected = copy.deepcopy(authored)
+    if excluded is None:
+        expected["car"]["position"][2] = 17.01
+    assert engine.starting_state == expected
+    assert events[0] == {"type": "set_state", "state": expected}
+    assert engine.lesson["starting_state"] == authored
+    if excluded is None:
+        frame = _bounce(engine, 5/120)
+        frame["frame_num"] = index + 5
+        frame["car"] = {**frame["car"], **copy.deepcopy(expected["car"])}
+        assert [event["type"] for event in engine.update(frame)] == ["go"]
+    engine.reset()
+    assert engine.starting_state == authored

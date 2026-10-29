@@ -186,7 +186,7 @@ class TrainingEngine:
 
     @property
     def starting_state(self):
-        return deepcopy(self.lesson["starting_state"])
+        return deepcopy(self.launch_state)
 
     def set_preference(self, key, value):
         preferences = assistance_preferences({**self.preferences, key: value})
@@ -196,6 +196,7 @@ class TrainingEngine:
         return deepcopy(self.preferences)
 
     def reset(self):
+        self.launch_state = deepcopy(self.lesson["starting_state"])
         self.attempt_id = uuid.uuid4().hex
         self.state = "settling"
         self.started_at = None
@@ -663,6 +664,15 @@ class TrainingEngine:
             self.last_frame = deepcopy(frame)
             if (self.settle_start is not None and now - self.settle_start >= 0.25
                     and (self.strict_capture or self.settle_samples >= 3)):
+                # Pack ground spawns sit above the suspension's settled height.
+                # Preserve the verified ground pose instead of dropping the car again.
+                launch_car = self.launch_state["car"]
+                if (self.scenario is not None and not self.strict_capture
+                        and 0 <= launch_car["position"][2] <= 40
+                        and _length(launch_car["velocity"]) == 0
+                        and abs(launch_car["rotation"][0]) <= .15
+                        and abs(launch_car["rotation"][2]) <= .15):
+                    launch_car["position"][2] = car["position"][2]
                 self.state = "ready"
                 self.reset_requested_at = now
                 return [
@@ -686,7 +696,7 @@ class TrainingEngine:
             # Some ground feeds hit the floor before the next packet. A narrowly
             # bounded vertical collision response may confirm those launches;
             # car, roster, horizontal ball motion and cadence checks still apply.
-            target = self.lesson["starting_state"]
+            target = self.launch_state
             elapsed = now - self.reset_requested_at
             expected_ball = [
                 p + v * elapsed for p, v in zip(target["ball"]["position"], target["ball"]["velocity"])
@@ -1360,10 +1370,10 @@ class TrainingEngine:
 def _early_floor_response(target, observed, elapsed, position_tolerance, velocity_tolerance):
     """Bound a first-packet floor response without guessing a rebound coefficient.
 
-    Only the vertical collision component is allowed to change. The response
-    must fit the first 50ms and the elastic energy envelope, with a six-unit
-    velocity allowance for one gravity integration step. This is reset
-    confirmation, not a prediction model for subsequent gameplay.
+    The first 50ms may include floor friction as well as a vertical rebound.
+    Bound the measured opposing impulse by normal impulse, retaining the elastic
+    energy envelope and existing position checks. This confirms a reset only;
+    it is not a prediction model for subsequent gameplay.
     """
     if not 0 < elapsed <= 0.05:
         return False
@@ -1380,10 +1390,24 @@ def _early_floor_response(target, observed, elapsed, position_tolerance, velocit
     expected_xy = [position[i] + velocity[i] * elapsed for i in range(2)]
     horizontal_position_error = math.hypot(*(observed["position"][i] - expected_xy[i] for i in range(2)))
     horizontal_velocity_error = math.hypot(*(observed["velocity"][i] - velocity[i] for i in range(2)))
+    horizontal_applied = horizontal_velocity_error < velocity_tolerance
+    if not horizontal_applied and _length(target.get("angular_velocity", [0, 0, 0])) == 0:
+        speed = math.hypot(*velocity[:2])
+        impulse = [observed["velocity"][i] - velocity[i] for i in range(2)]
+        normal_impulse = observed["velocity"][2] - (velocity[2] - 650 * elapsed)
+        opposition = -sum(impulse[i] * velocity[i] for i in range(2))
+        # Measured Gold floor contacts cluster at 0.352-0.355. Keep a bounded
+        # margin and reject acceleration, wrong-way response and a parked ball.
+        horizontal_applied = (
+            speed > 0 and normal_impulse > 0
+            and horizontal_velocity_error <= .38 * normal_impulse + 6
+            and opposition >= .9 * horizontal_velocity_error * speed
+            and math.hypot(*observed["velocity"][:2]) <= speed
+        )
     vertical_energy = observed["velocity"][2] ** 2 + 1300 * max(0, observed["position"][2] - floor)
     return (
         horizontal_position_error < position_tolerance
-        and horizontal_velocity_error < velocity_tolerance
+        and horizontal_applied
         and floor - 5 <= observed["position"][2] <= floor + impact_speed * after + 20
         and -650 * after - velocity_tolerance <= observed["velocity"][2]
         <= impact_speed - 650 * after + 6

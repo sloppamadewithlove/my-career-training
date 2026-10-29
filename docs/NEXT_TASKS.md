@@ -6,11 +6,11 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | a8b6 live test closed; cursor guard replaced by keyboard capture; optional-GUID probe and durable Return correction under review; first reset snapshot retained |
+| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | 6424 full navigation passed; repeated floor resets and Return confirmation failed; measured floor repair and active-Career Return fix ready for replacement candidate |
 | DeepSeek builder/research | Manual retry proposal reviewed and corrected; native training/bot route investigated | Native Tutorial/TrainingEditor bot inheritance is plausible source evidence, not live compatibility; bounded floor-response follow-up pending |
-| Luna career_test_investigation | Independent manual-retry review complete | Confirmed unrelated saved Career fixture blocked native training Return; exact native regression and correction under verification |
-| Luna browser_investigation | Console/input ownership investigation active | DeepSeek Render sampler proposal independently reviewed; live capture flag and retry still need proof; thumbnail byte route researched |
-| Luna rea_research | Floor-friction reset investigation active | Optional-GUID probe harness review; new first-packet retention needed before floor-response thresholds change |
+| Luna career_test_investigation | Independent manual-retry review complete | Actual Backend/native gate runner added to candidate pipeline; wrong Training confirmation fixed and tested; missed retry traced to transient command read failure |
+| Luna browser_investigation | Console/input ownership investigation active | Console open/closed retry distinction observed; embedded real gameplay thumbnail route reviewed for small offline package |
+| Luna rea_research | Floor-friction reset investigation active | Nineteen first-worker snapshots reviewed; bounded friction and settled-height repair reviewed; native zero-expiry experiment preparation |
 | Scheduled improvement worker | PR #11 privacy check delivered | PR #11 integrated at c14cb5d after exact combined c969569 checks; privacy tool is available on this branch |
 
 The owner is away and has authorized continued testing. Root is the sole input

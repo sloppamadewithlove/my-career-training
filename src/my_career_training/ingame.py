@@ -86,11 +86,24 @@ class FileBridge:
 
     def poll(self):
         for path in sorted(self.commands.glob("*.json"))[:32]:
-            command_id = ""
             try:
                 if path.is_symlink() or path.stat().st_size > 65536:
                     raise ValueError("Invalid command file.")
-                command = json.loads(path.read_text(encoding="utf-8"))
+                raw = path.read_text(encoding="utf-8")
+            except PermissionError:
+                # A short-lived Windows sharing/permission lock must not turn
+                # a published command into a false blank-ID acknowledgement.
+                # Leave it in place for the next poll; never infer its ID from
+                # the untrusted filename.
+                continue
+            except (ValueError, OSError) as exc:
+                self.ack = {"id": "", "ok": False, "error": str(exc)}
+                path.unlink(missing_ok=True)
+                continue
+
+            command_id = ""
+            try:
+                command = json.loads(raw)
                 command_id = command.get("id", "")
                 if str(uuid.UUID(command_id)) != command_id or path.stem != command_id:
                     raise ValueError("Invalid command identity.")

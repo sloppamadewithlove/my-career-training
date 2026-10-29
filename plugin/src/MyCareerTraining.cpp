@@ -168,6 +168,9 @@ void MyCareerTraining::onLoad() {
         cvarManager->registerNotifier("mct_probe_training_clock", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::ProbeTrainingClock);
         }, "Development-only five-second native training clock probe", PERMISSION_OFFLINE);
+        cvarManager->registerNotifier("mct_probe_training_clock_zero", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::ProbeTrainingClockZero);
+        }, "Development-only two-second native clock zero-expiry diagnostic", PERMISSION_OFFLINE);
 #endif
         cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::StartProbe);
@@ -903,7 +906,8 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
 }
 
 
-void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, bool cleanup) {
+void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, bool cleanup,
+                                                float startRemaining, bool zeroExpiry) {
     // Reacquire the current wrapper. Never restore through an address saved from
     // another event, an online session, or a replay.
     if (!gameWrapper || !gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame() ||
@@ -948,8 +952,28 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
         !server.GetbOverTime() && !server.GetbMatchEnded() && server.GetbRoundActive();
     if (clockProbe_) {
         const auto lease = *clockProbe_;
-        if (eligible && nonce == lease.nonce && sessionId == lease.session && attempt == lease.attempt &&
-            mct::unixTime() < lease.deadline && server.GetGameTimeRemaining() > 80) return;
+        const float currentRemaining = server.GetGameTimeRemaining();
+        const bool finiteRemaining = std::isfinite(currentRemaining);
+        const bool sameAttempt = nonce == lease.nonce && sessionId == lease.session && attempt == lease.attempt;
+        const float restoreAt = lease.zeroExpiry ? 0.0f : 80.0f;
+        if (eligible && sameAttempt && mct::unixTime() < lease.deadline &&
+            finiteRemaining && currentRemaining > restoreAt) return;
+        if (lease.zeroExpiry) {
+            std::string result = "eligibility_lost";
+            if (server.GetbMatchEnded()) result = "match_ended";
+            else if (server.GetbOverTime()) result = "overtime";
+            else if (!server.GetbRoundActive()) result = "round_inactive";
+            else if (finiteRemaining && currentRemaining <= 0.0f) result = "zero_or_negative";
+            else if (mct::unixTime() >= lease.deadline) result = "lease_deadline";
+            else if (!sameAttempt) result = "attempt_changed";
+            else if (cleanup) result = "cleanup";
+            cvarManager->log(std::string("Native zero-expiry result: ") + result +
+                " remaining_finite=" + (finiteRemaining ? "true" : "false") +
+                " remaining=" + (finiteRemaining ? std::to_string(currentRemaining) : "nonfinite") +
+                " round_active=" + (server.GetbRoundActive() ? "true" : "false") +
+                " overtime=" + (server.GetbOverTime() ? "true" : "false") +
+                " match_ended=" + (server.GetbMatchEnded() ? "true" : "false"));
+        }
         // Keep the lease until readback confirms cleanup, so a failed write can retry.
         server.SetbUnlimitedTime(lease.unlimited);
         server.SetGameTimeRemaining(lease.remaining);
@@ -985,20 +1009,26 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
         throw std::runtime_error("Native clock probe needs an active owned unlimited Power Shots attempt.");
     const float remaining = server.GetGameTimeRemaining();
     if (!std::isfinite(remaining)) throw std::runtime_error("Native clock snapshot is unavailable.");
+    const float requiredStart = zeroExpiry ? 2.0f : 90.0f;
+    if (!std::isfinite(startRemaining) || std::abs(startRemaining - requiredStart) > 0.001f)
+        throw std::runtime_error("Native clock diagnostic received an unsupported start time.");
     clockProbe_ = ClockProbe{server.memory_address, remaining, server.GetbUnlimitedTime(),
-                            mct::unixTime() + 5.0, nonce, sessionId, attempt, matchGuid};
+                            mct::unixTime() + 5.0, startRemaining, zeroExpiry,
+                            nonce, sessionId, attempt, matchGuid};
     try {
-        server.SetGameTimeRemaining(90.0f);
+        server.SetGameTimeRemaining(startRemaining);
         server.SetbUnlimitedTime(0UL);
         const float observedTime = server.GetGameTimeRemaining();
-        if (!std::isfinite(observedTime) || std::abs(observedTime - 90.0f) > 0.1f || server.GetbUnlimitedTime())
+        if (!std::isfinite(observedTime) || std::abs(observedTime - startRemaining) > 0.1f || server.GetbUnlimitedTime())
             throw std::runtime_error("Native clock probe could not confirm its temporary fields.");
     } catch (...) {
         clockProbe_->deadline = 0;
         try { updateTrainingClockProbe(state, false, true); } catch (...) {}
         throw;
     }
-    cvarManager->log("Native training clock probe started at 90 seconds for at most five seconds.");
+    cvarManager->log(zeroExpiry
+        ? "Native zero-expiry diagnostic armed at two seconds for at most five seconds."
+        : "Native training clock probe started at 90 seconds for at most five seconds.");
 }
 
 void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allowHide) {
@@ -1288,6 +1318,10 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
 #if MCT_ENABLE_NATIVE_MOVIE_TRIAL
                 updateTrainingClockProbe(bridge_->state(), true);
 #endif
+            } else if (request.type == LocalRequest::ProbeTrainingClockZero) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+                updateTrainingClockProbe(bridge_->state(), true, false, 2.0f, true);
+#endif
             } else if (request.type == LocalRequest::StartProbe) {
                 closeNativeMenu();
                 startNativeProbe();
@@ -1368,7 +1402,8 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 probeExecutableSha256_.clear();
                 probeSaveFailed_ = false;
                 probeMessage_ = std::string("Menu capture failed: ") + error.what();
-            } else if (request.type == LocalRequest::ProbeTrainingClock) {
+            } else if (request.type == LocalRequest::ProbeTrainingClock ||
+                       request.type == LocalRequest::ProbeTrainingClockZero) {
                 cvarManager->log(std::string("Native clock probe refused: ") + error.what());
             } else result.cosmeticMessage = error.what();
         }

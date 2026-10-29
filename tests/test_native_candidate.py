@@ -28,8 +28,14 @@ def test_plan_commands_stay_on_the_candidate_cmake_cache(tmp_path):
     root = tmp_path / "repo"
     commands = candidate.plan_commands(root, freeze=False)
     plugin = commands[0]
-    launcher = commands[3]
+    backend_gate = commands[3]
+    launcher = commands[4]
     assert plugin[plugin.index("-B") + 1] == str(candidate.plugin_build_dir(root))
+    assert backend_gate == [sys.executable,
+                           str(root / "scripts" / "test_native_return_gate_backend.py"),
+                           "--source", str(root / "src"), "--gate",
+                           str(candidate.plugin_build_dir(root) / "Release" /
+                               "mct_native_return_gate_tests.exe")]
     assert launcher[launcher.index("-B") + 1] == str(candidate.launcher_build_dir(root))
     assert "-DMCT_ENABLE_NATIVE_MOVIE_TRIAL=ON" in plugin
     assert "-DMCT_BUILD_HOST_PROBE=OFF" in plugin

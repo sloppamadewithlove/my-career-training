@@ -57,6 +57,20 @@ def test_bridge_reports_backend_rejection_and_rejects_large_command(tmp_path):
     assert not pipe.ack["ok"]
 
 
+def test_bridge_rejects_and_removes_malformed_command_json(tmp_path):
+    actions = []
+    pipe = FileBridge(tmp_path, lambda action, payload: actions.append(action), lambda: {"error": ""})
+    path = pipe.commands / f"{uuid.uuid4()}.json"
+    path.write_text("{", encoding="utf-8")
+
+    pipe.poll()
+
+    assert not path.exists()
+    assert actions == []
+    assert pipe.ack["ok"] is False
+    assert pipe.ack["id"] == ""
+
+
 def test_plugin_status_requires_current_nonce_and_fresh_timestamp(tmp_path):
     pipe = FileBridge(tmp_path, lambda a,p: None, lambda: {}, clock=lambda: 100)
     path = pipe.directory / "plugin-status.json"

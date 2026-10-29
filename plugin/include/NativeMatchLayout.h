@@ -586,9 +586,15 @@ private:
     static Json returnBinding(const Json& state) {
         const auto session = objectValue(state, "session");
         const auto pending = objectValue(objectValue(state, "career"), "pending_session");
-        return {{"expected_session_id", stringValue(session, "id")},
-            {"expected_fixture_id", stringValue(session, "fixture_id")},
-            {"abandon", !pending.empty()}};
+        const auto activity = stringValue(session, "id");
+        const auto fixture = stringValue(session, "fixture_id");
+        const bool abandon = stringValue(session, "kind") == "career" &&
+            !activity.empty() && !fixture.empty() &&
+            stringValue(pending, "session_id") == activity &&
+            stringValue(pending, "fixture_id") == fixture;
+        return {{"expected_session_id", activity},
+            {"expected_fixture_id", fixture},
+            {"abandon", abandon}};
     }
     static Json forfeitBinding(const Json& state) {
         const auto session = objectValue(state, "session");

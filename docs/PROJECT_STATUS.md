@@ -6,17 +6,19 @@ or owner-accepted Gold playlist is available.
 | Area | Current evidence |
 | --- | --- |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Reset/clock candidate | `a8b6a34`: local 37 plugin/13 launcher checks passed; cursor guard caused a live retry regression, empty GUID blocked probe; corrected source awaits next candidate |
-| Runtime cleanup/observation | `440f7ce`: hidden-ball cleanup survives unavailable wrappers; adapter exposes native match clock fields; isolated C++ and Python checks passed |
-| Last mod playtest | `a8b6a34`: manual timeout hold observed; service-route challenge 5 interrupted three of nine starts; keyboard retry regressed under cursor guard; not owner accepted |
-| Current game | Owned `a8b6a34` test closed normally; next repair awaits rebuild |
+| Last loaded candidate | `6424b12`: 37 plugin/13 launcher checks; all twelve Gold challenges reached by keyboard; repeated floor resets still failed |
+| Native clock | 90-second direct game-clock countdown and restoration observed; production attempt timer and zero behavior still unverified |
+| Current repair | Grounded reset height, bounded floor friction, and Training Return activity matching; source checks passed, replacement live build pending; original 6424 Windows CI passed |
+| Current game | Owned `6424b12` test closed normally after wrong Career confirmation was cancelled |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
 The three-tab/rank route, saved-schedule Training access, live-match exit rule,
 keyboard polling, queued retry/step acknowledgements and goal advancement exist
 in source. The previous failed playtest remains evidence against readiness.
-The manual-retry repair has 187 focused passing checks and independent review, but awaits a new live candidate. Other ranks still contain two
+Manual timeout hold and generated-key retry are observed; one rapid retry hit a
+command-file read failure; its read-retry repair passed a real Windows lock test. The next reset/Return repair has
+160 focused passing checks and independent review. Other ranks still contain two
 provisional shots each; the ultimate target remains twelve per lesson per rank.
 
 Next runtime blockers: live bounce/reset confirmation, actual native countdown,
@@ -42,3 +44,5 @@ current agent assignments and release blockers.
 [Gold live retry receipt](evidence/2026-10-29-gold-live-retry.md) separates observed controls from the unresolved native timer, bounce and console-input defects.
 
 [Input/Return follow-up](evidence/2026-10-29-input-return-followup.md) records the latest live defects, corrected source contracts and integrated heartbeat work.
+
+[Reset/Return receipt](evidence/2026-10-29-gold-reset-return.md) records the full twelve-challenge pass, repeat-reset failures, measured response and corrected menu boundary.

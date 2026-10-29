@@ -78,3 +78,34 @@ def test_state_publication_preserves_old_state_and_reports_persistent_denial(tmp
         kernel.CloseHandle(handle)
     pipe.poll()
     assert json.loads(path.read_text())["bridge_session"] == pipe.session
+
+
+def test_command_read_retries_sharing_violation_and_processes_later_commands(tmp_path):
+    actions = []
+    pipe = FileBridge(tmp_path, lambda action, payload: actions.append((action, payload)),
+                      lambda: {"error": ""})
+    locked_id = "00000000-0000-4000-8000-000000000001"
+    later_id = "00000000-0000-4000-8000-000000000002"
+    locked_path = pipe.commands / f"{locked_id}.json"
+    later_path = pipe.commands / f"{later_id}.json"
+    locked_path.write_text(json.dumps({"protocol": 1, "id": locked_id, "session": pipe.session,
+                                      "action": "retry_lesson", "payload": {}}), encoding="utf-8")
+    later_path.write_text(json.dumps({"protocol": 1, "id": later_id, "session": pipe.session,
+                                     "action": "training_scenario_step", "payload": {"direction": 1}}),
+                          encoding="utf-8")
+    kernel, handle = _open_handle(locked_path, 0x80000000, 0x2 | 0x4)
+    try:
+        pipe.poll()
+        assert locked_path.exists(), "Unreadable command was deleted before retry"
+        assert actions == [("training_scenario_step", {"direction": 1})]
+        assert pipe.ack == {"id": later_id, "ok": True, "error": ""}
+        assert not later_path.exists()
+    finally:
+        kernel.CloseHandle(handle)
+
+    pipe.poll()
+    assert actions == [("training_scenario_step", {"direction": 1}), ("retry_lesson", {})]
+    assert pipe.ack == {"id": locked_id, "ok": True, "error": ""}
+    assert not locked_path.exists()
+    pipe.poll()
+    assert actions == [("training_scenario_step", {"direction": 1}), ("retry_lesson", {})]
