@@ -1,3 +1,11 @@
+## Power Shots functional recovery — 29 October 2026
+
+[Draft PR #10](https://github.com/sloppamadewithlove/my-career-training/pull/10) is the current prototype. The owner rejected both existing feeds: no challenge geometry, speed, or power is approved. Twelve challenges per lesson per rank remains the final target; only two provisional feeds are retained for functional testing.
+
+At `dca3817`, 319 focused Python checks passed. Six focused native checks passed: two rerun at this revision, four reused from `b396ad1` because their inputs are unchanged. The implemented path is custom Lessons → Power Shots → eight rank buttons; Up retries, Down toggles a supported ghost, left/right changes challenge after the prior result is saved. Power Shots has a minimal challenge/timer/status HUD. Rank launch is disabled while a lesson is running.
+
+Timeout visibility is an SDK experiment with actor identity checks and retry restoration; rendering and collision effects are not live-verified. The native DLL compiled at `383467e`; the coherent latest candidate is being staged. No physical-controller, feed-quality, whole-reset, visible-expiry, or owner acceptance is claimed. No release or website promotion is authorized by these source checks.
+
 # Current project status
 
 ## Current recovery work
@@ -39,7 +47,7 @@ archived; no game or binary change was tested or claimed in that update.
 | --- | --- | --- |
 | Browser | Three-tab Lessons/Workshop/Mods implementation compiled and native-tested; Favorites controls removed. Prior four-tab evidence at 099fad1 is historical | Real thumbnails; redraw flicker; physical-controller navigation |
 | Speed Flip | a7de7b4 actual Start reached prepared drill with target/instructions; no-dodge timeout and auto-retry observed | Successful skill, timing despite packet gaps, 12 scenarios, teaching ghost |
-| Power Shots | Six real Psyonix-featured pack metadata entries; 5b293d2 actual load returned Training/GetTrainingData FeatureDisabled offline | No accepted Power Shot gameplay. Custom pass/keeper scenario is now core; blocked packs supplement it |
+| Power Shots | Two unapproved custom feeds, rank route, retry/timer/HUD implementation in PR #10; source checks above | Owner rejected feed speed/power; live retry, expiry and useful shooting window remain unaccepted |
 | Scenarios | Owner requires 12 distinct situations per skill, usually plus simple practice; flip reset 1–4 solo, 5–8 keeper, 9–12 two defenders | Not implemented/tested. Rank labels do not replace scenario design |
 | Ghost/tutorial | Non-contact repeating successful demonstration and synchronized controller required | No validated reference or accepted ghost/tutorial; personal timeout recording is not an expert demonstration |
 | Options/Return | a7de7b4 Controller Off visibly removed silhouette; one Return reached fresh frontend READY, actual RootMenuMovie and visible hub | Physical DS4, full settings; silhouette overlaps boost gauge |

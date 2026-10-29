@@ -2,9 +2,12 @@
 
 ## Active recovery queue
 
+Current next action is the owner-playable Power Shots candidate from [PR #10](https://github.com/sloppamadewithlove/my-career-training/pull/10), source `dca3817`: 319 focused Python and six scoped native checks passed. First two feeds are **not approved**. Freeze the candidate, verify Up whole-level reset and timer-zero disappearance/restoration, then hand input to the owner for speed/power/feel assessment. The remaining ten challenge proposals are not approved or implemented.
+
+
 [Issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) tracks confirmed decisions and selective recovery. The Career post-end team-write guard and corrected CI assertion passed both Windows build pipelines at `52021d8`. The three-tab browser source passed four native checks and compiled; matching published assets and integrity tests are now ready for the next focused test run. No live acceptance or full lobby fix is claimed.
 
-Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove a clean 12-challenge loop; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
+Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove retry, expiry and a useful feed with the owner before expanding to 12 challenges; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
 
 The [45-minute workflow audit](IMPROVEMENT_HEARTBEAT.md) is active in the desktop Scheduled page (GPT-6 Luna Max, Important updates only). Next: confirm the first run at 01:26 America/New_York on 29 October and its GitHub access. No Windows scheduler was created.
 
@@ -23,7 +26,7 @@ runtime worker is assigned by this document.
 
 | ID | Outcome / state | First proof / next action |
 | --- | --- | --- |
-| T01 | Power Shot situation — planned | Prove approved low side-pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
+| T01 | Power Shot situation — planned | Rework the rejected provisional feeds and prove useful pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
 | T02 | Scenario lifecycle — planned | Stable IDs, actor roles, reset/settle, seeds, success/failure; prove switching removes old bots/timers |
 | T03 | DS4 controls — planned | Adjustable Left previous/Right next/Up retry/Down supported ghost only in lessons; physical USB DS4, stock-conflict suppression, boundaries 1/12 and 12/12, restore outside |
 | T04 | Ghost — blocked on valid trace | Capture successful actual skill; validate car/ball/action trace. For shots/flip resets render at fixed lesson start with faint non-contact demonstration ball/controller; prove no effect on real attempt/physics/scoring |

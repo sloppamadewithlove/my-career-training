@@ -26,3 +26,11 @@ Use GPT-6 Luna Max for research/testing and the configured DeepSeek route for bo
 Preserve confirmed product choices: Lessons/Workshop/Mods, no Favorites; lesson then rank Bronze through SSL; 12 challenges per lesson per rank; Up retries the whole level, Down toggles only a supported lesson ghost. Prove clean Power Shots first with real gameplay thumbnails: Bronze/Silver solo, Gold/Platinum one ground keeper, Diamond/Champion one advancing defender, GC/SSL two defenders. Career results wait for explicit Next or Return. Keep downloads compact and offline play straightforward; update my-career-training.vercel.app after major verified changes. Ask the owner before unresolved product choices, not routine authorized work.
 
 Stay quiet if nothing actionable changed. Notify only for a meaningful improvement, verified completion, new failure or required user action. Do not claim the full mod or live acceptance is complete without evidence.
+
+## Workflow corrections observed during recovery
+
+- Resume an idle existing subagent with a follow-up task; a queued message alone does not start work. Reuse named bounded research/testing workers and verify their running/completed state.
+- Bound DeepSeek context and requested output. Several broad requests exhausted their budget in reasoning with no visible answer; those are failed reviews, never approvals. Small concrete input reviews produced actionable defects.
+- Separate exact-source unit, native, package, and gameplay evidence. Do not label two provisional feeds approved because their structural tests pass.
+- Local MSVC long include paths required a shorter SDK dependency copy. The unchanged Workshop test binary also needed a shorter private build fixture path to exercise its alternate-data-stream rejection instead of the path-length rejection; its bytes were hash-checked after relocation and its assertions passed unchanged.
+- A review found retry acknowledgement must use the new attempt identity, because the telemetry publisher can skip a brief preparing phase. Tests now cover that missed-phase case and reject phase-only acknowledgements.
