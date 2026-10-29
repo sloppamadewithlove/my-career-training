@@ -1,4 +1,5 @@
 #include "MyCareerTraining.h"
+#include <cmath>
 #include "ExecutableHash.h"
 #include "NativeCareerLayout.h"
 #include "bakkesmod/wrappers/PluginManagerWrapper.h"
@@ -163,6 +164,11 @@ void MyCareerTraining::onLoad() {
         cvarManager->registerNotifier("mct_native_hub", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::OpenNativeMenu);
         }, "Try supported native career dialogs in the owned offline frontend", PERMISSION_OFFLINE);
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+        cvarManager->registerNotifier("mct_probe_training_clock", [this](std::vector<std::string>) {
+            queueLocal(LocalRequest::ProbeTrainingClock);
+        }, "Development-only five-second native training clock probe", PERMISSION_OFFLINE);
+#endif
         cvarManager->registerNotifier("mct_probe_start", [this](std::vector<std::string>) {
             queueLocal(LocalRequest::StartProbe);
         }, "Opt in to a bounded read-only native menu diagnostic", PERMISSION_OFFLINE);
@@ -182,6 +188,7 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
     try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
     releaseTrainingBindings();
     trainingLessonInput_.reset();
@@ -894,6 +901,87 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
     else trainingLessonInput_.commandFailed();
 }
 
+
+void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, bool cleanup) {
+    // Reacquire the current wrapper. Never restore through an address saved from
+    // another event, an online session, or a replay.
+    if (!gameWrapper || !gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame() ||
+        gameWrapper->IsInReplay()) return;
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) return;
+    if (clockProbe_ && clockProbe_->event != server.memory_address) {
+        clockProbe_.reset();
+        cvarManager->log("Native clock probe detached from a replaced event without writing to it.");
+        return;
+    }
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto nonce = stringValue(state, "bridge_session");
+    const auto sessionId = stringValue(session, "id");
+    const auto attempt = stringValue(coaching, "attempt_id");
+    const auto matchGuid = server.GetMatchGUID();
+    const auto owned = objectValue(state, "owned_game");
+    const double created = mct::numberValue(owned, "created", -1);
+    // A stale bridge clears its document. This plugin instance cannot outlive
+    // its process; the saved event address and nonempty match GUID still bind cleanup.
+    const bool hasState = !state.empty();
+    const bool sameProcess = GetCurrentProcessId() == processScope_.pid && (!hasState ||
+        (mct::numberValue(owned, "pid", -1) == processScope_.pid &&
+         std::isfinite(created) && std::abs(created - processScope_.created) < 0.01));
+    if (clockProbe_ && (!sameProcess || (hasState && (nonce != clockProbe_->nonce ||
+        sessionId != clockProbe_->session)) || matchGuid.empty() || matchGuid != clockProbe_->matchGuid)) {
+        clockProbe_.reset();
+        cvarManager->log("Native clock probe detached from changed session identity without restoring into it.");
+        return;
+    }
+    const bool eligible = !cleanup && offlineReady_ && ownedOfflineNow() &&
+        !gameWrapper->IsPaused() && stringValue(session, "kind") == "training" &&
+        stringValue(session, "state") == "training" && mct::boolValue(session, "worker_running") &&
+        !nonce.empty() && !sessionId.empty() && !attempt.empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" &&
+        stringValue(coaching, "phase") == "active" &&
+        !referenceCaptureActive(state) && !matchGuid.empty() &&
+        !server.GetbOverTime() && !server.GetbMatchEnded() && server.GetbRoundActive();
+    if (clockProbe_) {
+        const auto lease = *clockProbe_;
+        if (eligible && nonce == lease.nonce && sessionId == lease.session && attempt == lease.attempt &&
+            mct::unixTime() < lease.deadline && server.GetGameTimeRemaining() > 80) return;
+        // Keep the lease until readback confirms cleanup, so a failed write can retry.
+        server.SetbUnlimitedTime(lease.unlimited);
+        server.SetGameTimeRemaining(lease.remaining);
+        const float restoredTime = server.GetGameTimeRemaining();
+        if (server.GetbUnlimitedTime() != lease.unlimited ||
+            !std::isfinite(restoredTime) || std::abs(restoredTime - lease.remaining) > 0.1f)
+            throw std::runtime_error("Native clock probe could not confirm restoration.");
+        clockProbe_.reset();
+        cvarManager->log("Native training clock probe restored its original time and unlimited flag.");
+        return;
+    }
+    if (!arm) return;
+    if (!eligible || !server.GetbUnlimitedTime() ||
+        !mct::boolValue(telemetry, "is_unlimited_time") ||
+        !telemetry.contains("is_overtime") || !telemetry["is_overtime"].is_boolean() ||
+        telemetry["is_overtime"].get<bool>())
+        throw std::runtime_error("Native clock probe needs an active owned unlimited Power Shots attempt.");
+    const float remaining = server.GetGameTimeRemaining();
+    if (!std::isfinite(remaining)) throw std::runtime_error("Native clock snapshot is unavailable.");
+    clockProbe_ = ClockProbe{server.memory_address, remaining, server.GetbUnlimitedTime(),
+                            mct::unixTime() + 5.0, nonce, sessionId, attempt, matchGuid};
+    try {
+        server.SetGameTimeRemaining(90.0f);
+        server.SetbUnlimitedTime(0UL);
+        const float observedTime = server.GetGameTimeRemaining();
+        if (!std::isfinite(observedTime) || std::abs(observedTime - 90.0f) > 0.1f || server.GetbUnlimitedTime())
+            throw std::runtime_error("Native clock probe could not confirm its temporary fields.");
+    } catch (...) {
+        clockProbe_->deadline = 0;
+        try { updateTrainingClockProbe(state, false, true); } catch (...) {}
+        throw;
+    }
+    cvarManager->log("Native training clock probe started at 90 seconds for at most five seconds.");
+}
+
 void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allowHide) {
     // This experimental SDK path still needs exact-candidate visual acceptance.
     // Cleanup may outlive bridge freshness, but never writes online or in replay.
@@ -1078,6 +1166,7 @@ void MyCareerTraining::tick() {
         // Sampled on every tick, after the offline branch has refreshed the
         // runtime and enforceCareer has updated matchEnded. The helper decides
         // eligibility itself and always tracks the button edge.
+        updateTrainingClockProbe(publishedState);
         updateTrainingBallVisibility(publishedState, true);
         pollTrainingLessonControls(publishedState, next);
         {
@@ -1085,6 +1174,7 @@ void MyCareerTraining::tick() {
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
         try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
         releaseTrainingBindings();
         trainingLessonInput_.reset();
@@ -1175,6 +1265,10 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
         try {
             if (request.type == LocalRequest::RefreshProducts) {
                 scanningProducts_ = true; productScanCursor_ = 0; productScan_.clear();
+            } else if (request.type == LocalRequest::ProbeTrainingClock) {
+#if MCT_ENABLE_NATIVE_MOVIE_TRIAL
+                updateTrainingClockProbe(bridge_->state(), true);
+#endif
             } else if (request.type == LocalRequest::StartProbe) {
                 closeNativeMenu();
                 startNativeProbe();

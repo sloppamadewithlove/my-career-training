@@ -65,7 +65,7 @@ public:
     void OnClose() override;
 private:
     struct LocalRequest { enum Type { ApplyCosmetics, RestoreCosmetics, RefreshProducts, Resume, RebindMenu,
-        StartProbe, SaveProbe, CancelProbe, OpenNativeMenu } type; mct::Json payload; };
+        StartProbe, SaveProbe, CancelProbe, OpenNativeMenu, ProbeTrainingClock } type; mct::Json payload; };
     std::shared_ptr<int> alive_;
     std::unique_ptr<mct::LocalBridge> bridge_;
     std::unique_ptr<mct::NativeMovieHost> nativeMovie_;
@@ -125,6 +125,15 @@ private:
     mct::TrainingLessonInput trainingLessonInput_;
     mct::TrainingBindingGuard trainingBindings_;
     mct::TrainingBallVisibility trainingBallVisibility_;
+    struct ClockProbe {
+        uintptr_t event = 0;
+        float remaining = 0;
+        unsigned long unlimited = 0;
+        double deadline = 0;
+        std::string nonce, session, attempt, matchGuid;
+    };
+    std::optional<ClockProbe> clockProbe_;
+    void updateTrainingClockProbe(const mct::Json& state, bool arm = false, bool cleanup = false);
     std::array<int, 4> trainingKeyNames_{};
     bool trainingKeysAvailable_ = false;
     bool resumePending_ = false;

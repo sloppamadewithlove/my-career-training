@@ -5,7 +5,8 @@ or owner-accepted Gold playlist is available.
 
 | Area | Current evidence |
 | --- | --- |
-| Gold content | This commit: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
+| Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
+| Reset/clock candidate | This commit: bounded early-floor reset verification and opt-in native clock probe; combined Python 1591 passed/15 skipped, 11 fake-wrapper probe cases; rebuild/live proof pending |
 | Runtime cleanup/observation | `440f7ce`: hidden-ball cleanup survives unavailable wrappers; adapter exposes native match clock fields; isolated C++ and Python checks passed |
 | Last mod playtest | `af8871d` was rejected by the owner and closed normally |
 | Current game | Standard reference session closed normally; no candidate is loaded |
@@ -18,7 +19,7 @@ in source. The previous failed playtest remains evidence against readiness.
 The latest source has not been proven in the game. Other ranks still contain two
 provisional shots each; the ultimate target remains twelve per lesson per rank.
 
-Next runtime blockers: bounce-aware reset confirmation, actual native countdown,
+Next runtime blockers: live bounce/reset confirmation, actual native countdown,
 zero-time ball removal/restoration, Up whole retry and goal/Left/Right transitions
 without kickoff. Physical controller acceptance is distinct from generated keys.
 Thumbnails, Workshop arrival/return, Mods enable/disable, Garage, Options and Quit
@@ -35,3 +36,5 @@ Windows scheduling was not used. Its delivered change is draft PR #11's privacy
 check. Main's build concurrency changes preserve the active build and newest
 pending work. Neither is evidence of gameplay readiness. The task board owns
 current agent assignments and release blockers.
+
+[Reset and clock verification receipt](evidence/2026-10-29-reset-clock-verification.md) records independent checks and the remaining live boundary.

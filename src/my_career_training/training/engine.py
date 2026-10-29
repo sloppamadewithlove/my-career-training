@@ -681,9 +681,9 @@ class TrainingEngine:
             return []
         if self.state == "ready":
             # Confirm the game applied the reset. No confirmation means no fictional attempt.
-            # The launch is normally confirmed by the next continuous packet (<= .05 s),
-            # before the low bouncing launch reaches the floor. The 2 s bound below is
-            # only a failure deadline; this check does not model or certify a bounce.
+            # Some ground feeds hit the floor before the next packet. A narrowly
+            # bounded vertical collision response may confirm those launches;
+            # car, roster, horizontal ball motion and cadence checks still apply.
             target = self.lesson["starting_state"]
             elapsed = now - self.reset_requested_at
             expected_ball = [
@@ -698,6 +698,18 @@ class TrainingEngine:
             ]
             boost = car.get("boost")
             cadence = self.cadence(self.last_frame, frame)
+            ball_applied = (
+                _distance(frame["ball"]["position"], expected_ball)
+                < self.tolerances["reset_ball_position"]
+                and _distance(frame["ball"]["velocity"], expected_ball_velocity)
+                < self.tolerances["reset_velocity"]
+            )
+            floor_response = (
+                self.scenario is not None and not self.strict_capture
+                and _early_floor_response(target["ball"], frame["ball"], elapsed,
+                                          self.tolerances["reset_ball_position"],
+                                          self.tolerances["reset_velocity"])
+            )
             observed_state_applied = (
                 _distance(car["position"], expected_car) < self.tolerances["reset_position"]
                 and _rotation_distance(car["rotation"], target["car"]["rotation"])
@@ -712,10 +724,7 @@ class TrainingEngine:
                 and abs(boost - target["car"]["boost"]) < self.tolerances["reset_boost"]
                 and _grounded(car)
                 and all(car.get(key) is False for key in ("has_jumped", "has_double_jumped", "has_dodged"))
-                and _distance(frame["ball"]["position"], expected_ball)
-                < self.tolerances["reset_ball_position"]
-                and _distance(frame["ball"]["velocity"], expected_ball_velocity)
-                < self.tolerances["reset_velocity"]
+                and (ball_applied or floor_response)
                 and elapsed < 2.0
                 and self._bots_ready(frame, target, elapsed)
             )
@@ -738,6 +747,7 @@ class TrainingEngine:
                 "observed_ball": {"position": list(frame["ball"]["position"]),
                                   "velocity": list(frame["ball"]["velocity"])},
                 "observed_state_applied": observed_state_applied,
+                "early_floor_response": floor_response,
             }
             if not applied:
                 if elapsed >= 2.0:
@@ -1338,3 +1348,37 @@ class TrainingEngine:
     def recording(self):
         summary = self.summary()
         return self.recorder.export(outcome=self.outcome, events=self.events, duration=summary["duration"])
+
+
+def _early_floor_response(target, observed, elapsed, position_tolerance, velocity_tolerance):
+    """Bound a first-packet floor response without guessing a rebound coefficient.
+
+    Only the vertical collision component is allowed to change. The response
+    must fit the first 50ms and the elastic energy envelope, with a six-unit
+    velocity allowance for one gravity integration step. This is reset
+    confirmation, not a prediction model for subsequent gameplay.
+    """
+    if not 0 < elapsed <= 0.05:
+        return False
+    position, velocity = target["position"], target["velocity"]
+    floor = 93.15
+    height = position[2] - floor
+    if not 0 <= height <= 30 or velocity[2] >= -80:
+        return False
+    impact = (velocity[2] + math.sqrt(velocity[2] ** 2 + 1300 * height)) / 650
+    if impact > elapsed:
+        return False
+    after = elapsed - impact
+    impact_speed = -velocity[2] + 650 * impact
+    expected_xy = [position[i] + velocity[i] * elapsed for i in range(2)]
+    horizontal_position_error = math.hypot(*(observed["position"][i] - expected_xy[i] for i in range(2)))
+    horizontal_velocity_error = math.hypot(*(observed["velocity"][i] - velocity[i] for i in range(2)))
+    vertical_energy = observed["velocity"][2] ** 2 + 1300 * max(0, observed["position"][2] - floor)
+    return (
+        horizontal_position_error < position_tolerance
+        and horizontal_velocity_error < velocity_tolerance
+        and floor - 5 <= observed["position"][2] <= floor + impact_speed * after + 20
+        and -650 * after - velocity_tolerance <= observed["velocity"][2]
+        <= impact_speed - 650 * after + 6
+        and vertical_energy <= (impact_speed + 6) ** 2
+    )

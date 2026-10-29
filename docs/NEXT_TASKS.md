@@ -6,11 +6,11 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder/operator | Integrate Gold catalog and repair lifecycle; sole game input owner | Catalog reviewed; build one coherent candidate after reset/timer changes; no loaded-file replacement |
-| DeepSeek builder | Rank-aware catalog handoff completed; clock telemetry forwarding proposed | Main reviews exact patch, tests, then integrates |
-| Luna career_test_investigation | Reset confirmation investigation complete | Post-bounce failure reproduced; independently test the bounded repair |
-| Luna browser_investigation | Gold catalog review | 265 checks passed; final four-case Gold persistence delta under review |
-| Luna rea_research | Native clock integration seam verified | SDK setters are real; pre-expiry HUD/readback probe and zero behavior still require live evidence |
+| Main builder/operator | Integrate Gold catalog and repair lifecycle; sole game input owner | Catalog and reset/probe source reviewed; build one coherent candidate, then test actual controls/clock; no loaded-file replacement |
+| DeepSeek builder | Rank catalog and clock telemetry delivered; targeted native-training/defender REA investigation running | Main reviews exact patch, tests, then integrates |
+| Luna career_test_investigation | Reset confirmation investigation complete | Corrected bounded repair independently passed 15 focused checks; live friction remains unknown |
+| Luna browser_investigation | Gold catalog review | 265 checks and four-case persistence delta accepted; thumbnail route mapped; orchestrating targeted DeepSeek/REA native-mode investigation |
+| Luna rea_research | Native clock integration seam verified | 179 focused Python checks and 11 fake-wrapper native-probe cases passed; actual HUD/countdown and zero behavior require live evidence |
 | Scheduled improvement worker | PR #11 privacy check delivered | Aligned d2e7beb, Windows CI passed; claim separate reproducible work, do not repeat unchanged status |
 
 The owner is away and has authorized continued testing. Root is the sole input
@@ -21,8 +21,8 @@ unresolved question and use the retained evidence before a new analysis run.
 
 ## Next proof sequence
 
-1. Repair the confirmed pre-bounce reset assumption without widening unrelated
-   actor validation. Verify native clocks with independent RLBot readback.
+1. Build the reviewed reset/clock candidate. Verify early floor bounces and native
+   clock readback; establish safe zero behavior separately from the 90-second probe.
 2. Build the current GitHub candidate and prove Up retry, Left/Right including
    1/12 and 12/12, timeout disappearance/restoration and scored-goal advancement.
 3. Test actual Gold shooting geometry and keeper interference; do not ask for

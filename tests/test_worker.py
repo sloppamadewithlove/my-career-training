@@ -941,3 +941,20 @@ def test_native_match_serialization_scopes_no_goal_reset_to_power_shots(lesson_i
     config, _, _ = adapter.match_config(request)
     native = flat.MatchConfiguration.unpack(config.pack())
     assert (native.mutators.respawn_time == flat.RespawnTimeMutator.DisableGoalReset) is (lesson_id == "power-shots")
+
+
+@pytest.mark.parametrize("clock", [None, {
+    "game_time_remaining": 88.5, "is_unlimited_time": False, "is_overtime": False,
+}, {"game_time_remaining": 0.0, "is_unlimited_time": True, "is_overtime": False}])
+def test_native_clock_observation_reaches_bridge_telemetry(tmp_path, monkeypatch, clock):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    normalize = adapter.normalized_packet
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *args: {
+        **normalize(*args), **(clock or {})})
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    event = next(event for event in events if event["type"] == "telemetry")
+    for key in ("game_time_remaining", "is_unlimited_time", "is_overtime"):
+        assert event[key] == (clock[key] if clock else None)
+    assert event["time"] == 1.0
