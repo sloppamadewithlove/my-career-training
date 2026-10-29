@@ -700,6 +700,7 @@ class Backend(QObject):
                 self.lifecycle.last_error = ""
                 self.lifecycle.confirm_online(True)
             elif action == "diagnostics":
+                plugin_session_notices = self.diagnostics_info.get("plugin_session_notices", [])
                 self.diagnostics_info = {"app": __version__, "operating_system": platform.platform(),
                     "python": platform.python_version(), "rlbot_interface": SDK_VERSION, "core": CORE_VERSION,
                     "steam_game_test": "Not yet tested", "epic_game_test": "Not yet tested",
@@ -707,7 +708,9 @@ class Backend(QObject):
                     "bot_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
                     "game_processes": len(game_processes()), "worker_running": bool(self.process and
                         self.process.state() != QProcess.NotRunning), "save_status": "Loaded and validated",
-                    "teaching_references": "No validated expert demonstrations bundled"}
+                    "teaching_references": "No validated expert demonstrations bundled",
+                    "plugin_session_notices": list(plugin_session_notices)
+                        if isinstance(plugin_session_notices, list) else []}
                 path = self.store.directory / "diagnostics.json"
                 Store._atomic(path, json.dumps(self.diagnostics_info, indent=2).encode())
                 self.notice = "Diagnostics saved beside your career. No platform credentials are included."

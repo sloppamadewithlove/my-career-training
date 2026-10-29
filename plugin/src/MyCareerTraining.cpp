@@ -191,6 +191,7 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    try { updateTrainingClock(Json::object(), true); } catch (...) {}
     try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
     try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
     releaseTrainingBindings();
@@ -908,6 +909,7 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
 
 void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, bool cleanup,
                                                 float startRemaining, bool zeroExpiry) {
+    if (arm) updateTrainingClock(Json::object(), true);
     // Reacquire the current wrapper. Never restore through an address saved from
     // another event, an online session, or a replay.
     if (!gameWrapper || !gameWrapper->IsInGame() || gameWrapper->IsInOnlineGame() ||
@@ -1029,6 +1031,53 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
     cvarManager->log(zeroExpiry
         ? "Native zero-expiry diagnostic armed at two seconds for at most five seconds."
         : "Native training clock probe started at 90 seconds for at most five seconds.");
+}
+
+void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup) {
+    const bool offline = gameWrapper && gameWrapper->IsInGame() &&
+        !gameWrapper->IsInOnlineGame() && !gameWrapper->IsInReplay();
+    if (!offline) {
+        trainingClock_.update(0, false, false, {}, false, 0, {}, {});
+        trainingClockStatus_ = Json::object();
+        return;
+    }
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) return;
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto phase = stringValue(coaching, "phase");
+    const auto nonce = stringValue(state, "bridge_session");
+    const auto id = stringValue(session, "id");
+    const double remaining = mct::numberValue(coaching, "time_remaining_seconds", -1);
+    const double limit = mct::numberValue(coaching, "time_limit_seconds", -1);
+    const bool validTime = std::isfinite(remaining) && std::isfinite(limit) &&
+        limit > 0 && limit <= 3600 && remaining >= 0 && remaining <= limit;
+    const bool eligible = !cleanup && !clockProbe_ && offlineReady_ && ownedOfflineNow() &&
+        stringValue(session, "kind") == "training" && stringValue(session, "state") == "training" &&
+        mct::boolValue(session, "worker_running") && !nonce.empty() && !id.empty() &&
+        !stringValue(coaching, "attempt_id").empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" && validTime &&
+        (phase == "settle" || phase == "ready" || phase == "active" || phase == "finished") &&
+        !referenceCaptureActive(state) && !server.GetbOverTime() && !server.GetbMatchEnded();
+    auto read = [&] { return mct::TrainingClock::Value{
+        server.GetGameTimeRemaining(), server.GetbUnlimitedTime() != 0}; };
+    auto write = [&](mct::TrainingClock::Value value) {
+        server.SetbUnlimitedTime(value.unlimited ? 1UL : 0UL);
+        server.SetGameTimeRemaining(value.remaining);
+        const auto observed = read();
+        if (observed.unlimited != value.unlimited || !std::isfinite(observed.remaining) ||
+            std::abs(observed.remaining - value.remaining) > 0.1f)
+            throw std::runtime_error("Training native clock readback failed.");
+    };
+    trainingClock_.update(server.memory_address, offline, eligible, nonce + ":" + id,
+        gameWrapper->IsPaused(), remaining, read, write);
+    const auto observed = read();
+    trainingClockStatus_ = {{"active", trainingClock_.active()},
+        {"remaining", observed.remaining}, {"unlimited", observed.unlimited},
+        {"match_ended", server.GetbMatchEnded() != 0}, {"overtime", server.GetbOverTime() != 0},
+        {"round_active", server.GetbRoundActive() != 0}, {"phase", phase},
+        {"attempt_id", stringValue(coaching, "attempt_id")}};
 }
 
 void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allowHide) {
@@ -1174,6 +1223,7 @@ void MyCareerTraining::tick() {
                     {"frontend", !next.inGame && !next.replay && !next.online},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"native_community_status", communityStatus()},
+                    {"native_training_clock", trainingClockStatus_},
                     {"native_training_pack", trainingPackStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
                 bridge_->publishStatus(std::move(status));
@@ -1198,6 +1248,7 @@ void MyCareerTraining::tick() {
                 Json status = {{"version", "0.3.0"}, {"online", next.online}, {"in_game", next.inGame},
                     {"in_replay", next.replay}, {"frontend", !next.inGame && !next.replay && !next.online},
                     {"pid", GetCurrentProcessId()}, {"native_community_status", communityStatus()},
+                    {"native_training_clock", trainingClockStatus_},
                     {"native_training_pack", trainingPackStatus()},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"runtime_verified", false}, {"production_ready", false}};
@@ -1216,6 +1267,7 @@ void MyCareerTraining::tick() {
         // runtime and enforceCareer has updated matchEnded. The helper decides
         // eligibility itself and always tracks the button edge.
         updateTrainingClockProbe(publishedState);
+        updateTrainingClock(publishedState);
         updateTrainingBallVisibility(publishedState, true);
         pollTrainingLessonControls(publishedState, next);
         {
@@ -1224,6 +1276,7 @@ void MyCareerTraining::tick() {
         }
     } catch (const std::exception& error) {
         try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
+        try { updateTrainingClock(Json::object(), true); } catch (...) {}
         try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
         releaseTrainingBindings();
         trainingLessonInput_.reset();

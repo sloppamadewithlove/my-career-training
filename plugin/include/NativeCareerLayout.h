@@ -2118,6 +2118,8 @@ private:
 
     void buildSettings(CareerLayoutView& view, const Json& state) const {
         view.title = "Settings";
+        for (const auto& notice : array(object(state, "diagnostics"), "plugin_session_notices"))
+            if (notice.is_string()) addLine(view.body, plain(notice.get<std::string>(), 320));
         addLine(view.body, "Game options stay the game's own screen.");
         addLine(view.body, "Training help below uses the saved training display.");
         CareerLayoutChoice options;

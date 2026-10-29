@@ -44,6 +44,19 @@ def backend(tmp_path, monkeypatch, qt_app):
     instance.close()
 
 
+def test_diagnostics_refresh_preserves_plugin_session_notices(backend):
+    instance, _game_running, _launches = backend
+    notice = "BakkesMod's plugins.cfg already loads MyCareerTraining."
+    instance.diagnostics_info["plugin_session_notices"] = [notice]
+
+    instance.dispatch("diagnostics", {})
+
+    assert instance.diagnostics_info["plugin_session_notices"] == [notice]
+    assert instance.state["diagnostics"]["plugin_session_notices"] == [notice]
+    saved = json.loads((instance.store.directory / "diagnostics.json").read_text(encoding="utf-8"))
+    assert saved["plugin_session_notices"] == [notice]
+
+
 class FakeProcess:
     def __init__(self, state=QProcess.Running):
         self.current_state = state

@@ -685,6 +685,34 @@ int main() {
             lookups += choice.id.rfind("community.lookup.", 0) == 0;
         require(lookups == 8 && !hasChoice(layout.view(scope, catalogs), "community.lookup.abc"), "Community catalog was not capped");
 
+        auto setupNoticeState = state;
+        setupNoticeState["diagnostics"] = {{"plugin_session_notices", Json::array({
+            "BakkesMod's plugins.cfg already loads MyCareerTraining. My Career did not remove the line this session did not create."})}};
+        layout.open(scope, setupNoticeState);
+        auto setupNoticeRoot = layout.view(scope, setupNoticeState);
+        require(setupNoticeRoot.body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the native hub");
+        choose(layout, findChoice(setupNoticeRoot, NativeCareerLayout::kCareer), scope, setupNoticeState, false);
+        require(layout.view(scope, setupNoticeState).body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the Career page");
+        layout.open(scope, setupNoticeState);
+        choose(layout, findChoice(layout.view(scope, setupNoticeState), NativeCareerLayout::kTraining),
+            scope, setupNoticeState, false);
+        require(layout.view(scope, setupNoticeState).body.find("plugins.cfg") == std::string::npos,
+            "Persistent plugin setup advisory covered the Training/rank page");
+        layout.open(scope, setupNoticeState);
+        choose(layout, findChoice(layout.view(scope, setupNoticeState), NativeCareerLayout::kSettings),
+            scope, setupNoticeState, false);
+        auto settingsWithNotice = layout.view(scope, setupNoticeState);
+        require(settingsWithNotice.body.find("plugins.cfg") != std::string::npos,
+            "Plugin setup advisory was not available in Settings/Diagnostics");
+        auto recoveryFailure = setupNoticeState;
+        recoveryFailure["error"] = "The plugin recovery journal is still active.";
+        const auto failureSettings = layout.view(scope, recoveryFailure);
+        require(failureSettings.body.find("Could not finish: The plugin recovery journal is still active.") == 0 &&
+            failureSettings.body.find("plugins.cfg") != std::string::npos,
+            "Plugin setup advisory obscured the real recovery failure");
+
         layout.open(scope, state);
         choose(layout, findChoice(layout.view(scope, state), NativeCareerLayout::kSettings), scope, state, false);
         auto settings = layout.view(scope, state);

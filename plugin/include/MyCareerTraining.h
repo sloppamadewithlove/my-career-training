@@ -14,6 +14,7 @@
 #include "CosmeticOverrideState.h"
 #include "TrainingLessonInput.h"
 #include "TrainingBallVisibility.h"
+#include "TrainingClock.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -126,6 +127,9 @@ private:
     mct::TrainingLessonInput trainingLessonInput_;
     mct::TrainingBindingGuard trainingBindings_;
     mct::TrainingBallVisibility trainingBallVisibility_;
+    mct::TrainingClock trainingClock_;
+    mct::Json trainingClockStatus_ = mct::Json::object();
+    void updateTrainingClock(const mct::Json& state, bool cleanup = false);
     struct ClockProbe {
         uintptr_t event = 0;
         float remaining = 0;
