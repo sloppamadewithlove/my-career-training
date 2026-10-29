@@ -143,14 +143,14 @@ public:
                     return refused;
                 const auto op = stringValue(command, "browser_op");
                 const auto value = stringValue(command, "value");
-                if (op != "tab" && op != "search" && op != "scroll" && op != "primary" && op != "favorite" &&
+                if (op != "tab" && op != "search" && op != "scroll" && op != "primary" &&
                     op != "tool")
                     return refused;
                 if (value.size() > NativeCareerLayout::kMaxBrowserKey ||
                     (op == "search" && value.size() > NativeCareerLayout::kMaxBrowserQuery)) return refused;
                 const TrainingBrowserRow* publishedRow = nullptr;
                 const TrainingBrowserTool* publishedTool = nullptr;
-                if (op == "primary" || op == "favorite") {
+                if (op == "primary") {
                     for (const auto& row : shownBrowser_.rows) if (row.key == value) { publishedRow = &row; break; }
                     if (!publishedRow) return refused;
                 }
@@ -260,7 +260,6 @@ private:
         case TrainingBrowserTab::Lessons: return "lessons";
         case TrainingBrowserTab::Workshop: return "workshop";
         case TrainingBrowserTab::Mods: return "mods";
-        case TrainingBrowserTab::Favorites: return "favorites";
         }
         return "lessons";
     }

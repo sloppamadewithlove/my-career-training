@@ -856,9 +856,10 @@ def test_training_browser_uses_the_authored_panel_instead_of_the_branching_stack
     assert 'browserLayer = new Sprite()' in source
     assert 'm_controlContainer.visible = !visible' in source
     assert 'TextFieldType.INPUT' in source and 'browserSearch.maxChars = 80' in source
-    assert 'var tabs:Array = ["lessons", "workshop", "mods", "favorites"]' in source
+    assert 'var tabs:Array = ["lessons", "workshop", "mods"]' in source
+    assert '"favorites"' not in source
     assert 'var last:int = Math.min(rows.length, browserTop + BROWSER_ROWS)' in source
-    assert 'browserZone = "primary"' in source and 'browserZone = "favorite"' in source
+    assert 'browserZone = "primary"' in source and 'browserZone = "favorite"' not in source
     assert 'browserCommand("primary", String(selected.key))' in source
     assert 'browserCommand("tool", String(tool.key))' in source
     assert 'state == "loading"' in source and 'state == "error"' in source

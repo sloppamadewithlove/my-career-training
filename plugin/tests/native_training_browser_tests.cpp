@@ -101,8 +101,13 @@ int main() {
         require(result.at("browser").at("query") == "Lesson 39" && result.at("browser").at("rows").size() == 1,
             "search did not publish its filtered live window");
         auto favorite = protocol.select(browser(result, "favorite", "lesson:lesson-39"), live, data, true);
-        require(favorite.accepted && favorite.action == "browser_favorite" &&
-            favorite.payload == Json{{"type", "lesson"}, {"id", "lesson-39"}}, "favorite was not namespaced");
+        require(!favorite.accepted, "removed favorite action was accepted");
+        require(!protocol.select(browser(result, "tab", "favorites"), live, data, true).accepted,
+            "removed Favorites tab was accepted");
+        auto afterRefusal = protocol.select(browser(result, "primary", "lesson:lesson-39"), live, data, true);
+        require(afterRefusal.accepted && afterRefusal.action == "start_lesson" &&
+            afterRefusal.payload == Json{{"id", "lesson-39"}},
+            "removed controls consumed the current row or prevented primary activation");
 
         require(protocol.open(live, data), "stale-row browser did not reopen");
         root = protocol.publish(live, data, 105);
@@ -211,37 +216,21 @@ int main() {
         require(!packProtocol.select(stalePackPrimary, live, changedPackData, true).accepted,
             "a stale primary from the previous pack row dispatched a load");
 
-        NativeMovieProtocol favoritePackProtocol;
-        auto favoritePacks = enterBrowserTab(favoritePackProtocol, live, packData, "lessons", 160);
-        auto favoritePack = favoritePackProtocol.select(
-            browser(favoritePacks, "favorite", "lesson:pack:pack-0"), live, packData, true);
-        require(favoritePack.accepted && favoritePack.action == "browser_favorite" &&
-            favoritePack.payload == Json{{"type", "lesson"}, {"id", "pack:pack-0"}},
-            "pack favorite did not use its namespaced public id");
-
-        auto favoritedPackData = packData;
-        favoritedPackData["browser_favorites"] = Json::array({
+        auto savedData = packData;
+        savedData["browser_favorites"] = Json::array({
             Json{{"type", "lesson"}, {"id", "pack:pack-0"}}
         });
-        NativeMovieProtocol savedFavoriteProtocol;
-        auto savedFavorites = enterBrowserTab(savedFavoriteProtocol, live, favoritedPackData, "favorites", 170);
-        const Json* savedPackRow = nullptr;
-        for (const auto& row : savedFavorites.at("browser").at("rows"))
-            if (row.at("key") == "lesson:pack:pack-0") savedPackRow = &row;
-        require(savedPackRow != nullptr &&
-                savedPackRow->at("primary_label") == "Unavailable offline" &&
-                !savedPackRow->at("primary_enabled").get<bool>(),
-            "saved pack favorite did not retain its unavailable state");
-        require(!savedFavoriteProtocol.select(
-                    browser(savedFavorites, "primary", "lesson:pack:pack-0"),
-                    live, favoritedPackData, true).accepted,
-            "saved pack favorite dispatched a known failing training load");
-        auto unstarredPack = savedFavoriteProtocol.select(
-            browser(savedFavorites, "favorite", "lesson:pack:pack-0"),
-            live, favoritedPackData, true);
-        require(unstarredPack.accepted && unstarredPack.action == "browser_favorite" &&
-                unstarredPack.payload == Json{{"type", "lesson"}, {"id", "pack:pack-0"}},
-            "unavailable pack favorite could not be removed normally");
+        for (const auto& tab : {"lessons", "workshop", "mods"}) {
+            NativeMovieProtocol threeTabProtocol;
+            auto tabView = enterBrowserTab(threeTabProtocol, live, savedData, tab, 170);
+            require(tabView.at("browser").at("tab") == tab, "supported tab failed to open");
+            require(!threeTabProtocol.select(
+                browser(tabView, "tab", "favorites"), live, savedData, true).accepted,
+                "saved favorites restored the removed tab");
+            require(!threeTabProtocol.select(
+                browser(tabView, "favorite", "lesson:pack:pack-0"), live, savedData, true).accepted,
+                "saved favorite exposed the removed action");
+        }
         std::cout << "native training browser tests passed\n";
         return 0;
     } catch (const std::exception& error) {
