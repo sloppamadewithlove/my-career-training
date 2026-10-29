@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: native-candidate-${{ github.ref }}
-  cancel-in-progress: true
+  # Finish the active candidate; GitHub retains only the newest pending run.
+  cancel-in-progress: false
 
 jobs:
   native-windows:

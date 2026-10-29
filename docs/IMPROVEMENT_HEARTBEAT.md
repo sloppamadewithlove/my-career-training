@@ -31,3 +31,10 @@ The heartbeat never independently takes game input, restarts a game, changes pro
 ## Notifications
 
 Stay quiet while unchanged or non-actionable. Notify only for an actual improvement/completion, a newly reproduced failure, or a required user decision. State what changed, evidence and the next action in a few sentences. If truly blocked after trying available routes, record the exact failure and a concrete fallback; do not repeat unchanged blocker reports every run.
+
+
+## Verified recovery and bounded builder output
+
+On 29 October the actual desktop task was saved as Improve My Career Training and its prompt/45-minute interval read back. Its manual run claimed T14 and published draft PR11; independent tests/review are in [the execution receipt](evidence/2026-10-29-execution-recovery.md). Keep task configuration evidence separate from editing this document.
+
+For a tiny deterministic edit, request only the exact small snippets; separate implementation and test proposals if the combined answer exhausts output. Require `finish_reason=stop`, parse the requested structure, reject missing/ambiguous replacements and then run meaningful checks. Several low-effort requests exhausted most of their caps in reasoning. One bounded two-snippet experiment completed, but even `thinking.type=disabled` still reported reasoning tokens on this gateway; never advertise unverified mode/latency improvements. Do not apply incomplete output or repeatedly retry the same exhausted shape.

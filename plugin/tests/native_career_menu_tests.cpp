@@ -66,6 +66,13 @@ int main() {
         auto start = choice(menu, state, "Start Practice");
         auto practice = menu.choose(start, state);
         require(practice.accepted && practice.close && practice.action == "start_lesson" && practice.payload == Json({{"id", "speed_flip"}}), "Practice command incorrect");
+        state["session"]["results_pending_choice"] = true;
+        require(!menu.choose(start, state).accepted && !has(menu, state, "Start Practice"),
+            "Saved results bypassed explicit Return");
+        state["session"]["results_pending_choice"] = false;
+        state["session"]["worker_running"] = true;
+        require(!menu.choose(start, state).accepted, "Live worker accepted another lesson");
+        state["session"]["worker_running"] = false;
         state["lessons"].erase(0);
         require(!menu.choose(start, state).accepted && !has(menu, state, "Start Practice"), "Removed lesson accepted stale practice");
         state = original; state["session"]["busy"] = true;

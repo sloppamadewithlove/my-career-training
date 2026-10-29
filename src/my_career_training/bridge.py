@@ -1568,11 +1568,11 @@ class Backend(QObject):
         return self.process is not None and self.process.state() != QProcess.NotRunning
 
     def _prepare_launch(self, action, payload):
+        if self._career_result_pending_choice() and action != "play_match":
+            raise ValueError("Choose Return or Play Next Match from the saved match results before starting another activity.")
         lesson_id = None
         scenario = None
         if action == "start_lesson":
-            if self._career_result_pending_choice():
-                raise ValueError("Choose Return from the saved match results before starting Training.")
             if self._worker_active():
                 raise ValueError("Leave or end the current activity before starting Training.")
             if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):

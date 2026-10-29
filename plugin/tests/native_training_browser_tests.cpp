@@ -21,7 +21,7 @@ static Json state() {
     return {{"protocol", 1}, {"offline", true}, {"bridge_session", "native-browser-test"},
         {"setup_required", false}, {"career", nullptr}, {"lessons", std::move(lessons)},
         {"browser_favorites", Json::array()},
-        {"session", {{"state", "Career Ready"}, {"busy", false}, {"can_exit", true}}}};
+        {"session", {{"state", "Career Ready"}, {"busy", false}, {"worker_running", false}, {"can_exit", true}}}};
 }
 
 static std::string control(const Json& view, const std::string& id) {

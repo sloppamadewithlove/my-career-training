@@ -1577,3 +1577,62 @@ def test_saved_career_result_waits_for_explicit_return_before_training(backend, 
     assert not instance.error and launches[-1]["lesson_id"] == "speed-flip"
     assert instance.store.path.read_bytes() == before
     instance.process = None
+
+
+@pytest.mark.parametrize("identity", ["missing", "stale", "request_mismatch", "valid"])
+def test_automatic_challenge_transition_requires_exact_live_session(backend, identity):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    instance.latest_attempt = {"id": "goal-attempt"}
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    event = {"type": "training_scenario_advanced", "session_id": instance.session_id,
+             "attempt_id": "goal-attempt",
+             "before": {"scenario_id": "low-side-pass", "difficulty": "diamond"},
+             "setup": {"scenario_id": "bouncing-side-pass", "difficulty": "diamond"}}
+    if identity == "missing":
+        del event["session_id"]
+    elif identity == "stale":
+        event["session_id"] = "stale-session"
+    elif identity == "request_mismatch":
+        instance.request["session_id"] = "stale-session"
+    instance._event(event)
+    if identity == "valid":
+        assert instance.request["scenario_id"] == "bouncing-side-pass"
+        assert instance.store.load()["lesson_scenarios"]["power-shots"] == event["setup"]
+    else:
+        assert instance.store.path.read_bytes() == before
+        assert instance.request["scenario_id"] == "low-side-pass"
+    instance.process = None
+
+
+@pytest.mark.parametrize("action", ["calibration", "play_workshop"])
+@pytest.mark.parametrize("worker_state", [QProcess.Running, QProcess.NotRunning])
+def test_saved_result_blocks_other_launches_before_any_side_effect(backend, monkeypatch, action, worker_state):
+    from my_career_training import workshop
+    instance, _, _ = backend
+    identity = unfinished_career(instance)
+    sid, fid = identity["expected_session_id"], identity["expected_fixture_id"]
+    instance.request = {"session_id": sid, "fixture": {"id": fid}}
+    instance.session_id = sid
+    process = FakeProcess(worker_state)
+    instance.process = process
+    instance._event({"type": "result", "session_id": sid, "fixture_id": fid,
+                     "home_score": 2, "away_score": 1, "provenance": "game"})
+    before = instance.store.path.read_bytes()
+    request = json.loads(json.dumps(instance.request))
+    side_effects = []
+    monkeypatch.setattr(instance.store, "save", lambda *_: side_effects.append("save"))
+    monkeypatch.setattr(instance, "_launch", lambda *_: side_effects.append("launch"))
+    monkeypatch.setattr(instance, "_begin_stop", lambda *_: side_effects.append("stop"))
+    monkeypatch.setattr(workshop, "prepare_launch", lambda *a, **kw: side_effects.append("workshop"))
+    monkeypatch.setattr(bridge.sys, "platform", "win32")
+    instance.setup_required = False
+    instance.dispatch(action, {"id": "test-map"} if action == "play_workshop" else {})
+    assert "Choose Return or Play Next Match" in instance.error
+    assert not side_effects and not process.writes
+    assert instance.pending_launch is None and instance.stop_reason is None
+    assert instance.request == request and instance.session_id == sid
+    assert instance.state["session"]["results_pending_choice"] is True
+    assert instance.store.path.read_bytes() == before
+    instance.process = None

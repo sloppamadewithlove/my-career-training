@@ -414,9 +414,12 @@ def test_score_edge_observed_before_target_crossing_stays_stale():
     engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="bronze")
     start = _prepare(engine)
     touches = {engine.human_index: start + .01}
-    _update(engine, start + .01, touches, scores=(1, 0))
+    events = _update(engine, start + .01, touches, scores=(1, 0))
     _update(engine, start + .02, touches, scores=(1, 0), ball={"position": [0.0, 5130.0, 200.0]})
-    assert engine.outcome != "success"
+    assert engine.outcome == "interrupted"
+    assert any(event["type"] == "completed" for event in events)
+    assert not any(event["type"] == "scenario_success" for event in engine.events)
+    assert any("No technique credit" in message for message in engine.observations)
 
 
 def test_missing_configured_keeper_invalidates_active_success_chain():
@@ -753,3 +756,15 @@ def test_stop_cancels_queued_training_control_without_state_write():
     session.pending_training_control = {"command": {"id": "queued"}}
     session.handle_command({"type": "stop", "id": "stop-a"})
     assert session.pending_training_control is None and session.stopping
+
+
+def test_active_goal_on_transport_gap_ends_without_inventing_technique_credit():
+    engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold")
+    start = _prepare(engine)
+    frame = _frame(engine, start + .025, setup="starting", scores=(1, 0))
+    frame.update(phase=3, packet_gap=True)
+    events = engine.update(frame)
+    assert engine.outcome == "interrupted" and engine.finished
+    assert any(event["type"] == "completed" for event in events)
+    assert not any(event["type"] == "scenario_success" for event in engine.events)
+    assert any("No technique credit" in message for message in engine.observations)
