@@ -6,17 +6,22 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder | PR #10 input/lifecycle/native clock integration | Loaded `af8871d`; Right -> challenge 2 observed; Up/goal/native timer not accepted. Latest source `af08455` fixes Calibration result bypass |
-| Luna career_test_investigation | Independent exact-source verification | `af08455`: 5 result-boundary + 41 continuation tests passed. PR11 `20755a9`: 25 privacy tests, scan, Ruff passed |
-| Luna rea_research | Actual pack geometry and native timer | Local metadata decoded with valid CRCs and unchanged originals; neither target pack is cached. Acquire target packs normally before choosing shots. Native timer pre-expiry probe specified; expiry semantics unknown |
-| Luna browser_investigation | Caller review and builder handoff | Calibration bypass verified and fixed; Workshop is not currently launchable. Bounded DeepSeek full-test proposal truncated and rejected |
-| Scheduled improvement worker | T14 public evidence privacy check, draft PR11 | Three disjoint paths claimed in issue #8; immutable independent review passed at `20755a9`; Windows/installer and Vercel checks passed; receipt posted and claim released; main aligns stacked branch before integration |
+| Main builder | Integrate only independently verified source fixes and evidence | Rejected Gold candidate closed; no game input while owner uses PC |
+| DeepSeek training REA worker | Native timer, retry producer/consumer, goal lifecycle and twelve-shot import requirements | Exact-source and retained-body evidence; deadline 10:16:20 UTC; no live input |
+| DeepSeek lifecycle REA worker | Garage cleanup, Workshop arrival/return, plugin activation/unload | Exact caller/helper proof; same deadline; no game/process interaction |
+| Luna career_test_investigation | Independently verify training findings | Reject XInput-only allegation: keyboard polling exists; trace actual path |
+| Luna browser_investigation | Independently verify lifecycle findings | Separate hub Return from Quit; inspect cosmetic helper before accepting ownership claims |
+| Luna rea_research | Completed public implementation comparison | Custom-training converter/timer precedent found; Soccar expiry still unknown |
+| Scheduled improvement worker | PR #11 privacy check delivered | Branch aligned at d2e7beb; Windows CI passed; no gameplay/release claim |
 
-The replacement `af8871d` game uses a copied Unicode-path save. Root's recorded input lease covers the replacement route/controls only. An unexplained Pause appeared; root stopped automated input and asked whether the owner has taken control. No agent may assume permission to resume input or replace loaded files.
+The owner is using the PC. Input, focus, capture and live game tests are suspended.
+The ordinary Steam reference session remains open; the previous replacement mod
+session was normally closed. Background research is read-only and resource-bounded.
+[Current receipt](evidence/2026-10-29-background-diagnosis.md).
 
 ## Next proof sequence
 
-1. Resolve current input ownership; prove Up whole reset and Left/Right at timeout/goal with acknowledgements, attempt identity and actor positions. Use an OS key hold; SendKeys pulses were not observed by the input poll. Distinguish automatic retry from requested retry.
+1. After the owner hands back game control, prove Up whole reset and Left/Right at timeout/goal with acknowledgements, attempt identity and actor positions. Use an OS key hold; SendKeys pulses were not observed by the input poll. Distinguish automatic retry from requested retry.
 2. Prove the RLBot DisableGoalReset mutator with a real scored goal and retained defender. Its presence in the pause menu is not gameplay acceptance.
 3. Implement/prove the native clock. A bounded pre-expiry field/flag probe can establish UI/count direction; zero may invoke match-level finish/overtime, so no zero behavior is claimed from a setter body.
 4. Identify actual Poquito/Skogur packs and select 12 distinct Gold challenges with varied geometry/speed and a ground keeper. No invented reference contents or cosmetic duplication.
