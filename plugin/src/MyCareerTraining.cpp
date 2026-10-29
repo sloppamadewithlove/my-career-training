@@ -1061,17 +1061,17 @@ void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup) {
         (phase == "settle" || phase == "ready" || phase == "active" || phase == "finished") &&
         !referenceCaptureActive(state) && !server.GetbOverTime() && !server.GetbMatchEnded();
     auto read = [&] { return mct::TrainingClock::Value{
-        server.GetGameTimeRemaining(), server.GetbUnlimitedTime() != 0}; };
+        server.GetGameTimeRemaining(), server.GetbUnlimitedTime() != 0, server.GetSecondsRemaining()}; };
     auto write = [&](mct::TrainingClock::Value value) {
         const auto before = read();
         server.SetbUnlimitedTime(value.unlimited ? 1UL : 0UL);
         server.SetGameTimeRemaining(value.remaining);
-        // Direct field writes do not refresh the native scoreboard's cached second.
-        if (std::ceil(before.remaining) != std::ceil(value.remaining) ||
-            before.unlimited != value.unlimited)
+        server.SetSecondsRemaining(value.seconds);
+        // The native HUD reads the integer cache, not the floating-point field.
+        if (before.seconds != value.seconds || before.unlimited != value.unlimited)
             server.OnGameTimeUpdated();
         const auto observed = read();
-        if (observed.unlimited != value.unlimited || !std::isfinite(observed.remaining) ||
+        if (observed.seconds != value.seconds || observed.unlimited != value.unlimited || !std::isfinite(observed.remaining) ||
             std::abs(observed.remaining - value.remaining) > 0.1f)
             throw std::runtime_error("Training native clock readback failed.");
     };

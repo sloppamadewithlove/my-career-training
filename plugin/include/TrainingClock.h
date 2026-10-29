@@ -9,7 +9,7 @@ namespace mct {
 // The current event is reacquired by the caller. Never retain a game wrapper.
 class TrainingClock {
 public:
-    struct Value { float remaining; bool unlimited; };
+    struct Value { float remaining; bool unlimited; int seconds = 0; };
     using Read = std::function<Value()>;
     using Write = std::function<void(Value)>;
     void update(std::uintptr_t event, bool offline, bool eligible,
@@ -31,7 +31,7 @@ public:
         }
         // The scenario owns timeout. Keep unlimited enabled to prevent the stock
         // match-end path while publishing its real remaining time to the native HUD.
-        write({static_cast<float>(remaining), true});
+        write({static_cast<float>(remaining), true, static_cast<int>(std::ceil(remaining))});
     }
     bool active() const { return active_; }
 private:

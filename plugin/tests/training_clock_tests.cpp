@@ -6,7 +6,7 @@ static void check(bool ok) { if (!ok) throw std::runtime_error("Clock lifecycle 
 int main() {
     try {
         TrainingClock clock;
-        TrainingClock::Value value{-40, true};
+        TrainingClock::Value value{-40, true, 40};
         int writes=0; bool fail=false;
         auto read=[&] { return value; };
         auto write=[&](TrainingClock::Value next) {
@@ -16,18 +16,18 @@ int main() {
         clock.update(1,true,true,"session",false,10,read,write);
         check(clock.active() && value.remaining==10 && value.unlimited);
         clock.update(1,true,true,"session",false,3,read,write);
-        check(value.remaining==3);
+        check(value.remaining==3 && value.seconds==3);
         clock.update(1,true,true,"session",true,2,read,write);
         check(value.remaining==3 && writes==2);
         for (int i=0;i<10;++i) clock.update(1,true,true,"session",false,0,read,write);
-        check(value.remaining==0 && value.unlimited);
+        check(value.remaining==0 && value.unlimited && value.seconds==0);
         clock.update(1,true,true,"session",false,5,read,write);
         check(value.remaining==5);
         fail=true;
         try { clock.update(1,true,false,"",false,0,read,write); } catch (...) {}
         check(clock.active()); fail=false;
         clock.update(1,true,false,"",false,0,read,write);
-        check(!clock.active() && value.remaining==-40 && value.unlimited);
+        check(!clock.active() && value.remaining==-40 && value.unlimited && value.seconds==40);
         auto count=writes;
         clock.update(1,true,true,"session",false,std::numeric_limits<double>::quiet_NaN(),read,write);
         check(writes==count && !clock.active());

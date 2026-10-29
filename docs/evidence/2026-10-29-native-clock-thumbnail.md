@@ -50,3 +50,26 @@ the launch once only when the first <=50ms response has that gap/parked signatur
 It preserves the original evidence/attempt ID and every verification gate; strict
 capture is excluded. A second failure remains a bounded interruption. CPU load as
 the cause is an inference, not established by that observation.
+
+## Integer clock cache and pixel-image follow-up
+
+Candidate c1f4fce passed 38 plugin/13 launcher checks and 314 targeted Python
+checks (one skipped). Owned live Up retry displayed native 0:08. After timeout,
+73 sampled zero-field observations spanned 7.686 seconds with round active,
+no overtime and no match end, but the visible HUD still said 0:01. The independent
+integer getter confirmed SecondsRemaining=1 while GameTimeRemaining=0. Notification
+alone did not fix that cache. The next change snapshots, writes, verifies and restores
+both fields together, then notifies on integer-second changes. The pure lifecycle
+test covers original integer restoration and held zero; live proof is still required.
+
+Generated Right navigation reached challenge 9 with no interrupted reset in that
+run. An actual generated-key shooting attempt timed out without a goal; it provides
+no evidence for goal advancement. No scores or physics were injected by that test.
+
+The JPEG thumbnail still fell back. The alternate stores the same gameplay pixels
+as RGB332 indices: 20,648 compressed bytes expand once to a 400x225 BitmapData.
+It uses ByteArray.uncompress and BitmapData.setPixels, documented GFx APIs, instead
+of image Loader callbacks. The new ABC is 62,429 bytes within the unchanged 65,536
+limit. Independent decoding matched all 360,000 ARGB bytes of the prepared preview;
+asset/composer checks: 87 passed, one skipped. Reduced color precision is visible;
+this is a genuine captured scene, not generated content. Runtime acceptance pending.

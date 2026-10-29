@@ -6,8 +6,10 @@ of an operator-captured My Career Training Gold Power Shots session on 29 Octobe
 It depicts the actual car, ball, goal and defender. Account information and desktop
 notifications are outside the crop. The full private screenshot is not distributed.
 
-The 400x225 JPEG is 12,655 bytes and is embedded once in the authored root menu.
-It is decoded once and reused for the row and lesson detail; failed decoding leaves
+The source 400x225 JPEG is 12,655 bytes. A real-pixel RGB332 conversion is stored
+as 20,648 zlib-compressed bytes embedded once in the authored root menu. It expands
+into one opaque bitmap reused by the row and detail. The conversion reduces color
+precision, not scene content; it is not generated imagery. Failed expansion leaves
 the existing fallback. No network request, persistent cache or additional download
 is required. The compiled manifest pins the containing source and ABC hashes.
 
