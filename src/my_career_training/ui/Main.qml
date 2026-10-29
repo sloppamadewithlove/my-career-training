@@ -432,7 +432,7 @@ ApplicationWindow {
                 }
                 Copy { text:"Normal game physics · Manual retry available · Core lessons use built-in arenas"; tone:"small"; color:"#91d4f5"; Layout.fillWidth:true }
                 RowLayout {
-                    ActionButton { textScale:root.textScale; text:"Start practice  →"; primary:true; enabled:!root.session.busy && root.session.worker_running === false && !root.view.setup_required && ["Idle","Career Ready","training"].indexOf(root.session.state)>=0; onClicked:root.act("start_lesson",{id:root.selectedLesson.id}) }
+                    ActionButton { textScale:root.textScale; text:"Start practice  →"; primary:true; enabled:!root.session.busy && root.session.worker_running === false && !root.session.results_pending_choice && !root.view.setup_required && ["Idle","Career Ready","training"].indexOf(root.session.state)>=0; onClicked:root.act("start_lesson",{id:root.selectedLesson.id}) }
                     ActionButton { textScale:root.textScale; text:"Retry attempt"; enabled:root.session.state==="Playing" || root.session.state==="playing" || root.session.state==="training" || root.session.state==="Career Ready"; onClicked:root.act("retry_lesson") }
                     ActionButton { textScale:root.textScale; text:"Stop session"; enabled:root.session.state==="Playing" || root.session.state==="playing" || root.session.state==="training" || root.session.state==="Career Ready"; onClicked:root.act("stop_session") }
                 }

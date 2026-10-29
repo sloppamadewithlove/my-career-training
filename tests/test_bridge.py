@@ -1548,3 +1548,32 @@ def test_dead_lesson_return_preserves_unrelated_pending_career(backend):
     assert not instance.error
     assert instance.store.path.read_bytes() == before
     instance.process = None
+
+
+def test_saved_career_result_waits_for_explicit_return_before_training(backend, monkeypatch):
+    instance, _, _ = backend
+    identity = unfinished_career(instance)
+    sid, fid = identity["expected_session_id"], identity["expected_fixture_id"]
+    instance.request = {"session_id": sid, "fixture": {"id": fid}}
+    instance.session_id = sid
+    instance.process = FakeProcess(QProcess.NotRunning)
+    instance._event({"type": "result", "session_id": sid, "fixture_id": fid,
+                     "home_score": 2, "away_score": 1, "provenance": "game"})
+    assert instance.document["career"]["pending_session"] is None
+    assert instance.state["session"]["results_pending_choice"] is True
+    before = instance.store.path.read_bytes()
+    launches = []
+    monkeypatch.setattr(instance, "_launch", launches.append)
+    instance.setup_required = False
+    monkeypatch.setattr(bridge.sys, "platform", "win32")
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert "Choose Return" in instance.error and not launches
+    assert instance.store.path.read_bytes() == before
+    instance.dispatch("return_hub", {"expected_session_id": sid,
+                                     "expected_fixture_id": fid, "abandon": False})
+    assert not instance.error
+    assert instance.state["session"]["results_pending_choice"] is False
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert not instance.error and launches[-1]["lesson_id"] == "speed-flip"
+    assert instance.store.path.read_bytes() == before
+    instance.process = None

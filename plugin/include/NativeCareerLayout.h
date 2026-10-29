@@ -1090,7 +1090,7 @@ private:
         const auto phase = text(session, "state");
         return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
             !busy(state) && !flag(session, "worker_running", true) &&
-            !flag(state, "setup_required", true);
+            !flag(session, "results_pending_choice", false) && !flag(state, "setup_required", true);
     }
 
     static bool workerLikely(const Json& state) {

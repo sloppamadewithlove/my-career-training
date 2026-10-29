@@ -393,7 +393,9 @@ void MyCareerTraining::renderTraining(const Json& state) {
     title(stringValue(selected, "title", "Choose a lesson"));
     paragraph(stringValue(selected, "description"));
     const auto session = objectValue(state, "session");
-    if (primary("START PRACTICE", !selectedLesson_.empty() && !boolValue(session, "busy"))) command("start_lesson", {{"id", selectedLesson_}});
+    if (primary("START PRACTICE", !selectedLesson_.empty() && !boolValue(session, "busy") &&
+        !boolValue(session, "worker_running", true) && !boolValue(session, "results_pending_choice") &&
+        !boolValue(state, "setup_required", true))) command("start_lesson", {{"id", selectedLesson_}});
     ImGui::SameLine(); if (button("RETRY", stringValue(session, "state") == "training")) command("retry_lesson");
     if (selectedLesson_.empty()) detail("Choose a lesson first.");
     else if (boolValue(session, "busy")) detail("Starting the offline practice session...");

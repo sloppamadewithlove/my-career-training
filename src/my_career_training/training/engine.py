@@ -522,13 +522,15 @@ class TrainingEngine:
         if _finite_vector(position) and (
                 abs(position[0]) > 4096 or abs(position[1]) > 5120 or position[2] > 2044):
             state["ball_out"] = True
-        if gap:
-            return
         before, after = state["score_baseline"], state["score_after"]
         scored = (
             before is not None and after is not None
             and after[0] == before[0] + 1 and after[1] == before[1]
         )
+        if gap:
+            if scored:
+                self._interrupt("A team goal was observed, but the shot trace was incomplete. No technique credit.")
+            return
         if scored and state["score_edge"] is None:
             # Record the observed score edge once, with its own time.
             state["score_edge"] = {
@@ -569,6 +571,8 @@ class TrainingEngine:
         if chain and "goal_target" in self._emitted:
             self._once("scenario_success", frame, details=deepcopy(state["goal_evidence"]))
             self._finish("success")
+        elif scored:
+            self._interrupt("A team goal was observed without a verified player-shot chain. No technique credit.")
 
     def update(self, frame):
         self._validate_frame(frame)

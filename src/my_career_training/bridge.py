@@ -201,6 +201,7 @@ class Backend(QObject):
                 "can_exit": not self.lifecycle.frozen and (self._prepared_next is not None or
                     self.session_state not in ("Starting Career", "Stopping Career", "Waiting for Game Exit", "Waiting for Worker")),
                 "id": self.session_id,
+                "results_pending_choice": self._career_result_pending_choice(),
                 "can_retry": bool(self.lifecycle.last_error), "confirm_online": self.lifecycle.confirming},
             "error": self.error, "notice": self.notice, "diagnostics": self.diagnostics_info,
             "native_return_ready": copy.deepcopy(self.native_return_ready),
@@ -1547,6 +1548,13 @@ class Backend(QObject):
         state["settings"]["training_display"] = prefs
         self._commit(state)
 
+    def _career_result_pending_choice(self):
+        request, result = self.request or {}, self.latest_result or {}
+        fixture = request.get("fixture") or {}
+        return bool(self.session_id and fixture.get("id") and not request.get("calibration")
+                    and request.get("session_id") == self.session_id == result.get("session_id")
+                    and fixture.get("id") == result.get("fixture_id"))
+
     def _active_career_request_matches_pending(self):
         pending = (self.document.get("career") or {}).get("pending_session")
         request = self.request or {}
@@ -1563,6 +1571,8 @@ class Backend(QObject):
         lesson_id = None
         scenario = None
         if action == "start_lesson":
+            if self._career_result_pending_choice():
+                raise ValueError("Choose Return from the saved match results before starting Training.")
             if self._worker_active():
                 raise ValueError("Leave or end the current activity before starting Training.")
             if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
@@ -1793,7 +1803,9 @@ class Backend(QObject):
             self.error = str(event.get("message", "The training control could not finish."))
         elif kind == "training_scenario_advanced":
             request = self.request or {}
-            if (cancelled or self.stop_reason or request.get("lesson_id") != "power-shots"
+            if (cancelled or self.stop_reason or event.get("session_id") != self.session_id
+                    or request.get("session_id") != self.session_id
+                    or request.get("lesson_id") != "power-shots"
                     or event.get("attempt_id") != (self.latest_attempt or {}).get("id")):
                 return
             before = validate_setup(event.get("before"))

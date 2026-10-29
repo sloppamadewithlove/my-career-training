@@ -794,7 +794,7 @@ class GameSession:
         # Navigation follows the actual team score, independently of whether
         # the coaching trace proved the player's technique. Never invent credit.
         if (self.scenario is None or not self.engine or not self.engine.finished
-                or frame.get("phase") != 4 or self.pending_training_control
+                or frame.get("phase") not in {3, 4} or self.pending_training_control
                 or self.goal_progression_attempt == self.engine.attempt_id):
             return
         before = self.engine.scenario_state.get("score_baseline")

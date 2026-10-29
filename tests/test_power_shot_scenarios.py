@@ -268,6 +268,7 @@ def _fake_flat():
         PerformanceMonitor=enum(NeverShow=1), Human=lambda: NS(kind="human"),
         CustomBot=lambda **values: NS(kind="bot", **values), PlayerLoadout=lambda **values: NS(**values),
         PlayerConfiguration=lambda **values: NS(**values), MutatorSettings=lambda **values: NS(**values),
+        RespawnTimeMutator=NS(DisableGoalReset="DisableGoalReset"),
         MatchConfiguration=lambda **values: NS(**values),
     )
 
@@ -707,7 +708,8 @@ def test_ground_keeper_suppresses_delegate_jump_and_boost(monkeypatch, rank):
 
 
 @pytest.mark.parametrize("manual", [None, "retry_lesson", "training_scenario_step"])
-def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins(monkeypatch, manual):
+@pytest.mark.parametrize("goal_phase", [3, 4])
+def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins(monkeypatch, manual, goal_phase):
     events, writes = [], []
     request = {"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
                "scenario_id": "low-side-pass", "difficulty": "gold"}
@@ -722,7 +724,7 @@ def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins
     session.engine.state, session.engine.outcome = "finished", "interrupted"
     session.engine.scenario_state["score_baseline"] = [0, 0]
     old = session.engine
-    session.last_frame = {"phase": 4, "scores": [1, 0]}
+    session.last_frame = {"phase": goal_phase, "scores": [1, 0]}
     session._queue_goal_progression(session.last_frame)
     assert session.pending_training_control["automatic"]
     assert not writes and session.engine is old
@@ -735,7 +737,8 @@ def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins
     assert not writes
     session.handle_command({"type": "attempt_ack", "attempt_id": old.attempt_id})
     session._try_training_control()
-    assert not writes  # No setup write into the stock goal/replay phase.
+    if goal_phase == 4:
+        assert not writes  # No setup write into the stock goal/replay phase.
     session.last_frame = {"phase": 3}
     session._try_training_control()
     assert len(writes) == 1 and session.pending_training_control is None

@@ -267,7 +267,7 @@ private:
         const auto phase = text(session, "state");
         return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
             !truth(session, "busy", true) && !truth(session, "worker_running", true) &&
-            !truth(state, "setup_required", true);
+            !truth(session, "results_pending_choice", false) && !truth(state, "setup_required", true);
     }
     static bool canPlay(const Json& state) {
         const auto career = object(state, "career"); const auto fixture = object(state, "next_fixture");

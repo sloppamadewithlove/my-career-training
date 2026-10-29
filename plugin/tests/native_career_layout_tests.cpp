@@ -511,6 +511,10 @@ int main() {
         pendingCareer["session"]["worker_running"] = true;
         require(!findChoice(layout.view(scope, pendingCareer), "training.rank.gold").enabled,
             "A live Career worker allowed direct Training launch");
+        auto savedResults = state;
+        savedResults["session"]["results_pending_choice"] = true;
+        require(!findChoice(layout.view(scope, savedResults), "training.rank.gold").enabled,
+            "Saved Career results bypassed explicit Next or Return");
         const auto ranks = layout.view(scope, state);
         require(ranks.choices.size() == 9, "Power Shots must offer eight ranks and Back");
         auto bronze = choose(layout, findChoice(ranks, "training.rank.bronze"), scope, state, true);

@@ -107,6 +107,10 @@ def match_config(request):
     mutators = f.MutatorSettings(match_length=f.MatchLengthMutator.Unlimited if training else f.MatchLengthMutator.FiveMinutes,
         max_score=f.MaxScoreMutator.Unlimited, overtime=f.OvertimeMutator.Unlimited,
         multi_ball=f.MultiBallMutator.One, boost_amount=f.BoostAmountMutator.NormalBoost)
+    if request.get("lesson_id") == "power-shots" and capture is None:
+        # Use the RLBot match mutator, not the shipped SDK's no-op reset methods.
+        # Exact native no-kickoff behavior still requires the owned game test.
+        mutators.respawn_time = f.RespawnTimeMutator.DisableGoalReset
     config = f.MatchConfiguration(launcher=f.Launcher.NoLaunch if request.get("owned_game") else (f.Launcher.Steam if launcher == "steam" else f.Launcher.Epic),
         launcher_arg="", auto_start_agents=False, wait_for_agents=True, game_map_upk=arena,
         player_configurations=players, script_configurations=[], game_mode=f.GameMode.Soccar,
