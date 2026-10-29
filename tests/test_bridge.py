@@ -1584,6 +1584,7 @@ def test_automatic_challenge_transition_requires_exact_live_session(backend, ide
     instance, _, _ = backend
     _running_power_shots(instance)
     instance.latest_attempt = {"id": "goal-attempt"}
+    instance._save_current()
     before = instance.store.path.read_bytes()
     event = {"type": "training_scenario_advanced", "session_id": instance.session_id,
              "attempt_id": "goal-attempt",
