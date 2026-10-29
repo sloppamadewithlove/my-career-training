@@ -146,9 +146,8 @@ class TrainingEngine:
             self.bot_indices = []
             self.human_index = None
         self.preferences = assistance_preferences(preferences)
-        if strict_capture:
-            # Reference capture is one physics step per packet and never retries
-            # itself; the worker also refuses these preferences explicitly.
+        if strict_capture or self.scenario is not None:
+            # Scenarios wait for manual retry on timeout; successful goals advance separately.
             self.preferences["auto_reset"] = False
         self.metadata = deepcopy(metadata or {})
         self.max_samples = max_samples
@@ -190,7 +189,10 @@ class TrainingEngine:
         return deepcopy(self.lesson["starting_state"])
 
     def set_preference(self, key, value):
-        self.preferences = assistance_preferences({**self.preferences, key: value})
+        preferences = assistance_preferences({**self.preferences, key: value})
+        if self.scenario is not None:
+            preferences["auto_reset"] = False
+        self.preferences = preferences
         return deepcopy(self.preferences)
 
     def reset(self):

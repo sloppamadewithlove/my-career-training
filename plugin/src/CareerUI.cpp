@@ -415,6 +415,7 @@ void MyCareerTraining::renderTraining(const Json& state) {
         for (const auto& setting : std::array<std::pair<const char*, const char*>, 5>{{
             {"explanations", "Show instructions"}, {"actions", "Show controller actions"},
             {"timing", "Show timing feedback"}, {"ghost", "Show recorded ghost"}, {"auto_reset", "Automatic retry"}}}) {
+            if (selectedLesson_ == "power-shots" && std::string(setting.first) == "auto_reset") continue;
             bool value = boolValue(prefs, setting.first, true);
             if (ImGui::Checkbox(setting.second, &value)) command("assistance", {{"id", selectedLesson_}, {"key", setting.first}, {"value", value}});
         }

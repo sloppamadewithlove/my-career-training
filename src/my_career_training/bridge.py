@@ -184,10 +184,14 @@ class Backend(QObject):
         message = self.lifecycle.message if transition else self.session_message
         lesson_scenarios = validate_lesson_scenarios(self.document.get("lesson_scenarios", {}))
         lesson_scenarios["power-shots"] = setup_for(lesson_scenarios.get("power-shots"))
+        lesson_preferences = copy.deepcopy(self.document["lesson_preferences"])
+        power_shots_preferences = assistance_preferences(lesson_preferences.get("power-shots"))
+        power_shots_preferences["auto_reset"] = False
+        lesson_preferences["power-shots"] = power_shots_preferences
         return {"page": self.page, "career": career, "standings": domain.standings(career) if career else [],
             "next_fixture": domain.next_fixture(career) if career else None, "lessons": catalog(),
             "selected_lesson": selected, "settings": self.document["settings"],
-            "lesson_preferences": self.document["lesson_preferences"], "setup_required": self.setup_required,
+            "lesson_preferences": lesson_preferences, "setup_required": self.setup_required,
             "lesson_scenarios": lesson_scenarios,
             "lesson_scenario_options": {"power-shots": scenario_options(lesson_scenarios["power-shots"]["difficulty"])},
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
@@ -1256,8 +1260,12 @@ class Backend(QObject):
             configure_lesson(lesson_id)
             values = assistance_preferences(self.document["lesson_preferences"].get(lesson_id))
             key, value = ("explanations", True) if action == "restore_explanations" else (p["key"], p["value"])
+            if lesson_id == "power-shots" and key == "auto_reset" and value is True:
+                raise ValueError("Power Shots waits for Up to retry or Left/Right to change challenge.")
             values[key] = value
             values = assistance_preferences(values)
+            if lesson_id == "power-shots":
+                values["auto_reset"] = False
             state = copy.deepcopy(self.document)
             state["lesson_preferences"][lesson_id] = values
             self._commit(state)
@@ -1630,6 +1638,7 @@ class Backend(QObject):
                 self.document["lesson_preferences"].get(lesson_id)),
                 variants=self.document.get("lesson_variants", {}).get(lesson_id, {}))
             if scenario is not None:
+                request["preferences"]["auto_reset"] = False
                 request.update(scenario_id=scenario["scenario_id"], difficulty=scenario["difficulty"])
         self._save_current()
         if self._worker_active() or (is_alive(self.owned_game) and not self.in_game):

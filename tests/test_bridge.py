@@ -1667,3 +1667,43 @@ def test_gold_automatic_last_to_first_persists_only_the_matching_session(backend
         assert instance.store.path.read_bytes() == before
         assert instance.request["scenario_id"] == "central-return-bounce"
     instance.process = None
+
+
+def test_power_shots_manual_retry_view_and_rejection_do_not_mutate_old_save(backend):
+    instance, _, _ = backend
+    instance.document["lesson_preferences"] = {"power-shots": {"auto_reset": True},
+                                                "speed-flip": {"auto_reset": True}}
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    assert instance.state["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert instance.document["lesson_preferences"]["power-shots"]["auto_reset"] is True
+    assert instance.state["lesson_preferences"]["speed-flip"]["auto_reset"] is True
+    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": True})
+    assert "waits for Up" in instance.error
+    assert instance.store.path.read_bytes() == before
+    assert instance.session_state != "Error/Recovery"
+
+
+@pytest.mark.parametrize("saved", [None, False, 0, ""])
+def test_power_shots_manual_retry_view_handles_accepted_empty_preferences(backend, saved):
+    instance, _, _ = backend
+    instance.document["lesson_preferences"]["power-shots"] = saved
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    assert instance.state["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert instance.document["lesson_preferences"]["power-shots"] == saved
+    assert instance.store.path.read_bytes() == before
+
+
+def test_power_shots_unrelated_preference_sends_normalized_manual_retry(backend, monkeypatch):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    instance.document["lesson_preferences"]["power-shots"] = {"auto_reset": True}
+    sent = []
+    monkeypatch.setattr(instance, "_send", lambda *args, **kwargs: sent.append((args, kwargs)))
+    instance.dispatch("assistance", {"id": "power-shots", "key": "timing", "value": False})
+    assert not instance.error
+    assert instance.store.load()["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert sent[-1][1]["preferences"]["auto_reset"] is False
+    assert sent[-1][1]["preferences"]["timing"] is False
+    instance.process = None

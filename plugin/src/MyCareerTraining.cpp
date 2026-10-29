@@ -959,6 +959,21 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
         return;
     }
     if (!arm) return;
+    cvarManager->log("Native clock probe eligibility: " + Json{
+        {"eligible", eligible}, {"phase", stringValue(coaching, "phase")},
+        {"offline_ready", offlineReady_.load()}, {"owned_offline", ownedOfflineNow()},
+        {"kind", stringValue(session, "kind")}, {"session_state", stringValue(session, "state")},
+        {"worker_running", mct::boolValue(session, "worker_running")},
+        {"scope_ids_present", !nonce.empty() && !sessionId.empty() && !attempt.empty()},
+        {"lesson", stringValue(telemetry, "lesson_id")}, {"reference_capture", referenceCaptureActive(state)},
+        {"cursor_visibility", gameWrapper->IsCursorVisible()},
+        {"paused", gameWrapper->IsPaused()}, {"match_guid_present", !matchGuid.empty()},
+        {"native_unlimited", server.GetbUnlimitedTime() != 0},
+        {"native_round_active", server.GetbRoundActive() != 0},
+        {"native_overtime", server.GetbOverTime() != 0},
+        {"native_match_ended", server.GetbMatchEnded() != 0},
+        {"observed_unlimited", mct::boolValue(telemetry, "is_unlimited_time")}
+    }.dump());
     if (!eligible || !server.GetbUnlimitedTime() ||
         !mct::boolValue(telemetry, "is_unlimited_time") ||
         !telemetry.contains("is_overtime") || !telemetry["is_overtime"].is_boolean() ||
@@ -1349,6 +1364,8 @@ void MyCareerTraining::processLocalRequests(MctRuntime& result) {
                 probeExecutableSha256_.clear();
                 probeSaveFailed_ = false;
                 probeMessage_ = std::string("Menu capture failed: ") + error.what();
+            } else if (request.type == LocalRequest::ProbeTrainingClock) {
+                cvarManager->log(std::string("Native clock probe refused: ") + error.what());
             } else result.cosmeticMessage = error.what();
         }
     }
