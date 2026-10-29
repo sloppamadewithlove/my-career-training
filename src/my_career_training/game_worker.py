@@ -283,6 +283,8 @@ class GameSession:
         self.attempt_retryable = False
         self.auto_reset_at = None
         self.applied_reset = False
+        self.pending_training_control = None
+        self.goal_progression_attempt = None
         self.telemetry_recovery_deadline = None
         self.telemetry_recovery_pending = False
         self.telemetry_recovery_fields = ()
@@ -720,6 +722,92 @@ class GameSession:
         self.event("session", state="training", message="Settling the selected Power Shots situation.")
         return next_setup
 
+    def _queue_training_control(self, command, *, automatic=False):
+        if self.engine is None or self.scenario is None:
+            raise ValueError("Start Power Shots before changing its challenge.")
+        kind = command.get("type", command.get("command"))
+        if kind == "training_scenario_step":
+            from .training.scenario_setup import step_setup
+            if set(command) - {"id", "type", "command", "session_id", "direction"}:
+                raise ValueError("The Power Shots step command is malformed.")
+            step_setup({"scenario_id": self.request["scenario_id"],
+                        "difficulty": self.request["difficulty"]},
+                       {"direction": command.get("direction")})
+        if command.get("session_id", self.session_id) != self.session_id:
+            raise ValueError("The training session changed.")
+        current = self.pending_training_control
+        if current:
+            if automatic or current["command"].get("id") == command.get("id"):
+                return
+            if not current["automatic"]:
+                raise ValueError("A challenge change is already waiting to finish.")
+        self.pending_training_control = {
+            "command": dict(command), "attempt_id": self.engine.attempt_id,
+            "automatic": automatic, "deadline": time.monotonic() + 15.0,
+        }
+        # A completed attempt may have finished just before its publication tick.
+        if self.engine.finished and self.attempt_sent != self.engine.attempt_id:
+            self.publish_attempt()
+        self._try_training_control()
+
+    def _try_training_control(self):
+        pending = self.pending_training_control
+        if not pending:
+            return
+        if self.cancel_start.is_set() or self.stopping:
+            self.pending_training_control = None
+            return
+        command = pending["command"]
+        kind = command.get("type", command.get("command"))
+        error = None
+        if not self.engine or pending["attempt_id"] != self.engine.attempt_id:
+            error = "The attempt changed before its requested control could run."
+        elif time.monotonic() >= pending["deadline"]:
+            error = "The challenge change timed out waiting for its saved result or live play. Retry or Return."
+        elif (self.telemetry_recovery_pending or
+              (self.attempt_sent and not self.attempt_acked) or
+              (self.last_frame is not None and self.last_frame.get("phase", 3) != 3)):
+            return
+        self.pending_training_control = None
+        before = {key: self.request[key] for key in ("scenario_id", "difficulty")}
+        if error is None:
+            try:
+                if kind == "training_scenario_step":
+                    setup = self._step_training_scenario(command)
+                else:
+                    self.reset()
+            except (ValueError, RuntimeError, KeyError) as exc:
+                error = str(exc)
+        if pending["automatic"]:
+            if error:
+                self.event("training_control_notice", message=error)
+            else:
+                self.event("training_scenario_advanced", before=before, setup=setup,
+                           attempt_id=pending["attempt_id"])
+        elif kind == "training_scenario_step":
+            self.event("training_scenario_step_ack", id=command.get("id"),
+                       accepted=error is None, **({"error": error} if error else setup))
+        elif error:
+            self.event("training_control_notice", message=error)
+
+    def _queue_goal_progression(self, frame):
+        # Navigation follows the actual team score, independently of whether
+        # the coaching trace proved the player's technique. Never invent credit.
+        if (self.scenario is None or not self.engine or not self.engine.finished
+                or frame.get("phase") != 4 or self.pending_training_control
+                or self.goal_progression_attempt == self.engine.attempt_id):
+            return
+        before = self.engine.scenario_state.get("score_baseline")
+        after = frame.get("scores")
+        if (not isinstance(before, (list, tuple)) or not isinstance(after, (list, tuple))
+                or len(before) != 2 or len(after) != 2
+                or after[0] != before[0] + 1 or after[1] != before[1]):
+            return
+        self.goal_progression_attempt = self.engine.attempt_id
+        self._queue_training_control({"id": "goal-" + self.engine.attempt_id,
+            "type": "training_scenario_step", "session_id": self.session_id,
+            "direction": 1}, automatic=True)
+
     def _neutralize_scenario_bots(self, flat):
         """Release only the known scenario actors; never send Human input."""
         if self.scenario is None or self.cancel_start.is_set() or self.stopping:
@@ -808,7 +896,7 @@ class GameSession:
 
     def _check_auto_reset(self):
         """Apply a due saved-attempt retry only while telemetry is trustworthy."""
-        if (self.auto_reset_at is None or time.monotonic() < self.auto_reset_at
+        if (self.pending_training_control is not None or self.auto_reset_at is None or time.monotonic() < self.auto_reset_at
                 or self.telemetry_recovery_pending
                 or self.telemetry_recovery_deadline is not None):
             return
@@ -878,19 +966,21 @@ class GameSession:
             raise ValueError(message)
         if kind in {"stop", "shutdown"}:
             self.stop_id = command.get("id")
+            self.pending_training_control = None
             self.stopping = True
             self.stop_deadline = time.monotonic() + .2
         elif kind in {"retry", "retry_lesson"}:
-            self.reset()
+            if self.scenario is not None:
+                self._queue_training_control(command)
+            else:
+                self.reset()
         elif kind == "training_scenario_step":
             command_id = command.get("id")
             try:
-                setup = self._step_training_scenario(command)
+                self._queue_training_control(command)
             except (ValueError, RuntimeError, KeyError) as error:
                 self.event("training_scenario_step_ack", id=command_id, accepted=False,
                            error=str(error))
-                return
-            self.event("training_scenario_step_ack", id=command_id, accepted=True, **setup)
         elif kind == "attempt_ack":
             if command.get("attempt_id") == self.attempt_sent:
                 self.attempt_acked = True
@@ -1242,6 +1332,8 @@ class GameSession:
                         self.event("training_event", event=event)
             if self.engine.finished:
                 self.publish_attempt()
+                self._queue_goal_progression(frame)
+            self._try_training_control()
             if now - self.last_render >= 1 / 30:
                 self.render(frame)
                 self.last_render = now
@@ -1481,6 +1573,7 @@ class GameSession:
                     raise RuntimeError("The offline game runtime exited. Close the game and retry.")
                 if not self.first_packet and time.monotonic() - self.started_monotonic > 120:
                     raise RuntimeError("Rocket League did not connect within two minutes. Check launcher setup and retry.")
+                self._try_training_control()
                 self._check_auto_reset()
                 try:
                     kind, value = self.events.get(timeout=.1)

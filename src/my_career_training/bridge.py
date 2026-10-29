@@ -1789,6 +1789,22 @@ class Backend(QObject):
             if cancelled:
                 return
             self._ghost_ack(event)
+        elif kind == "training_control_notice":
+            self.error = str(event.get("message", "The training control could not finish."))
+        elif kind == "training_scenario_advanced":
+            request = self.request or {}
+            if (cancelled or self.stop_reason or request.get("lesson_id") != "power-shots"
+                    or event.get("attempt_id") != (self.latest_attempt or {}).get("id")):
+                return
+            before = validate_setup(event.get("before"))
+            accepted = validate_setup(event.get("setup"))
+            current = {key: request.get(key) for key in ("scenario_id", "difficulty")}
+            if before != current or accepted != step_setup(before, {"direction": 1}):
+                raise ValueError("The automatic challenge transition no longer matches this lesson.")
+            request.update(accepted)
+            state = copy.deepcopy(self.document)
+            state.setdefault("lesson_scenarios", {})["power-shots"] = accepted
+            self._commit(state)
         elif kind == "training_scenario_step_ack":
             pending = self._scenario_step_pending
             if (cancelled or not pending or event.get("id") != pending["id"]

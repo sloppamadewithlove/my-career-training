@@ -649,7 +649,9 @@ def test_worker_scenario_step_does_not_discard_pending_or_completed_result(compl
 
     session.handle_command({"id": "late", "type": "training_scenario_step", "direction": 1})
     assert session.engine is before and session.request["scenario_id"] == "low-side-pass"
-    assert events[-1]["type"] == "training_scenario_step_ack" and not events[-1]["accepted"]
+    assert session.pending_training_control["command"]["id"] == "late"
+    assert session.pending_training_control["attempt_id"] == before.attempt_id
+    assert not any(event["type"] == "training_scenario_step_ack" for event in events)
 
 
 def test_scenario_metadata_is_additive_and_legacy_recordings_remain_readable():
@@ -702,3 +704,49 @@ def test_ground_keeper_suppresses_delegate_jump_and_boost(monkeypatch, rank):
     frame["time"] += 5
     controls = controller.step(frame, 0)
     assert calls and controls["jump"] is controls["boost"] is False
+
+
+@pytest.mark.parametrize("manual", [None, "retry_lesson", "training_scenario_step"])
+def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins(monkeypatch, manual):
+    events, writes = [], []
+    request = {"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
+               "scenario_id": "low-side-pass", "difficulty": "gold"}
+    session = GameSession(request, events.append)
+    session.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold")
+    session.scenario = session.engine.scenario
+    session.human_index = session.training_actor_index = session.engine.human_index
+    session.descriptors = scenario_descriptors(request)
+    session.controllers = scenario_actor_controllers(session.scenario)
+    session.manager = NS(rlbot_interface=NS(send_msg=writes.append))
+    monkeypatch.setattr(adapter, "desired_state", lambda *args: args)
+    session.engine.state, session.engine.outcome = "finished", "interrupted"
+    session.engine.scenario_state["score_baseline"] = [0, 0]
+    old = session.engine
+    session.last_frame = {"phase": 4, "scores": [1, 0]}
+    session._queue_goal_progression(session.last_frame)
+    assert session.pending_training_control["automatic"]
+    assert not writes and session.engine is old
+    if manual:
+        session.handle_command({"id": "manual-a", "type": manual, "direction": -1})
+        assert session.pending_training_control["command"]["id"] == "manual-a"
+        assert not session.pending_training_control["automatic"]
+    session.handle_command({"type": "attempt_ack", "attempt_id": "stale"})
+    session._try_training_control()
+    assert not writes
+    session.handle_command({"type": "attempt_ack", "attempt_id": old.attempt_id})
+    session._try_training_control()
+    assert not writes  # No setup write into the stock goal/replay phase.
+    session.last_frame = {"phase": 3}
+    session._try_training_control()
+    assert len(writes) == 1 and session.pending_training_control is None
+    assert session.request["scenario_id"] == ("low-side-pass" if manual == "retry_lesson" else "bouncing-side-pass")
+    if manual != "retry_lesson":
+        assert old.outcome == "interrupted"  # Progression did not forge technique credit.
+    session._try_training_control()
+    assert len(writes) == 1
+
+def test_stop_cancels_queued_training_control_without_state_write():
+    session = GameSession({"session_id": str(uuid.uuid4())}, lambda event: None)
+    session.pending_training_control = {"command": {"id": "queued"}}
+    session.handle_command({"type": "stop", "id": "stop-a"})
+    assert session.pending_training_control is None and session.stopping
