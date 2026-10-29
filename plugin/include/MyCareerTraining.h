@@ -89,6 +89,7 @@ private:
     std::atomic<bool> windowOpen_{false};
     std::atomic<bool> offlineReady_{false};
     std::atomic<bool> hasContext_{false};
+    std::atomic<bool> imguiKeyboardCaptured_{false};
     ImGuiContext* guiContext_ = nullptr;
     mct::SessionFlags navigationFlags_;
     mutable std::mutex runtimeMutex_;

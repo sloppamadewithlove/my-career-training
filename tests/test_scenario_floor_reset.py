@@ -85,3 +85,23 @@ def test_preimpact_and_upward_launch_still_use_original_confirmation(scenario_id
     frame = _frame(engine, engine.reset_requested_at + 1/120, setup="starting")
     assert [event["type"] for event in engine.update(frame)] == ["go"]
     assert engine.preparation["ready"]["early_floor_response"] is False
+
+
+def test_failed_first_launch_snapshot_survives_later_packets_and_clears_on_retry():
+    engine = _ready("midfield-cross")
+    first = _bounce(engine)
+    first["ball"]["velocity"][0] -= 170
+    first["ball"]["angular_velocity"] = [-1.9, 4.75, 0.0]
+    assert not engine.update(first)
+    saved = copy.deepcopy(engine.preparation["first_ready"])
+    assert saved["observed_ball"]["angular_velocity"] == [-1.9, 4.75, 0.0]
+    assert saved["observed_state_applied"] is False
+    later = _bounce(engine, .045)
+    later["ball"]["velocity"][0] -= 175
+    later["ball"]["angular_velocity"] = [-2.0, 4.8, 0.0]
+    assert not engine.update(later)
+    assert engine.preparation["first_ready"] == saved
+    assert engine.preparation["ready"]["elapsed"] > saved["elapsed"]
+    assert engine.preparation["ready"]["observed_ball"]["angular_velocity"] == [-2.0, 4.8, 0.0]
+    engine.reset()
+    assert "first_ready" not in engine.preparation

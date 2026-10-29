@@ -6,12 +6,12 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | e845 live test closed; 187 worker/bridge/floor checks passed for manual retry; next coherent rebuild pending |
+| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | a8b6 live test closed; cursor guard replaced by keyboard capture; optional-GUID probe and durable Return correction under review; first reset snapshot retained |
 | DeepSeek builder/research | Manual retry proposal reviewed and corrected; native training/bot route investigated | Native Tutorial/TrainingEditor bot inheritance is plausible source evidence, not live compatibility; bounded floor-response follow-up pending |
-| Luna career_test_investigation | Independent manual-retry review complete | Saved empty-preference regression caught and fixed; seven focused cases passed |
-| Luna browser_investigation | Console/input ownership investigation active | Find a supported BakkesMod UI input-capture guard; no game input |
-| Luna rea_research | Floor-friction reset investigation active | Captured scenario-5 frame isolates XY friction; bounded model and negative checks needed |
-| Scheduled improvement worker | PR #11 privacy check delivered | Aligned d2e7beb, Windows CI passed; separate reproducible work, not merged |
+| Luna career_test_investigation | Independent manual-retry review complete | Confirmed unrelated saved Career fixture blocked native training Return; exact native regression and correction under verification |
+| Luna browser_investigation | Console/input ownership investigation active | DeepSeek Render sampler proposal independently reviewed; live capture flag and retry still need proof; thumbnail byte route researched |
+| Luna rea_research | Floor-friction reset investigation active | Optional-GUID probe harness review; new first-packet retention needed before floor-response thresholds change |
+| Scheduled improvement worker | PR #11 privacy check delivered | PR #11 integrated at c14cb5d after exact combined c969569 checks; privacy tool is available on this branch |
 
 The owner is away and has authorized continued testing. Root is the sole input
 operator. Standard-game pack inspection is complete and that session was closed

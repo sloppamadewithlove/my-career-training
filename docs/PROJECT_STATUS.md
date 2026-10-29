@@ -6,12 +6,12 @@ or owner-accepted Gold playlist is available.
 | Area | Current evidence |
 | --- | --- |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Reset/clock candidate | `e845bf9`: Windows CI and local 37 plugin/13 launcher checks passed; live challenge-5 floor-friction reset and native countdown remain unresolved |
+| Reset/clock candidate | `a8b6a34`: local 37 plugin/13 launcher checks passed; cursor guard caused a live retry regression, empty GUID blocked probe; corrected source awaits next candidate |
 | Runtime cleanup/observation | `440f7ce`: hidden-ball cleanup survives unavailable wrappers; adapter exposes native match clock fields; isolated C++ and Python checks passed |
-| Last mod playtest | `e845bf9`: generated-key retry and twelve-index navigation observed; timeout hides ball with manual retry; floor-friction and console-input defects found; not owner accepted |
-| Current game | Owned `e845bf9` test closed normally; next repair awaits rebuild |
+| Last mod playtest | `a8b6a34`: manual timeout hold observed; service-route challenge 5 interrupted three of nine starts; keyboard retry regressed under cursor guard; not owner accepted |
+| Current game | Owned `a8b6a34` test closed normally; next repair awaits rebuild |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
-| Privacy improvement | Draft PR #11 at `d2e7beb`: 25 privacy checks, scanner, Ruff and Windows native CI passed |
+| Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
 The three-tab/rank route, saved-schedule Training access, live-match exit rule,
 keyboard polling, queued retry/step acknowledgements and goal advancement exist
@@ -32,7 +32,7 @@ extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
 The saved desktop task **Improve My Career Training** runs every 45 minutes;
-Windows scheduling was not used. Its delivered change is draft PR #11's privacy
+Windows scheduling was not used. Its delivered change is the integrated PR #11 privacy
 check. Main's build concurrency changes preserve the active build and newest
 pending work. Neither is evidence of gameplay readiness. The task board owns
 current agent assignments and release blockers.
@@ -40,3 +40,5 @@ current agent assignments and release blockers.
 [Reset and clock verification receipt](evidence/2026-10-29-reset-clock-verification.md) records independent checks and the remaining live boundary.
 
 [Gold live retry receipt](evidence/2026-10-29-gold-live-retry.md) separates observed controls from the unresolved native timer, bounce and console-input defects.
+
+[Input/Return follow-up](evidence/2026-10-29-input-return-followup.md) records the latest live defects, corrected source contracts and integrated heartbeat work.

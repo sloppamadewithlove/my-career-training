@@ -747,10 +747,15 @@ class TrainingEngine:
                 "observed_car": {"position": list(car["position"]), "velocity": list(car["velocity"])},
                 "expected_ball": {"position": expected_ball, "velocity": expected_ball_velocity},
                 "observed_ball": {"position": list(frame["ball"]["position"]),
-                                  "velocity": list(frame["ball"]["velocity"])},
+                                  "velocity": list(frame["ball"]["velocity"]),
+                                  "angular_velocity": deepcopy(frame["ball"].get("angular_velocity"))},
                 "observed_state_applied": observed_state_applied,
                 "early_floor_response": floor_response,
             }
+            # Keep the first observed launch response even when the bridge samples
+            # later packets. A retry creates a fresh preparation object.
+            if "first_ready" not in self.preparation:
+                self.preparation["first_ready"] = deepcopy(self.preparation["ready"])
             if not applied:
                 if elapsed >= 2.0:
                     return self._interrupt(

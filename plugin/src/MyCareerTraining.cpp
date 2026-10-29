@@ -856,7 +856,7 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
     scope.matchEnded = runtime.matchEnded;
     scope.nativeMenuActive = menuOpen_ || ShouldBlockInput() || nativeDialogActive_.load() || nativeProbe_.active() ||
         lower(runtime.menu).find("pause") != std::string::npos ||
-        gameWrapper->IsCursorVisible() == 2;
+        imguiKeyboardCaptured_.load();
     scope.referenceCaptureActive = referenceCaptureActive(state);
 
     const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
@@ -925,24 +925,26 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
     const auto owned = objectValue(state, "owned_game");
     const double created = mct::numberValue(owned, "created", -1);
     // A stale bridge clears its document. This plugin instance cannot outlive
-    // its process; the saved event address and nonempty match GUID still bind cleanup.
+    // its process; the saved current event address still binds cleanup. Local
+    // RLBot matches can have no GUID; a captured GUID is an additional check.
     const bool hasState = !state.empty();
     const bool sameProcess = GetCurrentProcessId() == processScope_.pid && (!hasState ||
         (mct::numberValue(owned, "pid", -1) == processScope_.pid &&
          std::isfinite(created) && std::abs(created - processScope_.created) < 0.01));
     if (clockProbe_ && (!sameProcess || (hasState && (nonce != clockProbe_->nonce ||
-        sessionId != clockProbe_->session)) || matchGuid.empty() || matchGuid != clockProbe_->matchGuid)) {
+        sessionId != clockProbe_->session)) ||
+        (!clockProbe_->matchGuid.empty() && matchGuid != clockProbe_->matchGuid))) {
         clockProbe_.reset();
         cvarManager->log("Native clock probe detached from changed session identity without restoring into it.");
         return;
     }
-    const bool eligible = !cleanup && offlineReady_ && ownedOfflineNow() &&
+    const bool eligible = !cleanup && sameProcess && offlineReady_ && ownedOfflineNow() &&
         !gameWrapper->IsPaused() && stringValue(session, "kind") == "training" &&
         stringValue(session, "state") == "training" && mct::boolValue(session, "worker_running") &&
         !nonce.empty() && !sessionId.empty() && !attempt.empty() &&
         stringValue(telemetry, "lesson_id") == "power-shots" &&
         stringValue(coaching, "phase") == "active" &&
-        !referenceCaptureActive(state) && !matchGuid.empty() &&
+        !referenceCaptureActive(state) &&
         !server.GetbOverTime() && !server.GetbMatchEnded() && server.GetbRoundActive();
     if (clockProbe_) {
         const auto lease = *clockProbe_;
@@ -968,6 +970,7 @@ void MyCareerTraining::updateTrainingClockProbe(const Json& state, bool arm, boo
         {"scope_ids_present", !nonce.empty() && !sessionId.empty() && !attempt.empty()},
         {"lesson", stringValue(telemetry, "lesson_id")}, {"reference_capture", referenceCaptureActive(state)},
         {"cursor_visibility", gameWrapper->IsCursorVisible()},
+        {"imgui_keyboard_captured", imguiKeyboardCaptured_.load()},
         {"paused", gameWrapper->IsPaused()}, {"match_guid_present", !matchGuid.empty()},
         {"native_unlimited", server.GetbUnlimitedTime() != 0},
         {"native_round_active", server.GetbRoundActive() != 0},
@@ -1487,6 +1490,7 @@ void MyCareerTraining::SetImGuiContext(uintptr_t context) {
     guiContext_ = next;
     ImGui::SetCurrentContext(next);
     hasContext_ = next != nullptr;
+    if (!next) imguiKeyboardCaptured_.store(false);
 }
 void MyCareerTraining::updateNavigationFlags(bool active) {
     if (!guiContext_) return;
@@ -1508,10 +1512,19 @@ void MyCareerTraining::OnOpen() {
 }
 void MyCareerTraining::OnClose() {
     windowOpen_ = false; menuOpen_ = false;
+    imguiKeyboardCaptured_.store(false);
     updateNavigationFlags(false);
 }
 
 void MyCareerTraining::Render() {
+    if (hasContext_ && guiContext_) {
+        ImGuiContext* previous = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(guiContext_);
+        imguiKeyboardCaptured_.store(ImGui::GetIO().WantCaptureKeyboard);
+        ImGui::SetCurrentContext(previous);
+    } else {
+        imguiKeyboardCaptured_.store(false);
+    }
     updateNavigationFlags(!MCT_ENABLE_NATIVE_MOVIE_TRIAL && hasContext_ && offlineReady_ && menuOpen_ && windowOpen_ &&
         bridge_ && bridge_->fresh() && !nativeDialogActive_ && !nativeMovieReady_);
     // Native candidates own all menu surfaces even before a ready message.
