@@ -3,6 +3,7 @@
 #include "NativeCareerLayout.h"
 #include "bakkesmod/wrappers/PluginManagerWrapper.h"
 #include "CosmeticDesignCode.h"
+#include "bakkesmod/wrappers/GameObject/BallWrapper.h"
 #include "NativeWorkshopDispatch.h"
 #include "bakkesmod/wrappers/MenuStackWrapper.h"
 #include "bakkesmod/wrappers/items/ItemsWrapper.h"
@@ -181,6 +182,7 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
     releaseTrainingBindings();
     trainingLessonInput_.reset();
     alive_.reset();
@@ -888,6 +890,37 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
     else trainingLessonInput_.commandFailed();
 }
 
+void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allowHide) {
+    // This experimental SDK path still needs exact-candidate visual acceptance.
+    // Cleanup may outlive bridge freshness, but never writes online or in replay.
+    const bool offlineLive = gameWrapper && gameWrapper->IsInGame() &&
+        !gameWrapper->IsInOnlineGame() && !gameWrapper->IsInReplay();
+    if (!offlineLive) {
+        trainingBallVisibility_.update(0, 0, false, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
+    auto server = gameWrapper->GetGameEventAsServer();
+    if (!server) return;
+    auto ball = server.GetBall();
+    if (!ball) return;
+    const auto session = objectValue(state, "session");
+    const auto telemetry = objectValue(state, "telemetry");
+    const auto coaching = objectValue(telemetry, "coaching");
+    const auto attempt = stringValue(coaching, "attempt_id");
+    const bool hide = allowHide && offlineReady_ && ownedOfflineNow() &&
+        stringValue(session, "kind") == "training" && stringValue(session, "state") == "training" &&
+        mct::boolValue(session, "worker_running") && !stringValue(session, "id").empty() &&
+        stringValue(telemetry, "lesson_id") == "power-shots" &&
+        stringValue(coaching, "phase") == "finished" && stringValue(coaching, "outcome") == "timeout" &&
+        mct::numberValue(coaching, "time_remaining_seconds", -1) == 0;
+    trainingBallVisibility_.update(server.memory_address, ball.memory_address, offlineLive, hide, attempt,
+        [&] { return ball.GetbHidden() != 0; }, [&](bool hidden) {
+            ball.SetHidden2(hidden ? 1UL : 0UL);
+            if ((ball.GetbHidden() != 0) != hidden)
+                throw std::runtime_error("Training ball visibility did not acknowledge the requested state.");
+        });
+}
+
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
     try {
@@ -1035,12 +1068,14 @@ void MyCareerTraining::tick() {
         // Sampled on every tick, after the offline branch has refreshed the
         // runtime and enforceCareer has updated matchEnded. The helper decides
         // eligibility itself and always tracks the button edge.
+        updateTrainingBallVisibility(publishedState, true);
         pollTrainingLessonControls(publishedState, next);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
         releaseTrainingBindings();
         trainingLessonInput_.reset();
         restoreCosmetics();

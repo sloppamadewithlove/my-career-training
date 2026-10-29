@@ -13,6 +13,7 @@
 #include "NativeCosmeticContext.h"
 #include "CosmeticOverrideState.h"
 #include "TrainingLessonInput.h"
+#include "TrainingBallVisibility.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -123,6 +124,7 @@ private:
     mct::CosmeticOverrideState cosmeticOverride_;
     mct::TrainingLessonInput trainingLessonInput_;
     mct::TrainingBindingGuard trainingBindings_;
+    mct::TrainingBallVisibility trainingBallVisibility_;
     std::array<int, 4> trainingKeyNames_{};
     bool trainingKeysAvailable_ = false;
     bool resumePending_ = false;
@@ -174,6 +176,7 @@ private:
     void enforceCareer(const mct::Json& state, MctRuntime& result);
     bool updateTrainingBindings(bool active);
     void releaseTrainingBindings();
+    void updateTrainingBallVisibility(const mct::Json& state, bool allowHide);
     void pollTrainingLessonControls(const mct::Json& state, const MctRuntime& runtime);
     void processLocalRequests(MctRuntime& result);
     bool restoreCosmetics();
