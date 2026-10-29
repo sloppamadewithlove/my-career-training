@@ -989,7 +989,7 @@ class Backend(QObject):
                         or p["expected_session_id"] != pack_activity["session_id"]
                         or p["expected_fixture_id"] != "" or type(p["abandon"]) is not bool):
                     raise ValueError("The Custom Training activity changed. Open its pause menu again.")
-            pending = self.document["career"] and self.document["career"]["pending_session"]
+            pending = self._active_career_request_matches_pending()
             if pending and not p.get("abandon"):
                 raise ValueError("This match is unfinished. Confirm leaving it; it will restart from kickoff.")
             self._native_return_request = ({"session_id": self.session_id,
@@ -1000,7 +1000,7 @@ class Backend(QObject):
                 self._begin_stop("abandon" if pending else "return_hub")
             else:
                 self._drain_activity_results()
-                if self.document["career"] and self.document["career"]["pending_session"]:
+                if pending and self._active_career_request_matches_pending():
                     self._career_change(domain.abandon_fixture)
                 self._finish_native_return()
                 if pack_activity["active"]:
@@ -1281,6 +1281,8 @@ class Backend(QObject):
         elif action == "stop_session":
             self._begin_stop("stop")
         elif action == "abandon_fixture":
+            if not p and self.request and not self._active_career_request_matches_pending():
+                raise ValueError("Only the active career match can be abandoned from its menu.")
             if p:
                 career = self.document["career"]
                 pending = career and career.get("pending_session")
@@ -1545,6 +1547,15 @@ class Backend(QObject):
         state["settings"]["training_display"] = prefs
         self._commit(state)
 
+    def _active_career_request_matches_pending(self):
+        pending = (self.document.get("career") or {}).get("pending_session")
+        request = self.request or {}
+        fixture = request.get("fixture") or {}
+        return bool(pending and not request.get("lesson_id") and not request.get("calibration")
+                    and not request.get("workshop") and self.session_id
+                    and request.get("session_id") == self.session_id == pending.get("session_id")
+                    and fixture.get("id") == pending.get("fixture_id"))
+
     def _worker_active(self):
         return self.process is not None and self.process.state() != QProcess.NotRunning
 
@@ -1552,6 +1563,8 @@ class Backend(QObject):
         lesson_id = None
         scenario = None
         if action == "start_lesson":
+            if self._worker_active():
+                raise ValueError("Leave or end the current activity before starting Training.")
             if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
                 raise ValueError("Choose a valid lesson before starting it.")
             lesson_id = payload["id"]
@@ -1571,7 +1584,7 @@ class Backend(QObject):
         if game_processes() and not is_alive(self.owned_game):
             raise ValueError("Rocket League is already running outside this app. Close it before starting a career session.")
         career = self.document["career"]
-        if career and career["pending_session"]:
+        if action != "start_lesson" and career and career["pending_session"]:
             raise ValueError("An unfinished fixture is saved. Abandon that attempt to restart from kickoff, or recover a missing final result.")
         request = {"session_id": str(uuid.uuid4()), "settings": copy.deepcopy(self.document["settings"]),
                    "data_dir": str(self.store.directory), "in_game": self.in_game,

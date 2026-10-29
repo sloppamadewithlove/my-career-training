@@ -24,7 +24,7 @@ static Json fixtureState() {
               {"seasons", {{{"clubs", {{{"id", "human"}, {"name", "Orbit"}}, {{"id", "rival"}, {"name", "Nova"}}}},
                             {"fixtures", {{{"id", "fixture-a"}, {"home", "human"}, {"away", "rival"}, {"round", 1}, {"status", "scheduled"}}}}}}}}},
             {"next_fixture", {{"id", "fixture-a"}, {"home", "human"}, {"away", "rival"}, {"round", 1}, {"status", "scheduled"}}},
-            {"session", {{"state", "Career Ready"}, {"busy", false}}}, {"setup_required", false},
+            {"session", {{"state", "Career Ready"}, {"busy", false}, {"worker_running", false}}}, {"setup_required", false},
             {"lessons", {{{"id", "speed_flip"}, {"title", "Speed Flip"}, {"description", "A timed kickoff lesson."}, {"steps", {"Drive", "Jump"}}},
                          {{"id", "half_flip"}, {"title", "Half Flip"}}, {{"id", "aerial"}, {"title", "Aerial"}}}},
             {"standings", {{{"name", "Orbit"}, {"points", 9}}}}};

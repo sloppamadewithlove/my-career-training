@@ -1408,3 +1408,143 @@ def test_running_power_shots_stop_reason_blocks_late_accepted_ack_save(backend):
     assert instance.store.load() == before
     assert instance.request["scenario_id"] == "low-side-pass"
     assert instance.document["lesson_scenarios"] == before["lesson_scenarios"]
+
+
+def test_pending_career_is_byte_for_byte_preserved_through_lesson_start_cleanup_and_return(
+    backend, monkeypatch
+):
+    instance, _, _ = backend
+    unfinished_career(instance)
+    first = career.next_fixture(instance.document["career"])
+    continued = career.complete_fixture(instance.document["career"], first["id"], "attempt-a", 2, 1)
+    continued = career.start_fixture(continued, "attempt-b")
+    # Exercise a nontrivial saved fixture: its identity, frozen squad/lineup and
+    # earlier scores must all remain unrelated to the training session.
+    saved = instance.store.load()
+    saved["career"] = continued
+    pending = saved["career"]["pending_session"]
+    fixture = next(item for item in saved["career"]["seasons"][0]["fixtures"]
+                   if item["id"] == pending["fixture_id"])
+    scored_fixture = next(item for item in saved["career"]["seasons"][0]["fixtures"]
+                          if item["id"] == first["id"])
+    instance._commit(saved)
+    before_text = instance.store.path.read_text(encoding="utf-8")
+    before_document = json.loads(before_text)
+    fixture_before = json.loads(json.dumps(fixture))
+
+    monkeypatch.setattr(bridge.sys, "platform", "win32")
+    instance.setup_required = False
+
+    def fake_launch(request):
+        instance.request = request
+        instance.session_id = request["session_id"]
+        instance.process = FakeProcess()
+        instance.session_state = "training"
+
+    monkeypatch.setattr(instance, "_launch", fake_launch)
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert not instance.error
+    assert instance.request["lesson_id"] == "speed-flip"
+    assert "scenario_id" not in instance.request and "difficulty" not in instance.request
+    assert instance.store.path.read_text(encoding="utf-8") == before_text
+
+    training_session = instance.session_id
+    instance.in_game = True
+    instance.dispatch("return_hub", {"expected_session_id": training_session,
+                                      "expected_fixture_id": "", "abandon": False})
+    assert not instance.error and instance.stop_reason == "return_hub"
+    instance.process.current_state = QProcess.NotRunning
+    instance._event({"type": "stopped", "session_id": training_session})
+    instance._tick()
+
+    assert instance.session_state == "Idle"
+    assert instance.request is None and instance.session_id is None
+    assert instance.document == before_document
+    assert instance.store.load() == before_document
+    assert instance.store.path.read_text(encoding="utf-8") == before_text
+    after_fixture = next(item for item in instance.document["career"]["seasons"][0]["fixtures"]
+                         if item["id"] == pending["fixture_id"])
+    assert after_fixture == fixture_before
+    assert after_fixture["session_id"] == pending["session_id"]
+    assert after_fixture["squad"] == fixture_before["squad"]
+    assert after_fixture["result"] == fixture_before["result"]
+    after_scored = next(item for item in instance.document["career"]["seasons"][0]["fixtures"]
+                        if item["id"] == first["id"])
+    assert after_scored == scored_fixture
+    assert (after_scored["result"]["home_score"], after_scored["result"]["away_score"]) == (2, 1)
+
+
+def test_pending_career_power_shots_start_forwards_scenario_and_rank_without_mutation(
+    backend, monkeypatch
+):
+    instance, _, _ = backend
+    unfinished_career(instance)
+    before = json.loads(json.dumps(instance.document["career"]))
+    monkeypatch.setattr(bridge.sys, "platform", "win32")
+    instance.setup_required = False
+    launches = []
+    monkeypatch.setattr(instance, "_launch", launches.append)
+
+    instance.dispatch("start_lesson", {"id": "power-shots",
+                                        "scenario_id": "bouncing-side-pass",
+                                        "difficulty": "grand-champion"})
+
+    assert not instance.error
+    assert launches[-1]["lesson_id"] == "power-shots"
+    assert launches[-1]["scenario_id"] == "bouncing-side-pass"
+    assert launches[-1]["difficulty"] == "grand-champion"
+    assert instance.document["career"] == before
+    assert instance.store.load()["career"] == before
+
+
+def test_empty_legacy_abandon_rejects_running_lesson_without_touching_saved_career(backend):
+    instance, _, _ = backend
+    unfinished_career(instance)
+    before_document = json.loads(json.dumps(instance.document))
+    before_bytes = instance.store.path.read_bytes()
+    training_session = str(uuid.uuid4())
+    process = FakeProcess()
+    instance.process = process
+    instance.session_id = training_session
+    instance.request = {"session_id": training_session, "lesson_id": "speed-flip"}
+    instance.session_state = "training"
+
+    instance.dispatch("abandon_fixture", {})
+
+    assert "active career match" in instance.error
+    assert instance.stop_reason is None and process.writes == []
+    assert instance.document == before_document
+    assert instance.store.load() == before_document
+    assert instance.store.path.read_bytes() == before_bytes
+    instance.process = None
+
+
+
+@pytest.mark.parametrize("lesson", ["speed-flip", "power-shots"])
+def test_live_career_cannot_be_implicitly_stopped_to_start_training(backend, monkeypatch, lesson):
+    instance, _, _ = backend
+    identity = unfinished_career(instance)
+    instance.session_id = identity["expected_session_id"]
+    instance.request = {"session_id": instance.session_id,
+                        "fixture": {"id": identity["expected_fixture_id"]}}
+    process = FakeProcess()
+    instance.process = process
+    before = instance.store.path.read_bytes()
+    instance.dispatch("start_lesson", {"id": lesson})
+    assert "Leave or end" in instance.error
+    assert instance.pending_launch is None and instance.stop_reason is None
+    assert process.writes == [] and instance.store.path.read_bytes() == before
+    instance.process = None
+
+def test_dead_lesson_return_preserves_unrelated_pending_career(backend):
+    instance, _, _ = backend
+    unfinished_career(instance)
+    before = instance.store.path.read_bytes()
+    instance.request = {"session_id": "lesson-a", "lesson_id": "power-shots"}
+    instance.session_id = "lesson-a"
+    instance.process = FakeProcess(QProcess.NotRunning)
+    instance.dispatch("return_hub", {"expected_session_id": "lesson-a",
+                                     "expected_fixture_id": "", "abandon": False})
+    assert not instance.error
+    assert instance.store.path.read_bytes() == before
+    instance.process = None

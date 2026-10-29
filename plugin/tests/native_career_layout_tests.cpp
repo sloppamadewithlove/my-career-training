@@ -503,6 +503,14 @@ int main() {
         require(simplified.payload == Json({{"id", "flip-reset"}, {"key", "simplified"}, {"value", true}}), "Simplified payload");
         choose(layout, findChoice(layout.view(scope, state), "nav.back"), scope, state, false);
         choose(layout, findChoice(layout.view(scope, state), "training.lesson.power-shots"), scope, state, true);
+        auto pendingCareer = state;
+        pendingCareer["career"]["pending_session"] = {{"fixture_id", "saved-fixture"}, {"session_id", "saved-session"}};
+        pendingCareer["session"]["kind"] = "career";
+        require(findChoice(layout.view(scope, pendingCareer), "training.rank.gold").enabled,
+            "A saved Career with no running worker blocked Training");
+        pendingCareer["session"]["worker_running"] = true;
+        require(!findChoice(layout.view(scope, pendingCareer), "training.rank.gold").enabled,
+            "A live Career worker allowed direct Training launch");
         const auto ranks = layout.view(scope, state);
         require(ranks.choices.size() == 9, "Power Shots must offer eight ranks and Back");
         auto bronze = choose(layout, findChoice(ranks, "training.rank.bronze"), scope, state, true);
@@ -510,6 +518,7 @@ int main() {
             {"scenario_id", "low-side-pass"}, {"difficulty", "bronze"}}), "Bronze launch payload");
         auto running = state;
         running["session"]["kind"] = "training";
+        running["session"]["worker_running"] = true;
         require(!findChoice(layout.view(scope, running), "training.rank.bronze").enabled,
             "In-progress lesson still launches another rank");
 

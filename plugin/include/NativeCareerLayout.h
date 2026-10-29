@@ -1085,6 +1085,14 @@ private:
         return phaseOk && !busy(state) && !flag(state, "setup_required", true) && !pending(careerOf(state));
     }
 
+    static bool lessonReady(const Json& state) {
+        const auto session = sessionOf(state);
+        const auto phase = text(session, "state");
+        return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
+            !busy(state) && !flag(session, "worker_running", true) &&
+            !flag(state, "setup_required", true);
+    }
+
     static bool workerLikely(const Json& state) {
         const auto session = sessionOf(state);
         const auto kind = text(session, "kind");
@@ -1220,7 +1228,7 @@ private:
                 else if (phase == "Playing") addLine(view.body, "Your match is in progress.");
                 else addLine(view.body, "Return from the current activity before restarting this match.");
             } else {
-                addLine(view.body, "Your last match did not finish. Restart it before playing or training.");
+                addLine(view.body, "Your last match did not finish. Restart it before playing another Career match.");
                 navigate(view, "career.recover", "Restart unfinished match", CareerLayoutPage::RecoverCareer);
             }
         }
@@ -1342,7 +1350,7 @@ private:
                 row.key = "lesson:" + id; row.type = "lesson"; row.itemId = id;
                 row.title = text(lessons[i], "title", "Lesson"); row.subtitle = "Training lesson";
                 row.detail = text(lessons[i], "description"); row.primaryLabel = "Start lesson";
-                row.primaryEnabled = ready(state); row.reason = row.primaryEnabled ? "" : kRecover;
+                row.primaryEnabled = lessonReady(state); row.reason = row.primaryEnabled ? "" : kRecover;
                 row.action = "start_lesson"; row.payload = {{"id", id}};
                 if (id == "power-shots") {
                     row.primaryLabel = "Choose rank";
@@ -1527,7 +1535,7 @@ private:
                 {"supersonic-legend", "Supersonic Legend"}};
             for (const auto& rank : ranks)
                 dispatch(view, std::string("training.rank.") + rank.id, rank.label,
-                    ready(state) && !workerLikely(state), kRecover, "start_lesson",
+                    lessonReady(state), kRecover, "start_lesson",
                     {{"id", lessonId_}, {"scenario_id", "low-side-pass"}, {"difficulty", rank.id}});
             back(view, CareerLayoutPage::Training, page);
             return;
@@ -1540,7 +1548,7 @@ private:
             const auto stop = (std::min)(steps.size(), static_cast<std::size_t>(6));
             for (std::size_t i = 0; i < stop; ++i)
                 if (steps[i].is_string()) addLine(view.body, std::to_string(i + 1) + ". " + plain(steps[i].get<std::string>(), 120));
-            const bool canPractice = ready(state);
+            const bool canPractice = lessonReady(state);
             CareerLayoutChoice start;
             start.id = "training.practice";
             start.label = "Start practice";
@@ -1548,7 +1556,7 @@ private:
             start.action = "start_lesson";
             start.lessonId = lessonId_;
             start.enabled = canPractice;
-            start.reason = canPractice ? "" : "Practice is unavailable until the session is ready and any unfinished match is resolved.";
+            start.reason = canPractice ? "" : "Leave the current activity before starting another lesson.";
             start.payload = {{"id", lessonId_}};
             push(view, std::move(start));
             const char* helpKeys[] = {"explanations", "actions", "timing", "auto_reset"};

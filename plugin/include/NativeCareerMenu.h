@@ -100,10 +100,10 @@ public:
                 for (std::size_t i = 0; i < std::min<std::size_t>(steps.size(), 6); ++i)
                     if (steps[i].is_string()) out.body += "<p>" + std::to_string(i + 1) + ". " + escaped(steps[i].get<std::string>(), 240) + "</p>";
                 out.body += "<p>Practice uses the existing lesson engine. This trial does not add an expert ghost or video.</p>";
-                if (ready(state)) {
+                if (lessonReady(state)) {
                     NativeCareerChoice start{"Start Practice", false, NativeCareerIntent::StartPractice};
                     start.lessonId = lessonId_; out.choices.push_back(start);
-                } else out.body += "<p>Practice unavailable until the session is ready and any unfinished match is resolved.</p>";
+                } else out.body += "<p>Leave the current activity before starting another lesson.</p>";
             }
             back(out, NativeCareerPage::Training, lessonPage_); break;
         }
@@ -261,6 +261,13 @@ private:
         return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
             !truth(session, "busy", true) && !truth(state, "setup_required", true) &&
             (pending == career.end() || pending->is_null() || (pending->is_object() && pending->empty()));
+    }
+    static bool lessonReady(const Json& state) {
+        const auto session = object(state, "session");
+        const auto phase = text(session, "state");
+        return (phase == "Career Ready" || phase == "Idle" || phase == "training") &&
+            !truth(session, "busy", true) && !truth(session, "worker_running", true) &&
+            !truth(state, "setup_required", true);
     }
     static bool canPlay(const Json& state) {
         const auto career = object(state, "career"); const auto fixture = object(state, "next_fixture");
