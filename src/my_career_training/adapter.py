@@ -162,9 +162,14 @@ def normalized_packet(packet, prediction=None, field_info=None):
     if prediction is not None:
         predictions = [{"time": s.game_seconds, "position": vector(s.physics.location)}
                        for s in prediction.slices[::6]]
-    return {"time": packet.match_info.seconds_elapsed, "frame_num": packet.match_info.frame_num,
-            "is_kickoff": packet.match_info.match_phase == f.MatchPhase.Kickoff,
-            "game_speed": packet.match_info.game_speed, "cars": cars, "boosts": boosts,
+    match_info = packet.match_info
+    return {"time": match_info.seconds_elapsed,
+            "game_time_remaining": getattr(match_info, "game_time_remaining", None),
+            "is_unlimited_time": getattr(match_info, "is_unlimited_time", None),
+            "is_overtime": getattr(match_info, "is_overtime", None),
+            "frame_num": match_info.frame_num,
+            "is_kickoff": match_info.match_phase == f.MatchPhase.Kickoff,
+            "game_speed": match_info.game_speed, "cars": cars, "boosts": boosts,
             "ball": physics(packet.balls[0].physics) if packet.balls else {}, "prediction": predictions}
 
 

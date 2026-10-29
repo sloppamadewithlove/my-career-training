@@ -11,7 +11,8 @@ public:
                 bool hide, const std::string& attempt,
                 const std::function<bool()>& read, const std::function<void(bool)>& write) {
         if (!offlineLive) return; // Defer cleanup through replay; never write outside offline play.
-        if (!event || !ball || (active_ && (event != event_ || ball != ball_))) {
+        if (!event || !ball) return; // Retain lease without callbacks during identity gap.
+        if (active_ && (event != event_ || ball != ball_)) {
             clear();
             return; // Never apply the old actor's flag to a replacement actor.
         }

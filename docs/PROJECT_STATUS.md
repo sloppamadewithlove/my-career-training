@@ -7,7 +7,7 @@ or owner-accepted Gold playlist is available.
 | --- | --- |
 | Current source | `7ba05345cb2451d95dbbde64301d7c0ee4024d13`; Windows native CI passed |
 | Last loaded candidate | `af8871d1c8703b7d6880648578bfaab0a1cf6974`; replacement rejected by owner and normally closed |
-| Current game | Ordinary Steam reference session, not the mod; owner is using PC; all automated input/capture suspended |
+| Current game | Ordinary Steam reference session, not the mod; owner handed PC back; root is the sole game operator |
 | Source checks | `af0845596f3dd764a1b90646b6e577cb644a7422`: 5 saved-result guard and 41 continuation tests passed |
 | Full native candidate check | `af8871d`: 37 plugin and 13 launcher checks passed; not gameplay acceptance |
 | Privacy improvement | Draft PR #11 aligned at `d2e7beb74ee5aea1a06c2cd4c35832dd83f5c8db`; 25 privacy tests, scanner, Ruff and native Windows CI passed |
@@ -26,16 +26,18 @@ or unverified. Mods is currently download-only in production; Workshop launch is
 a development handoff without verified arrival/return.
 
 Poquito Ground Shots and Skogur Powershot Practice are approved references for a
-combined twelve-challenge Gold tier. Actual target shot geometry has not been
-acquired. The three cached packs were identified with valid CRCs and unchanged
+combined twelve-challenge Gold tier. Poquito has now been downloaded through the native browser and its 50-shot
+training screen observed. Skogur download and exact shot decoding are in progress. The three cached packs were identified with valid CRCs and unchanged
 original file hashes; none matches either target. Native download will resume
-only after the owner hands back game control.
+under the current root-owned input lease.
 
-Two bounded DeepSeek/REA workers are investigating training and lifecycle gaps
-until 10:16:20 UTC. Luna agents independently inspect public sources and verify
-conclusions; main integrates reviewed work. Read the
-[background diagnosis and concrete findings](evidence/2026-10-29-background-diagnosis.md)
-for ownership, evidence, rejected findings and actual heartbeat improvements.
+The bounded background research queue completed nine training and eight lifecycle
+topics, with independent Luna corrections. Main has resumed normal-game pack
+inspection and integrated two independently tested changes: hidden-ball cleanup
+survives unavailable wrappers, and RLBot native clock fields are exposed for
+verification. [Patch/test receipt](evidence/2026-10-29-training-cleanup-clock.md).
+Neither change is loaded in the standard reference game; no new Gold acceptance
+is claimed. Current build checks belong to their recorded revisions.
 The original eight-hour research is on `research/rocket-league-2026-10-27` in
 `research to be applied/`.
 

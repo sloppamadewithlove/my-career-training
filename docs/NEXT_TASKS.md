@@ -14,9 +14,10 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 | Luna rea_research | Completed public implementation comparison | Custom-training converter/timer precedent found; Soccar expiry still unknown |
 | Scheduled improvement worker | PR #11 privacy check delivered | Branch aligned at d2e7beb; Windows CI passed; no gameplay/release claim |
 
-The owner is using the PC. Input, focus, capture and live game tests are suspended.
-The ordinary Steam reference session remains open; the previous replacement mod
-session was normally closed. Background research is read-only and resource-bounded.
+The owner handed the PC back. Root alone owns input to a fresh standard Steam
+reference session; other agents remain source/test-only. Poquito was downloaded
+and opened; Skogur acquisition/decoding is next. Background research completed its
+finite queue; two scoped DeepSeek fixes passed independent tests and are integrated.
 [Current receipt](evidence/2026-10-29-background-diagnosis.md).
 
 ## Next proof sequence
