@@ -218,7 +218,7 @@ std::string LocalBridge::error() const {
 bool LocalBridge::allowedAction(const std::string& action) {
     static const std::set<std::string> actions = {
         "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
-        "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson",
+        "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson", "start_lesson", "lesson_scenario", "training_scenario_step",
         "retry_lesson", "stop_session", "assistance", "settings", "diagnostics", "loadout",
         "restore_explanations", "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "browser_favorite", "play_workshop", "refresh_workshop", "setup_finish", "lesson_variant",
         "choose_provider", "install_provider", "play_recording", "stop_ghost", "training_settings", "ghost_control", "import_recording",

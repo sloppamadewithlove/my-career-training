@@ -16,6 +16,7 @@ from my_career_training.training import (
     validate_recording,
 )
 from my_career_training.training.recordings import Recorder
+from my_career_training.training.engine import InvalidTrainingTelemetry
 
 
 def frame(t, position=(0, -2500, 17.01), ball=(0, 0, 93.15), **changes):
@@ -91,6 +92,42 @@ def test_help_preferences_independent_and_validated():
         assistance_preferences({"actions": "false"})
     with pytest.raises(ValueError):
         assistance_preferences({"playback_speed": float("nan")})
+
+
+@pytest.mark.parametrize(
+    ("change", "field"),
+    [
+        (("car", "position", None), "car.position"),
+        (("car", "velocity", [0, float("nan"), 0]), "car.velocity"),
+        (("ball", "position", None), "ball.position"),
+        (("ball", "velocity", [0, float("inf"), 0]), "ball.velocity"),
+    ],
+)
+def test_missing_or_nonfinite_body_telemetry_is_named_and_never_recorded(change, field):
+    engine = TrainingEngine("speed-flip", strict_capture=True)
+    invalid = frame(0)
+    actor, key, value = change
+    if value is None:
+        invalid[actor].pop(key)
+    else:
+        invalid[actor][key] = value
+
+    with pytest.raises(InvalidTrainingTelemetry) as caught:
+        engine.update(invalid)
+
+    assert caught.value.fields == (field,)
+    assert engine.recording()["samples"] == []
+    assert engine.state == "settling"
+
+
+def test_transition_gap_does_not_overwrite_an_already_finished_attempt():
+    engine = TrainingEngine("speed-flip")
+    engine.state, engine.outcome = "finished", "timeout"
+
+    event = engine.interrupt_unavailable_telemetry(("ball.position",))
+
+    assert event["attempt_interrupted"] is False
+    assert engine.state == "finished" and engine.outcome == "timeout"
 
 
 def test_settle_waits_for_clean_jump_state_and_restarts_after_gap():

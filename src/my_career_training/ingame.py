@@ -13,7 +13,7 @@ from .storage import Store
 ALLOWED_ACTIONS = frozenset({
     "navigate", "new_career", "play_match", "lineup", "replace_recruit", "rename_recruit",
     "set_format", "set_difficulty", "next_season", "abandon_fixture", "select_lesson",
-    "start_lesson", "retry_lesson", "stop_session", "assistance", "settings", "setup_finish",
+    "start_lesson", "lesson_scenario", "training_scenario_step", "retry_lesson", "stop_session", "assistance", "settings", "setup_finish",
     "diagnostics", "loadout", "restore_explanations", "lesson_variant", "play_recording",
     "return_hub", "forfeit_match", "prepare_next_match", "start_prepared_match", "retry_result_save", "quit_game", "workshop_favorite", "play_workshop", "choose_provider",
     "install_provider", "import_recording", "stop_ghost", "training_settings", "ghost_control", "refresh_workshop",

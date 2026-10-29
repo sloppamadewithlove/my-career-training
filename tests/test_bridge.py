@@ -1166,3 +1166,245 @@ def test_community_page_renders_idle_and_downloaded_states_without_qml_errors(ba
         window.close()
         engine.deleteLater()
         qt_app.processEvents()
+
+
+def test_power_shots_selection_persists_whole_setup_and_switching_situation_keeps_rank(backend):
+    instance, _, _ = backend
+    assert instance.state["lesson_scenarios"]["power-shots"] == {
+        "scenario_id": "low-side-pass", "difficulty": "bronze"}
+    instance.dispatch("lesson_scenario", {
+        "id": "power-shots", "scenario_id": "low-side-pass", "difficulty": "diamond"})
+    instance.dispatch("lesson_scenario", {
+        "id": "power-shots", "scenario_id": "bouncing-side-pass", "difficulty": "diamond"})
+    expected = {"scenario_id": "bouncing-side-pass", "difficulty": "diamond"}
+    assert not instance.error
+    assert instance.document["lesson_scenarios"]["power-shots"] == expected
+    assert instance.store.load()["lesson_scenarios"]["power-shots"] == expected
+
+
+def _running_power_shots(instance, scenario="low-side-pass", rank="diamond"):
+    instance.process = FakeProcess()
+    instance.session_id = str(uuid.uuid4())
+    instance.session_state = "training"
+    instance.request = {"session_id": instance.session_id, "lesson_id": "power-shots",
+                        "scenario_id": scenario, "difficulty": rank}
+
+
+def test_running_power_shots_step_persists_only_after_exact_worker_acceptance(backend):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+
+    instance.dispatch("training_scenario_step", {"direction": 1})
+
+    assert not instance.error and instance.store.load() == before
+    command = json.loads(instance.process.writes[-1])
+    assert command["type"] == "training_scenario_step"
+    assert command["session_id"] == instance.session_id and command["direction"] == 1
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": True,
+                     "scenario_id": "bouncing-side-pass", "difficulty": "diamond"})
+
+    expected = {"scenario_id": "bouncing-side-pass", "difficulty": "diamond"}
+    assert {key: instance.request[key] for key in expected} == expected
+    assert instance.document["lesson_scenarios"]["power-shots"] == expected
+    assert instance.store.load()["lesson_scenarios"]["power-shots"] == expected
+
+
+@pytest.mark.parametrize("payload", [{}, {"direction": 0}, {"direction": True},
+                                      {"direction": 1, "extra": 1}])
+def test_running_power_shots_invalid_step_does_not_send_or_mutate(backend, payload):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", payload)
+    assert instance.error
+    assert instance.process.writes == []
+    assert instance.store.load() == before
+    assert instance.request["scenario_id"] == "low-side-pass"
+
+
+def test_running_power_shots_step_reject_or_stale_ack_does_not_persist(backend):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": -1})
+    command = json.loads(instance.process.writes[-1])
+    instance._event({"type": "training_scenario_step_ack", "session_id": str(uuid.uuid4()),
+                     "id": command["id"], "accepted": True,
+                     "scenario_id": "crowded-box", "difficulty": "diamond"})
+    assert instance.store.load() == before and instance._scenario_step_pending is not None
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": False, "error": "reset unavailable"})
+    assert "reset unavailable" in instance.error
+    assert instance.store.load() == before
+    assert instance.request["scenario_id"] == "low-side-pass"
+
+
+@pytest.mark.parametrize("ack", [
+    {"scenario_id": "unknown", "difficulty": "diamond"},
+    {"scenario_id": "bouncing-side-pass"},
+])
+def test_running_power_shots_malformed_accepted_ack_is_contained(backend, ack):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": 1})
+    command = json.loads(instance.process.writes[-1])
+
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": True, **ack})
+
+    assert instance._scenario_step_pending is None
+    assert instance.error.startswith("The worker returned an invalid Power Shots setup:")
+    assert instance.store.load() == before
+    assert instance.request["scenario_id"] == "low-side-pass"
+
+
+def test_running_power_shots_accepted_step_save_failure_is_visible_and_recoverable(
+    backend, monkeypatch
+):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": 1})
+    command = json.loads(instance.process.writes[-1])
+    monkeypatch.setattr(instance, "_commit", lambda _state: (_ for _ in ()).throw(OSError("disk busy")))
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": True,
+                     "scenario_id": "bouncing-side-pass", "difficulty": "diamond"})
+    assert instance.request["scenario_id"] == "bouncing-side-pass"
+    assert instance.store.load() == before
+    assert "changed in this match but its selection was not saved" in instance.error
+
+
+@pytest.mark.parametrize("payload", [
+    {"id": "power-shots", "scenario_id": "low-side-pass"},
+    {"id": "power-shots", "scenario_id": "unknown", "difficulty": "bronze"},
+    {"id": "power-shots", "scenario_id": "low-side-pass", "difficulty": "Bronze"},
+    {"id": "power-shots", "scenario_id": "low-side-pass", "difficulty": "bronze", "extra": 1},
+    {"id": "power-shots", "scenario_id": 1, "difficulty": "bronze"},
+])
+def test_power_shots_selection_rejects_malformed_payload_before_save(backend, monkeypatch, payload):
+    instance, _, _ = backend
+    saved = instance.store.load()
+    commits = []
+    monkeypatch.setattr(instance, "_commit", commits.append)
+    instance.dispatch("lesson_scenario", payload)
+    assert instance.error and commits == [] and instance.store.load() == saved
+
+
+@pytest.mark.parametrize("busy_state", ["worker", "frozen", "native_training_pack"])
+def test_power_shots_selection_refuses_busy_state_before_commit(backend, monkeypatch, busy_state):
+    instance, _, _ = backend
+    if busy_state == "worker":
+        instance.process = FakeProcess()
+    elif busy_state == "frozen":
+        instance.lifecycle.frozen = True
+    else:
+        instance.native_training_pack._activity = {
+            "status": "loaded", "requires_restart": False, "message": "Loaded", "session_id": "pack-session"}
+    before_document = json.dumps(instance.document, sort_keys=True)
+    before = instance.store.load()
+    commits = []
+    monkeypatch.setattr(instance, "_commit", commits.append)
+    with pytest.raises(ValueError, match="current activity"):
+        instance._action("lesson_scenario", {
+            "id": "power-shots", "scenario_id": "bouncing-side-pass", "difficulty": "gold"})
+    assert commits == []
+    assert json.dumps(instance.document, sort_keys=True) == before_document
+    assert instance.store.load() == before
+
+
+def test_power_shots_start_forwards_selected_or_explicit_setup_and_standard_lesson_is_unchanged(
+    backend, monkeypatch
+):
+    instance, _, _ = backend
+    monkeypatch.setattr(bridge.sys, "platform", "win32")
+    instance.setup_required = False
+    launches = []
+    monkeypatch.setattr(instance, "_launch", lambda request: launches.append(request))
+    instance.dispatch("lesson_scenario", {
+        "id": "power-shots", "scenario_id": "bouncing-side-pass", "difficulty": "platinum"})
+    instance.dispatch("start_lesson", {"id": "power-shots"})
+    assert not instance.error
+    assert launches[-1]["lesson_id"] == "power-shots"
+    assert launches[-1]["scenario_id"] == "bouncing-side-pass"
+    assert launches[-1]["difficulty"] == "platinum"
+
+    instance.dispatch("start_lesson", {
+        "id": "power-shots", "scenario_id": "low-side-pass", "difficulty": "silver"})
+    assert launches[-1]["scenario_id"] == "low-side-pass" and launches[-1]["difficulty"] == "silver"
+    instance.dispatch("start_lesson", {"id": "speed-flip"})
+    assert launches[-1]["lesson_id"] == "speed-flip"
+    assert "scenario_id" not in launches[-1] and "difficulty" not in launches[-1]
+
+
+def test_invalid_power_shots_start_fails_before_save_or_launch(backend, monkeypatch):
+    instance, _, _ = backend
+    saves, launches = [], []
+    monkeypatch.setattr(instance, "_save_current", lambda: saves.append(True))
+    monkeypatch.setattr(instance, "_launch", launches.append)
+    instance.dispatch("start_lesson", {
+        "id": "power-shots", "scenario_id": "unknown", "difficulty": "bronze", "extra": True})
+    assert instance.error and saves == [] and launches == []
+
+
+def test_scenario_action_is_available_to_both_local_bridges():
+    from my_career_training.ingame import ALLOWED_ACTIONS
+    assert {"lesson_scenario", "training_scenario_step"}.issubset(ALLOWED_ACTIONS)
+
+
+@pytest.mark.parametrize("event", [
+    {"type": "error", "message": "worker failed"},
+    {"type": "stopped"},
+])
+def test_running_power_shots_error_or_stopped_clears_pending_step(backend, event):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": 1})
+    assert instance._scenario_step_pending is not None
+
+    instance._event(dict(event, session_id=instance.session_id))
+
+    assert instance._scenario_step_pending is None
+    assert instance.store.load() == before
+    assert instance.request["scenario_id"] == "low-side-pass"
+
+
+def test_running_power_shots_accepted_ack_without_request_fails_closed(backend):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": 1})
+    command = json.loads(instance.process.writes[-1])
+    instance.request = None
+
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": True,
+                     "scenario_id": "bouncing-side-pass", "difficulty": "diamond"})
+
+    assert instance._scenario_step_pending is None
+    assert instance.request is None
+    assert instance.store.load() == before
+    assert instance.document["lesson_scenarios"] == before["lesson_scenarios"]
+    assert "changed before its situation was saved" in instance.error
+
+
+def test_running_power_shots_stop_reason_blocks_late_accepted_ack_save(backend):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    before = instance.store.load()
+    instance.dispatch("training_scenario_step", {"direction": 1})
+    command = json.loads(instance.process.writes[-1])
+    instance.stop_reason = "stop"
+
+    instance._event({"type": "training_scenario_step_ack", "session_id": instance.session_id,
+                     "id": command["id"], "accepted": True,
+                     "scenario_id": "bouncing-side-pass", "difficulty": "diamond"})
+
+    assert instance._scenario_step_pending is None
+    assert instance.store.load() == before
+    assert instance.request["scenario_id"] == "low-side-pass"
+    assert instance.document["lesson_scenarios"] == before["lesson_scenarios"]

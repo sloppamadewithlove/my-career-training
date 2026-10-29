@@ -171,6 +171,94 @@ def test_60hz_samples_can_settle_confirm_reset_and_start_training():
     assert [event["type"] for event in go_events] == ["go"]
 
 
+def test_ordinary_reset_confirmation_uses_complete_pose_across_cadence_gap():
+    engine = TrainingEngine("speed-flip")
+    first_frame_num = 2_000
+    for index in range(20):
+        engine.update(_engine_frame(engine, index / 60, first_frame_num + 2 * index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    start_index = index + 1
+    observed = _engine_frame(
+        engine, start_index / 60, first_frame_num + 2 * start_index, starting=True
+    )
+    observed.update(
+        packet_gap=True,
+        phase=3,
+        cadence_details={
+            "gap": True,
+            "reason": "step_count_exceeded",
+            "dt": 1 / 60,
+            "steps": 2,
+            "coarse": False,
+        },
+    )
+
+    events = engine.update(observed)
+
+    assert engine.state == "active"
+    assert [event["type"] for event in events] == ["go"]
+    assert engine.preparation["ready"]["observed_state_applied"] is True
+    assert engine.preparation["ready"]["cadence"]["reason"] == "step_count_exceeded"
+
+
+@pytest.mark.parametrize("reason", ["invalid_frame_number", "physics_step_mismatch"])
+def test_ordinary_reset_confirmation_rejects_corrupt_cadence(reason):
+    engine = TrainingEngine("speed-flip")
+    first_frame_num = 3_000
+    for index in range(20):
+        engine.update(_engine_frame(engine, index / 60, first_frame_num + 2 * index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    start_index = index + 1
+    observed = _engine_frame(
+        engine, start_index / 60, first_frame_num + 2 * start_index, starting=True
+    )
+    observed["cadence_details"] = {
+        "gap": True,
+        "reason": reason,
+        "dt": 1 / 60,
+        "steps": 2,
+        "coarse": False,
+    }
+
+    assert engine.update(observed) == []
+    assert engine.state == "ready"
+    assert engine.preparation["ready"]["observed_state_applied"] is True
+    assert engine.preparation["ready"]["cadence"]["reason"] == reason
+
+
+def test_strict_reset_confirmation_still_requires_continuous_cadence():
+    engine = TrainingEngine("speed-flip", strict_capture=True)
+    first_frame_num = 4_000
+    for index in range(40):
+        engine.update(_engine_frame(engine, index / 120, first_frame_num + index))
+        if engine.state == "ready":
+            break
+    assert engine.state == "ready"
+
+    observed = _engine_frame(
+        engine, (index + 1) / 120, first_frame_num + index + 1, starting=True
+    )
+    observed.update(
+        packet_gap=True,
+        cadence_details={
+            "gap": True,
+            "reason": "explicit_packet_gap",
+            "dt": None,
+            "steps": None,
+            "coarse": False,
+        },
+    )
+
+    assert engine.update(observed) == []
+    assert engine.state == "ready"
+
+
 def test_ordinary_preparation_accepts_stationary_samples_with_explicit_packet_gaps():
     engine = TrainingEngine("speed-flip")
     ready_events = []

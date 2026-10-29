@@ -28,6 +28,8 @@ from .training import (assistance_preferences, catalog, configure_lesson, import
                        validate_recording)
 from .training.packs import training_packs
 from .training.native_packs import NativeTrainingPackController
+from .training.scenario_setup import (scenario_options, setup_for, start_setup, step_setup,
+                                      validate_action, validate_lesson_scenarios, validate_setup)
 
 
 _MAX_CATALOG_WORKERS = 2
@@ -43,6 +45,7 @@ def validate_document(state):
     for lesson_id, preferences in state["lesson_preferences"].items():
         configure_lesson(lesson_id)
         assistance_preferences(preferences)
+    validate_lesson_scenarios(state.get("lesson_scenarios", {}))
 
 
 def _display(value, limit=240):
@@ -69,6 +72,7 @@ class Backend(QObject):
         self._ghost_pending = {}
         self._ghost_seq = 0
         self._ghost_deadline = None
+        self._scenario_step_pending = None
         self.plugin_status = {}
         self.native_community = None
         self.native_training_pack = NativeTrainingPackController(self._training_pack_observation)
@@ -178,10 +182,14 @@ class Backend(QObject):
         transition = self.lifecycle.frozen or self.lifecycle.state in ("Error/Recovery", "Online Launch Requested")
         state = self.lifecycle.state if transition else self.session_state
         message = self.lifecycle.message if transition else self.session_message
+        lesson_scenarios = validate_lesson_scenarios(self.document.get("lesson_scenarios", {}))
+        lesson_scenarios["power-shots"] = setup_for(lesson_scenarios.get("power-shots"))
         return {"page": self.page, "career": career, "standings": domain.standings(career) if career else [],
             "next_fixture": domain.next_fixture(career) if career else None, "lessons": catalog(),
             "selected_lesson": selected, "settings": self.document["settings"],
             "lesson_preferences": self.document["lesson_preferences"], "setup_required": self.setup_required,
+            "lesson_scenarios": lesson_scenarios,
+            "lesson_scenario_options": {"power-shots": scenario_options()},
             "session": {"state": state, "message": message, "busy": self.lifecycle.frozen or
                 bool(self.native_community and any(self.native_community.state().get(key)
                      for key in ("busy", "requires_restart"))) or
@@ -1003,6 +1011,7 @@ class Backend(QObject):
                 self._ghost_practice_enabled = False
                 self._ghost_pending = {}
                 self._ghost_deadline = None
+                self._scenario_step_pending = None
                 self.session_state = "Idle"
                 self.session_message = "Career hub ready. Progress saved."
         elif action == "quit_game":
@@ -1211,6 +1220,36 @@ class Backend(QObject):
         elif action == "select_lesson":
             configure_lesson(p["id"])
             self.selected_id = p["id"]
+        elif action == "lesson_scenario":
+            selection = validate_action(p)
+            if (self._worker_active() or self.request is not None or self.session_id is not None
+                    or self.pending_launch is not None or self.stop_reason or self.stopping_worker
+                    or self.start_deadline is not None or self.session_state != "Idle"
+                    or self.lifecycle.frozen or self.native_training_pack.active()
+                    or self.community_state["busy"] or self.catalog_state["busy"]
+                    or self.catalog_state["loading"]):
+                raise ValueError("Finish the current activity before changing the Power Shots setup.")
+            state = copy.deepcopy(self.document)
+            state.setdefault("lesson_scenarios", {})[selection["id"]] = {
+                "scenario_id": selection["scenario_id"], "difficulty": selection["difficulty"]}
+            self._commit(state)
+            self.selected_id = selection["id"]
+        elif action == "training_scenario_step":
+            if (not self._worker_active() or not self.session_id
+                    or (self.request or {}).get("lesson_id") != "power-shots"
+                    or self.session_state != "training" or self.stop_reason
+                    or self._scenario_step_pending is not None):
+                raise ValueError("Start one Power Shots lesson and wait for its current transition to finish.")
+            current = validate_setup({"scenario_id": self.request.get("scenario_id"),
+                                      "difficulty": self.request.get("difficulty")})
+            expected = step_setup(current, p)
+            command_id = self._send(
+                "training_scenario_step", session_id=self.session_id,
+                direction=p["direction"])
+            self._scenario_step_pending = {
+                "id": command_id, "session_id": self.session_id,
+                "before": current, "expected": expected,
+            }
         elif action in ("assistance", "restore_explanations"):
             lesson_id = p["id"]
             configure_lesson(lesson_id)
@@ -1510,6 +1549,18 @@ class Backend(QObject):
         return self.process is not None and self.process.state() != QProcess.NotRunning
 
     def _prepare_launch(self, action, payload):
+        lesson_id = None
+        scenario = None
+        if action == "start_lesson":
+            if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
+                raise ValueError("Choose a valid lesson before starting it.")
+            lesson_id = payload["id"]
+            configure_lesson(lesson_id)
+            if lesson_id == "power-shots":
+                scenario = start_setup(payload,
+                    self.document.get("lesson_scenarios", {}).get(lesson_id))
+            elif set(payload) != {"id"}:
+                raise ValueError("This lesson start accepts only its lesson id.")
         if self.native_training_pack.active():
             raise ValueError("Finish or exit the current Custom Training pack before starting another activity.")
         if sys.platform != "win32":
@@ -1552,11 +1603,11 @@ class Backend(QObject):
                 install_path=self.document["settings"].get("install_path", ""),
                 imported_maps=self.document.get("maps", []))
         else:
-            lesson_id = payload["id"]
-            configure_lesson(lesson_id)
             request.update(lesson_id=lesson_id, preferences=assistance_preferences(
                 self.document["lesson_preferences"].get(lesson_id)),
                 variants=self.document.get("lesson_variants", {}).get(lesson_id, {}))
+            if scenario is not None:
+                request.update(scenario_id=scenario["scenario_id"], difficulty=scenario["difficulty"])
         self._save_current()
         if self._worker_active() or (is_alive(self.owned_game) and not self.in_game):
             self.pending_launch = request
@@ -1570,6 +1621,7 @@ class Backend(QObject):
         self._legacy_playback = False
         self._ghost_pending = {}
         self._ghost_deadline = None
+        self._scenario_step_pending = None
         self.startup_stop_acknowledged = False
         self.worker_ready = False
         self.native_return_ready = None
@@ -1660,6 +1712,8 @@ class Backend(QObject):
             self.session_state = {"starting": "Starting Career", "running": "Playing", "training": "training",
                 "completed": "Career Ready", "error": "Error/Recovery"}.get(worker_state, worker_state)
             self.session_message = event.get("message", "")
+            if self.session_state == "Error/Recovery":
+                self._scenario_step_pending = None
             if self.session_state != "Starting Career":
                 self.start_deadline = None
         elif kind == "telemetry":
@@ -1722,6 +1776,49 @@ class Backend(QObject):
             if cancelled:
                 return
             self._ghost_ack(event)
+        elif kind == "training_scenario_step_ack":
+            pending = self._scenario_step_pending
+            if (cancelled or not pending or event.get("id") != pending["id"]
+                    or event.get("session_id") != pending["session_id"]):
+                return
+            self._scenario_step_pending = None
+            if not event.get("accepted"):
+                self.error = event.get("error") or "The Power Shots situation did not change."
+                return
+            try:
+                accepted = validate_setup({"scenario_id": event.get("scenario_id"),
+                                           "difficulty": event.get("difficulty")})
+            except ValueError as error:
+                self.error = f"The worker returned an invalid Power Shots setup: {error}"
+                return
+            if accepted != pending["expected"] or accepted["difficulty"] != pending["before"]["difficulty"]:
+                self.error = "The worker confirmed a different Power Shots setup. Return and restart the lesson."
+                return
+            if self.stop_reason:
+                # The lesson is already stopping; a late transition is not
+                # mirrored or persisted after cancellation.
+                return
+            if (not isinstance(self.request, dict)
+                    or self.request.get("lesson_id") != "power-shots"
+                    or self.request.get("session_id") != pending["session_id"]):
+                # Fail closed: never dereference or update a request that no
+                # longer belongs to this exact Power Shots session.
+                self.error = ("The Power Shots lesson changed before its situation was saved. "
+                              "Restart the lesson to apply it.")
+                return
+            # The worker transition already happened. Mirror its accepted
+            # request identity, then persist only that exact accepted setup.
+            self.request.update(accepted)
+            state = copy.deepcopy(self.document)
+            state.setdefault("lesson_scenarios", {})["power-shots"] = accepted
+            try:
+                self._commit(state)
+            except (OSError, ValueError) as error:
+                self.error = ("The situation changed in this match but its selection was not saved: "
+                              f"{error}. Step away and back, or restart Power Shots, before closing My Career.")
+                return
+            self.notice = (f"Power Shots situation {event.get('scenario_id')} selected for "
+                           f"{accepted['difficulty']}.")
         elif kind == "attempt":
             self.latest_attempt = event["summary"]
             recording = event.get("recording")
@@ -1729,9 +1826,11 @@ class Backend(QObject):
             self._send("attempt_ack", attempt_id=event["summary"]["id"])
         elif kind == "error":
             self.error = event.get("message", "Game connection error.")
+            self._scenario_step_pending = None
             self.session_state = "Error/Recovery"
             self.start_deadline = None
         elif kind == "stopped":
+            self._scenario_step_pending = None
             if self.lifecycle.state == "Stopping Career":
                 self.lifecycle.worker_stopped()
             elif self.stop_reason:
@@ -1850,6 +1949,7 @@ class Backend(QObject):
         self.start_deadline = None
         self.stop_reason = "online"
         self.stopping_worker = True
+        self._scenario_step_pending = None
         if self._worker_active():
             self._send("shutdown")
         else:
@@ -1860,6 +1960,7 @@ class Backend(QObject):
         self.start_deadline = None
         self.stop_reason = reason
         self.stopping_worker = True
+        self._scenario_step_pending = None
         self.session_state = "Stopping Career"
         self.session_message = "Stopping bot control and saving completed progress…"
         self.close_deadline = time.monotonic() + 35
@@ -1929,6 +2030,7 @@ class Backend(QObject):
             self.start_deadline = None
             self.startup_cancelled_session = self.session_id
             self.stopping_worker = True
+            self._scenario_step_pending = None
             self.pending_launch = None
             self.error = "Starting the offline session took too long. This attempt is stopping; unfinished progress is kept."
             self.session_state = "Error/Recovery"
@@ -1963,6 +2065,7 @@ class Backend(QObject):
                 self._ghost_practice_enabled = False
                 self._ghost_pending = {}
                 self._ghost_deadline = None
+                self._scenario_step_pending = None
                 self.session_message = "Career hub ready. Progress saved."
                 self._finish_native_return()
                 self.request = None
