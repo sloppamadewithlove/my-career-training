@@ -55,6 +55,12 @@ static TrainingLessonInput::Decision freshPress(TrainingLessonInput& input,
 static void allFourActionsAreEdges() {
     const auto scope = liveScope();
     const auto state = trainingState();
+    TrainingLessonInput keyboard;
+    const auto keyUp = pad(false, false, true, false, -3);
+    require(freshPress(keyboard, scope, state, keyUp).action == TrainingLessonInput::Action::Retry,
+        "Keyboard-only Up was not accepted");
+    require(keyboard.observe(scope, state, keyUp, 0.02).action == TrainingLessonInput::Action::None,
+        "Held keyboard Up repeated");
     struct Case { TrainingLessonInput::Pad sample; TrainingLessonInput::Action action; };
     const Case cases[] = {
         {pad(true), TrainingLessonInput::Action::Previous},
@@ -218,6 +224,7 @@ static void bindingsRestoreExactlyAndRespectExternalChanges() {
         require(bindings[TrainingBindingGuard::keys[index]] == TrainingBindingGuard::commands[index],
             "A D-pad binding was not scoped to the lesson command");
     bindings[TrainingBindingGuard::keys[1]] = "user_changed_it";
+    bindings[TrainingBindingGuard::keys[5]] = "keyboard_external_edit";
     guard.release(read, write, remove);
     require(bindings[TrainingBindingGuard::keys[0]] == "old_left" &&
             bindings[TrainingBindingGuard::keys[1]] == "user_changed_it" &&
@@ -228,6 +235,8 @@ static void bindingsRestoreExactlyAndRespectExternalChanges() {
     require(bindings[TrainingBindingGuard::keys[1]] == "user_changed_it",
         "An external binding change was overwritten during restoration");
 
+    require(bindings.count("Left") == 0 && bindings.count("Up") == 0 && bindings.count("Down") == 0 &&
+            bindings["Right"] == "keyboard_external_edit", "Keyboard binding cleanup lost an external edit");
     bindings = {{TrainingBindingGuard::keys[1], TrainingBindingGuard::commands[1]}};
     TrainingBindingGuard exact;
     require(exact.acquire(read, write, remove), "An existing owned command could not be scoped");

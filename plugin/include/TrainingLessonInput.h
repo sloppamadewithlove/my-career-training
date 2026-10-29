@@ -37,9 +37,8 @@ public:
     };
 
     struct Pad {
-        // The host can identify XInput slots. -2 is the SDK's logical gamepad
-        // path (including controllers which are not exposed through XInput),
-        // and -1 means that no unambiguous input source is available.
+        // -2 is the logical gamepad/keyboard path, -3 is keyboard only when
+        // several XInput controllers make the gamepad ambiguous. -1 is disabled.
         int slot = -1;
         bool left = false;
         bool right = false;
@@ -257,9 +256,11 @@ private:
 
 class TrainingBindingGuard {
 public:
-    static constexpr std::array<const char*, 4> keys{{
-        "XboxTypeS_DPad_Left", "XboxTypeS_DPad_Right", "XboxTypeS_DPad_Up", "XboxTypeS_DPad_Down"}};
-    static constexpr std::array<const char*, 4> commands{{
+    static constexpr std::array<const char*, 8> keys{{
+        "XboxTypeS_DPad_Left", "XboxTypeS_DPad_Right", "XboxTypeS_DPad_Up", "XboxTypeS_DPad_Down",
+        "Left", "Right", "Up", "Down"}};
+    static constexpr std::array<const char*, 8> commands{{
+        "mct_training_previous", "mct_training_next", "mct_training_retry", "mct_training_ghost",
         "mct_training_previous", "mct_training_next", "mct_training_retry", "mct_training_ghost"}};
 
     using Read = std::function<std::string(const std::string&)>;
@@ -326,7 +327,7 @@ private:
 
     bool active_ = false;
     bool restorePending_ = false;
-    std::array<std::string, 4> previous_{};
+    std::array<std::string, keys.size()> previous_{};
 };
 
 struct TrainingHudModel {

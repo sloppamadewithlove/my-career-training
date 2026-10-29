@@ -135,7 +135,7 @@ void MyCareerTraining::onLoad() {
             [this] { return nativeWorkshopContext(); },
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
         loadPreferences();
-        for (const auto command : mct::TrainingBindingGuard::commands)
+        for (const auto command : {"mct_training_previous", "mct_training_next", "mct_training_retry", "mct_training_ghost"})
             cvarManager->registerNotifier(command,
                 std::function<void(std::vector<std::string>)>([](std::vector<std::string>) {}),
                 "Scoped offline Power Shots control", PERMISSION_OFFLINE);
@@ -826,7 +826,7 @@ bool MyCareerTraining::updateTrainingBindings(bool active) {
         trainingBindings_.release(read, write, remove);
         return false;
     }
-    return trainingKeysAvailable_ && trainingBindings_.acquire(read, write, remove);
+    return trainingBindings_.acquire(read, write, remove);
 }
 
 void MyCareerTraining::releaseTrainingBindings() {
@@ -854,21 +854,24 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
     const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
     mct::TrainingLessonInput::Pad pad;
     int connected = 0;
-    int slot = -1;
     for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {
         XINPUT_STATE sample{};
-        if (XInputGetState(index, &sample) != ERROR_SUCCESS) continue;
-        ++connected;
-        slot = static_cast<int>(index);
+        if (XInputGetState(index, &sample) == ERROR_SUCCESS) ++connected;
     }
-    if (bindingsReady && connected <= 1) {
-        // The SDK key path follows Rocket League's logical gamepad input. It
-        // does not expose raw USB/DS4 device identity; -2 records that limit.
-        pad.slot = connected == 1 ? slot : -2;
-        pad.left = gameWrapper->IsKeyPressed(trainingKeyNames_[0]);
-        pad.right = gameWrapper->IsKeyPressed(trainingKeyNames_[1]);
-        pad.up = gameWrapper->IsKeyPressed(trainingKeyNames_[2]);
-        pad.down = gameWrapper->IsKeyPressed(trainingKeyNames_[3]);
+    if (bindingsReady) {
+        pad.slot = connected <= 1 ? -2 : -3;
+        // Poll keyboard arrows as well as the logical controller. A held key
+        // still passes through the same release/edge and owned-session gates.
+        pad.left = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0;
+        pad.right = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0;
+        pad.up = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
+        pad.down = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0;
+        if (connected <= 1 && trainingKeysAvailable_) {
+            pad.left = pad.left || gameWrapper->IsKeyPressed(trainingKeyNames_[0]);
+            pad.right = pad.right || gameWrapper->IsKeyPressed(trainingKeyNames_[1]);
+            pad.up = pad.up || gameWrapper->IsKeyPressed(trainingKeyNames_[2]);
+            pad.down = pad.down || gameWrapper->IsKeyPressed(trainingKeyNames_[3]);
+        }
     }
 
     const auto decision = trainingLessonInput_.observe(scope, state, pad, mct::unixTime());
