@@ -1527,7 +1527,7 @@ private:
                 {"supersonic-legend", "Supersonic Legend"}};
             for (const auto& rank : ranks)
                 dispatch(view, std::string("training.rank.") + rank.id, rank.label,
-                    ready(state), kRecover, "start_lesson",
+                    ready(state) && !workerLikely(state), kRecover, "start_lesson",
                     {{"id", lessonId_}, {"scenario_id", "low-side-pass"}, {"difficulty", rank.id}});
             back(view, CareerLayoutPage::Training, page);
             return;
