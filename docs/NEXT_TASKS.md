@@ -1,5 +1,15 @@
 # Next work and acceptance board
 
+## Active recovery queue
+
+[Issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) tracks confirmed decisions and selective recovery. The Career post-end team-write guard and corrected CI assertion passed both Windows build pipelines at `52021d8`. The three-tab browser source passed four native checks and compiled; matching published assets and integrity tests are now ready for the next focused test run. No live acceptance or full lobby fix is claimed.
+
+Next: validate the coherent three-tab candidate; salvage the smallest custom Power Shots scenario/runtime slice, correcting rank rosters and input mappings; prove a clean 12-challenge loop; investigate stale-bridge loss of the results hold; then Workshop/Mods effects and Garage/options/Quit regression. One agent may own game input after fresh ownership checks; nobody is assigned by this document.
+
+The [45-minute workflow audit](IMPROVEMENT_HEARTBEAT.md) is active in the desktop Scheduled page (GPT-6 Luna Max, Important updates only). Next: confirm the first run at 01:26 America/New_York on 29 October and its GitHub access. No Windows scheduler was created.
+
+
+
 Updated 26 October 2026. Main owns this board. Read current status before assigning work.
 Ask unresolved product questions before broad implementation; never repeat confirmed
 ones. EVERY unique function uses the six-part contract in DEVELOPMENT_WORKFLOW.md.
@@ -13,13 +23,13 @@ runtime worker is assigned by this document.
 
 | ID | Outcome / state | First proof / next action |
 | --- | --- | --- |
-| T01 | Power Shot situation — planned | Agree first geometry/target; real teammate pass, keeper, human shot at normal physics; verify goal/miss feedback, whole-situation retry and Return |
+| T01 | Power Shot situation — planned | Prove approved low side-pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
 | T02 | Scenario lifecycle — planned | Stable IDs, actor roles, reset/settle, seeds, success/failure; prove switching removes old bots/timers |
-| T03 | DS4 controls — planned | Adjustable Left previous/Right next/Up ghost/Down retry only in lessons; physical USB DS4, stock-conflict suppression, boundaries 1/12 and 12/12, restore outside |
+| T03 | DS4 controls — planned | Adjustable Left previous/Right next/Up retry/Down supported ghost only in lessons; physical USB DS4, stock-conflict suppression, boundaries 1/12 and 12/12, restore outside |
 | T04 | Ghost — blocked on valid trace | Capture successful actual skill; validate car/ball/action trace. For shots/flip resets render at fixed lesson start with faint non-contact demonstration ball/controller; prove no effect on real attempt/physics/scoring |
 | T05 | Twelve situations per skill — planned | Review distinct scenario cards after first full loop; flip reset 1–4 solo/5–8 keeper/9–12 two defenders; no cosmetic duplicates |
-| T06 | Thumbnails — planned | Parallel builder after item/image contract; correct lesson/map/mod images and Favorites consistency, bounded cache, honest fallback |
-| T07 | Browser — partial | Actual tabs/search/scroll/favorites/details/primary/Back via mouse/keyboard/DS4; fix redraw flicker |
+| T06 | Thumbnails — planned | Parallel builder after item/image contract; real gameplay lesson thumbnails and correct map/mod images, bounded cache, honest fallback |
+| T07 | Browser — partial | Three tabs compiled and native-tested; verify search/scroll/details/primary/Back via mouse/keyboard/DS4; fix redraw flicker |
 | T08 | Workshop use — browsing only | One legitimately obtained compatible map loads/plays/returns/restores without replacing stock assets; then download/cache; Epic separately |
 | T09 | Mods — browsing only | One compatible helper download/enable/disable, training-only scope and cleanup; no arbitrary auto-execution/career gameplay changes |
 | T10 | Garage — planned | Opus design, builders implement installed catalog/search/filter/images/preview/apply/restore; one full equip path before expansion |

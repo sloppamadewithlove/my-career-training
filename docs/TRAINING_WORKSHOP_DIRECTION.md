@@ -1,6 +1,6 @@
 # Training and Workshop product contract
 
-Current owner-agreed product contract for Training, Workshop, Mods, Favorites and
+Current owner-agreed product contract for Training, Workshop, Mods and
 Garage. It states requirements, not implementation status. Status lives in
 [PROJECT_STATUS.md](PROJECT_STATUS.md); the current gap list is in
 [NEXT_TASKS.md](NEXT_TASKS.md); the product specification is
@@ -10,8 +10,9 @@ a feature works in the real game.
 
 ## Training content model
 
-- Every lesson has **12 distinct scenarios**, each mechanically appropriate to
-  that skill. Scenarios are not cosmetic repeats of one setup.
+- Every lesson has **12 distinct challenges per rank**, from Bronze through
+  Supersonic Legend, on its designated map. Challenges must suit the skill;
+  rank changes alter authored setup and defender pressure, not just labels.
 - All 12 are eventually required for every lesson; do not silently drop a
   scenario from the release catalog.
 - Most skills also offer a **simple practice** mode: free repetition of the
@@ -53,9 +54,9 @@ a feature works in the real game.
 
 ## Selection, entry and progression
 
-- Lessons are entered **directly** with useful defaults; assistance and drill
-  options live in the running session's **Training options**, not a pre-flight
-  list of toggles.
+- Selecting a lesson opens a separate **Bronze through Supersonic Legend** rank
+  selection. The selected rank starts its first challenge. Assistance settings
+  stay in the running session's Training options.
 - All lessons are selectable; there is no career gating of training content.
 - After a pass the default is to **remain on the current level** until the player
   moves on manually. No progression gating.
@@ -68,8 +69,9 @@ a feature works in the real game.
 
 ## Session controls
 
-- **Up = ghost toggle, Down = retry**, alongside Left/Right navigation. Adjustable
-  defaults, not hard-locked.
+- **Up = whole-level retry, Down = ghost toggle**, alongside Left/Right navigation.
+  Ghost is available only for lessons with an appropriate validated demonstration.
+  Retry resets the entire situation, including defenders. Bindings remain adjustable.
 - **Show controller: On/Off** displays a transparent DS4 silhouette with animated
   inputs, no fade mode, and must not overlap the boost HUD.
 - **One Return action** goes home, saving the attempt and cleaning up, with no
@@ -84,8 +86,8 @@ a feature works in the real game.
 
 ## Ghost demonstration
 
-- A ghost is **required**: a non-contact visual demonstration built from a
-  verified successful trace.
+- Ghosts are **lesson-specific**, not required for every lesson. An offered ghost
+  must be a non-contact demonstration built from a verified successful trace.
 - On toggle it starts from the beginning and repeats at normal game speed until
   switched off; off hides the ghost and its ghost inputs.
 - The player's own controller display is toggled independently and shown
@@ -110,18 +112,18 @@ a feature works in the real game.
 
 ## Thumbnails
 
-- Thumbnails are required for Lessons, Workshop and Mods, and the same item shows
-  the same thumbnail in Favorites.
+- Lessons require real gameplay thumbnails, not generated illustrations. Workshop
+  and Mods need appropriate genuine previews.
 - Use a real, appropriate preview — not a generic graph or placeholder.
 - Source, rights, caching and fallback behavior must be explicit.
 - No unbounded downloads.
 
 ## Native browser
 
-- One Training entry opens a large native blue bordered browser with four tabs:
-  **Lessons**, **Workshop**, **Mods**, **Favorites**.
-- Rows with a selected-item detail panel, search, and favorites across all
-  content. Favorites combines entries from the other three tabs.
+- One Training entry opens a native blue browser with exactly three tabs:
+  **Lessons**, **Workshop**, **Mods**. Remove Favorites controls from the UI;
+  preserve old saved data without exposing another tab.
+- Use selectable rows, a selected-item detail panel and search.
 - No repeated More/Previous pages and no vertical list of action buttons.
 
 ## Mods
@@ -147,3 +149,9 @@ a feature works in the real game.
   is present in the current installed catalog. Preserve the normal preset.
 
 Implementation status is tracked only in [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+## Current implementation priority
+
+Owner decisions recorded in [issue #8](https://github.com/sloppamadewithlove/my-career-training/issues/8) supersede historical designs. Prove Power Shots first with a clean stock-training-pack-style HUD: challenge selection and timer, without the custom coaching text clutter. Bronze/Silver are solo; Gold/Platinum have a ground keeper; Diamond/Champion have one defender that can advance; Grand Champion/SSL have two progressively stronger defenders. These describe intended difficulty, not certified bot ranks. A saved Career result must wait for explicit Next Match or Return, with no automatic lobby or match.
+
+The older flip-reset situation bands above require reconciliation against rank-specific defender pressure before implementation. They are not approval to add extra defenders on lower ranks. Exact new scenario geometry and supported ghost lessons remain subject to review.

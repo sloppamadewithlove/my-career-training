@@ -1029,6 +1029,7 @@ void MyCareerTraining::enforceCareer(const Json& state, MctRuntime& result) {
     auto server = gameWrapper->GetGameEventAsServer();
     if (!server) return;
     result.matchEnded = server.GetbMatchEnded() != 0;
+    if (result.matchEnded) return;
     const auto home = stringValue(fixture, "home");
     const auto away = stringValue(fixture, "away");
     const int ownTeam = home == "human" ? 0 : away == "human" ? 1 : -1;

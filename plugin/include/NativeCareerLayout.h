@@ -29,7 +29,7 @@ enum class CareerLayoutPage {
     CreateCareer, CareerRules, RecoverCareer, WorkshopMods, WorkshopCatalog
 };
 
-enum class TrainingBrowserTab { Lessons, Workshop, Mods, Favorites };
+enum class TrainingBrowserTab { Lessons, Workshop, Mods };
 enum class TrainingBrowserState { Ready, Empty, Loading, Error };
 
 struct TrainingBrowserRow {
@@ -526,7 +526,6 @@ public:
             if (value == "lessons") browserTab_ = TrainingBrowserTab::Lessons;
             else if (value == "workshop") browserTab_ = TrainingBrowserTab::Workshop;
             else if (value == "mods") browserTab_ = TrainingBrowserTab::Mods;
-            else if (value == "favorites") browserTab_ = TrainingBrowserTab::Favorites;
             else return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
             browserOffset_ = 0;
             if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
@@ -575,20 +574,13 @@ public:
             effect.action = tool->action; effect.payload = tool->payload; effect.page = page_;
             return effect;
         }
-        if ((op != "primary" && op != "favorite") || value.empty() || value.size() > kMaxBrowserKey)
+        if (op != "primary" || value.empty() || value.size() > kMaxBrowserKey)
             return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
         const auto current = view(live, state, {}, workshop).browser;
         const TrainingBrowserRow* row = nullptr;
         for (const auto& candidate : current.rows) if (candidate.key == value) { row = &candidate; break; }
         if (!row || !publishedRow || !sameBrowserRow(*row, *publishedRow))
             return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
-        if (op == "favorite") {
-            if (!advanceRevision()) return refuse(effect, CareerLayoutRefusal::StaleChoice, kStaleChoice);
-            effect.accepted = true; effect.kind = CareerLayoutEffectKind::Dispatch;
-            effect.originalConsumptionRequired = true; effect.originalConsumptionSatisfied = true;
-            effect.action = "browser_favorite"; effect.payload = {{"type", row->type}, {"id", row->itemId}};
-            effect.page = page_; return effect;
-        }
         if (!row->primaryEnabled)
             return refuse(effect, CareerLayoutRefusal::Disabled, row->reason.empty() ? kUnknown : row->reason);
         if (!row->workshop.rowId.empty()) {
@@ -1193,7 +1185,7 @@ private:
 
     void buildRoot(CareerLayoutView& view, const Json& state) const {
         view.title = "My Career";
-        addLine(view.body, "Offline career and one Training browser for lessons, workshop items, mods, and favorites.");
+        addLine(view.body, "Offline career and one Training browser for lessons, workshop items, and mods.");
         addLine(view.body, "Your garage and game options stay the game's own screens.");
         navigate(view, kCareer, "My Career", CareerLayoutPage::Career);
         navigate(view, kTraining, "Training", CareerLayoutPage::Training);
@@ -1337,54 +1329,6 @@ private:
             row.reason = plain(row.reason, kMaxReason);
             if (!row.title.empty()) rows.push_back(std::move(row));
         };
-        if (tab == TrainingBrowserTab::Favorites) {
-            for (auto source : {TrainingBrowserTab::Lessons, TrainingBrowserTab::Workshop, TrainingBrowserTab::Mods}) {
-                auto current = browserRows(source, state, workshop);
-                for (auto& row : current) if (row.favorite) add(std::move(row));
-            }
-            const auto saved = array(state, "browser_favorites");
-            const bool waiting = flag(object(state, "community_plugins"), "busy", false) || busy(state);
-            for (const auto& item : saved) {
-                const auto type = text(item, "type");
-                const auto id = text(item, "id");
-                if (!safeId(id) || (type != "lesson" && type != "workshop" && type != "plugin")) continue;
-                const auto key = type + ":" + id;
-                bool present = false;
-                for (const auto& row : rows) if (row.key == key) { present = true; break; }
-                if (present) continue;
-                TrainingBrowserRow row;
-                row.key = key; row.type = type; row.itemId = id; row.favorite = true;
-                row.title = text(item, "title", "Saved item"); row.subtitle = text(item, "subtitle");
-                row.detail = text(item, "detail", "This saved item is not in the current live catalog.");
-                row.primaryLabel = "Unavailable"; row.reason = "Refresh its source before opening it.";
-                // A saved remote favorite stays actionable after a restart. The
-                // source and numeric id are derived from the saved id only; no
-                // saved URL is used and no arbitrary id is accepted.
-                std::int64_t sourceId = 0;
-                if (type == "plugin" && pluginId(id) && savedCatalogId(id, sourceId)) {
-                    row.primaryLabel = "Check release";
-                    row.primaryEnabled = !waiting;
-                    row.reason = waiting ? kWait : "";
-                    row.action = "community_select_plugin";
-                    row.payload = {{"source", "bakkes_plugins"}, {"id", sourceId}};
-                } else if (type == "workshop") {
-                    const auto split = id.find(':');
-                    const auto sourceName = split == std::string::npos ? std::string() : id.substr(0, split);
-                    const auto number = split == std::string::npos ? std::string() : id.substr(split + 1);
-                    const auto source = catalogSourceOf(sourceName);
-                    if ((source == CatalogSource::SteamMaps || source == CatalogSource::BakkesMaps) &&
-                        savedCatalogId(number, sourceId)) {
-                        row.primaryLabel = "Open source";
-                        row.primaryEnabled = !waiting;
-                        row.reason = waiting ? kWait : "";
-                        row.action = "community_open_item";
-                        row.payload = {{"source", catalogSourceName(source)}, {"id", sourceId}};
-                    }
-                }
-                add(std::move(row));
-            }
-            return rows;
-        }
         if (tab == TrainingBrowserTab::Lessons) {
             const auto lessons = lessonsOf(state);
             const auto packs = array(state, "training_packs");

@@ -88,8 +88,10 @@ def test_native_restart_preserves_career_and_returns_unfinished_match_to_schedul
     assert instance.state["session"]["worker_running"] is False
     instance.dispatch("assistance", {"id": "power-shots", "key": "actions", "value": False})
     assert not instance.error and instance.document["lesson_preferences"]["power-shots"]["actions"] is False
-    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": True})
-    assert instance.error  # Custom Training owns retry; no fake worker setting.
+    preferences_before = json.loads(json.dumps(instance.document["lesson_preferences"]))
+    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": "yes"})
+    assert instance.error  # Invalid non-boolean setting is rejected.
+    assert instance.document["lesson_preferences"] == preferences_before
     before = json.loads(json.dumps(instance.document["career"]))
     instance.dispatch("abandon_fixture", payload)
     assert instance.error == ""

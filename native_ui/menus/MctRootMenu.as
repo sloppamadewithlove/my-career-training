@@ -401,7 +401,7 @@ package menus
         private function generateBrowser() : void
         {
             showBrowser(true);
-            var tabs:Array = ["lessons", "workshop", "mods", "favorites"];
+            var tabs:Array = ["lessons", "workshop", "mods"];
             browserTabFocus = Math.max(0, tabs.indexOf(String(view.browser.tab)));
             normalizeBrowserSelection();
             renderBrowser();
@@ -582,10 +582,10 @@ package menus
             browserText(browserLayer, "Offline library · selections stay on this computer", panelX + 250, panelY + 25,
                 panelWidth - 280, 30, 13, 0x9FB4D4, false, "right");
 
-            var tabs:Array = ["lessons", "workshop", "mods", "favorites"];
-            var labels:Array = ["LESSONS", "WORKSHOP", "MODS", "FAVORITES"];
+            var tabs:Array = ["lessons", "workshop", "mods"];
+            var labels:Array = ["LESSONS", "WORKSHOP", "MODS"];
             var tabY:Number = panelY + 68;
-            var tabWidth:Number = Math.min(210, (panelWidth - 60) / 4);
+            var tabWidth:Number = Math.min(280, (panelWidth - 60) / 3);
             for (var t:int = 0; t < tabs.length; ++t)
             {
                 var tab:Sprite = new Sprite();
@@ -670,7 +670,7 @@ package menus
                 var stateText:String = state == "loading" ? "Loading this source…" :
                     state == "error" ? "Could not load this source." :
                     String(browser.query).length > 0 ? "No results for “" + String(browser.query) + "”" :
-                    String(browser.tab) == "favorites" ? "No favorites yet." : "No items are available.";
+                    "No items are available.";
                 g.lineStyle(1, 0x2E8BFF, 0.7); g.beginFill(0x07152B, 1);
                 g.moveTo(panelX + 30, bodyY);
                 drawBrowserRect(g, panelX + 30, bodyY, listWidth, bodyHeight); g.endFill();
@@ -703,8 +703,6 @@ package menus
                     if (!compactRow)
                         browserText(rowSprite, String(row.subtitle), 102, rowHeight - 27,
                             listWidth - 190, 21, 12, 0x9FB4D4);
-                    if (row.favorite === true)
-                        drawStar(rowSprite.graphics, listWidth - 55, rowHeight / 2, 10, 4, true, 0xFF8A1F);
                     rowSprite.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
                     rowSprite.addEventListener(MouseEvent.MOUSE_OVER, browserRowOver, false, 0, true);
                     browserLayer.addChild(rowSprite);
@@ -742,7 +740,7 @@ package menus
                 var copyY:Number = subtitleY + 37;
                 var copyHeight:Number = Math.max(0, reasonY - copyY - 5);
                 browserText(browserLayer, String(selected.title), detailX + 20, titleY,
-                    detailWidth - 90, 44, bodyHeight < 400 ? 18 : 22, 0xFFFFFF, true);
+                    detailWidth - 40, 44, bodyHeight < 400 ? 18 : 22, 0xFFFFFF, true);
                 browserText(browserLayer, String(selected.subtitle), detailX + 20, subtitleY,
                     detailWidth - 40, 32, 13, 0x9FB4D4);
                 if (copyHeight >= 18)
@@ -751,18 +749,6 @@ package menus
                 if (hasReason)
                     browserText(browserLayer, String(selected.reason), detailX + 20, reasonY,
                         detailWidth - 40, 42, 12, 0x9FB4D4);
-
-                var favorite:Sprite = new Sprite();
-                favorite.name = "browser.favorite"; favorite.x = detailX + detailWidth - 65; favorite.y = titleY + 3;
-                favorite.buttonMode = true; favorite.mouseChildren = false;
-                favorite.graphics.lineStyle(browserZone == "favorite" ? 2 : 1,
-                    browserZone == "favorite" ? 0xFFFFFF : 0xFF8A1F, 1);
-                favorite.graphics.beginFill(0x10264A, 1); favorite.graphics.moveTo(0, 0);
-                drawBrowserRect(favorite.graphics, 0, 0, 42, 42);
-                favorite.graphics.endFill();
-                drawStar(favorite.graphics, 21, 21, 14, 6, selected.favorite === true, 0xFF8A1F);
-                favorite.addEventListener(MouseEvent.CLICK, browserClick, false, 0, true);
-                browserLayer.addChild(favorite);
 
                 var primary:Sprite = new Sprite();
                 primary.name = "browser.primary";
@@ -803,7 +789,7 @@ package menus
             if (targetName.indexOf("browser.tab.") == 0)
             {
                 var tab:String = targetName.substr(12);
-                browserTabFocus = ["lessons", "workshop", "mods", "favorites"].indexOf(tab);
+                browserTabFocus = ["lessons", "workshop", "mods"].indexOf(tab);
                 browserZone = "tabs";
                 browserCommand("tab", tab);
             }
@@ -819,7 +805,6 @@ package menus
                 selectBrowserIndex(int(targetName.substr(12)));
             }
             else if (targetName == "browser.primary") activateBrowserPrimary();
-            else if (targetName == "browser.favorite") activateBrowserFavorite();
         }
 
         private function browserRowOver(event:MouseEvent) : void
@@ -965,27 +950,26 @@ package menus
 
         private function browserLeft() : void
         {
-            if (browserZone == "tabs") browserTabFocus = (browserTabFocus + 3) % 4;
+            if (browserZone == "tabs") browserTabFocus = (browserTabFocus + 2) % 3;
             else if (browserZone == "tools")
             {
                 var tools:Array = view.browser.tools as Array;
                 if (tools != null && tools.length > 0)
                     browserToolFocus = (browserToolFocus + tools.length - 1) % tools.length;
             }
-            else if (browserZone == "primary" || browserZone == "favorite") browserZone = "rows";
+            else if (browserZone == "primary") browserZone = "rows";
             renderBrowser();
         }
 
         private function browserRight() : void
         {
-            if (browserZone == "tabs") browserTabFocus = (browserTabFocus + 1) % 4;
+            if (browserZone == "tabs") browserTabFocus = (browserTabFocus + 1) % 3;
             else if (browserZone == "tools")
             {
                 var tools:Array = view.browser.tools as Array;
                 if (tools != null && tools.length > 0) browserToolFocus = (browserToolFocus + 1) % tools.length;
             }
             else if (browserZone == "rows") browserZone = "primary";
-            else if (browserZone == "favorite") browserZone = "primary";
             renderBrowser();
         }
 
@@ -999,8 +983,7 @@ package menus
             }
             else if (browserZone == "rows") moveBrowserRow(-1);
             else if (browserZone == "tools") { browserZone = "tabs"; renderBrowser(); }
-            else if (browserZone == "primary") { browserZone = "favorite"; renderBrowser(); }
-            else if (browserZone == "favorite") { browserZone = "rows"; renderBrowser(); }
+            else if (browserZone == "primary") { browserZone = "rows"; renderBrowser(); }
             else if (browserZone == "search") { browserZone = "tabs"; renderBrowser(); }
         }
 
@@ -1014,7 +997,6 @@ package menus
             }
             else if (browserZone == "search" || browserZone == "tools") { browserZone = "rows"; renderBrowser(); }
             else if (browserZone == "rows") moveBrowserRow(1);
-            else if (browserZone == "favorite") { browserZone = "primary"; renderBrowser(); }
         }
 
         private function cycleBrowserFocus(direction:int) : void
@@ -1022,7 +1004,7 @@ package menus
             var zones:Array = ["tabs", "search"];
             var tools:Array = view.browser.tools as Array;
             if (tools != null && tools.length > 0) zones.push("tools");
-            zones.push("rows", "favorite", "primary");
+            zones.push("rows", "primary");
             var index:int = zones.indexOf(browserZone);
             if (index < 0) index = 0;
             browserZone = String(zones[(index + direction + zones.length) % zones.length]);
@@ -1038,9 +1020,8 @@ package menus
         private function activateBrowserFocus() : void
         {
             if (browserZone == "tabs")
-                browserCommand("tab", ["lessons", "workshop", "mods", "favorites"][browserTabFocus]);
+                browserCommand("tab", ["lessons", "workshop", "mods"][browserTabFocus]);
             else if (browserZone == "tools") activateBrowserTool();
-            else if (browserZone == "favorite") activateBrowserFavorite();
             else if (browserZone == "search" && browserSearch != null && stage != null)
             {
                 browserSearchEditing = true; stage.focus = browserSearch;
@@ -1063,16 +1044,6 @@ package menus
             {
                 browserZone = "primary";
                 browserCommand("primary", String(selected.key));
-            }
-        }
-
-        private function activateBrowserFavorite() : void
-        {
-            var selected:Object = selectedBrowserRow();
-            if (selected != null)
-            {
-                browserZone = "favorite";
-                browserCommand("favorite", String(selected.key));
             }
         }
 
@@ -1207,7 +1178,7 @@ package menus
                         !isFinite(Number(browser.total)) || Number(browser.total) < 0 ||
                         Math.floor(Number(browser.total)) != Number(browser.total) ||
                         Number(browser.offset) + browser.rows.length > Number(browser.total) ||
-                        ["lessons", "workshop", "mods", "favorites"].indexOf(browser.tab) < 0 ||
+                        ["lessons", "workshop", "mods"].indexOf(browser.tab) < 0 ||
                         ["ready", "empty", "loading", "error"].indexOf(browser.state) < 0)
                         throw new Error("Invalid browser");
                     for each (var row:Object in browser.rows)
