@@ -684,7 +684,7 @@ def test_scenario_metadata_is_additive_and_legacy_recordings_remain_readable():
     assert not ({"scenario_id", "difficulty", "scenario_version"} & set(legacy["metadata"]))
 
 
-def test_power_shots_hud_shows_only_challenge_timer_controls_and_state():
+def test_power_shots_hud_leaves_countdown_to_native_game_clock():
     from contextlib import nullcontext
     session = GameSession({"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
         "scenario_id": "low-side-pass", "difficulty": "bronze"}, lambda event: None)
@@ -694,7 +694,7 @@ def test_power_shots_hud_shows_only_challenge_timer_controls_and_state():
     session.renderer = NS(can_render=True, context=lambda _: nullcontext(),
         draw_string_2d=lambda text, *_: drawn.append(text))
     session.render({})
-    assert drawn == ["1/2    0:15", "Left / Right: challenge    Up: retry", "Release controls to reset"]
+    assert drawn == ["1/2", "Left / Right: challenge    Up: retry", "Release controls to reset"]
     drawn.clear()
     session.engine.state, session.engine.outcome = "finished", "timeout"
     session.engine.active_elapsed = session.engine.scenario["timeout"]
