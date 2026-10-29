@@ -923,3 +923,21 @@ def test_eof_retries_failed_cleanup_even_after_session_thread_exited(tmp_path, m
     assert calls.count("cleanup") == 2 and ("retry", 1) in calls
     assert calls.count("core-stop") >= 1
     assert not any(json.loads(line)["type"] == "stopped" for line in instance.output.getvalue().splitlines())
+
+
+@pytest.mark.parametrize("lesson_id", [None, "speed-flip", "power-shots"])
+def test_native_match_serialization_scopes_no_goal_reset_to_power_shots(lesson_id):
+    if sys.platform != "win32":
+        pytest.skip("Native RLBot flatbuffers ships with the Windows worker")
+    from rlbot import flat
+    from my_career_training.career import new_career, next_fixture
+    request = {"settings": {"launcher": "steam"}}
+    if lesson_id is None:
+        request["fixture"] = next_fixture(new_career("Mutator test", format=1))
+    else:
+        request["lesson_id"] = lesson_id
+        if lesson_id == "power-shots":
+            request.update(scenario_id="low-side-pass", difficulty="gold")
+    config, _, _ = adapter.match_config(request)
+    native = flat.MatchConfiguration.unpack(config.pack())
+    assert (native.mutators.respawn_time == flat.RespawnTimeMutator.DisableGoalReset) is (lesson_id == "power-shots")
