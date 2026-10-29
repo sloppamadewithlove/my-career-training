@@ -1,4 +1,4 @@
-"""Pure setup contracts for the twelve implemented Power Shots situations."""
+"""Pure setup contracts for the rank-specific Power Shots catalog."""
 import pytest
 
 from my_career_training.training.scenario_setup import (
@@ -65,7 +65,7 @@ def test_optional_preferences_map_is_strict_when_present():
         validate_lesson_scenarios({"speed-flip": expected["power-shots"]})
 
 
-def test_step_wraps_twelve_situations_and_keeps_rank():
+def test_step_wraps_provisional_champion_situations_and_keeps_rank():
     first = {"scenario_id": IMPLEMENTED_SCENARIOS[0], "difficulty": "champion"}
     last = {"scenario_id": IMPLEMENTED_SCENARIOS[-1], "difficulty": "champion"}
     assert step_setup(first, {"direction": -1}) == last

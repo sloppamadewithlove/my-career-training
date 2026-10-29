@@ -1,15 +1,16 @@
-"""Repeatable ball-launch Power Shot scenarios (version 3)."""
+"""Repeatable ball-launch Power Shot scenarios (version 4)."""
 
 from copy import deepcopy
 import math
 
+from .power_shots_gold import SCENARIO_IDS as GOLD_SCENARIOS, shot_definition
 from ..bots import SpecialistController
 from ..bots.driving import execute
 from ..bots.physics import perceive
 from ..bots.tactics import Decision
 
 LESSON_ID = "power-shots"
-SCENARIO_VERSION = 3
+SCENARIO_VERSION = 4
 PLANNED_TOTAL = 12
 IMPLEMENTED_SCENARIOS = ("low-side-pass", "bouncing-side-pass")
 RANKS = (
@@ -77,18 +78,22 @@ _SCENARIOS = {
 _GOAL = {"center_x": 0.0, "half_width": 750.0, "min_z": 93.0, "max_z": 550.0}
 
 
-def _validate(lesson_id, scenario_id, difficulty):
-    if lesson_id != LESSON_ID:
-        raise ValueError("Scenario definitions exist only for the power-shots lesson.")
-    if not isinstance(scenario_id, str) or scenario_id not in _SCENARIOS:
-        raise ValueError(
-            "Unknown Power Shot scenario. Implemented scenarios: "
-            + ", ".join(IMPLEMENTED_SCENARIOS) + "."
-        )
+def implemented_scenarios(difficulty):
+    """Return the playable catalog for a validated rank."""
     if not isinstance(difficulty, str) or difficulty not in _PRESSURE:
         raise ValueError(
             "Unknown Power Shot difficulty rank. Choose one of: " + ", ".join(RANKS) + "."
         )
+    return GOLD_SCENARIOS if difficulty == "gold" else IMPLEMENTED_SCENARIOS
+
+
+def _validate(lesson_id, scenario_id, difficulty):
+    if lesson_id != LESSON_ID:
+        raise ValueError("Scenario definitions exist only for the power-shots lesson.")
+    available = implemented_scenarios(difficulty)
+    if not isinstance(scenario_id, str) or scenario_id not in available:
+        raise ValueError("Unknown Power Shot scenario. Implemented scenarios: "
+                         + ", ".join(available) + ".")
 
 
 def _launch(scenario_id, difficulty, speed):
@@ -135,11 +140,6 @@ def _opponents(difficulty, scenario_id, data):
     if "keeper" not in profile:
         return {}, {}, {}
     level, skill, speed_limit, reaction_delay, lane_limit, depth = profile["keeper"]
-    later_situation = IMPLEMENTED_SCENARIOS.index(scenario_id) >= 6
-    if later_situation:
-        depth -= 220.0
-        lane_limit -= 180.0
-        reaction_delay += .4
     cover_x = data.get("keeper_x", -620.0 + 95.0 * RANKS.index(difficulty))
     pose = {
         "position": [cover_x, depth, 17.0],
@@ -160,15 +160,6 @@ def _opponents(difficulty, scenario_id, data):
         dlevel, dskill, dspeed, ddelay = profile["defender"]
         defender = deepcopy(_HUMAN)
         defender["position"] = list(data["pressure"])
-        if later_situation:
-            dx = defender["position"][0] - data["lane"][0]
-            dy = defender["position"][1] - data["lane"][1]
-            distance = math.hypot(dx, dy)
-            if distance < 1400.0:
-                scale = 1400.0 / distance
-                defender["position"][:2] = [data["lane"][0] + dx * scale,
-                                             data["lane"][1] + dy * scale]
-            ddelay += .4
         defender["rotation"] = [0.0, -math.pi / 2, 0.0]
         bots[1] = defender
         roles["defender"] = 1
@@ -180,6 +171,8 @@ def _opponents(difficulty, scenario_id, data):
 def scenario_definition(lesson_id, scenario_id, difficulty="gold"):
     """Return one validated SDK-independent launch situation."""
     _validate(lesson_id, scenario_id, difficulty)
+    if difficulty == "gold":
+        return _gold_definition(scenario_id)
     data = _SCENARIOS[scenario_id]
     profile = _PRESSURE[difficulty]
     speed = data["speed"] * profile["speed"]
@@ -234,6 +227,37 @@ def scenario_definition(lesson_id, scenario_id, difficulty="gold"):
         "pressure": pressure,
         "reference_status": "No validated teaching demonstration is bundled.",
         "provenance": "unapproved functional prototype; owner playtesting required",
+    }
+
+
+def _gold_definition(scenario_id):
+    shot, human, launch = shot_definition(scenario_id)
+    bots, bot_roles, keeper_pressure = _opponents("gold", scenario_id, {})
+    parked_ball = deepcopy(launch)
+    parked_ball.update(position=[*launch["position"][:2], 93.0], velocity=[0.0, 0.0, 0.0])
+    return {
+        "version": SCENARIO_VERSION, "lesson_id": LESSON_ID,
+        "id": scenario_id, "scenario_id": scenario_id,
+        "title": shot["title"],
+        "description": "Read the incoming ball and beat the ground keeper with a power shot.",
+        "steps": ["Read the ball's starting position and direction.",
+                  "Make your own contact and shoot past the ground keeper.",
+                  "Up retries the whole challenge; Left and Right change challenges."],
+        "planned_total": PLANNED_TOTAL, "implemented_total": len(GOLD_SCENARIOS),
+        "implemented_scenarios": list(GOLD_SCENARIOS),
+        "difficulty": "gold", "rank_title": "Gold", "execution": "reference-power-shot",
+        "roles": {**bot_roles, "human": len(bots)}, "teams": {"keeper": 1, "human": 0},
+        "starting_state": {"car": human, "ball": launch, "bots": bots},
+        "settle_state": {"car": deepcopy(human), "ball": parked_ball, "bots": deepcopy(bots)},
+        "targets": [{"type": "goal", **deepcopy(_GOAL)}],
+        "success_events": ["launch_observed", "human_touch", "goal_target"],
+        "timeout": shot["time_limit"],
+        "pressure": {"rank": "gold", "rank_title": "Gold", "launch_speed": shot["ball_speed"],
+                     "timeout": shot["time_limit"], **keeper_pressure,
+                     "note": "Intended difficulty only; not a certified bot rank."},
+        "reference_status": "Reference-derived geometry; no validated teaching demonstration.",
+        "source_pack": {"code": shot["source_code"], "shot": shot["source_shot"]},
+        "provenance": "Public pack geometry adapted to the designated stadium with a ground keeper; owner playtesting required.",
     }
 
 

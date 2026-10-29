@@ -26,6 +26,36 @@ int main() {
         visibility.update(2, 4, true, true, "h", read, write); check(hidden);
         hidden = false; // Respect an external unhide.
         visibility.update(2, 4, true, false, "i", read, write); check(!hidden && writes == 6);
+        {
+            mct::TrainingBallVisibility visible;
+            bool hidden = false, fail = false; int writes = 0, reads = 0;
+            auto read = [&] { ++reads; return hidden; };
+            auto write = [&](bool value) { if (fail) throw std::runtime_error("write failed"); hidden = value; ++writes; };
+            visible.update(11, 22, true, true, "a", read, write);
+            check(hidden && writes == 1 && reads == 1);
+            const int baseReads = reads, baseWrites = writes;
+            visible.update(0, 22, true, false, "gap", read, write);
+            visible.update(11, 0, true, false, "gap", read, write);
+            visible.update(0, 0, true, false, "gap", read, write);
+            check(hidden && writes == baseWrites && reads == baseReads);
+            visible.update(11, 22, true, false, "b", read, write);
+            check(!hidden && writes == baseWrites + 1);
+        }
+        {
+            mct::TrainingBallVisibility hiddenOriginal;
+            bool hidden = true, fail = false; int writes = 0, reads = 0;
+            auto read = [&] { ++reads; return hidden; };
+            auto write = [&](bool value) { if (fail) throw std::runtime_error("write failed"); hidden = value; ++writes; };
+            hiddenOriginal.update(11, 22, true, true, "a", read, write);
+            check(hidden && writes == 0 && reads == 1);
+            const int baseReads = reads, baseWrites = writes;
+            hiddenOriginal.update(0, 22, true, false, "gap", read, write);
+            hiddenOriginal.update(11, 0, true, false, "gap", read, write);
+            hiddenOriginal.update(0, 0, true, false, "gap", read, write);
+            check(hidden && writes == baseWrites && reads == baseReads);
+            hiddenOriginal.update(11, 22, true, false, "b", read, write);
+            check(hidden && writes == baseWrites && reads == baseReads);
+        }
         std::cout << "Ball visibility lifecycle passed\n";
     } catch (const std::exception& e) { std::cerr << e.what(); return 1; }
 }

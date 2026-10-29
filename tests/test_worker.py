@@ -941,3 +941,45 @@ def test_native_match_serialization_scopes_no_goal_reset_to_power_shots(lesson_i
     config, _, _ = adapter.match_config(request)
     native = flat.MatchConfiguration.unpack(config.pack())
     assert (native.mutators.respawn_time == flat.RespawnTimeMutator.DisableGoalReset) is (lesson_id == "power-shots")
+
+
+@pytest.mark.parametrize("clock", [None, {
+    "game_time_remaining": 88.5, "is_unlimited_time": False, "is_overtime": False,
+}, {"game_time_remaining": 0.0, "is_unlimited_time": True, "is_overtime": False}])
+def test_native_clock_observation_reaches_bridge_telemetry(tmp_path, monkeypatch, clock):
+    events = []
+    instance, packet = simulated_session(tmp_path, monkeypatch, events)
+    normalize = adapter.normalized_packet
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *args: {
+        **normalize(*args), **(clock or {})})
+    packet.match_info.match_phase = 3
+    instance.process_packet(packet)
+    event = next(event for event in events if event["type"] == "telemetry")
+    for key in ("game_time_remaining", "is_unlimited_time", "is_overtime"):
+        assert event[key] == (clock[key] if clock else None)
+    assert event["time"] == 1.0
+
+
+def test_scenario_timeout_waits_after_saved_attempt_even_with_old_auto_retry_pref(tmp_path, monkeypatch):
+    events = []
+    instance = worker.GameSession(request(tmp_path), events.append)
+    instance.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold",
+                                     preferences={"auto_reset": True})
+    engine = instance.engine
+    assert engine.preferences["auto_reset"] is False
+    engine.set_preference("auto_reset", True)
+    assert engine.preferences["auto_reset"] is False
+    with pytest.raises(ValueError):
+        engine.set_preference("auto_reset", "invalid")
+    engine.state, engine.outcome = "finished", "timeout"
+    instance.attempt_sent = engine.attempt_id
+    instance.attempt_retryable = True
+    before = engine.summary()
+    instance.handle_command({"type": "attempt_ack", "session_id": instance.session_id,
+                             "attempt_id": engine.attempt_id})
+    assert instance.attempt_acked and instance.auto_reset_at is None
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 999999.0)
+    instance._check_auto_reset()
+    assert engine.summary() == before and not events
+    legacy = TrainingEngine("speed-flip")
+    assert legacy.preferences["auto_reset"] is True

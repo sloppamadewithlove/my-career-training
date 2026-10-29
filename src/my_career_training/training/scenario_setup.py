@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from .scenarios import IMPLEMENTED_SCENARIOS, LESSON_ID, RANKS, scenario_definition
+from .scenarios import (
+    IMPLEMENTED_SCENARIOS,
+    LESSON_ID,
+    RANKS,
+    implemented_scenarios,
+    scenario_definition,
+)
 
 DEFAULT_SCENARIO_ID = IMPLEMENTED_SCENARIOS[0]
 DEFAULT_DIFFICULTY = RANKS[0]
@@ -56,9 +62,10 @@ def step_setup(current, payload) -> dict:
             or type(payload.get("direction")) is not int
             or payload["direction"] not in {-1, 1}):
         raise ValueError("Move exactly one Power Shots situation backward or forward.")
-    index = IMPLEMENTED_SCENARIOS.index(setup["scenario_id"])
+    scenario_ids = implemented_scenarios(setup["difficulty"])
+    index = scenario_ids.index(setup["scenario_id"])
     return {
-        "scenario_id": IMPLEMENTED_SCENARIOS[(index + payload["direction"]) % len(IMPLEMENTED_SCENARIOS)],
+        "scenario_id": scenario_ids[(index + payload["direction"]) % len(scenario_ids)],
         "difficulty": setup["difficulty"],
     }
 
@@ -78,11 +85,11 @@ def start_setup(payload, saved=None) -> dict:
                            "difficulty": payload.get("difficulty")})
 
 
-def scenario_options() -> list[dict]:
-    """Return menu metadata for the complete implemented catalog."""
+def scenario_options(difficulty=DEFAULT_DIFFICULTY) -> list[dict]:
+    """Return menu metadata for the implemented catalog at one difficulty."""
     result = []
-    for scenario_id in IMPLEMENTED_SCENARIOS:
-        definition = scenario_definition(LESSON_ID, scenario_id, DEFAULT_DIFFICULTY)
+    for scenario_id in implemented_scenarios(difficulty):
+        definition = scenario_definition(LESSON_ID, scenario_id, difficulty)
         result.append({key: deepcopy(definition[key]) for key in ("scenario_id", "title", "description")})
     return result
 

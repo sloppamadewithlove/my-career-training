@@ -448,6 +448,7 @@ ApplicationWindow {
                         delegate: CheckBox {
                             required property var modelData
                             text:modelData.title; checked:root.lessonPref(modelData.key,modelData.fallback)
+                            visible:modelData.key!=="auto_reset" || !root.selectedLesson || root.selectedLesson.id!=="power-shots"
                             font.pixelSize:14*root.textScale; Layout.fillWidth:true
                             onToggled: if(root.selectedLesson) root.act("assistance",{id:root.selectedLesson.id,key:modelData.key,value:checked})
                         }

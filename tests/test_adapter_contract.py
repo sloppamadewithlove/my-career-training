@@ -100,6 +100,9 @@ def test_normalized_packet_maps_the_sdk_shape_with_small_fake_objects(monkeypatc
     frame = adapter.normalized_packet(packet, prediction, field)
 
     assert frame["time"] == 4.5
+    assert frame["game_time_remaining"] is None
+    assert frame["is_unlimited_time"] is None
+    assert frame["is_overtime"] is None
     assert frame["frame_num"] == 540
     assert frame["cars"][0]["position"] == [1.0, 2.0, 3.0]
     assert frame["cars"][0]["rotation"] == [0.1, 0.2, 0.3]
@@ -296,6 +299,9 @@ def test_sdk_game_packet_roundtrip_covers_normalization_and_final_score_gating()
         balls=[ball],
         match_info=flat.MatchInfo(
             seconds_elapsed=9.5,
+            game_time_remaining=185.5,
+            is_unlimited_time=False,
+            is_overtime=True,
             frame_num=1140,
             game_speed=1.0,
             match_phase=flat.MatchPhase.Active,
@@ -317,6 +323,10 @@ def test_sdk_game_packet_roundtrip_covers_normalization_and_final_score_gating()
     frame = adapter.normalized_packet(restored, prediction, field)
 
     assert frame["time"] == 9.5
+    assert frame["game_time_remaining"] == 185.5
+    assert frame["game_time_remaining"] != frame["time"]
+    assert frame["is_unlimited_time"] is False
+    assert frame["is_overtime"] is True
     assert frame["frame_num"] == 1140
     assert frame["cars"][0]["position"] == [10.0, 20.0, 30.0]
     assert frame["cars"][0]["wheel_contact"] is True

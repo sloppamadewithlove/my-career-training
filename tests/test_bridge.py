@@ -1636,3 +1636,74 @@ def test_saved_result_blocks_other_launches_before_any_side_effect(backend, monk
     assert instance.state["session"]["results_pending_choice"] is True
     assert instance.store.path.read_bytes() == before
     instance.process = None
+
+
+@pytest.mark.parametrize("identity", ["missing", "stale", "request_mismatch", "valid"])
+def test_gold_automatic_last_to_first_persists_only_the_matching_session(backend, identity):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    start = {"scenario_id": "central-return-bounce", "difficulty": "gold"}
+    finish = {"scenario_id": "low-side-pass", "difficulty": "gold"}
+    instance.request.update(start)
+    instance.document["lesson_scenarios"] = {"power-shots": start}
+    instance.latest_attempt = {"id": "gold-last-attempt"}
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    event = {"type": "training_scenario_advanced", "session_id": instance.session_id,
+             "attempt_id": "gold-last-attempt", "before": start, "setup": finish}
+    if identity == "missing":
+        del event["session_id"]
+    elif identity == "stale":
+        event["session_id"] = "stale-session"
+    elif identity == "request_mismatch":
+        instance.request["session_id"] = "stale-session"
+    instance._event(event)
+    if identity == "valid":
+        assert instance.request["scenario_id"] == "low-side-pass"
+        assert instance.request["difficulty"] == "gold"
+        assert instance.store.load()["lesson_scenarios"]["power-shots"] == finish
+        assert len(instance.state["lesson_scenario_options"]["power-shots"]) == 12
+    else:
+        assert instance.store.path.read_bytes() == before
+        assert instance.request["scenario_id"] == "central-return-bounce"
+    instance.process = None
+
+
+def test_power_shots_manual_retry_view_and_rejection_do_not_mutate_old_save(backend):
+    instance, _, _ = backend
+    instance.document["lesson_preferences"] = {"power-shots": {"auto_reset": True},
+                                                "speed-flip": {"auto_reset": True}}
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    assert instance.state["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert instance.document["lesson_preferences"]["power-shots"]["auto_reset"] is True
+    assert instance.state["lesson_preferences"]["speed-flip"]["auto_reset"] is True
+    instance.dispatch("assistance", {"id": "power-shots", "key": "auto_reset", "value": True})
+    assert "waits for Up" in instance.error
+    assert instance.store.path.read_bytes() == before
+    assert instance.session_state != "Error/Recovery"
+
+
+@pytest.mark.parametrize("saved", [None, False, 0, ""])
+def test_power_shots_manual_retry_view_handles_accepted_empty_preferences(backend, saved):
+    instance, _, _ = backend
+    instance.document["lesson_preferences"]["power-shots"] = saved
+    instance._save_current()
+    before = instance.store.path.read_bytes()
+    assert instance.state["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert instance.document["lesson_preferences"]["power-shots"] == saved
+    assert instance.store.path.read_bytes() == before
+
+
+def test_power_shots_unrelated_preference_sends_normalized_manual_retry(backend, monkeypatch):
+    instance, _, _ = backend
+    _running_power_shots(instance)
+    instance.document["lesson_preferences"]["power-shots"] = {"auto_reset": True}
+    sent = []
+    monkeypatch.setattr(instance, "_send", lambda *args, **kwargs: sent.append((args, kwargs)))
+    instance.dispatch("assistance", {"id": "power-shots", "key": "timing", "value": False})
+    assert not instance.error
+    assert instance.store.load()["lesson_preferences"]["power-shots"]["auto_reset"] is False
+    assert sent[-1][1]["preferences"]["auto_reset"] is False
+    assert sent[-1][1]["preferences"]["timing"] is False
+    instance.process = None

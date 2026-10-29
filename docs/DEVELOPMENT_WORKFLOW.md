@@ -27,7 +27,8 @@ only current rules.
 | Preferred builder | DeepSeek V4.1 Flash 1017 via RunInfra, request ID `deepseek-v4-1-flash-1017`; multiple workers allowed | Scoped implementation patches, previews, behavior and bug fixes, including HTML/CSS/JavaScript and event handling |
 | Fallback builders by depth | GPT-5.6 Sol high via Codex CLI; Grok 4.7 high via Cursor CLI; existing login sessions | Difficult implementation, integration or fixes when main judges escalation useful |
 | Design only | Claude Opus 5.5 high | Mockups, layout/appearance specifications, design review. No HTML/CSS/JS, code, scripts, builds, input logic or behavior fixes |
-| Research, exploration, testing | GPT-6 Luna max | Bounded research, test plans, independent verification, exact-candidate evidence |
+| Reverse-engineering research | DeepSeek V4.1 Flash 1017 with bounded read-only REA/source tools | Separate from builders; exact artifact/source evidence, independent review, no unattended integration |
+| Public research, exploration, testing | GPT-6 Luna max | Bounded research, test plans, independent verification, exact-candidate evidence |
 
 Record the actual assignment and observed model/reasoning; never silently
 substitute an unapproved model or designer. Main sends a rejected patch back with

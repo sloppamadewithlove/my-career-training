@@ -1377,6 +1377,9 @@ class GameSession:
                         "has_double_jumped", "has_dodged", "actions") if key in actor})
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
+                       game_time_remaining=frame.get("game_time_remaining"),
+                       is_unlimited_time=frame.get("is_unlimited_time"),
+                       is_overtime=frame.get("is_overtime"),
                        scores=list(observed_scores) if observed_scores is not None else [], ghost=self.coach_snapshot,
                        ghost_practice=self.practice_snapshot,
                        ghost_practice_support=dict(self.practice_support),

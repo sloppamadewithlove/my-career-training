@@ -6,21 +6,30 @@ Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 | Owner | Bounded work | Acceptance / next action |
 | --- | --- | --- |
-| Main builder | PR #10 input/lifecycle/native clock integration | Loaded `af8871d`; Right -> challenge 2 observed; Up/goal/native timer not accepted. Latest source `af08455` fixes Calibration result bypass |
-| Luna career_test_investigation | Independent exact-source verification | `af08455`: 5 result-boundary + 41 continuation tests passed. PR11 `20755a9`: 25 privacy tests, scan, Ruff passed |
-| Luna rea_research | Actual pack geometry and native timer | Local metadata decoded with valid CRCs and unchanged originals; neither target pack is cached. Acquire target packs normally before choosing shots. Native timer pre-expiry probe specified; expiry semantics unknown |
-| Luna browser_investigation | Caller review and builder handoff | Calibration bypass verified and fixed; Workshop is not currently launchable. Bounded DeepSeek full-test proposal truncated and rejected |
-| Scheduled improvement worker | T14 public evidence privacy check, draft PR11 | Three disjoint paths claimed in issue #8; immutable independent review passed at `20755a9`; Windows/installer and Vercel checks passed; receipt posted and claim released; main aligns stacked branch before integration |
+| Main builder/operator | Integrate manual retry and repair lifecycle; sole game input owner | e845 live test closed; 187 worker/bridge/floor checks passed for manual retry; next coherent rebuild pending |
+| DeepSeek builder/research | Manual retry proposal reviewed and corrected; native training/bot route investigated | Native Tutorial/TrainingEditor bot inheritance is plausible source evidence, not live compatibility; bounded floor-response follow-up pending |
+| Luna career_test_investigation | Independent manual-retry review complete | Saved empty-preference regression caught and fixed; seven focused cases passed |
+| Luna browser_investigation | Console/input ownership investigation active | Find a supported BakkesMod UI input-capture guard; no game input |
+| Luna rea_research | Floor-friction reset investigation active | Captured scenario-5 frame isolates XY friction; bounded model and negative checks needed |
+| Scheduled improvement worker | PR #11 privacy check delivered | Aligned d2e7beb, Windows CI passed; separate reproducible work, not merged |
 
-The replacement `af8871d` game uses a copied Unicode-path save. Root's recorded input lease covers the replacement route/controls only. An unexplained Pause appeared; root stopped automated input and asked whether the owner has taken control. No agent may assume permission to resume input or replace loaded files.
+The owner is away and has authorized continued testing. Root is the sole input
+operator. Standard-game pack inspection is complete and that session was closed
+normally. The bounded DeepSeek REA campaign finished nine training/eight lifecycle
+topics; no idle agent is reported as doing new research. Follow-ups must name an
+unresolved question and use the retained evidence before a new analysis run.
 
 ## Next proof sequence
 
-1. Resolve current input ownership; prove Up whole reset and Left/Right at timeout/goal with acknowledgements, attempt identity and actor positions. Use an OS key hold; SendKeys pulses were not observed by the input poll. Distinguish automatic retry from requested retry.
-2. Prove the RLBot DisableGoalReset mutator with a real scored goal and retained defender. Its presence in the pause menu is not gameplay acceptance.
-3. Implement/prove the native clock. A bounded pre-expiry field/flag probe can establish UI/count direction; zero may invoke match-level finish/overtime, so no zero behavior is claimed from a setter body.
-4. Identify actual Poquito/Skogur packs and select 12 distinct Gold challenges with varied geometry/speed and a ground keeper. No invented reference contents or cosmetic duplication.
-5. Obtain owner feel acceptance, then expand the proven flow to other ranks and remaining product areas. Build a new coherent candidate for source changes; never replace files loaded by a live game.
+1. Repair measured early-floor friction and console input capture, then build the
+   reviewed manual-retry/clock diagnostic candidate. Establish native clock readback
+   and safe zero behavior separately from the 90-second probe.
+2. Build the current GitHub candidate and prove Up retry, Left/Right including
+   1/12 and 12/12, timeout disappearance/restoration and scored-goal advancement.
+3. Test actual Gold shooting geometry and keeper interference; do not ask for
+   owner acceptance until those mechanics work together.
+4. Expand the proven flow to other ranks and remaining product functions. Keep
+   the downloadable mod small; update the website for verified major releases.
 
 ## Product backlog
 
