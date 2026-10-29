@@ -21,6 +21,8 @@ SPEC.loader.exec_module(PRIVACY_GUARD)
         ("source: /Users/synthetic-person/Documents/save", "home-path", "synthetic-person"),
         ("source: /home/synthetic-person/save", "home-path", "synthetic-person"),
         (r"source: \\fileserver\Users\synthetic-person\Documents\save", "home-path", "synthetic-person"),
+        (r"source: \\fileserver\share\Users\synthetic-person\Documents\save", "home-path", "synthetic-person"),
+        (r"source: \\?\UNC\fileserver\share\Users\synthetic-person\save", "home-path", "synthetic-person"),
         (r"source: \\?\UNC\fileserver\Users\synthetic-person\save", "home-path", "synthetic-person"),
         (
             "contact: synthetic-lint-fixture-0001@private.co",
@@ -40,6 +42,16 @@ SPEC.loader.exec_module(PRIVACY_GUARD)
             'password="syntheticQuotedValue123!"',
             "credential-assignment",
             "syntheticQuotedValue123!",
+        ),
+        (
+            '{"password": "syntheticJsonPassword123!"}',
+            "credential-assignment",
+            "syntheticJsonPassword123!",
+        ),
+        (
+            '{"Authorization": "Bearer syntheticJsonBearerToken123456"}',
+            "credential-assignment",
+            "syntheticJsonBearerToken123456",
         ),
         ("api_key: 'syntheticQuotedApiKey123!'", "credential-assignment", "syntheticQuotedApiKey123!"),
         (
@@ -140,6 +152,21 @@ def test_path_resolution_errors_are_redacted(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "resolve", fail_for_loop)
     findings = PRIVACY_GUARD.scan_paths(["docs/evidence/loop.md"], tmp_path)
+
+    assert findings == [("<path-resolution>", 0, "read-error")]
+    assert "private local path detail" not in repr(findings)
+
+
+def test_root_resolution_errors_are_redacted(monkeypatch, tmp_path):
+    original_resolve = Path.resolve
+
+    def fail_for_root(path, *args, **kwargs):
+        if path == tmp_path:
+            raise OSError("private local path detail")
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", fail_for_root)
+    findings = PRIVACY_GUARD.scan_paths(["docs/evidence"], tmp_path)
 
     assert findings == [("<path-resolution>", 0, "read-error")]
     assert "private local path detail" not in repr(findings)

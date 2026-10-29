@@ -12,7 +12,7 @@ HOME_PATHS = (
         r"(?!(?:Public|Default|All Users|user|username|<[^>]+>|%[^%]+%|\$\{[^}]+\})[\\/])[^\\/\s<>]+"
     ),
     re.compile(
-        r"(?i)(?<![A-Z0-9_])(?:\\\\\?\\UNC\\|\\\\|//)[^\\/\s]+[\\/]+(?:Users|home)[\\/]+"
+        r"(?i)(?<![A-Z0-9_])(?:\\\\\?\\UNC\\|\\\\|//)[^\\/\s]+[\\/]+(?:[^\\/\s]+[\\/]+)?(?:Users|home)[\\/]+"
         r"(?!(?:Public|Default|All Users|Shared|Guest|user|username|<[^>]+>|%[^%]+%|\$\{[^}]+\})[\\/])[^\\/\s<>]+"
     ),
     re.compile(
@@ -36,13 +36,13 @@ PRIVATE_KEY = re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----", re.IGNO
 GITHUB_TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b")
 AWS_ACCESS_KEY = re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")
 AUTHORIZATION_BEARER = re.compile(
-    r"(?i)\b(?:proxy-)?authorization\s*[:=]\s*Bearer\s+"
+    r"(?i)\b(?:proxy-)?authorization['\"]?\s*[:=]\s*['\"]?Bearer\s+"
     r"(?P<value>[A-Z0-9._~+/=\-]{8,})"
 )
 CREDENTIAL_ASSIGNMENT = re.compile(
     r"(?i)\b(?:api[ _-]?key|access[ _-]?key|private[ _-]?key|"
-    r"set[ _-]?cookies?|cookies?|session(?:[ _-]?id)?|secret|token|password|passwd|key)\b\s*[:=]\s*"
-    r"['\"]?(?P<value>[^\s,;'\"`]+)"
+    r"set[ _-]?cookies?|cookies?|session(?:[ _-]?id)?|secret|token|password|passwd|key)\b['\"]?\s*[:=]\s*['\"]?"
+    r"(?P<value>[^\s,;'\"`]+)"
 )
 PLACEHOLDERS = {
     "...", "example", "example-key", "example-token", "n/a", "none", "null",
@@ -100,9 +100,12 @@ def _display_path(path: Path, root: Path) -> str:
 
 
 def scan_paths(inputs: list[str], root: Path) -> list[tuple[str, int, str]]:
-    root = root.resolve()
-    files: dict[Path, str] = {}
     findings: list[tuple[str, int, str]] = []
+    try:
+        root = root.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return [("<path-resolution>", 0, "read-error")]
+    files: dict[Path, str] = {}
 
     for raw_path in inputs:
         candidate = Path(raw_path)
