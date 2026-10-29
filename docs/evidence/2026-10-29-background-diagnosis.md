@@ -115,3 +115,33 @@ Main separately repaired the saved-result Calibration bypass and changed both
 Windows CI concurrency layers to preserve an active build. Those changes were
 not authored by the scheduled worker. No heartbeat or passing CI has established
 a working twelve-shot Gold pack, native timer or complete mod lifecycle.
+
+## Independent review and revised work queue
+
+Luna independently rejected a second overbroad training conclusion: source does
+contain timeout ball hiding (`MyCareerTraining.cpp:916`) and the distinct
+DisableGoalReset match configuration (`adapter.py:110`). Neither is live proof,
+but their existence must not be reported as missing. The confirmed timer gap is
+that the match is unlimited and the lesson uses a separate elapsed-time countdown.
+
+The cosmetic helper does write captured values before checking live state, but
+policy selection and caller statuses matter. The old campaign already contains a
+[conflict-preserving prototype](https://github.com/sloppamadewithlove/my-career-training/blob/f81227462aaad405f00dcacb62a61fa942fc9f95/research%20to%20be%20applied/campaign/cosmetic-conflict-prototype-01.md)
+with 22 synthetic scenarios and 44 production/prototype records. It was never a
+selected production fix. Repeating that discovery is not new implementation work.
+
+Both researchers now receive the full **111-note campaign index**, nine explicit
+training questions and eight lifecycle questions, plus independent reviewer
+corrections reloaded before each topic. Automatic recursive follow-up generation
+is disabled to prevent repeated investigation of the same missing evidence.
+Two Luna reviewers follow new results and feed corrections back; no game control
+or code integration is delegated. The deadline remains 10:16:20 UTC. If the finite
+queue finishes sooner, a worker waits for genuinely new evidence rather than
+spending requests restating known gaps.
+
+The expanded queue covers reset resources, pause/clock boundaries, visibility
+restoration, Gold defender behavior, rank/save propagation, supported ghosts,
+shot-import provenance, cosmetic prototype reuse, Workshop arrival, compatible
+mod activation, settings restart boundaries, native navigation, real thumbnails,
+input prompts and measurable test/handoff improvements. Source claims still need
+independent review; all gameplay acceptance remains deferred during owner PC use.
