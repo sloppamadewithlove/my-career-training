@@ -790,7 +790,7 @@ def test_injected_hold_wraps_popen_and_closes_after_start_failure(monkeypatch, t
 
 FIXTURE_SESSION = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 FIXTURE_EXE = r"C:\Games\rocketleague\Binaries\Win64\RocketLeague.exe"
-FIXTURE_PRIVATE = r"C:\Users\me\AppData\Local\MyCareerTraining\private\GFX_MainMenu_SF.upk"
+FIXTURE_PRIVATE = r"C:\Users\ExampleUser\AppData\Local\MyCareerTraining\private\GFX_MainMenu_SF.upk"
 FIXTURE_PRIVATE_SHA = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 FIXTURE_PID = 4242
 FIXTURE_CREATED = 1710000000.25
