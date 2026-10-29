@@ -51,3 +51,19 @@ has not yet been loaded into the game.
 Repair bounded floor-contact reset verification, block lesson input while other
 BakkesMod UI captures it, rebuild a coherent candidate, and verify the native
 clock probe. Native zero behavior and scored-goal advancement remain open.
+
+
+## External UI input guard
+
+The follow-up source change maps the SDK's documented ImGui cursor state
+(`IsCursorVisible() == 2`, SDK `479e8f5`) into the existing lesson-menu input
+guard. The existing scoped-input test passed in an isolated MSVC harness and
+covers blocking plus release/re-arm. A duplicate test row with the same boolean
+input was intentionally omitted because it would not validate the SDK boundary.
+Actual F6-console correlation remains a required live check; the clock diagnostic
+now includes this cursor value. No claim of a completed console fix is made yet.
+
+The floor-friction investigation found one frame consistent with a sphere-contact
+impulse, but one observation does not establish reliable material bounds. The
+next owned test will collect repeated first-packet responses before changing
+reset acceptance. Imported pack geometry and shared tolerances remain unchanged.

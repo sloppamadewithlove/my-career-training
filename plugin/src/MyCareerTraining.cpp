@@ -855,7 +855,8 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
     scope.paused = runtime.paused;
     scope.matchEnded = runtime.matchEnded;
     scope.nativeMenuActive = menuOpen_ || ShouldBlockInput() || nativeDialogActive_.load() || nativeProbe_.active() ||
-        lower(runtime.menu).find("pause") != std::string::npos;
+        lower(runtime.menu).find("pause") != std::string::npos ||
+        gameWrapper->IsCursorVisible() == 2;
     scope.referenceCaptureActive = referenceCaptureActive(state);
 
     const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
