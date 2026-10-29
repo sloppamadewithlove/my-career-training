@@ -900,9 +900,15 @@ void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allo
         return;
     }
     auto server = gameWrapper->GetGameEventAsServer();
-    if (!server) return;
+    if (!server) {
+        trainingBallVisibility_.update(0, 0, true, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
     auto ball = server.GetBall();
-    if (!ball) return;
+    if (!ball) {
+        trainingBallVisibility_.update(0, 0, true, false, {}, [] { return false; }, [](bool) {});
+        return;
+    }
     const auto session = objectValue(state, "session");
     const auto telemetry = objectValue(state, "telemetry");
     const auto coaching = objectValue(telemetry, "coaching");

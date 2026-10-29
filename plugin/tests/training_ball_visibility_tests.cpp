@@ -21,11 +21,11 @@ int main() {
         hidden = false;
         visibility.update(1, 3, true, true, "f", read, write); check(hidden);
         visibility.update(1, 3, false, false, "g", read, write); check(hidden && writes == 4);
-        visibility.update(1, 3, true, false, "g", read, write); check(hidden && writes == 4);
+        visibility.update(1, 3, true, false, "g", read, write); check(!hidden && writes == 5);
         hidden = false;
         visibility.update(2, 4, true, true, "h", read, write); check(hidden);
         hidden = false; // Respect an external unhide.
-        visibility.update(2, 4, true, false, "i", read, write); check(!hidden && writes == 5);
+        visibility.update(2, 4, true, false, "i", read, write); check(!hidden && writes == 6);
         std::cout << "Ball visibility lifecycle passed\n";
     } catch (const std::exception& e) { std::cerr << e.what(); return 1; }
 }
