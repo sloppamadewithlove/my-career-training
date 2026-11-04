@@ -148,6 +148,7 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
     assert pixels_reset > pixel_close, "pixel buffer rewind must follow the RGB332 expansion loop"
     bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
     set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
+    assert decoder.index("if (bytes.length != 20648)") < decoder.index("bytes.position = 0; bytes.uncompress();"), "compressed-size guard must precede decompression"
     pipeline = (
         decoder.index("var bytes:ByteArray = new ByteArray();"),
         decoder.index("for (var i:int = 0; i < POWER_SHOTS_PIXELS.length; ++i)"),
