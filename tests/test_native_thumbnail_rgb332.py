@@ -147,7 +147,24 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
     pixels_reset = decoder.index("pixels.position = 0;", pixel_close)
     bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
     set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
-    assert pixel_close < pixels_reset < bitmap_create < set_pixels
+    pipeline = (
+        decoder.index("var bytes:ByteArray = new ByteArray();"),
+        decoder.index("for (var i:int = 0; i < POWER_SHOTS_PIXELS.length; ++i)"),
+        base64_close,
+        decoder.index("if (bytes.length != 20648)"),
+        decoder.index("bytes.position = 0; bytes.uncompress();"),
+        decoder.index("if (bytes.length != 90000)"),
+        decoder.index("var pixels:ByteArray = new ByteArray();"),
+        decoder.index("for (var pixel:int = 0; pixel < 90000; ++pixel)"),
+        pixel_close,
+        pixels_reset,
+        bitmap_create,
+        set_pixels,
+        decoder.index("lessonPreview.bitmapData = bitmap;"),
+        decoder.index("lessonPreviewState = 2;"),
+        decoder.index("catch (error:Error) { lessonPreviewState = 3; lessonPreview.visible = false; }"),
+    )
+    assert pipeline == tuple(sorted(pipeline))
 
     manifest_path = ROOT / "native_ui" / "compiled" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
