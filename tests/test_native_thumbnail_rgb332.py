@@ -101,12 +101,28 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         "bits -= 8; bytes.writeByte((value >> bits) & 255);",
         "value &= (1 << bits) - 1;",
     )
-    base64_offsets = [decoder.index(step) for step in base64_steps]
+    def source_block(marker, start=0):
+        block_start = decoder.index(marker, start)
+        opening = decoder.index("{", block_start)
+        depth = 0
+        for position in range(opening, len(decoder)):
+            if decoder[position] == "{":
+                depth += 1
+            elif decoder[position] == "}":
+                depth -= 1
+                if depth == 0:
+                    return decoder[opening + 1 : position], opening, position
+        raise AssertionError(f"unterminated source block: {marker}")
+
+    base64_body, base64_open, base64_close = source_block(
+        "for (var i:int = 0; i < POWER_SHOTS_PIXELS.length; ++i)"
+    )
+    base64_offsets = [base64_body.index(step) for step in base64_steps]
     assert base64_offsets == sorted(base64_offsets)
-    conditional_start = decoder.index("if (bits >= 8)")
-    conditional_open = decoder.index("{", conditional_start)
-    conditional_close = decoder.index("}", conditional_open)
-    conditional_body = decoder[conditional_open + 1 : conditional_close]
+    conditional_body, conditional_open, conditional_close = source_block(
+        "if (bits >= 8)", base64_open
+    )
+    assert base64_open < conditional_open < conditional_close < base64_close
     for step in (
         "bits -= 8; bytes.writeByte((value >> bits) & 255);",
         "value &= (1 << bits) - 1;",
@@ -114,10 +130,6 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         assert step in conditional_body
     assert conditional_body.index("bytes.writeByte(") < conditional_body.index("value &=")
 
-    pixel_loop = decoder.index("for (var pixel:int = 0; pixel < 90000; ++pixel)")
-    pixel_open = decoder.index("{", pixel_loop)
-    pixel_close = decoder.index("}", pixel_open)
-    pixel_body = decoder[pixel_open + 1 : pixel_close]
     pixel_steps = (
         "var index:uint = bytes.readUnsignedByte();",
         "var red:uint = (index >> 5) & 7;",
@@ -127,9 +139,12 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         "pixels.writeByte((green << 5) | (green << 2) | (green >> 1));",
         "pixels.writeByte((index & 3) * 85);",
     )
+    pixel_body, _pixel_open, pixel_close = source_block(
+        "for (var pixel:int = 0; pixel < 90000; ++pixel)"
+    )
     pixel_offsets = [pixel_body.index(step) for step in pixel_steps]
     assert pixel_offsets == sorted(pixel_offsets)
-    pixels_reset = decoder.index("pixels.position = 0;", pixel_loop)
+    pixels_reset = decoder.index("pixels.position = 0;", pixel_close)
     bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
     set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
     assert pixel_close < pixels_reset < bitmap_create < set_pixels
