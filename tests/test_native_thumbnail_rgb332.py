@@ -103,20 +103,36 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
     )
     base64_offsets = [decoder.index(step) for step in base64_steps]
     assert base64_offsets == sorted(base64_offsets)
+    conditional_start = decoder.index("if (bits >= 8)")
+    conditional_open = decoder.index("{", conditional_start)
+    conditional_close = decoder.index("}", conditional_open)
+    conditional_body = decoder[conditional_open + 1 : conditional_close]
+    for step in (
+        "bits -= 8; bytes.writeByte((value >> bits) & 255);",
+        "value &= (1 << bits) - 1;",
+    ):
+        assert step in conditional_body
+    assert conditional_body.index("bytes.writeByte(") < conditional_body.index("value &=")
 
     pixel_loop = decoder.index("for (var pixel:int = 0; pixel < 90000; ++pixel)")
-    pixel_writes = (
+    pixel_open = decoder.index("{", pixel_loop)
+    pixel_close = decoder.index("}", pixel_open)
+    pixel_body = decoder[pixel_open + 1 : pixel_close]
+    pixel_steps = (
+        "var index:uint = bytes.readUnsignedByte();",
+        "var red:uint = (index >> 5) & 7;",
+        "var green:uint = (index >> 2) & 7;",
         "pixels.writeByte(255);",
         "pixels.writeByte((red << 5) | (red << 2) | (red >> 1));",
         "pixels.writeByte((green << 5) | (green << 2) | (green >> 1));",
         "pixels.writeByte((index & 3) * 85);",
     )
-    pixel_offsets = [decoder.index(step, pixel_loop) for step in pixel_writes]
+    pixel_offsets = [pixel_body.index(step) for step in pixel_steps]
     assert pixel_offsets == sorted(pixel_offsets)
-    pixels_reset = decoder.index("pixels.position = 0;", pixel_offsets[-1])
+    pixels_reset = decoder.index("pixels.position = 0;", pixel_loop)
     bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
     set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
-    assert pixel_offsets[-1] < pixels_reset < bitmap_create < set_pixels
+    assert pixel_close < pixels_reset < bitmap_create < set_pixels
 
     manifest_path = ROOT / "native_ui" / "compiled" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
