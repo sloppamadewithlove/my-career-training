@@ -71,6 +71,7 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         'if (character == "=") break;',
         "var digit:int = alphabet.indexOf(character);",
         "value = (value << 6) | digit; bits += 6;",
+        "if (bits >= 8)",
         "bits -= 8; bytes.writeByte((value >> bits) & 255);",
         "value &= (1 << bits) - 1;",
         "bytes.length != 20648",
@@ -91,7 +92,31 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         "catch (error:Error) { lessonPreviewState = 3; lessonPreview.visible = false; }",
     ):
         assert contract in decoder
-    assert decoder.index("pixels.position = 0;") < decoder.index("bitmap.setPixels(")
+    base64_steps = (
+        "var character:String = POWER_SHOTS_PIXELS.charAt(i);",
+        'if (character == "=") break;',
+        "var digit:int = alphabet.indexOf(character);",
+        "value = (value << 6) | digit; bits += 6;",
+        "if (bits >= 8)",
+        "bits -= 8; bytes.writeByte((value >> bits) & 255);",
+        "value &= (1 << bits) - 1;",
+    )
+    base64_offsets = [decoder.index(step) for step in base64_steps]
+    assert base64_offsets == sorted(base64_offsets)
+
+    pixel_loop = decoder.index("for (var pixel:int = 0; pixel < 90000; ++pixel)")
+    pixel_writes = (
+        "pixels.writeByte(255);",
+        "pixels.writeByte((red << 5) | (red << 2) | (red >> 1));",
+        "pixels.writeByte((green << 5) | (green << 2) | (green >> 1));",
+        "pixels.writeByte((index & 3) * 85);",
+    )
+    pixel_offsets = [decoder.index(step, pixel_loop) for step in pixel_writes]
+    assert pixel_offsets == sorted(pixel_offsets)
+    pixels_reset = decoder.index("pixels.position = 0;", pixel_offsets[-1])
+    bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
+    set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
+    assert pixel_offsets[-1] < pixels_reset < bitmap_create < set_pixels
 
     manifest_path = ROOT / "native_ui" / "compiled" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
