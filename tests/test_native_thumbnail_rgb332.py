@@ -91,7 +91,7 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
         "lessonPreviewState = 2;",
         "catch (error:Error) { lessonPreviewState = 3; lessonPreview.visible = false; }",
     ):
-        assert contract in decoder
+        assert contract in decoder, contract
     base64_steps = (
         "var character:String = POWER_SHOTS_PIXELS.charAt(i);",
         'if (character == "=") break;',
