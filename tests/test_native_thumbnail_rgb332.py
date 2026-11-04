@@ -144,7 +144,8 @@ def test_embedded_power_shots_thumbnail_matches_rgb332_contract():
     )
     pixel_offsets = [pixel_body.index(step) for step in pixel_steps]
     assert pixel_offsets == sorted(pixel_offsets)
-    pixels_reset = decoder.index("pixels.position = 0;", pixel_close)
+    pixels_reset = decoder.rfind("pixels.position = 0;")
+    assert pixels_reset > pixel_close, "pixel buffer rewind must follow the RGB332 expansion loop"
     bitmap_create = decoder.index("new BitmapData(400, 225, false, 0)", pixels_reset)
     set_pixels = decoder.index("bitmap.setPixels(", bitmap_create)
     pipeline = (
