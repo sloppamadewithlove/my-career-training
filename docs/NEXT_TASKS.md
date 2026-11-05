@@ -3,9 +3,9 @@
 Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
-correction `41d3730`), with 232 focused checks passing. Package the exact reviewed
-source before any game acceptance; verify defender contacts and whole retry in
-the two-opponent ranks. No new live-game acceptance is recorded for this patch.
+correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now
+passed source/native/package checks. Its GC no-input probe captured a defender
+touch; Human-shot attribution and whole-level retry still need live acceptance.
 
 The private prerecorded-capture experiment (`54fad04` + `cf1a0e4`) is independently
 reviewed with 281 source checks passing. Operator-supplied inputs remain private;
@@ -17,10 +17,18 @@ teaching promotion remain separate, unchanged gates.
 
 The exact `2c08e74` native build needed a shorter isolated worktree: the pinned
 SDK header existed, but its expanded include path exceeded the observed MSVC
-limit. The plugin DLL has compiled; finish candidate tests/staging/package
-verification before live acceptance. The
-[improvement receipt](evidence/2026-11-05-session-improvement.md) records the
+limit. Full Python/Ruff, plugin/launcher/fixture checks and frozen smoke passed.
+The [improvement receipt](evidence/2026-11-05-session-improvement.md) records the
 reproducer and the required production-dispatch and bounded-research practices.
+
+Next live proof: preserve settled rank/scenario, attempt identity, score, actor
+poses and acknowledgements around retry/timeout/progression. The first GC probe
+observed car/ball retry with score 0–1 retained, then an automatic second-scenario
+transition after timeout; diagnose its cause before a repair or acceptance claim.
+Return reached the authored hub. Quit was acknowledged but did not close the game
+within the observed seven seconds; the owned graceful-close fallback and
+restoration still need final verification at this checkpoint.
+See the [second-cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md).
 
 The assignments and game ownership below are the prior 29 October record;
 re-establish current ownership before any input.

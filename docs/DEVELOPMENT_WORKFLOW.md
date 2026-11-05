@@ -108,6 +108,15 @@ input; observers stay read-only; user control suspends automation.
 - A UI preview is not gameplay. Source checks do not authorize a player-ready claim.
 - Binaries must trace to exact source provenance. Docs-only changes and helper
   provenance notes do not trigger a binary rebuild.
+- Monitor a quiet package build through its current process and logs at bounded
+  intervals; set completion/failure/stop conditions before waiting or retrying.
+  Gather stable launch prerequisites once per candidate and repeat them only
+  when inputs change. Mutable game ownership/foreground checks remain fresh.
+- Rank-specific live evidence must identify the settled rank/scenario. Retry
+  acceptance separately observes actors, score and progression; a car/ball reset
+  alone is not whole-level proof. Preserve unexplained transitions for diagnosis.
+  For Quit, distinguish acknowledgement, actual owned-process exit and restored
+  installation/journals; an accepted request does not establish cleanup.
 - Destructive fault tests use isolated copied test data only; there is no
   requirement to kill or restart the real game merely to test saves.
 - Source scripts must select the correct project and a validated toolchain.
@@ -137,3 +146,5 @@ revision, counts and release blockers only.
 
 The [5 November improvement receipt](evidence/2026-11-05-session-improvement.md)
 records the observed failures behind these dispatch, path and research rules.
+The [second cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md)
+records package progress and the first bounded live retry/progression observations.
