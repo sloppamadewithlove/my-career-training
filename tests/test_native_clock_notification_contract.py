@@ -99,14 +99,17 @@ def test_native_clock_mapping_notification_and_readback_contract():
         "native clock getters must map to remaining, unlimited, seconds in Value order"
     )
 
-    readback_clauses = (
-        "observed.seconds != value.seconds",
-        "observed.unlimited != value.unlimited",
-        "!std::isfinite(observed.remaining)",
-        "std::abs(observed.remaining - value.remaining) > 0.1f",
+    readback_failure = re.compile(
+        r"if\s*\(\s*observed\.seconds\s*!=\s*value\.seconds\s*\|\|\s*"
+        r"observed\.unlimited\s*!=\s*value\.unlimited\s*\|\|\s*"
+        r"!std::isfinite\(\s*observed\.remaining\s*\)\s*\|\|\s*"
+        r"std::abs\(\s*observed\.remaining\s*-\s*value\.remaining\s*\)\s*>\s*0\.1f\s*"
+        r"\)\s*throw\s+std::runtime_error",
+        re.DOTALL,
     )
-    for clause in readback_clauses:
-        assert clause in write_lambda, f"native clock readback misses: {clause}"
+    assert readback_failure.search(write_lambda), (
+        "all native clock readback checks must guard the readback failure path"
+    )
 
     notification_guard = re.compile(
         r"if\s*\(\s*before\.seconds\s*!=\s*value\.seconds\s*\|\|\s*"
