@@ -1,6 +1,13 @@
 # Next work and acceptance board
 
-Updated 29 October 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
+Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
+
+The defender-attribution source fix is independently reviewed (`d733917`, receipt
+correction `41d3730`), with 232 focused checks passing. Package the exact reviewed
+source before any game acceptance; verify defender contacts and whole retry in
+the two-opponent ranks. This patch has no new native or live-game evidence.
+The assignments and game ownership below are the prior 29 October record;
+re-establish current ownership before any input.
 
 ## Active assignments
 

@@ -1,15 +1,17 @@
 # Current project status
 
-Updated 29 October 2026. GitHub is canonical. PR #10 remains draft; no new release
-or owner-accepted Gold playlist is available.
+Updated 5 November 2026. GitHub is canonical. No new release or owner-accepted
+Gold playlist is available. The 29 October live receipts below remain historical;
+the defender-attribution patch has source evidence only.
 
 | Area | Current evidence |
 | --- | --- |
+| Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; no native build or live acceptance |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
 | Last loaded candidate | `3beada6`: 38 plugin/13 launcher checks; native countdown visible but zero HUD stuck at 0:01; thumbnail fallback and one delayed reset reproduced |
 | Native clock | Direct countdown/restoration observed; zero sampled before restoration with no ended/overtime flag; sustained zero hold and production timer unverified |
 | Current repair | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
-| Current game | Owned `3beada6` test closed normally; reviewed clock-notification/thumbnail/reset follow-up candidate pending |
+| Last recorded game | Owned `3beada6` test closed normally; reviewed clock-notification/thumbnail/reset follow-up candidate pending |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
@@ -46,3 +48,7 @@ current agent assignments and release blockers.
 [Input/Return follow-up](evidence/2026-10-29-input-return-followup.md) records the latest live defects, corrected source contracts and integrated heartbeat work.
 
 [Reset/Return receipt](evidence/2026-10-29-gold-reset-return.md) records the full twelve-challenge pass, repeat-reset failures, measured response and corrected menu boundary.
+
+[Defender-attribution receipt](evidence/2026-11-05-defender-shot-attribution.md)
+records synthetic older/tied/later defender contacts and later Human recontact.
+It does not establish real shooting geometry or defender usefulness.
