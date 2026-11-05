@@ -798,7 +798,8 @@ class GameSession:
                 or self.goal_progression_attempt == self.engine.attempt_id):
             return
         before = self.engine.scenario_state.get("score_baseline")
-        after = frame.get("scores")
+        # Finished attempts stop observing scores; later goals cannot reopen a timeout.
+        after = self.engine.scenario_state.get("score_after")
         if (not isinstance(before, (list, tuple)) or not isinstance(after, (list, tuple))
                 or len(before) != 2 or len(after) != 2
                 or after[0] != before[0] + 1 or after[1] != before[1]):

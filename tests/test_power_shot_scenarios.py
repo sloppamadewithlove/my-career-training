@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import sys
 from types import SimpleNamespace as NS
 import uuid
 
@@ -60,10 +61,10 @@ def _frame(engine, t, *, setup="settle", touches=None, scores=(0, 0), ball=None)
     }
 
 
-def _prepare(engine):
+def _prepare(engine, *, scores=(0, 0)):
     emitted = []
     for index in range(1, 80):
-        emitted.extend(engine.update(_frame(engine, index / 120)))
+        emitted.extend(engine.update(_frame(engine, index / 120, scores=scores)))
         if engine.state == "ready":
             break
     assert engine.state == "ready"
@@ -71,7 +72,7 @@ def _prepare(engine):
     assert len(launches) == 1
     assert launches[0]["state"]["ball"] == engine.lesson["starting_state"]["ball"]
     go_time = engine.reset_requested_at + 1 / 120
-    events = engine.update(_frame(engine, go_time, setup="starting"))
+    events = engine.update(_frame(engine, go_time, setup="starting", scores=scores))
     assert engine.state == "active"
     assert [event["type"] for event in events] == ["go"]
     return go_time
@@ -761,6 +762,7 @@ def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins
     monkeypatch.setattr(adapter, "desired_state", lambda *args: args)
     session.engine.state, session.engine.outcome = "finished", "interrupted"
     session.engine.scenario_state["score_baseline"] = [0, 0]
+    session.engine.scenario_state["score_after"] = [1, 0]
     old = session.engine
     session.last_frame = {"phase": goal_phase, "scores": [1, 0]}
     session._queue_goal_progression(session.last_frame)
@@ -786,6 +788,64 @@ def test_goal_progression_waits_for_save_and_active_play_and_manual_control_wins
         assert old.outcome == "interrupted"  # Progression did not forge technique credit.
     session._try_training_control()
     assert len(writes) == 1
+
+@pytest.mark.parametrize("case", ["timeout-unchanged", "timeout-late-goal", "human-goal", "unattributed-goal"])
+def test_packet_goal_progression_uses_completed_attempt_score(monkeypatch, case):
+    events, writes = [], []
+    request = {"session_id": str(uuid.uuid4()), "lesson_id": "power-shots",
+               "scenario_id": "low-side-pass", "difficulty": "grand-champion"}
+    session = GameSession(request, events.append)
+    engine = session.engine = TrainingEngine(
+        "power-shots", scenario_id="low-side-pass", difficulty="grand-champion")
+    start = _prepare(engine, scores=(0, 1))
+    session.scenario = engine.scenario
+    session.human_index = session.training_actor_index = engine.human_index
+    session.human_team = 0
+    session.descriptors = scenario_descriptors(request)
+    session.controllers = scenario_actor_controllers(session.scenario)
+    session.manager = NS(rlbot_interface=NS(send_msg=writes.append))
+    session.owned = object()
+    session._discover_game = lambda: None
+    session.applied_reset = True
+    session.last_controls = session.last_render = session.last_telemetry = float("inf")
+    flat = NS(MatchPhase=NS(Active=3, Ended=7))
+    monkeypatch.setitem(sys.modules, "rlbot", NS(flat=flat))
+    monkeypatch.setattr(adapter, "desired_state", lambda *args: args)
+    observed = [_frame(engine, start + .02, setup="starting", scores=(0, 1))]
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *_args: copy.deepcopy(observed[0]))
+    packet = NS(match_info=NS(match_phase=3), players=[NS(), NS(), NS()],
+                teams=[NS(team_index=0, score=0), NS(team_index=1, score=1)])
+    goal = case in {"human-goal", "unattributed-goal"}
+    if goal:
+        touches = {engine.human_index: start + .01} if case == "human-goal" else {}
+        observed[0] = _frame(engine, start + .01, setup="starting", scores=(0, 1),
+                             touches=touches, ball={"position": [0.0, 5110.0, 200.0]})
+        session.process_packet(packet)
+        observed[0] = _frame(engine, start + .02, setup="starting", scores=(1, 1),
+                             touches=touches, ball={"position": [0.0, 5130.0, 200.0]})
+        packet.teams[0].score = 1
+    else:
+        # Let the real engine finish the attempt through process_packet.
+        engine.active_elapsed = engine.scenario["timeout"] - .005
+    session.process_packet(packet)
+
+    assert engine.finished
+    expected_outcome = "success" if case == "human-goal" else "interrupted" if goal else "timeout"
+    assert engine.outcome == expected_outcome
+    terminal_scores = copy.deepcopy(engine.scenario_state["score_after"])
+    assert terminal_scores == ([1, 1] if goal else [0, 1])
+    assert session.engine is engine and not writes  # Durable attempt acknowledgement is still required.
+    session.handle_command({"type": "attempt_ack", "attempt_id": engine.attempt_id})
+    observed[0]["time"] += 1 / 120
+    if case == "timeout-late-goal":
+        packet.teams[0].score = 1
+    session.process_packet(packet)
+
+    assert engine.scenario_state["score_after"] == terminal_scores  # Finished observations stay frozen.
+    assert session.request["scenario_id"] == ("bouncing-side-pass" if goal else "low-side-pass")
+    assert bool(writes) is goal
+    assert any(event["type"] == "training_scenario_advanced" for event in events) is goal
+
 
 def test_stop_cancels_queued_training_control_without_state_write():
     session = GameSession({"session_id": str(uuid.uuid4())}, lambda event: None)
