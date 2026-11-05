@@ -2,11 +2,13 @@
 
 Updated 5 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. The 29 October live receipts below remain historical;
-the defender-attribution patch has source evidence only.
+the defender-attribution and private prerecorded-capture patches have source
+evidence only.
 
 | Area | Current evidence |
 | --- | --- |
 | Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; no native build or live acceptance |
+| Private prerecorded capture | `54fad04` + `cf1a0e4`: independently reviewed provisional experiment; 281 focused checks passed; source-only, private hash-pinned input CSV, lossy eight-action mapping; dispatch follows observed game packets; no successful live demonstration established |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
 | Last loaded candidate | `3beada6`: 38 plugin/13 launcher checks; native countdown visible but zero HUD stuck at 0:01; thumbnail fallback and one delayed reset reproduced |
 | Native clock | Direct countdown/restoration observed; zero sampled before restoration with no ended/overtime flag; sustained zero hold and production timer unverified |
@@ -52,3 +54,9 @@ current agent assignments and release blockers.
 [Defender-attribution receipt](evidence/2026-11-05-defender-shot-attribution.md)
 records synthetic older/tied/later defender contacts and later Human recontact.
 It does not establish real shooting geometry or defender usefulness.
+
+[Private prerecorded-capture contract](BOT_REFERENCE_CAPTURE.md#private-prerecorded-input-experiment)
+records the fixed 120 Hz interpretation and differing reset/origin assumptions.
+No external inputs are bundled. Ownership, marker, bot mapping, Human clearance,
+strict observation and private persistence gates remain; the new profile cannot
+pass the existing reference evaluator or become a teaching ghost automatically.

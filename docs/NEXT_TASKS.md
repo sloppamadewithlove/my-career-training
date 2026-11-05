@@ -6,6 +6,15 @@ The defender-attribution source fix is independently reviewed (`d733917`, receip
 correction `41d3730`), with 232 focused checks passing. Package the exact reviewed
 source before any game acceptance; verify defender contacts and whole retry in
 the two-opponent ranks. This patch has no new native or live-game evidence.
+
+The private prerecorded-capture experiment (`54fad04` + `cf1a0e4`) is independently
+reviewed with 281 source checks passing. Operator-supplied inputs remain private;
+the adapter is source-only and explicitly lossy. It dispatches on observed game
+packets and aborts on a real gap. Next proof requires an owned copied-profile run
+with the canonical reset, normal physics and actual recorded actions/poses; no
+successful live demonstration is established. Existing reference evaluation and
+teaching promotion remain separate, unchanged gates.
+
 The assignments and game ownership below are the prior 29 October record;
 re-establish current ownership before any input.
 
