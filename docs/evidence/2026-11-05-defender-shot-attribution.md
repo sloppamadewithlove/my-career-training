@@ -21,8 +21,8 @@ latest-contact ordering remain. No new event name or interface is introduced.
 3. Outcome: a tied or later defender contact prevents technique-success credit.
    An earlier defender contact, or a fresh later Human contact, still permits
    credit when the existing target-crossing and score checks also pass.
-4. Persist: existing attempt-summary and recording paths remain; their
-   `latest_touch` evidence now also contains valid defender observations.
+4. Persist: Existing attempt-summary and recording paths remain; attempt
+   summaries now include valid defender observations in `latest_touch`.
 5. Recovery: the existing interrupted-attempt feedback and manual retry route
    remain. A scored goal and technique credit remain separate observations.
 6. Proof: eight synthetic scenarios across both two-opponent ranks cover older,
