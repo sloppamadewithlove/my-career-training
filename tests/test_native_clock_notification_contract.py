@@ -40,7 +40,7 @@ def test_native_clock_writer_notifies_after_integer_write_before_readback():
     body = _function_body(source, SIGNATURE)
     read_start = body.index("auto read = [&]")
     write_start = body.index("auto write = [&]")
-    update_start = body.index("trainingClock_.update(")
+    update_start = body.index("trainingClock_.update(server.memory_address")
     read_lambda = body[read_start:write_start]
     write_lambda = body[write_start:update_start]
 
