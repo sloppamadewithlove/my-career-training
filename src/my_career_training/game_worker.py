@@ -1280,8 +1280,11 @@ class GameSession:
                      cadence=cadence["reason"], cadence_details=cadence,
                      phase=phase, phase_name=str(packet.match_info.match_phase))
         self.last_frame = frame
+        # Prerecorded inputs must dispatch or abort on every game packet;
+        # wall-clock arrival jitter must not discard a valid physics tick.
+        prerecorded_capture = self.capture is not None and self.capture.get("profile") == "prerecorded"
         if (phase in {2, 3} and not self.cancel_start.is_set() and not self.stopping
-                and now - self.last_controls >= 1 / 120):
+                and (prerecorded_capture or now - self.last_controls >= 1 / 120)):
             if self.capture is not None:
                 # Capture drives only the designated bot through its own relay.
                 self._capture_controls(frame, flat)

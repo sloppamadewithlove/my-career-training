@@ -147,18 +147,27 @@ inputs and resulting captures remain private, with distribution permission false
    returns neutral and invokes the existing capture abort/teardown path. The
    120 Hz timing check retains the shared 2 ms clock quantization tolerance; it
    never interpolates or invents inputs to cover a missing tick.
+   Prerecorded capture dispatches on each observed game packet after shared
+   cadence classification; wall-clock arrival jitter cannot discard a valid
+   game tick. Other modes retain their existing wall-clock control throttle.
 6. Acceptance: synthetic parser, bounds, lifecycle, private-profile, mapping and
    worker-boundary tests establish source behavior only. The new profile remains
    ineligible for the current cancel/baseline evaluator. Any evaluator support,
    successful repeated game execution or teaching promotion requires separate
    evidence and review; this adapter weakens none of those gates.
 
-Source validation on Python 3.12.13 / pytest 9.0.2 passed 275 checks across
+Source validation on Python 3.12.13 / pytest 9.0.2 passed 281 checks across
 `test_prerecorded_inputs`, `test_reference_capture`, `test_bot_reference`,
 `test_training`, `test_training_cadence`, `test_adapter_contract` and `test_worker`.
 Changed Python files pass Ruff; changed documentation passes the evidence
 privacy scanner. All new input rows are synthetic test data. These checks do
 not establish a successful real-game demonstration.
+
+The packet-processing regressions include consecutive physics frames with wall
+arrivals less than 1/120 s apart, plus a real missing game frame arriving inside
+that wall interval. The former preserves every input row; the latter sends
+neutral and aborts. Both cases failed before the prerecorded-only dispatch-gate
+repair; timed cancel/baseline profiles retain their prior dispatch behavior.
 
 ## Next capture workflow
 

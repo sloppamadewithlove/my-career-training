@@ -46,7 +46,8 @@ def _prerecorded_request(directory):
     request = _capture_request(directory, profile="prerecorded")
     raw = (",".join(HEADER) + "\n"
            + "0,0,0,0,0,0,0,0,0,0,0,1,0\n"
-           + "1,0,0,0,0,0,1,0,0,0,0,1,0\n").encode()
+           + "1,0,0,0,0,0,1,0,0,0,0,1,0\n"
+           + "2,0,0,0,0,0,0,0,0,0,0,-0.5,0\n").encode()
     (directory / INPUT_FILENAME).write_bytes(raw)
     request["reference_capture"]["input_sha256"] = hashlib.sha256(raw).hexdigest()
     return request
@@ -109,6 +110,52 @@ def test_prerecorded_worker_stays_neutral_before_go_and_aborts_on_skipped_dispat
     assert session.capture_controller.interrupted and session.stopping
     assert session.capture_aborted and session.mapping == {}
     assert not any(message.index == 1 for message in session.sent_inputs)
+
+
+@pytest.mark.parametrize("profile", ["prerecorded", "cancel", "baseline"])
+@pytest.mark.parametrize("frame_steps", [(0, 1, 2), (0, 2)])
+def test_packet_dispatch_uses_game_cadence_for_prerecorded_inputs_only(tmp_path, monkeypatch, profile, frame_steps):
+    wall_time = [100.0]
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: wall_time[0])
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    request = (_prerecorded_request(tmp_path) if profile == "prerecorded"
+               else _capture_request(tmp_path, profile=profile))
+    session.capture = reference_capture.validate_capture_request(request)
+    session.capture_controller = reference_capture.capture_controller(session.capture)
+    session.owned = object()
+    session._discover_game = lambda: None
+    session._capture_metadata = lambda *_args: {}
+    session.engine = NS(
+        state="active", started_at=10.0, tolerances={"max_packet_interval": .05},
+        metadata={}, recorder=NS(metadata={}), finished=False, preferences={},
+        update=lambda _frame: [], summary=lambda: {"coaching": {}},
+    )
+    session.applied_reset = True
+    session.last_render = session.last_telemetry = float("inf")
+    monkeypatch.setattr(adapter, "normalized_packet", lambda *_args: dict(frame))
+    packet = NS(match_info=NS(match_phase=flat.MatchPhase.Active), players=[NS(), NS()], teams=[])
+
+    arrivals = [100.0, 100.008, 100.0167] if len(frame_steps) == 3 else [100.0, 100.001]
+    for step, arrival in zip(frame_steps, arrivals):
+        frame.update(time=10.0 + step / 120, frame_num=1200 + step, packet_gap=False)
+        wall_time[0] = arrival
+        session.process_packet(packet)
+
+    if profile == "prerecorded":
+        assert all(message.index == 0 for message in session.sent_inputs)
+        assert len(session.sent_inputs) == len(frame_steps)
+        if len(frame_steps) == 3:
+            assert [message.controller.throttle for message in session.sent_inputs] == [1.0, 1.0, -.5]
+            assert [message.controller.jump for message in session.sent_inputs] == [False, True, False]
+            assert not session.capture_aborted and not session.capture_controller.interrupted
+            assert session.last_frame["packet_gap"] is False
+        else:
+            assert vars(session.sent_inputs[-1].controller) == reference_capture.neutral_actions()
+            assert session.capture_aborted and session.capture_controller.interrupted and session.stopping
+            assert session.last_frame["packet_gap"] is True
+    else:
+        assert len(session.sent_inputs) == (2 if len(frame_steps) == 3 else 1)
+        assert not session.capture_aborted  # Existing timed profiles retain the wall-clock throttle.
 
 
 def test_capture_is_disabled_by_default_without_changing_ordinary_requests(tmp_path, monkeypatch):
