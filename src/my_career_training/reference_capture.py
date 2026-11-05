@@ -30,8 +30,8 @@ MARKER_FIELDS = frozenset({"schema", "purpose", "enabled"})
 MAX_MARKER_BYTES = 4096
 
 LESSON_ID = "speed-flip"
-PROFILES = ("cancel", "baseline")
-PAYLOAD_FIELDS = frozenset({"profile", "parameters", "trial_id"})
+PROFILES = ("cancel", "baseline", "prerecorded")
+PAYLOAD_FIELDS = frozenset({"profile", "parameters", "trial_id", "input_sha256"})
 
 # The capture layout is exactly one known CustomBot before the Human.
 TARGET_INDEX = 0
@@ -147,7 +147,9 @@ def validate_capture_request(request):
         _refuse("The reference capture payload has unsupported fields.")
     profile = payload.get("profile")
     if profile not in PROFILES:
-        _refuse("The reference capture profile must be 'cancel' or 'baseline'.")
+        _refuse("The reference capture profile must be 'cancel', 'baseline' or 'prerecorded'.")
+    if profile != "prerecorded" and "input_sha256" in payload:
+        _refuse("Only prerecorded capture accepts an input digest.")
     trial_id = payload.get("trial_id")
     if not isinstance(trial_id, str):
         _refuse("Reference capture requires a canonical trial UUID.")
@@ -157,6 +159,8 @@ def validate_capture_request(request):
     except (ValueError, AttributeError):
         _refuse("Reference capture requires a canonical trial UUID.")
     parameters = payload.get("parameters")
+    if profile == "prerecorded" and parameters is not None:
+        _refuse("Prerecorded capture does not accept timed-controller parameters.")
     if parameters is not None:
         if not isinstance(parameters, dict):
             _refuse("Reference capture parameters must be a JSON object.")
@@ -183,7 +187,7 @@ def validate_capture_request(request):
     if Path(environment).resolve() != directory:
         _refuse("Reference capture is not enabled for this data directory.")
     digest = _read_marker(directory)
-    return {
+    capture = {
         "profile": profile,
         "parameters": dict(parameters or {}),
         "trial_id": trial_id,
@@ -194,6 +198,23 @@ def validate_capture_request(request):
         "label": LABEL,
         "provenance": PROVENANCE_LABEL,
     }
+    if profile == "prerecorded":
+        from .training.prerecorded_inputs import load_controller
+        input_digest = payload.get("input_sha256")
+        load_controller(directory, input_digest)
+        capture["input_sha256"] = input_digest
+        capture["label"] = "Development prerecorded input trial; provisional lossy adaptation"
+        capture["provenance"] = "Private prerecorded input adaptation (unvalidated)"
+    return capture
+
+
+def capture_controller(capture):
+    """Construct only a validated controller, with private inputs pinned again."""
+    if capture["profile"] == "prerecorded":
+        from .training.prerecorded_inputs import load_controller
+        return load_controller(capture["data_dir"], capture["input_sha256"])
+    from .training.bot_reference import SpeedFlipTrialController
+    return SpeedFlipTrialController(capture["profile"], capture["parameters"] or None)
 
 
 def recheck_capture(capture):

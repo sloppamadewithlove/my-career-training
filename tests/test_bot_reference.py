@@ -333,6 +333,15 @@ def test_controller_plan_is_json_safe_and_contains_no_game_routing(profile):
     assert controller_plan(profile) == plan
 
 
+def test_prerecorded_profile_cannot_pass_existing_candidate_evaluator():
+    recording, summary = _fixture()
+    recording["metadata"]["source"]["profile"] = "prerecorded"
+    summary["profile"] = "prerecorded"
+    result = evaluate_bot_trial(recording, summary)
+    assert result["eligible"] is False
+    assert any("profile must be 'cancel'" in reason for reason in result["reasons"])
+
+
 def test_evaluator_accepts_only_corroborated_test_candidate_and_never_mutates_it():
     recording, summary = _fixture()
     before = deepcopy((recording, summary))

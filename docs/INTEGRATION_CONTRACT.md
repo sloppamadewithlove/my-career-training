@@ -23,6 +23,16 @@ and evidence checks are in `training/bot_reference.py`; see
 [BOT_REFERENCE_CAPTURE.md](BOT_REFERENCE_CAPTURE.md) for the configuration
 acknowledgement and no-promotion contracts.
 
+The source-only `prerecorded` capture profile additionally requires an exact
+`input_sha256` and the operator-supplied `reference-inputs.csv` directly in that
+same private profile. It accepts no file path, URL or timed-controller parameters.
+`training/prerecorded_inputs.py` adapts bounded native ControllerInput CSV rows to
+eight logical actions, explicitly discarding four native fields. The plan stores
+the digest, lossy mapping, assumed 120 Hz rate and first-dispatch origin; it never
+stores private paths or input rows. Actual capture still records only observed
+packet actions/physics. This profile cannot pass the existing cancel/baseline
+reference evaluator and does not supply a normal-menu or packaged feature.
+
 ## Bots (`bots/`)
 `SpecialistController(role="all-rounder", level=1, difficulty=0.5, seed=0)`; `step(frame, player_index, intents=None)` -> controls dict throttle/steer/pitch/yaw/roll/jump/boost/handbrake. Frame includes time, cars:[{index,team,position,velocity,rotation,boost,wheel_contact}], ball:{position,velocity}, prediction:[{time,position}], boosts:[{position,active,is_full}]. Roles keeper/defender/passer/attacker/all-rounder. Expose provider manifest/capabilities honestly experimental without rank certification. No RLBot imports in pure bot modules.
 

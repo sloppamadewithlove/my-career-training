@@ -102,6 +102,64 @@ They remain `gate: not-evaluated` and `permission.distribute: false`. No
 automatic import, benchmark promotion or bundled reference is implemented.
 Tests use synthetic data and do not establish a working in-game speed flip.
 
+## Private prerecorded input experiment
+
+Implemented 5 November 2026 as a source-only, provisional adapter. There is no
+bundled input CSV, downloaded payload, native build or live acceptance for this
+experiment. It does not provide a teaching ghost.
+
+The format was inspected in upstream
+[SpeedFlipTrainer](https://github.com/tynidev/SpeedFlipTrainer/tree/8a4a94fc120db4919c3155052dbd7099ef834ba7),
+whose repository identifies GPL-3.0. Its
+[CSV reader/playback](https://github.com/tynidev/SpeedFlipTrainer/blob/8a4a94fc120db4919c3155052dbd7099ef834ba7/SpeedFlipTrainer/Attempt.cpp)
+uses a tick and twelve native ControllerInput fields. Its
+[trainer](https://github.com/tynidev/SpeedFlipTrainer/blob/8a4a94fc120db4919c3155052dbd7099ef834ba7/SpeedFlipTrainer/SpeedFlipTrainer.cpp)
+indexes playback by physics frames relative to a custom-training countdown and
+uses 120 ticks per second in its time calculations. That supports the adapter's
+fixed 120 Hz interpretation; the CSV itself contains no rate or starting pose.
+No upstream implementation or input sequence is bundled here. Operator-supplied
+inputs and resulting captures remain private, with distribution permission false.
+
+1. Preconditions: all existing source/Steam/owned-game/copied-profile/marker
+   gates, canonical speed-flip setup and known bot mapping must pass. The
+   operator separately places `reference-inputs.csv` directly in the private
+   profile and computes its SHA-256. The file must be regular, may not be a
+   symlink, and is limited to 1 MiB and 1200 contiguous rows beginning at tick zero.
+2. Input: the private request's `reference_capture` carries
+   `profile: "prerecorded"`, a canonical `trial_id` and `input_sha256`. It
+   accepts no alternate path, URL or timed-controller `parameters`.
+3. Outcome: only the mapped bot receives provisional, lossy logical actions.
+   Tick zero is the first actual control dispatch after engine Go; the worker
+   sends controls before processing the next engine update, so this is not
+   claimed to match upstream countdown alignment. Throttle, Steer, Pitch, Yaw,
+   Roll, Jump and Handbrake map directly; boost uses HoldingBoost.
+   ActivateBoost, DodgeForward, DodgeStrafe and Jumped are discarded. Those
+   fields are distinct in the source files, so this is not native-equivalent
+   replay. The canonical reset differs from upstream's custom-pack context.
+4. Persist: the existing recorder retains actual observed car/ball physics and
+   packet `last_input`, never the intended CSV as observed actions. The private
+   controller plan identifies the exact input digest, row count, rate, origin,
+   mapping and discarded fields. It contains no private path or CSV rows.
+5. Failure/recovery: invalid files or digest changes before controller creation
+   are refused. The controller uses its pinned in-memory snapshot after loading.
+   Exhaustion and finished attempts return neutral; retry restarts at tick zero.
+   Invalid/backward/repeated/skipped dispatch timing or an explicit packet gap
+   returns neutral and invokes the existing capture abort/teardown path. The
+   120 Hz timing check retains the shared 2 ms clock quantization tolerance; it
+   never interpolates or invents inputs to cover a missing tick.
+6. Acceptance: synthetic parser, bounds, lifecycle, private-profile, mapping and
+   worker-boundary tests establish source behavior only. The new profile remains
+   ineligible for the current cancel/baseline evaluator. Any evaluator support,
+   successful repeated game execution or teaching promotion requires separate
+   evidence and review; this adapter weakens none of those gates.
+
+Source validation on Python 3.12.13 / pytest 9.0.2 passed 275 checks across
+`test_prerecorded_inputs`, `test_reference_capture`, `test_bot_reference`,
+`test_training`, `test_training_cadence`, `test_adapter_contract` and `test_worker`.
+Changed Python files pass Ruff; changed documentation passes the evidence
+privacy scanner. All new input rows are synthetic test data. These checks do
+not establish a successful real-game demonstration.
+
 ## Next capture workflow
 
 1. Run the candidate in the real offline game through the existing isolated

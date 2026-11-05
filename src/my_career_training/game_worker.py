@@ -466,14 +466,12 @@ class GameSession:
         self.training_actor_index = self.human_index
         self.capture_arena = config.game_map_upk
         if self.capture is not None:
-            from .training.bot_reference import SpeedFlipTrialController
-            from .reference_capture import configuration_snapshot
+            from .reference_capture import capture_controller, configuration_snapshot
             self.capture_configuration = configuration_snapshot(config)
             if self.human_index != self.capture["human_index"] or self.capture["target_index"] not in descriptors:
                 raise RuntimeError("The capture match layout is unexpected. No controls were sent.")
             self.training_actor_index = self.capture["target_index"]
-            self.capture_controller = SpeedFlipTrialController(
-                self.capture["profile"], self.capture["parameters"] or None)
+            self.capture_controller = capture_controller(self.capture)
             self.capture_metadata = {
                 "source": {
                     "kind": "actual_execution",
@@ -1154,6 +1152,9 @@ class GameSession:
         if self.cancel_start.is_set() or self.stopping:
             return
         self.relays[team].send_msg(flat.PlayerInput(target, flat.ControllerState(**actions)))
+        if (self.capture["profile"] == "prerecorded"
+                and self.capture_controller.interrupted):
+            self._abort_capture("Prerecorded input dispatch lost its continuous 120 Hz timing.")
 
     def _capture_human_clear(self, frame):
         """True while the Human stays outside the capture corridor."""

@@ -41,6 +41,76 @@ def _enable_profile(directory: Path, monkeypatch):
     monkeypatch.setattr(sys, "frozen", False, raising=False)
 
 
+def _prerecorded_request(directory):
+    from my_career_training.training.prerecorded_inputs import HEADER, INPUT_FILENAME
+    request = _capture_request(directory, profile="prerecorded")
+    raw = (",".join(HEADER) + "\n"
+           + "0,0,0,0,0,0,0,0,0,0,0,1,0\n"
+           + "1,0,0,0,0,0,1,0,0,0,0,1,0\n").encode()
+    (directory / INPUT_FILENAME).write_bytes(raw)
+    request["reference_capture"]["input_sha256"] = hashlib.sha256(raw).hexdigest()
+    return request
+
+
+def test_prerecorded_capture_keeps_profile_gates_and_pins_file_again_at_construction(tmp_path, monkeypatch):
+    request = _prerecorded_request(tmp_path)
+    _enable_profile(tmp_path, monkeypatch)
+    capture = reference_capture.validate_capture_request(request)
+    controller = reference_capture.capture_controller(capture)
+    assert controller.controller_plan()["lossy"] is True
+    assert capture["input_sha256"] == request["reference_capture"]["input_sha256"]
+    assert controller.step(.02)["throttle"] == 1.0
+    monkeypatch.setattr(adapter, "flat_module", _flat_stub)
+    config, descriptors, human = adapter.match_config(request)
+    assert human == 1 and set(descriptors) == {0}
+    assert isinstance(config.player_configurations[1].variety, _Human)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    with pytest.raises(ValueError, match="packaged"):
+        reference_capture.validate_capture_request(request)
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    monkeypatch.delenv(reference_capture.ENV_PROFILE)
+    with pytest.raises(ValueError, match="enabled"):
+        reference_capture.validate_capture_request(request)
+    _enable_profile(tmp_path, monkeypatch)
+    (tmp_path / "reference-inputs.csv").write_bytes(b"changed")
+    with pytest.raises(ValueError, match="digest"):
+        reference_capture.capture_controller(capture)
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda request: request["reference_capture"].pop("input_sha256"),
+    lambda request: request["reference_capture"].update(input_sha256="bad"),
+    lambda request: request["reference_capture"].update(parameters={}),
+    lambda request: request["reference_capture"].update(input_file="outside.csv"),
+    lambda request: request["reference_capture"].update(profile="cancel"),
+])
+def test_prerecorded_payload_refuses_unsupported_options(tmp_path, monkeypatch, mutation):
+    request = _prerecorded_request(tmp_path)
+    _enable_profile(tmp_path, monkeypatch)
+    mutation(request)
+    with pytest.raises(ValueError):
+        reference_capture.validate_capture_request(request)
+
+
+def test_prerecorded_worker_stays_neutral_before_go_and_aborts_on_skipped_dispatch(tmp_path, monkeypatch):
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    capture = reference_capture.validate_capture_request(_prerecorded_request(tmp_path))
+    session.capture = capture
+    session.capture_controller = reference_capture.capture_controller(capture)
+    assert session._capture_actions(frame) == reference_capture.neutral_actions()
+    session.engine.state = "active"
+    session.engine.started_at = frame["time"]
+    session._capture_controls(frame, flat)
+    assert session.sent_inputs[-1].index == 0
+    assert session.sent_inputs[-1].controller.throttle == 1.0
+    frame["time"] += 2 / 120
+    session._capture_controls(frame, flat)
+    assert vars(session.sent_inputs[-1].controller) == reference_capture.neutral_actions()
+    assert session.capture_controller.interrupted and session.stopping
+    assert session.capture_aborted and session.mapping == {}
+    assert not any(message.index == 1 for message in session.sent_inputs)
+
+
 def test_capture_is_disabled_by_default_without_changing_ordinary_requests(tmp_path, monkeypatch):
     monkeypatch.delenv(reference_capture.ENV_PROFILE, raising=False)
     request = {"lesson_id": "speed-flip", "fixture": {"id": "ordinary-career"}}
