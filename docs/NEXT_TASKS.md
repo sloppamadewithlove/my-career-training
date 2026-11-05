@@ -3,9 +3,27 @@
 Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
-correction `41d3730`), with 232 focused checks passing. Package the exact reviewed
-source before any game acceptance; verify defender contacts and whole retry in
-the two-opponent ranks. This patch has no new native or live-game evidence.
+correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
+passed full source/native/package checks and reached the authored hub/GC lesson
+in an owned offline probe. Full Human-shot attribution and whole-level retry
+remain unaccepted.
+
+The terminal-score repair `eb1be7d` is independently reviewed with 268 focused
+source checks. It blocks a reproduced late-score-after-timeout source defect;
+it does not establish the cause of the observed live 1/2 to 2/2 transition.
+Build/package this exact repair before claiming any new runtime evidence.
+
+Next bounded live proof: retain settled rank/scenario, attempt identity, score
+packets and automatic/manual command acknowledgements around timeout and retry.
+The GC probe observed defender contact with no input, native clock stuck at
+0:01, car/ball retry with 0–1 retained, then an unexplained automatic challenge
+change. Do not infer a cause or require scoreboard zeroing without a product
+decision. Verify the whole actor/scenario reset and native zero behavior.
+
+Return reached the authored hub. Authored Quit needed the documented owned
+WM_CLOSE fallback; final process exit and original-save/plugin/config/game-file
+restoration checks passed. Normal authored Quit completion still needs acceptance.
+See the [source repair receipt](evidence/2026-11-05-terminal-goal-progression.md).
 The assignments and game ownership below are the prior 29 October record;
 re-establish current ownership before any input.
 
