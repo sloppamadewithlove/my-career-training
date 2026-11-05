@@ -6,6 +6,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "plugin" / "src" / "MyCareerTraining.cpp"
+CLOCK_HEADER = ROOT / "plugin" / "include" / "TrainingClock.h"
 SIGNATURE = "void MyCareerTraining::updateTrainingClock(const Json& state, bool cleanup)"
 
 
@@ -69,8 +70,9 @@ def _assert_order(source: str, *tokens: str) -> None:
     )
 
 
-def test_native_clock_writer_notifies_after_integer_write_before_readback():
+def test_native_clock_mapping_notification_and_readback_contract():
     source = _without_comments_and_literals(SOURCE.read_text(encoding="utf-8"))
+    header = _without_comments_and_literals(CLOCK_HEADER.read_text(encoding="utf-8"))
     body = _function_body(source, SIGNATURE)
     read_start = body.index("auto read = [&]")
     write_start = body.index("auto write = [&]")
@@ -78,12 +80,33 @@ def test_native_clock_writer_notifies_after_integer_write_before_readback():
     read_lambda = body[read_start:write_start]
     write_lambda = body[write_start:update_start]
 
-    for getter in (
-        "server.GetGameTimeRemaining()",
-        "server.GetbUnlimitedTime() != 0",
-        "server.GetSecondsRemaining()",
-    ):
-        assert getter in read_lambda, f"native clock snapshot misses {getter}"
+    value_fields = re.compile(
+        r"struct\s+Value\s*\{\s*float\s+remaining\s*;\s*"
+        r"bool\s+unlimited\s*;\s*int\s+seconds(?:\s*=\s*0)?\s*;",
+        re.DOTALL,
+    )
+    assert value_fields.search(header), (
+        "TrainingClock::Value field order must remain remaining, unlimited, seconds"
+    )
+    getter_mapping = re.compile(
+        r"return\s+mct::TrainingClock::Value\s*\{\s*"
+        r"server\.GetGameTimeRemaining\(\)\s*,\s*"
+        r"server\.GetbUnlimitedTime\(\)\s*!=\s*0\s*,\s*"
+        r"server\.GetSecondsRemaining\(\)\s*\}",
+        re.DOTALL,
+    )
+    assert getter_mapping.search(read_lambda), (
+        "native clock getters must map to remaining, unlimited, seconds in Value order"
+    )
+
+    readback_clauses = (
+        "observed.seconds != value.seconds",
+        "observed.unlimited != value.unlimited",
+        "!std::isfinite(observed.remaining)",
+        "std::abs(observed.remaining - value.remaining) > 0.1f",
+    )
+    for clause in readback_clauses:
+        assert clause in write_lambda, f"native clock readback misses: {clause}"
 
     notification_guard = re.compile(
         r"if\s*\(\s*before\.seconds\s*!=\s*value\.seconds\s*\|\|\s*"
