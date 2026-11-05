@@ -5,7 +5,7 @@ Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Package the exact reviewed
 source before any game acceptance; verify defender contacts and whole retry in
-the two-opponent ranks. This patch has no new native or live-game evidence.
+the two-opponent ranks. No new live-game acceptance is recorded for this patch.
 
 The private prerecorded-capture experiment (`54fad04` + `cf1a0e4`) is independently
 reviewed with 281 source checks passing. Operator-supplied inputs remain private;
@@ -14,6 +14,13 @@ packets and aborts on a real gap. Next proof requires an owned copied-profile ru
 with the canonical reset, normal physics and actual recorded actions/poses; no
 successful live demonstration is established. Existing reference evaluation and
 teaching promotion remain separate, unchanged gates.
+
+The exact `2c08e74` native build needed a shorter isolated worktree: the pinned
+SDK header existed, but its expanded include path exceeded the observed MSVC
+limit. The plugin DLL has compiled; finish candidate tests/staging/package
+verification before live acceptance. The
+[improvement receipt](evidence/2026-11-05-session-improvement.md) records the
+reproducer and the required production-dispatch and bounded-research practices.
 
 The assignments and game ownership below are the prior 29 October record;
 re-establish current ownership before any input.

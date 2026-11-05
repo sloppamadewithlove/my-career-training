@@ -1,6 +1,6 @@
 # Development and testing workflow
 
-Updated 26 October 2026. Universal working agreement for implementation, review
+Updated 5 November 2026. Universal working agreement for implementation, review
 and evidence. Product/release truth lives in [PROJECT_STATUS.md](PROJECT_STATUS.md);
 the taskboard is [NEXT_TASKS.md](NEXT_TASKS.md); the product contract is
 [BUILD_SPEC.md](BUILD_SPEC.md); the testing recipe is
@@ -111,6 +111,16 @@ input; observers stay read-only; user control suspends automation.
 - Destructive fault tests use isolated copied test data only; there is no
   requirement to kill or restart the real game merely to test saves.
 - Source scripts must select the correct project and a validated toolchain.
+- Timing-sensitive controls need a regression through the production packet
+  dispatcher, including valid game ticks with uneven wall-clock arrivals and
+  a real missing tick. A passing controller-only test cannot prove dispatch.
+- On Windows C1083 with a present SDK header, compare the compiler's expanded
+  relative include path with its normalized path before changing dependencies.
+  If path depth is the cause, build the exact commit in a shorter isolated
+  worktree and retain the pinned SDK and normal candidate provenance checks.
+- A timed-out reverse-engineering import yields no evidence. Close its target;
+  do not repeat the unchanged request. Reuse retained results or choose a bounded
+  alternative, and distinguish static inventory from observed runtime access.
 - Record times for build, launch, continuation, waiting, review and rework, plus
   actual tokens and cost from the provider-reported source. Unknown values stay
   unknown, never guessed.
@@ -124,3 +134,6 @@ An incomplete review is never approval. Publish only per proven capability. Ever
 claim carries one status — planned, implemented, unverified, verified or blocked —
 with exact revision, mode and date. Public updates contain sanitized outcome,
 revision, counts and release blockers only.
+
+The [5 November improvement receipt](evidence/2026-11-05-session-improvement.md)
+records the observed failures behind these dispatch, path and research rules.
