@@ -417,6 +417,31 @@ def test_same_packet_target_crossing_and_fresh_score_edge_succeeds():
     assert engine.outcome == "success"
 
 
+@pytest.mark.parametrize("rank", ["grand-champion", "supersonic-legend"])
+@pytest.mark.parametrize("contact_order", ["older", "tied", "later", "human-retouch"])
+def test_goal_attribution_accounts_for_latest_defender_contact(rank, contact_order):
+    engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty=rank)
+    start = _prepare(engine)
+    human = engine.human_index
+    defender = engine.scenario["roles"]["defender"]
+    touches = {human: start + .01, defender: start + .005}
+    _update(engine, start + .01, touches)
+    if contact_order != "older":
+        touches[defender] = start + (.01 if contact_order == "tied" else .02)
+        _update(engine, start + .02, touches)
+    if contact_order == "human-retouch":
+        touches[human] = start + .025
+        _update(engine, start + .025, touches)
+    _update(engine, start + .03, touches, ball={"position": [0.0, 5110.0, 200.0]})
+    _update(engine, start + .04, touches, scores=(1, 0),
+            ball={"position": [0.0, 5130.0, 200.0]})
+
+    expected = "success" if contact_order in {"older", "human-retouch"} else "interrupted"
+    assert engine.outcome == expected
+    assert engine.scenario_state["latest_touch"][defender] == touches[defender]
+    assert ("scenario_success" in engine._emitted) is (expected == "success")
+
+
 def test_score_edge_observed_before_target_crossing_stays_stale():
     engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="bronze")
     start = _prepare(engine)

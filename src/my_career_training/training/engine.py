@@ -257,7 +257,7 @@ class TrainingEngine:
             "seen_touch": {},
             "baseline_touch": {},
             # Latest attributed in-attempt touch for every actor, so a fresh
-            # keeper contact can invalidate an older Human touch.
+            # opponent contact can invalidate an older Human touch.
             "latest_touch": {},
             "chain_valid": True,
         }
@@ -502,8 +502,10 @@ class TrainingEngine:
         now = frame["time"]
         actor_keys = [(self.human_index, "human_touch")]
         keeper_index = self.scenario["roles"].get("keeper")
-        if keeper_index is not None:
-            actor_keys.append((keeper_index, "keeper_touch"))
+        actor_keys.extend(
+            (index, "keeper_touch" if index == keeper_index else None)
+            for index in self.bot_indices
+        )
         for index, key in actor_keys:
             stamp = self._scenario_touch(frame, index)
             if stamp is None:
@@ -515,10 +517,10 @@ class TrainingEngine:
             if not (self.started_at <= stamp <= now):
                 continue
             # Track the latest attributed touch for every actor, not only the
-            # first one seen, so a later keeper contact is visible.
+            # first one seen, so a later opponent contact is visible.
             if stamp > (state["latest_touch"].get(index) or -math.inf):
                 state["latest_touch"][index] = stamp
-            if state[key] is None:
+            if key is not None and state[key] is None:
                 state[key] = stamp
                 self._once(key, frame, details={"contact_time": stamp})
         ball = frame.get("ball") or {}
@@ -553,7 +555,7 @@ class TrainingEngine:
         latest = state["latest_touch"]
         human_latest = latest.get(self.human_index)
         # The Human must be the latest attributed touch of every actor: a fresh
-        # keeper contact after the shot invalidates the chain.
+        # opponent contact after the shot invalidates the chain.
         # Strictly later: an equal timestamp is an ambiguous tie, so a non-human
         # contact stamped at the same instant can never be treated as older.
         latest_is_human = human_latest is not None and all(
