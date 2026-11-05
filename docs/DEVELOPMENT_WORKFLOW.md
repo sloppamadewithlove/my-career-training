@@ -115,7 +115,7 @@ input; observers stay read-only; user control suspends automation.
 - Rank-specific live evidence must identify the settled rank/scenario. Retry
   acceptance separately observes actors, score and progression; a car/ball reset
   alone is not whole-level proof. Preserve unexplained transitions for diagnosis.
-  For Quit, distinguish acknowledgement, actual owned-process exit and restored
+  For Quit, distinguish request enqueue/dispatch acknowledgement, actual owned-process exit and restored
   installation/journals; an accepted request does not establish cleanup.
 - Destructive fault tests use isolated copied test data only; there is no
   requirement to kill or restart the real game merely to test saves.
@@ -123,6 +123,13 @@ input; observers stay read-only; user control suspends automation.
 - Timing-sensitive controls need a regression through the production packet
   dispatcher, including valid game ticks with uneven wall-clock arrivals and
   a real missing tick. A passing controller-only test cannot prove dispatch.
+- Check whether the loaded candidate already contains a proposed repair before
+  repeating an old hypothesis. Match runtime fields and the visible HUD within
+  the same attempt; historical readbacks cannot explain a later display failure.
+- Screen actual packet cadence before expanding a strict capture entry. Retained
+  per-packet timestamps/gap flags can reject coarse delivery; positive strict
+  acceptance also needs frame-number continuity. Throttled telemetry spacing is
+  not the raw delivery rate. Keep failed feasibility separate from a code defect.
 - On Windows C1083 with a present SDK header, compare the compiler's expanded
   relative include path with its normalized path before changing dependencies.
   If path depth is the cause, build the exact commit in a shorter isolated
@@ -148,3 +155,5 @@ The [5 November improvement receipt](evidence/2026-11-05-session-improvement.md)
 records the observed failures behind these dispatch, path and research rules.
 The [second cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md)
 records package progress and the first bounded live retry/progression observations.
+The [third cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md)
+records matched clock evidence requirements and passive capture-cadence screening.

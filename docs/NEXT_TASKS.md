@@ -10,10 +10,12 @@ touch; Human-shot attribution and whole-level retry still need live acceptance.
 The private prerecorded-capture experiment (`54fad04` + `cf1a0e4`) is independently
 reviewed with 281 source checks passing. Operator-supplied inputs remain private;
 the adapter is source-only and explicitly lossy. It dispatches on observed game
-packets and aborts on a real gap. Next proof requires an owned copied-profile run
-with the canonical reset, normal physics and actual recorded actions/poses; no
-successful live demonstration is established. Existing reference evaluation and
-teaching promotion remain separate, unchanged gates.
+packets and aborts on a real gap. Passive inspection of the three retained 2c08
+recordings found zero 1/120-second intervals within the existing 2 ms tolerance.
+Hold operator-entry/bootstrap expansion; first measure current raw cadence with
+existing ordinary telemetry/recordings. A clean timestamp screen still needs
+frame-number corroboration for strict capture. No successful demonstration or
+teaching eligibility is established; do not relax the capture gates.
 
 The exact `2c08e74` native build needed a shorter isolated worktree: the pinned
 SDK header existed, but its expanded include path exceeded the observed MSVC
@@ -24,11 +26,17 @@ reproducer and the required production-dispatch and bounded-research practices.
 Next live proof: preserve settled rank/scenario, attempt identity, score, actor
 poses and acknowledgements around retry/timeout/progression. The first GC probe
 observed car/ball retry with score 0–1 retained, then an automatic second-scenario
-transition after timeout; diagnose its cause before a repair or acceptance claim.
-Return reached the authored hub. Quit was acknowledged but did not close the game
-within the observed seven seconds; the owned graceful-close fallback and
-restoration still need final verification at this checkpoint.
+transition after timeout; its live cause remains unexplained. Separately reviewed
+source repair `eb1be7d` (`ef94b24` published) passed 268 checks and prevents a
+reproduced late-score-after-timeout case; it is not a verified live diagnosis.
+Return reached the hub. The prior session eventually exited through owned
+WM_CLOSE and restoration checks passed; authored Quit completion remains open.
+The separate clock run is in progress with no results yet. Correlate fresh native
+clock fields with HUD/attempt state before proposing another write; tested 2c08
+already contains the integer-sync/notification repair.
 See the [second-cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md).
+The [third-cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md)
+records the current matched-clock and cadence-first next actions.
 
 The assignments and game ownership below are the prior 29 October record;
 re-establish current ownership before any input.
