@@ -2,7 +2,8 @@
 
 Base: `0bc322b2ff511a178ffc5e2dbe279d8ec9bb5a41`. The loaded game evidence below
 belongs to earlier exact candidate `a59c45f`, not this source repair.
-Status: source/compiled authored-movie checks passed; not packaged or live tested.
+Status: repair `3b9ef7236c3f4837c4267d183e635e387a195a01` independently reviewed;
+source/compiled authored-movie checks passed, not packaged or live tested.
 
 ## Observed defect and source cause
 
@@ -12,6 +13,11 @@ with no visible change, so reset was not accepted. A short W input moved car/bal
 and showed 0:07; a later initial scene at 0:10 supports an automatic reset
 inference only. No exact zero frame was captured. The local training file was
 unchanged; native Custom Training telemetry was not retained.
+
+The owned run exited. Original MCT Career, game Training/Config, BakkesMod
+plugin/config and checked game assets matched their baselines. New game-profile
+writes were preserved; missing preflight backups were restored create-new-only
+and hash-verified. No byte-identical game-profile restoration is claimed.
 
 Escape showed **My Career paused**, Resume, Game options and a disabled Return
 to My Career. The source explains that outcome: the private midgame replacement

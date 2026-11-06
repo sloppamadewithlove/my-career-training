@@ -10,11 +10,20 @@ Exact live candidate `a59c45f` includes independently reviewed `1c21770` + corre
 `d98ba04`, rooted at `ef94b24`. Candidate packaging/frozen smoke passed. The separate
 **Rocket League Training** row reached stock **Play**, then manual Training and
 Custom Training Created. Back reached the authored hub and Down moved focus to
-Garage. Local New Sequence was visible, but no pack was created/saved or lesson
-played; controller acceptance remains open. Later docs commits are not this tested
-candidate. A saved inactive Career is allowed through the shared `lessonReady`
-guard; live workers, pending results and pending Return remain gated.
+Garage. In that menu-only run, local New Sequence was visible without creating
+or saving a pack. Physical controller acceptance remains open. Later commits are
+not this tested candidate. A saved inactive Career is allowed through `lessonReady`;
+live workers, pending results and pending Return remain gated.
 See the [entry receipt](evidence/2026-11-05-stock-training-entry.md).
+
+A separate `a59c45f` probe played an existing local native Striker sequence:
+W moved car/ball and showed 0:07, then a later initial scene at 0:10 suggested
+timeout reset. Backspace at the initial state had no visible effect, so manual
+reset is unaccepted. Escape exposed MCT pause with disabled Return and no native
+exit. Reviewed repair `3b9ef72` delegates native Custom Training/editor pause to
+the stock classes; it is source-tested only and needs a fresh exact-candidate
+build. The local sequence file was unchanged and the owned run exited/restored.
+See the [pause repair receipt](evidence/2026-11-05-native-custom-training-stock-pause.md).
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
@@ -25,8 +34,8 @@ remain unaccepted.
 The terminal-score repair `eb1be7d` is independently reviewed with 268 focused
 source checks. It blocks a reproduced late-score-after-timeout source defect;
 it does not establish the cause of the observed live 1/2 to 2/2 transition.
-It is included in packaged `a59c45f`; that menu-only run did not exercise its
-gameplay behavior.
+It is included in packaged `a59c45f`; the native UI/sequence probes did not
+exercise that MCT gameplay behavior.
 
 For retained custom-lesson diagnosis, retain settled rank/scenario, attempt identity, score
 packets and automatic/manual command acknowledgements around timeout and retry.
@@ -48,17 +57,19 @@ board does not grant ownership of a previous session.
 | --- | --- | --- |
 | Coordinator | Hand off one exact reviewed candidate | Name source, compiled movie and packaged revision separately; assign one input owner for a bounded live session |
 | Native-entry builder | Source handoff and saved inactive Career correction complete | `1c21770` + `d98ba04` reviewed; no game control or package build performed |
-| Independent reviewer | Source and correction approved | Live behavior remains a separate acceptance gate |
-| Owned tester | Native menu handoff passed on `a59c45f`; session ended | Next scope is one native lesson/editor gameplay loop and return, with fresh ownership and separate game-profile protection |
+| Native pause builder | Stock Custom Training/editor delegation reviewed | `3b9ef72` source/owned movie checked; stage its new pause ABC before packaging |
+| Independent reviewer | Native entry and stock-pause source approved | Live behavior remains a separate acceptance gate |
+| Owned tester | `a59c45f` local sequence probe ended/restored | Next: exact stock-pause candidate, native resume/exit, displaced-state reset and Career pause regression; fresh ownership and game-profile protection required |
 
 ## Next proof sequence
 
-1. Retain the exact `a59c45f` package and source/ABC provenance for the accepted
-   authored hub to stock Training UI and responsive Back route. Rebuild only for
-   a changed candidate or an acceptance question that requires it.
-2. Separately prove native Custom Training/editor use and gameplay return before
-   adding a lesson to that flow. Creating a native sequence can write a game-owned
-   file even before manual Save; a copied MCT profile is not game-save isolation.
+1. Stage the reviewed stock-pause ABC and build its exact new revision; do not
+   reuse the old `a59c45f` package. Keep the earlier accepted menu handoff distinct.
+2. Prove native pause/resume, the applicable stock exit confirmation and actual
+   destination, plus a normal Career pause/Return regression. Preserve native
+   save/discard/cancel choices where applicable. Observe native reset
+   from a displaced state separately. A copied MCT profile is not game-save
+   isolation; preserve game-owned profile rotation and native save prompts.
 3. Keep custom lesson and ghost work bounded to additions the native flow needs.
    Preserve unresolved custom countdown/reset/goal and physical-controller checks
    as explicit limitations; a successful stock screen does not close them.
