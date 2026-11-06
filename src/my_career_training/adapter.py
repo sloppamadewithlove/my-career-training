@@ -42,7 +42,7 @@ def match_config(request):
     refuse_custom_map_launch(request)
     # The capture gate runs here as well as in the worker setup, so a caller
     # cannot obtain a capture match layout without passing every gate.
-    from .reference_capture import validate_capture_request
+    from .reference_capture import FLIP_PROFILE, validate_capture_request
     capture = validate_capture_request(request)
     # An explicit scenario is validated before any match layout is built. The
     # capture gate above already rejected capture+scenario combinations.
@@ -60,11 +60,15 @@ def match_config(request):
     if launcher not in ("steam", "epic"):
         raise ValueError("Choose Steam or Epic.")
     human_team = 0 if training or fixture.get("home") == "human" else 1
+    if capture is not None and capture["profile"] == FLIP_PROFILE:
+        # The installed policy expects a real opposing player in its complete
+        # observation. The Human remains uncontrolled and outside the corridor.
+        human_team = 1
     players, descriptors = [], {}
     if capture is not None:
         # Exactly one known CustomBot before the Human: bot index 0, Human
-        # index 1, both on the known team 0. Ordinary training keeps one Human
-        # and no bots; Career is unchanged.
+        # index 1. Speed flip keeps both on team 0; the installed flip-reset
+        # policy gets an opposing Human. Ordinary training keeps one Human.
         descriptor = capture_descriptor(capture)
         loadout = descriptor["loadout"]
         variety = f.CustomBot(name=descriptor["name"], root_dir=str(Path.cwd()), run_command="",

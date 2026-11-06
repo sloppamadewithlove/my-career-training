@@ -466,14 +466,12 @@ class GameSession:
         self.training_actor_index = self.human_index
         self.capture_arena = config.game_map_upk
         if self.capture is not None:
-            from .training.bot_reference import SpeedFlipTrialController
-            from .reference_capture import configuration_snapshot
+            from .reference_capture import configuration_snapshot, create_capture_controller
             self.capture_configuration = configuration_snapshot(config)
             if self.human_index != self.capture["human_index"] or self.capture["target_index"] not in descriptors:
                 raise RuntimeError("The capture match layout is unexpected. No controls were sent.")
             self.training_actor_index = self.capture["target_index"]
-            self.capture_controller = SpeedFlipTrialController(
-                self.capture["profile"], self.capture["parameters"] or None)
+            self.capture_controller = create_capture_controller(self.capture)
             self.capture_metadata = {
                 "source": {
                     "kind": "actual_execution",
@@ -611,7 +609,9 @@ class GameSession:
                 "Training is waiting for fresh live telemetry. Stop or Return remains available."
             )
         if self.capture is not None:
-            from .reference_capture import recheck_capture
+            from .reference_capture import FLIP_PROFILE, recheck_capture
+            if self.capture["profile"] == FLIP_PROFILE and (self.applied_reset or self.attempt_sent is not None):
+                raise RuntimeError("The bounded flip-reset trial permits one attempt; start a separate trial.")
             target = self.capture["target_index"]
             team = self.descriptors[target]["team"]
             if (self.capture_aborted is not None or not self.capture_ready
@@ -1124,16 +1124,27 @@ class GameSession:
         elapsed = frame["time"] - self.engine.started_at
         return self.capture_controller.step(elapsed, frame)
 
+    def _check_capture_deadline(self):
+        from .reference_capture import FLIP_PROFILE, FLIP_TRIAL_WALL_SECONDS
+        if (self.capture is not None and self.capture["profile"] == FLIP_PROFILE
+                and time.monotonic() - self.started_monotonic >= FLIP_TRIAL_WALL_SECONDS):
+            self._abort_capture("The bounded flip-reset trial reached its wall-time limit.")
+
     def _capture_controls(self, frame, flat):
         """Send inputs only to the mapped capture bot, never to the Human.
 
         The marker, the mapping and the Human clearance are rechecked at every
         control boundary; any change aborts capture instead of sending inputs.
         """
-        from .reference_capture import recheck_capture
+        from .reference_capture import FLIP_PROFILE, recheck_capture
+        self._check_capture_deadline()
         target = self.capture["target_index"]
         team = self.descriptors[target]["team"]
         if self.capture_aborted is not None or not self.capture_ready:
+            return
+        if self.capture["profile"] == FLIP_PROFILE and (frame.get("game_speed") != 1.0
+                                                       or frame.get("packet_gap") is True):
+            self._abort_capture("The flip-reset trial needs observed normal speed and continuous packets.")
             return
         if self.mapping.get(team) != [target]:
             self._abort_capture("The capture bot mapping changed.")
@@ -1407,6 +1418,15 @@ class GameSession:
             # or imported claim never becomes a candidate.
             self._persist_candidate(summary, recording)
         self.event("attempt", summary=summary, recording=recording)
+        if self.capture is not None:
+            from .reference_capture import FLIP_PROFILE
+            if self.capture["profile"] == FLIP_PROFILE:
+                # Exactly one engine attempt. Teardown stops the owned runtime;
+                # no retry, model output or Human input is applied afterward.
+                self.capture_controller.finish()
+                self.capture_ready = False
+                self.stopping = True
+                self.stop_deadline = 0
 
     def _persist_candidate(self, summary, recording):
         from .reference_capture import persist_candidate
@@ -1570,6 +1590,9 @@ class GameSession:
         try:
             self.setup()
             while not self.stopping or time.monotonic() < self.stop_deadline:
+                self._check_capture_deadline()
+                if self.stopping and time.monotonic() >= self.stop_deadline:
+                    break
                 self._discover_game()
                 if self.core.poll() is not None:
                     raise RuntimeError("The offline game runtime exited. Close the game and retry.")

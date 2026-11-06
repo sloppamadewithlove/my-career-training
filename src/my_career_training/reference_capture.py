@@ -1,4 +1,4 @@
-"""Development-only real bot capture for the speed-flip teaching ghost.
+"""Development-only real bot capture; no candidate is a validated teaching ghost.
 
 This module is the single gate for the private reference-capture path. It is
 disabled unless the request carries an explicit ``reference_capture`` payload,
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -31,6 +32,8 @@ MAX_MARKER_BYTES = 4096
 
 LESSON_ID = "speed-flip"
 PROFILES = ("cancel", "baseline")
+FLIP_PROFILE = "flip-reset-nexto"
+FLIP_TRIAL_WALL_SECONDS = 120.0
 PAYLOAD_FIELDS = frozenset({"profile", "parameters", "trial_id"})
 
 # The capture layout is exactly one known CustomBot before the Human.
@@ -146,8 +149,8 @@ def validate_capture_request(request):
     if set(payload) - PAYLOAD_FIELDS:
         _refuse("The reference capture payload has unsupported fields.")
     profile = payload.get("profile")
-    if profile not in PROFILES:
-        _refuse("The reference capture profile must be 'cancel' or 'baseline'.")
+    if profile not in (*PROFILES, FLIP_PROFILE):
+        _refuse("Choose a supported reference capture profile.")
     trial_id = payload.get("trial_id")
     if not isinstance(trial_id, str):
         _refuse("Reference capture requires a canonical trial UUID.")
@@ -160,15 +163,22 @@ def validate_capture_request(request):
     if parameters is not None:
         if not isinstance(parameters, dict):
             _refuse("Reference capture parameters must be a JSON object.")
-        _validate_parameters(profile, parameters)
-    if request.get("lesson_id") != LESSON_ID:
-        _refuse("Reference capture is limited to the speed-flip lesson.")
-    # Only the canonical speed-flip variant is a normal setup. Any explicit
+        if profile == FLIP_PROFILE:
+            if parameters:
+                _refuse("The bounded flip-reset trial accepts no controller parameters.")
+        else:
+            _validate_parameters(profile, parameters)
+    lesson_id = "flip-reset" if profile == FLIP_PROFILE else LESSON_ID
+    if request.get("lesson_id") != lesson_id:
+        _refuse("Reference capture profile does not match the lesson.")
+    # Only the canonical lesson variant is a normal setup. Any explicit
     # variant selection is a nonstandard drill and is refused.
     if request.get("variants") not in (None, {}):
-        _refuse("Reference capture requires the canonical speed-flip variant.")
+        _refuse("Reference capture requires the canonical lesson variant.")
     if request.get("fixture") or request.get("workshop") or request.get("calibration"):
         _refuse("Reference capture refuses fixture, workshop and calibration requests.")
+    if request.get("scenario_id") is not None:
+        _refuse("Reference capture refuses ball-launch scenarios.")
     if not request.get("owned_game"):
         _refuse("Reference capture requires an owned offline game session.")
     settings = request.get("settings")
@@ -194,6 +204,77 @@ def validate_capture_request(request):
         "label": LABEL,
         "provenance": PROVENANCE_LABEL,
     }
+
+
+class InstalledFlipResetTrialController:
+    """API adapter for one unproven installed-policy trial, never a trace generator."""
+
+    def __init__(self):
+        from .bots.providers import create_controller
+        from .training.catalog import configure_lesson
+        self.policy = create_controller("nexto")
+        self.game_limit = configure_lesson("flip-reset")["timeout"]
+        self.reset()
+
+    def reset(self):
+        self.policy.reset()
+        self.finished = False
+        self.last_elapsed = None
+
+    def finish(self):
+        self.finished = True
+
+    def controller_plan(self):
+        from .bots.providers import MODELS, SOURCE_REVISION
+        return {"id": "installed-nexto-flip-reset-trial", "revision": 1, "provider": "nexto",
+                "provider_revision": SOURCE_REVISION, "model_sha256": MODELS["nexto"]["sha256"],
+                "attempt_limit": 1, "wall_limit_seconds": FLIP_TRIAL_WALL_SECONDS,
+                "game_limit_seconds": self.game_limit,
+                "claim": "Unproven policy trial; no flip-reset capability or successful trace is claimed."}
+
+    def step(self, elapsed_seconds, frame):
+        if (self.finished or isinstance(elapsed_seconds, bool)
+                or not isinstance(elapsed_seconds, (int, float)) or not math.isfinite(elapsed_seconds)
+                or elapsed_seconds < 0 or elapsed_seconds >= self.game_limit
+                or self.last_elapsed is not None and elapsed_seconds < self.last_elapsed):
+            self.finish()
+            return neutral_actions()
+        self.last_elapsed = elapsed_seconds
+        # Existing provider consumes the complete observed packet and an exact
+        # mapped bot index, not an elapsed-time schedule or Human input.
+        return self.policy.step(frame, TARGET_INDEX)
+
+
+def create_capture_controller(capture):
+    if capture["profile"] == FLIP_PROFILE:
+        return InstalledFlipResetTrialController()
+    from .training.bot_reference import SpeedFlipTrialController
+    return SpeedFlipTrialController(capture["profile"], capture["parameters"] or None)
+
+
+def _validate_flip_success(recording, summary, attempt_id):
+    """Keep a success label from replacing the actual engine event contract."""
+    from .training.catalog import configure_lesson
+    from .training.recordings import flip_reset_practice_eligible, validate_recording
+    validate_recording(recording)
+    lesson = configure_lesson("flip-reset")
+    if (recording.get("lesson_id") != "flip-reset" or recording.get("lesson_version") != lesson["version"]
+            or recording.get("variant") != lesson["variant"] or summary.get("id") != attempt_id
+            or summary.get("lesson_id") != "flip-reset" or summary.get("state") not in ("finished", "interrupted")
+            or summary.get("outcome") != recording.get("outcome")):
+        raise ValueError("The flip-reset capture does not match the completed lesson attempt.")
+    if recording.get("outcome") != "success":
+        return
+    fields = ("fresh_ball_touch", "underside_aligned", "ball_near", "consumed_flip_observed",
+              "ball_touch_after_flip_consumed", "central_airspace", "arena_surface_excluded", "continuous_packets")
+    events = [event for event in recording.get("events", []) if isinstance(event, dict)
+              and event.get("name") == "reset_acquired" and event.get("confidence") == "strong telemetry evidence"
+              and isinstance(event.get("details"), dict)
+              and all(event.get("details", {}).get(key) is True for key in fields)]
+    if (not flip_reset_practice_eligible(recording) or summary.get("state") != "finished" or len(events) != 1
+            or events[0] not in summary.get("events", [])
+            or events[0] not in recording["metadata"].get("success_evidence", [])):
+        raise ValueError("A flip-reset success needs the matching observed acquisition event.")
 
 
 def recheck_capture(capture):
@@ -259,6 +340,8 @@ def persist_candidate(data_dir, capture, attempt_id, recording, summary, metadat
     from .training.recordings import MAX_RECORDING_BYTES
     if not isinstance(recording, dict) or not recording.get("samples"):
         raise ValueError("A reference candidate needs recorded samples.")
+    if capture["profile"] == FLIP_PROFILE:
+        _validate_flip_success(recording, summary, attempt_id)
     if not isinstance(attempt_id, str) or not attempt_id:
         raise ValueError("A reference candidate needs an attempt identifier.")
     try:

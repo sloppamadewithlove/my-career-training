@@ -41,6 +41,175 @@ def _enable_profile(directory: Path, monkeypatch):
     monkeypatch.setattr(sys, "frozen", False, raising=False)
 
 
+def _flip_request(directory, monkeypatch):
+    request = _capture_request(directory, profile=reference_capture.FLIP_PROFILE, lesson_id="flip-reset")
+    _enable_profile(directory, monkeypatch)
+    return request
+
+
+def test_flip_capture_is_an_explicit_canonical_one_bot_opponent_layout(tmp_path, monkeypatch):
+    request = _flip_request(tmp_path, monkeypatch)
+    capture = reference_capture.validate_capture_request(request)
+    assert capture["profile"] == reference_capture.FLIP_PROFILE and capture["target_index"] == 0
+    assert capture["human_index"] == 1 and "not validated" in capture["label"]
+    monkeypatch.setattr(adapter, "flat_module", _flat_stub)
+    config, descriptors, human_index = adapter.match_config(request)
+    assert human_index == 1 and set(descriptors) == {0}
+    assert [player.team for player in config.player_configurations] == [0, 1]
+    assert isinstance(config.player_configurations[1].variety, _Human)
+    assert config.freeplay is True and config.auto_save_replay is False
+
+
+@pytest.mark.parametrize("change", ["lesson", "variant", "parameters", "scenario", "provider", "frozen", "marker"])
+def test_flip_capture_preserves_source_and_scope_gates(tmp_path, monkeypatch, change):
+    request = _flip_request(tmp_path, monkeypatch)
+    if change == "lesson":
+        request["lesson_id"] = "speed-flip"
+    elif change == "variant":
+        request["variants"] = {"simplified": True}
+    elif change == "parameters":
+        request["reference_capture"]["parameters"] = {"attempt_limit": 99}
+    elif change == "scenario":
+        request["scenario_id"] = "anything"
+    elif change == "provider":
+        request["reference_capture"]["provider"] = "arbitrary-policy"
+    elif change == "frozen":
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+    else:
+        (tmp_path / reference_capture.MARKER_NAME).unlink()
+    with pytest.raises(ValueError):
+        reference_capture.validate_capture_request(request)
+
+
+def test_flip_controller_calls_real_provider_api_and_stops_at_attempt_clock_bound(monkeypatch):
+    from my_career_training.bots import providers
+    calls = []
+    policy = NS(reset=lambda: calls.append("reset"),
+                step=lambda frame, index: calls.append((frame, index)) or {**reference_capture.neutral_actions(), "boost": True})
+    monkeypatch.setattr(providers, "create_controller", lambda provider: calls.append(provider) or policy)
+    controller = reference_capture.InstalledFlipResetTrialController()
+    observed = {"time": 50, "cars": [{"index": 0}, {"index": 1}]}
+    assert controller.step(.1, observed)["boost"] is True
+    assert calls == ["nexto", "reset", (observed, 0)]
+    assert controller.controller_plan()["attempt_limit"] == 1
+    assert "Unproven" in controller.controller_plan()["claim"]
+    assert controller.step(12, observed) == reference_capture.neutral_actions()
+    assert controller.step(.2, observed) == reference_capture.neutral_actions()
+    assert len(calls) == 3
+
+
+def test_flip_controller_real_pinned_model_infers_from_full_packet_without_game():
+    from test_providers import game_frame
+    controller = reference_capture.InstalledFlipResetTrialController()
+    observed, _index = game_frame(1)
+    actions = controller.step(0, observed)
+    assert set(actions) == set(reference_capture.neutral_actions())
+    assert any(actions.values())
+    assert controller.controller_plan()["model_sha256"] == "bf5343b5eeacac6bf7cdb75dac4a5c14ba0f94d820eae75f00a211b6119d69fa"
+
+
+def test_flip_capture_production_controls_keep_human_excluded_and_observe_model_api(tmp_path, monkeypatch):
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.request["lesson_id"] = "flip-reset"
+    frame["game_speed"] = 1.0
+    frame["cars"][1]["team"] = 1
+    observed = []
+    policy = NS(reset=lambda: None, step=lambda packet, index: observed.append((packet, index)) or reference_capture.neutral_actions())
+    from my_career_training.bots import providers
+    monkeypatch.setattr(providers, "create_controller", lambda provider: policy)
+    session.capture_controller = reference_capture.InstalledFlipResetTrialController()
+    session.engine.state = "active"
+    session.engine.started_at = 10
+    frame["time"] = 10.1
+    session._capture_controls(frame, flat)
+    assert len(observed) == 1 and observed[0][1] == 0
+    assert observed[0][0]["car"]["index"] == 0
+    assert len(session.sent_inputs) == 1 and session.sent_inputs[0].index == 0
+    frame["cars"][1]["position"] = [0, 1, 17]
+    session._capture_controls(frame, flat)
+    assert session.stopping and session.capture_aborted and len(session.sent_inputs) == 1
+
+
+@pytest.mark.parametrize("bad", ["speed", "gap"])
+def test_flip_capture_refuses_speed_or_continuity_loss_before_inputs(tmp_path, monkeypatch, bad):
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    frame["game_speed"] = .5 if bad == "speed" else 1.0
+    frame["packet_gap"] = bad == "gap"
+    session._capture_controls(frame, flat)
+    assert session.stopping and session.capture_aborted and session.sent_inputs == []
+
+
+def test_flip_capture_wall_deadline_stops_even_when_game_clock_does_not_advance(tmp_path, monkeypatch):
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.started_monotonic = 100
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: 220)
+    session._capture_controls(frame, flat)
+    assert session.stopping and session.stop_deadline == 0 and session.capture_aborted
+    assert session.sent_inputs == []
+
+
+def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completion(tmp_path, monkeypatch):
+    session, _frame, _flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.engine.reset = lambda: {"car": {"position": [0, -650, 17]}, "ball": {}}
+    writes = []
+    session.manager = NS(rlbot_interface=NS(send_msg=writes.append))
+    monkeypatch.setattr(adapter, "desired_state", lambda state, index: {"actor_index": index, "state": state})
+    session.reset()
+    assert len(writes) == 1 and writes[0]["actor_index"] == 0
+    with pytest.raises(RuntimeError, match="one attempt"):
+        session.reset()
+    assert len(writes) == 1
+
+
+def test_flip_candidate_requires_real_engine_success_event_and_stops_after_one_attempt(tmp_path, monkeypatch):
+    from test_training import reset_contact_case
+    # Synthetic production-detector regression; no actual demonstration supplied.
+    events = []
+    session, _frame, _flat = _capture_worker(tmp_path, monkeypatch, events=events)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.engine = reset_contact_case()
+    session.publish_attempt()
+    assert session.stopping and session.stop_deadline == 0 and not session.capture_ready
+    path = tmp_path / reference_capture.CANDIDATE_DIRECTORY / f"{session.engine.attempt_id}.json"
+    saved = json.loads(path.read_text())
+    assert saved["gate"] == "not-evaluated" and saved["permission"] == {"distribute": False}
+    assert saved["recording"]["outcome"] == "success"
+    assert any(event["name"] == "reset_acquired" for event in saved["recording"]["events"])
+    before = len(events)
+    session.publish_attempt()
+    assert len(events) == before
+    session.stopping = False
+    with pytest.raises(RuntimeError, match="bounded"):
+        session.reset()
+
+
+@pytest.mark.parametrize("change", ["no_event", "uncertain", "false_gate", "wrong_summary", "wrong_variant"])
+def test_flip_success_metadata_cannot_replace_matching_detector_event(tmp_path, monkeypatch, change):
+    from test_training import reset_contact_case
+    request = _flip_request(tmp_path, monkeypatch)
+    capture = reference_capture.validate_capture_request(request)
+    engine = reset_contact_case()
+    recording, summary = engine.recording(), engine.summary()
+    event = next(event for event in recording["events"] if event["name"] == "reset_acquired")
+    if change == "no_event":
+        recording["events"].remove(event)
+    elif change == "uncertain":
+        event["confidence"] = "uncertain"
+    elif change == "false_gate":
+        event["details"]["consumed_flip_observed"] = False
+    elif change == "wrong_summary":
+        summary["id"] = str(uuid.uuid4())
+    else:
+        recording["variant"]["simplified"] = True
+    with pytest.raises(ValueError):
+        reference_capture.persist_candidate(tmp_path, capture, engine.attempt_id, recording, summary, {})
+    assert not (tmp_path / reference_capture.CANDIDATE_DIRECTORY).exists()
+
+
 def test_capture_is_disabled_by_default_without_changing_ordinary_requests(tmp_path, monkeypatch):
     monkeypatch.delenv(reference_capture.ENV_PROFILE, raising=False)
     request = {"lesson_id": "speed-flip", "fixture": {"id": "ordinary-career"}}

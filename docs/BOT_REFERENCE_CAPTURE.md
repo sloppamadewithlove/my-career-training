@@ -1,6 +1,10 @@
 # Bot teaching-reference capture
 
-Checked 26 October 2026. No bot reference recording is bundled. The foundation in
+Updated 6 November 2026. No bot reference recording is bundled. The separate
+source-only `flip-reset-nexto` profile now defines one bounded experiment with
+the already installed policy; [its receipt](evidence/2026-11-06-flip-reset-bot-capture.md)
+owns its contract and limits. It is not a demonstrated reset. The speed-flip
+foundation and historical evidence below retain their scope. The foundation in
 `src/my_career_training/training/bot_reference.py` defines a candidate controller,
 an evidence evaluator and a benchmark selector. It contains no SDK, network or
 game calls, no learned weights and no third-party input arrays.
