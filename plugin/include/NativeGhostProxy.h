@@ -30,8 +30,9 @@ inline constexpr std::array<std::array<float, 3>, 16> kNativeGhostProxyVertices{
 
 // Closed, consistently outward-wound surfaces, suitable for filled triangle projection.
 inline constexpr std::array<std::array<std::uint8_t, 3>, 28> kNativeGhostProxyTriangles{{
-    {0, 1, 2}, {0, 2, 3}, {0, 3, 4}, {0, 4, 5}, {0, 5, 6}, {0, 6, 7},
-    {8, 10, 9}, {8, 11, 10}, {8, 12, 11}, {8, 13, 12}, {8, 14, 13}, {8, 15, 14},
+    // Split the concave silhouette at the cabin base rather than using one fan.
+    {0, 1, 2}, {0, 2, 3}, {0, 3, 6}, {0, 6, 7}, {3, 4, 5}, {3, 5, 6},
+    {8, 10, 9}, {8, 11, 10}, {8, 14, 11}, {8, 15, 14}, {11, 13, 12}, {11, 14, 13},
     {0, 8, 9}, {0, 9, 1}, {1, 9, 10}, {1, 10, 2},
     {2, 10, 11}, {2, 11, 3}, {3, 11, 12}, {3, 12, 4},
     {4, 12, 13}, {4, 13, 5}, {5, 13, 14}, {5, 14, 6},
