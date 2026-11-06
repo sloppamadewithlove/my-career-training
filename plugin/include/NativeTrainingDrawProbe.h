@@ -33,6 +33,8 @@ struct NativeDrawObservation {
     NativeDrawIdentity identity;
     bool ownedOffline = false, fresh = false, buildVerified = false;
     bool customTraining = false, online = false, replay = false, paused = false;
+    // Explicit attestation of this owned active worker lesson, not just IsInGame.
+    bool workerTraining = false;
     bool carObserved = false, ballObserved = false, actionsObserved = false;
     double observedAt = 0, gameSeconds = 0;
     std::array<float, 3> carPosition{}, ballPosition{};
@@ -89,7 +91,8 @@ inline std::shared_ptr<const NativeDrawDiagnosticFrame> prepareNativeDrawDiagnos
     if (!nativeDrawLeaseCurrent(lease, now) ||
         !sameNativeDrawIdentity(observation.identity, lease.identity) ||
         !observation.ownedOffline || !observation.fresh || !observation.buildVerified ||
-        !observation.customTraining || observation.online || observation.replay || observation.paused ||
+        (!observation.customTraining && !observation.workerTraining) ||
+        observation.online || observation.replay || observation.paused ||
         !observation.carObserved || !observation.ballObserved || !observation.actionsObserved ||
         !std::isfinite(observation.gameSeconds) || observation.gameSeconds < 0) return {};
     for (const auto& position : {observation.carPosition, observation.ballPosition})

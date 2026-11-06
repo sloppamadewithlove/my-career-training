@@ -33,6 +33,14 @@ int main() {
             "Render consumers must receive an immutable frame");
         require(frame && frame->recordedSeconds == 1.25 && frame->gameSeconds == 50,
             "Recording and live-clock timestamps were conflated");
+        auto worker = live;
+        worker.customTraining = false;
+        worker.workerTraining = true;
+        require(bool(prepareNativeGhostRenderFrame(worker, lease, sample, 11.01)),
+            "Owned worker Soccar lesson did not prepare a synchronized ghost pair");
+        worker.workerTraining = false;
+        require(!prepareNativeGhostRenderFrame(worker, lease, sample, 11.01),
+            "Missing lesson attestation admitted a frame");
         const auto& vertex = frame->car.vertices[4];
         require(near(vertex[0], 105) && near(vertex[1], 232) && near(vertex[2], 458),
             "Upside-down car geometry lost recorded orientation or translation");

@@ -16,7 +16,7 @@ struct NativeGhostRenderer::State {
 
     bool current(double time) {
         if (!frame || !currentLease || !game || game->IsInOnlineGame() || game->IsInReplay() ||
-            game->IsPaused() || !game->IsInCustomTraining()) return false;
+            game->IsPaused() || (!game->IsInGame() && !game->IsInCustomTraining())) return false;
         const auto lease = currentLease();
         if (!lease || !nativeGhostRenderFrameCurrent(*frame, *lease, time)) return false;
         auto server = game->GetCurrentGameState();
@@ -47,11 +47,12 @@ struct NativeGhostRenderer::State {
                 LinearColor value;
                 ~RestoreColor() { try { canvas.SetColor(value); } catch (...) {} }
             } restore{canvas, canvas.GetColor()};
-            const LinearColor carColor{0.15f, 0.75f, 1.0f, 0.12f};
+            // Installed Canvas SDK truncates LinearColor components directly to bytes.
+            const LinearColor carColor{38, 191, 255, 31};
             for (const auto& triangle : screen->triangles)
                 canvas.FillTriangle(pixel(screen->car[triangle[0]]), pixel(screen->car[triangle[1]]),
                     pixel(screen->car[triangle[2]]), carColor);
-            canvas.SetColor(LinearColor{0.5f, 0.9f, 1.0f, 0.35f});
+            canvas.SetColor(LinearColor{128, 230, 255, 89});
             for (const auto& line : screen->ball) canvas.DrawLine(pixel(line[0]), pixel(line[1]), 1.0f);
         } catch (...) { frame.reset(); }
     }

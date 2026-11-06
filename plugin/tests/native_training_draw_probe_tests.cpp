@@ -37,6 +37,31 @@ int main() {
         observed.carPosition[0] = 100;
         observed.actions.jump = true;
 
+        auto worker = observed;
+        worker.customTraining = false;
+        worker.workerTraining = true;
+        require(bool(prepareNativeDrawDiagnostic(worker, lease, 11.01)),
+            "Explicit owned worker lesson attestation was rejected");
+        worker.workerTraining = false;
+        require(!prepareNativeDrawDiagnostic(worker, lease, 11.01),
+            "Offline ownership alone granted worker lesson drawing");
+        worker.workerTraining = true;
+        for (auto field : {&NativeDrawObservation::ownedOffline, &NativeDrawObservation::fresh,
+                &NativeDrawObservation::buildVerified, &NativeDrawObservation::carObserved,
+                &NativeDrawObservation::ballObserved, &NativeDrawObservation::actionsObserved}) {
+            auto changed = worker;
+            changed.*field = false;
+            require(!prepareNativeDrawDiagnostic(changed, lease, 11.01),
+                "Worker attestation bypassed ownership, freshness, build or actor gate");
+        }
+        for (auto field : {&NativeDrawObservation::online, &NativeDrawObservation::replay,
+                &NativeDrawObservation::paused}) {
+            auto changed = worker;
+            changed.*field = true;
+            require(!prepareNativeDrawDiagnostic(changed, lease, 11.01),
+                "Worker attestation bypassed native unsafe mode gate");
+        }
+
         for (auto field : {&NativeDrawObservation::ownedOffline, &NativeDrawObservation::fresh,
                 &NativeDrawObservation::buildVerified, &NativeDrawObservation::customTraining,
                 &NativeDrawObservation::carObserved, &NativeDrawObservation::ballObserved,

@@ -27,6 +27,13 @@ int main() {
         auto retained = game->callback;
         retained(canvas);
         require(canvas.calls->triangles == 28 && canvas.calls->lines == 72, "Car/ball not drawn together");
+        require(canvas.calls->triangleColor == GhostColorBytes{38, 191, 255, 31},
+            "Car did not reach SDK with effective translucent byte color");
+        require(canvas.calls->lineColor == GhostColorBytes{128, 230, 255, 89},
+            "Ball did not reach SDK with effective translucent byte color");
+        require(canvas.calls->color == GhostColorBytes{17, 31, 47, 223}, "Canvas color not restored");
+        require(ghostColorBytes({.15f, .75f, 1, .12f})[3] == 0,
+            "SDK double stopped reproducing normalized alpha truncation");
         require(renderer.submit(frame) && game->registrations == 1, "Update registered duplicate drawable");
         const auto hidden = [&] {
             const int previous = canvas.calls->triangles;
@@ -43,6 +50,13 @@ int main() {
         }
         require(renderer.submit(frame), "Could not resubmit before training loss");
         game->training = false; hidden(); game->training = true;
+        game->training = false; game->inGame = true;
+        require(renderer.submit(frame), "Owned worker Soccar route rejected");
+        retained(canvas);
+        lease.reset(); hidden();
+        require(!renderer.submit(frame), "Offline game alone bypassed worker lesson attestation");
+        lease = frame->lease;
+        game->inGame = false; game->training = true;
         require(renderer.submit(frame), "Could not resubmit before actor loss");
         game->server.ball.memory_address = 4; hidden(); game->server.ball.memory_address = 3;
         require(renderer.submit(frame), "Could not resubmit before car loss");
@@ -67,7 +81,7 @@ int main() {
         require(renderer.submit(frame), "Could not resubmit before draw failure");
         canvas.calls->failLine = true;
         retained(canvas);
-        require(canvas.calls->color.R == 1 && canvas.calls->color.A == 1, "Draw failure leaked Canvas color");
+        require(canvas.calls->color == GhostColorBytes{17, 31, 47, 223}, "Draw failure leaked Canvas color");
         canvas.calls->failLine = false;
         hidden();
         renderer.stop();

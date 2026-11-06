@@ -8,7 +8,8 @@ class GameWrapper;
 namespace mct {
 
 // Game-thread-only Canvas consumer. The scope callback must re-observe ownership,
-// build, activity, toggle, recording and reset epoch; it must not reuse a cached lease.
+// build, active worker lesson or native training, toggle, recording and reset epoch;
+// it must not reuse a cached lease. IsInGame alone does not attest a worker lesson.
 // Construction is inert; this class does not make a recording available to players.
 // Refresh the frame faster than 100 ms using now(). A renewed lease needs a newly
 // prepared frame with exactly matching issued/expires; clear before retry/toggle-off.
