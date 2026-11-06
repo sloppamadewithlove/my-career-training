@@ -41,3 +41,14 @@ selected GPT-6 Astra max for independent review, with DeepSeek V4.1 Flash 1017
 max and GPT-6.1 Sol high for building. A pinned SDK
 header declares car spawn and collision-related methods, but declarations alone
 do not establish safe translucent, non-contact car rendering or cleanup.
+
+Read-only research of the pinned SDK and existing drawing receipt found no
+native car renderer or drawable registration in the current diagnostic core.
+Canvas declares projection, filled triangles and alpha color; runtime blending,
+callback threading and unload behavior are unverified. The SDK exposes
+unregister-all rather than a per-drawable token. The next bounded experiment is
+an isolated, explicitly temporary, self-authored filled car-shaped diagnostic
+proxy: test alpha, projection, toggle and cleanup in an owned offline session,
+and compare real car, ball and score with the proxy off and on. Do not spawn a
+game actor for this test. A successful proxy would not prove a final
+translucent car model, a permitted successful trace or teaching readiness.
