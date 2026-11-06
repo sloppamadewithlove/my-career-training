@@ -30,6 +30,14 @@ no Codex scheduling control. No unattended continuation is claimed.
   reset observer independently checks native build and scope, and must not claim
   authenticated IPC or infer reset identity from freshness. Its source is still
   under builder verification; independent review is required before integration.
+- After this review began, Astra found two diagnostic completion failures: the
+  native test advanced monotonic time while leaving wall time unchanged, masking
+  expiry being reported as failure; the backend withdrew its request before a
+  normally delayed terminal heartbeat could arrive. The builder reproduced both
+  and is correcting them. Future time-boundary tests must advance wall and
+  monotonic clocks together and exercise realistic acknowledgement delay without
+  renewing observation authority. Raw results remain in the existing private
+  heartbeat; adding another export is unnecessary for this diagnostic.
 - The game's updated executable matches the previously identified hash in a
   read-only check. That does not establish that the candidate loads or works.
   The user authorized the official `Without EAC` option for offline testing;
