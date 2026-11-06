@@ -27,7 +27,11 @@ public:
         if (terminal_) return;
         if (request.is_null() && request_.is_null()) return;
         try {
-            if (!validRequest(request, wallNow)) { stop("failed", "request_invalid"); return; }
+            // Wall-clock expiry gates admission. An admitted request completes
+            // against its fixed monotonic deadline even after expires_at passes.
+            if (request_.is_null() && !validRequest(request, wallNow)) {
+                stop("failed", "request_invalid"); return;
+            }
             if (!request_.is_null() && request != request_) { stop("failed", "request_changed"); return; }
             if (!scope || !read) { stop("failed", "reader_missing"); return; }
             if (request_.is_null()) request_ = request;

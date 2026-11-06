@@ -37,7 +37,7 @@ int main() {
             w.probe.status()["semantics_verified"] == false, "Raw samples gained reset authority");
         w.sample.worldSeconds = 0; w.sample.shotAttempt = 0; w.tick();
         check(w.probe.status()["samples"].size() == 2, "Raw reset-like values were rewritten or inferred");
-        w.scope.monotonic = 24; w.tick(); // Four seconds left when initially received at wall 11.
+        w.scope.monotonic = 24; w.tick(15); // Both clocks advance through the fixed deadline.
         check(w.probe.status()["status"] == "complete" && w.reads == 2, "Local deadline renewed");
         w.request["request_id"] = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"; w.scope.monotonic = 21; w.tick();
         check(w.reads == 2, "Retired probe rearmed");

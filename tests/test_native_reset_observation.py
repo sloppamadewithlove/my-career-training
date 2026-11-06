@@ -10,12 +10,21 @@ class World:
                          "start_identity": "100.000", "frontend": False, "heartbeat": {}}
         self.calls = 0
         self.probe = NativeResetObservation(self.observe, enabled=enabled,
-                                            clock=lambda: self.now, wall=lambda: 100)
+                                            clock=lambda: self.now, wall=lambda: 80 + self.now)
 
     def observe(self, frontend):
         assert frontend is False
         self.calls += 1
         return self.observed
+
+    def terminal_report(self):
+        request = self.probe.request()
+        return dict(request, status="complete", reason="deadline", semantics_verified=False,
+                    reset_generation=None, teaching_recording=False, samples=[{
+                        "round": 2, "shot_attempt": 3, "seconds_remaining": 10,
+                        "world_seconds": 40, "remaining": 10, "total_played": 4,
+                        "elapsed_monotonic": 0,
+                    }])
 
 
 def test_default_off_never_calls_observer():
@@ -37,6 +46,9 @@ def test_server_identity_explicit_intent_and_nonrenewable_deadline():
     world.now = 24
     assert world.probe.request()["expires_at"] == 105
     world.now = 25
+    assert world.probe.request()["expires_at"] == 105
+    assert world.probe.state()["status"] == "awaiting_ack"
+    world.now = 26
     assert world.probe.request() is None
     with pytest.raises(ValueError):
         world.probe.start()
@@ -57,12 +69,56 @@ def test_only_attributed_acknowledgment_completes_and_data_is_not_promoted():
     world = World()
     world.probe.start()
     request = world.probe.request()
-    report = dict(request, status="complete", request_id="wrong", samples=[{"round": 9}])
+    report = world.terminal_report()
+    report["request_id"] = "wrong"
     world.observed["heartbeat"]["native_reset_observation"] = report
     assert world.probe.request() is not None
     report["request_id"] = request["request_id"]
     assert world.probe.request() is None
     assert world.probe.state() == {"status": "complete", "enabled": True}
+    assert "samples" not in world.probe.state()
+    assert world.observed["heartbeat"]["native_reset_observation"]["samples"][0]["round"] == 2
+
+
+@pytest.mark.parametrize("delay", [0, 0.5, 0.9])
+def test_terminal_heartbeat_at_or_after_deadline_is_retained(delay):
+    world = World()
+    world.probe.start()
+    report = world.terminal_report()
+    world.now = 25
+    assert world.probe.request()["expires_at"] == 105
+    world.now += delay
+    world.observed["heartbeat"]["native_reset_observation"] = report
+    assert world.probe.request() is None
+    assert world.probe.state()["status"] == "complete"
+    assert world.observed["heartbeat"]["native_reset_observation"]["samples"] == report["samples"]
+    with pytest.raises(ValueError):
+        world.probe.start()
+
+
+def test_delivery_window_cannot_be_renewed_by_observing_heartbeat():
+    world = World()
+    world.probe.start()
+    report = world.terminal_report()
+    report["status"] = "observing"
+    world.observed["heartbeat"]["native_reset_observation"] = report
+    world.now = 25.9
+    assert world.probe.request()["expires_at"] == 105
+    world.now = 26
+    assert world.probe.request() is None
+    report["status"] = "complete"
+    assert world.probe.request() is None and world.probe.state()["status"] == "stopped"
+
+
+def test_scope_loss_during_ack_grace_still_retires_request():
+    world = World()
+    world.probe.start()
+    report = world.terminal_report()
+    world.now = 25.2
+    world.observed["nonce"] = "other"
+    world.observed["heartbeat"]["native_reset_observation"] = report
+    assert world.probe.request() is None
+    assert world.probe.state()["status"] == "stopped"
 
 
 @pytest.mark.parametrize("now", [19, float("nan"), float("inf")])
@@ -120,5 +176,13 @@ def test_file_bridge_routes_explicit_request_and_acknowledgment(tmp_path):
     request = published["native_reset_observation_request"]
     assert request["nonce"] == bridge.session and request["pid"] == 42
     assert request["expires_at"] - request["issued_at"] == 5
+    report = dict(request, status="complete", samples=[{"round": 2}])
+    world.observed["heartbeat"]["native_reset_observation"] = report
+    backend.plugin_status = world.observed["heartbeat"]
+    bridge.poll()
+    published = json.loads((bridge.directory / "state.json").read_text(encoding="utf-8"))
+    assert published["native_reset_observation_request"] is None
+    assert published["plugin"]["native_reset_observation"]["samples"] == [{"round": 2}]
+    assert "samples" not in published["native_reset_observation"]
     backend.store.close()
     assert app is not None

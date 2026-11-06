@@ -6,6 +6,8 @@ import uuid
 
 
 class NativeResetObservation:
+    ACK_GRACE_SECONDS = 1.0  # Existing native heartbeats publish at 0.5-second intervals.
+
     def __init__(self, observe, *, enabled=False, clock=time.monotonic, wall=time.time):
         self._observe, self._enabled, self._clock, self._wall = observe, enabled is True, clock, wall
         self._request = None
@@ -36,7 +38,8 @@ class NativeResetObservation:
             return
         try:
             now = self._clock()
-            if not math.isfinite(now) or now < self._last_clock or now >= self._deadline:
+            if (not math.isfinite(now) or now < self._last_clock
+                    or now >= self._deadline + self.ACK_GRACE_SECONDS):
                 raise ValueError("deadline")
             self._last_clock = now
             observed = self._observe(False)
@@ -49,10 +52,16 @@ class NativeResetObservation:
                                                for key in ("request_id", "nonce", "pid", "start_identity")):
                 # Diagnostic acknowledgement only; no raw data becomes a recording.
                 phase = report.get("status")
-                if phase in {"observing", "complete", "failed"}:
+                if phase in {"complete", "failed"}:
                     self._status = {"status": phase, "enabled": True}
-                    if phase != "observing":
-                        self._request = None
+                    self._request = None
+                    return
+                if phase == "observing":
+                    self._status = {"status": phase, "enabled": True}
+            if now >= self._deadline:
+                # Keep identical intent available for delivery only. Neither its
+                # expires_at nor the native observer's first deadline is renewed.
+                self._status = {"status": "awaiting_ack", "enabled": True}
         except Exception:
             self._request = None
             self._status = {"status": "stopped", "enabled": True}
