@@ -27,12 +27,13 @@ finding, not a live diagnosis. Before relaxing the guard, verify actual
 flip-availability and reset transitions for the native scenario; do not treat an
 already available flip as a newly acquired reset.
 
-Independent source review is pending. Two bounded DeepSeek reviewer requests
+Two bounded DeepSeek reviewer requests
 returned no visible answer after 3,000 and 7,000 completion tokens respectively;
 neither is an approval. Reported costs were $0.002001 and $0.00423972. Stop
-repeating that unchanged reviewer request; obtain an approved independent code
-review through another available route before integration. The reviewed source
-and gameplay evidence remain separate.
+repeating that unchanged reviewer request. GPT-6 Astra max subsequently reviewed
+the exact source, found no blockers and reported 98 passing checks; see the
+[timeline branch receipt](https://github.com/sloppamadewithlove/my-career-training/blob/feat/ghost-ball-timeline-2026-11-06/docs/evidence/2026-11-06-ghost-ball-timeline.md).
+The reviewed source and gameplay evidence remain separate.
 
 The specified GPT-5.6 Codex fallback was also attempted; the existing ChatGPT
 login reported that model unsupported, so no review occurred. The owner then

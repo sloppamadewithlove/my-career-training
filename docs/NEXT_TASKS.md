@@ -12,12 +12,13 @@ The ghost must not affect the player's car, ball, scoring or physics. An actual,
 permitted successful demonstration and the native renderer remain unverified;
 the existing diagnostic crosses do not satisfy this request.
 
-An isolated source candidate adds recorded-ball interpolation on the same
+An isolated reviewed source candidate adds recorded-ball interpolation on the same
 timeline as the car, while retaining missing-data and packet-gap boundaries.
 The author and an independent tester each ran 50 focused Python checks; Ruff
-passed. It remains local and is not integrated: independent source review is
-pending after two empty reviewer responses. It does not draw a ghost, create a
-successful recording, or establish gameplay acceptance.
+passed. GPT-6 Astra max found no blocking defects and reported 98 passing tests.
+Branch `feat/ghost-ball-timeline-2026-11-06` is published but not integrated.
+It does not draw a ghost, create a successful recording, or establish gameplay
+acceptance. GhostPractice still drops ball coordinates during placement.
 
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
