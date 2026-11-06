@@ -27,6 +27,15 @@ finding, not a live diagnosis. Before relaxing the guard, verify actual
 flip-availability and reset transitions for the native scenario; do not treat an
 already available flip as a newly acquired reset.
 
+The existing private RLBot capture worker records a project-controlled bot,
+not native Custom Training, and its 120 Hz assumptions are not established for
+the current native path. The native diagnostic frame currently has no producer
+recording a complete oriented car pose, ball, controls and reset epoch. The
+shortest native proof is to establish those sampled signals and a shared game
+clock, then validate an actual fixed-start successful reset before enabling
+teaching playback. An RLBot trace is not interchangeable without proving its
+setup and success match the native lesson.
+
 Two bounded DeepSeek reviewer requests
 returned no visible answer after 3,000 and 7,000 completion tokens respectively;
 neither is an approval. Reported costs were $0.002001 and $0.00423972. Stop
