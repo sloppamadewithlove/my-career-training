@@ -53,6 +53,19 @@ and compare real car, ball and score with the proxy off and on. Do not spawn a
 game actor for this test. A successful proxy would not prove a final
 translucent car model, a permitted successful trace or teaching readiness.
 
+A later read-only inspection identified the installed BakkesMod core as a
+4,638,208-byte x64 PE with SHA-256
+`1b3226b447606f5552396907e34655de099202f371441bd4ce09bb6c74f20e3e`.
+REA's complete export inventory found the drawable registration and removal
+entry points. A bounded `dumpbin` fallback showed both paths pass a type key,
+and removal reaches a keyed helper. That suggests type-scoped removal, but does
+not establish the ownership mapping, synchronization or whether an in-flight
+callback is drained. The Ghidra provider was unavailable due to its local temp
+volume self-test; other REA disassemblers were unavailable. No runtime claim
+follows from the fallback. A future isolated offline experiment should compare
+two plugin types and use a short, automatically released callback barrier to
+observe scope and drain, without accessing car or ball actors.
+
 The first pure proxy mesh candidate passed edge-pairing and volume checks, but
 independent Astra review found overlapping, inward-facing triangles in the
 concave side polygon. The candidate is held for correction. Improvement: mesh
