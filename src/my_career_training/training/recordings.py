@@ -22,6 +22,7 @@ METADATA_KEYS = (
     "success_evidence",
 )
 ACTION_KEYS = ("throttle", "steer", "pitch", "yaw", "roll", "jump", "boost", "handbrake")
+AIR_STATES = ("OnGround", "Jumping", "DoubleJumping", "Dodging", "InAir")
 
 
 def _finite(value):
@@ -89,6 +90,28 @@ def validate_recording(value, *, require_reference=False):
             raise ValueError("Invalid packet gap marker.")
         if "wheel_contact" in sample and not isinstance(sample["wheel_contact"], bool):
             raise ValueError("Invalid observed wheel contact in recording.")
+        for key in ("has_jumped", "has_double_jumped", "has_dodged"):
+            if key in sample and not isinstance(sample[key], bool):
+                raise ValueError(f"Invalid observed {key} in recording.")
+        if ("air_state" in sample and sample["air_state"] not in AIR_STATES
+                and not (type(sample["air_state"]) is int and 0 <= sample["air_state"] < len(AIR_STATES))):
+            raise ValueError("Invalid observed air state in recording.")
+        if "dodge_timeout" in sample and (not _finite(sample["dodge_timeout"]) or sample["dodge_timeout"] < -1):
+            raise ValueError("Invalid observed dodge timeout in recording.")
+        if "game_seconds" in sample and (not _finite(sample["game_seconds"]) or sample["game_seconds"] < 0):
+            raise ValueError("Invalid source game clock in recording.")
+        if "frame_num" in sample and (type(sample["frame_num"]) is not int or not 0 <= sample["frame_num"] < 2**32):
+            raise ValueError("Invalid source frame number in recording.")
+        if "car_latest_touch" in sample:
+            touch = sample["car_latest_touch"]
+            if (not isinstance(touch, dict) or not _finite(touch.get("game_seconds"))
+                    or touch["game_seconds"] < 0):
+                raise ValueError("Invalid attributed car touch clock in recording.")
+            for key in ("position", "location", "normal"):
+                if key in touch and not _vector(touch[key], 3):
+                    raise ValueError("Invalid attributed car touch geometry in recording.")
+            if "ball_index" in touch and (type(touch["ball_index"]) is not int or touch["ball_index"] < 0):
+                raise ValueError("Invalid attributed car touch ball in recording.")
         if "boost" in sample and (not _finite(sample["boost"]) or not 0 <= sample["boost"] <= 100):
             raise ValueError(
                 "Invalid observed car boost in recording; normal boost behavior is not observed."
@@ -247,6 +270,7 @@ class Recorder:
         car, ball = frame["car"], frame["ball"]
         sample = {
             "time": relative,
+            "game_seconds": time,
             "position": deepcopy(car["position"]),
             "rotation": deepcopy(car["rotation"]),
             "velocity": deepcopy(car["velocity"]),
@@ -262,9 +286,17 @@ class Recorder:
         # personal recordings remain readable; missing evidence is not invented.
         # ``boost`` is the observed car boost amount (0..100), never the intended
         # controller action, so a normal-boost burn can be checked from samples.
-        for key in ("angular_velocity", "wheel_contact", "boost"):
+        # Retain the actual state transitions used by the reset detector so a
+        # future capture can be checked from samples, not a success label alone.
+        for key in ("angular_velocity", "wheel_contact", "boost", "air_state",
+                    "has_jumped", "has_double_jumped", "has_dodged", "dodge_timeout"):
             if key in car:
                 sample[key] = deepcopy(car[key])
+        if "frame_num" in frame:
+            sample["frame_num"] = deepcopy(frame["frame_num"])
+        if isinstance(car.get("latest_touch"), dict):
+            sample["car_latest_touch"] = {key: deepcopy(value) for key, value in car["latest_touch"].items()
+                                          if key in ("game_seconds", "position", "location", "normal", "ball_index")}
         self.samples.append(sample)
 
     def export(self, *, outcome="unfinished", events=None, duration=0):

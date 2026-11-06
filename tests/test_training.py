@@ -256,6 +256,54 @@ def test_flip_reset_requires_spent_flip_touch_clear_surface_and_continuous_packe
         assert "reset_acquired" not in result._emitted
 
 
+def test_actual_detector_inputs_are_retained_in_export_without_certifying_a_trace():
+    # Synthetic detector regression; this is not a captured successful execution.
+    engine = reset_contact_case()
+    capture = engine.recording()
+    samples = capture["samples"]
+    spent = next(sample for sample in samples if sample.get("has_dodged") is True)
+    acquired = samples[-1]
+    assert spent["air_state"] == "Dodging" and spent["has_jumped"] is True
+    assert acquired["air_state"] == "InAir"
+    assert [acquired[key] for key in ("has_jumped", "has_double_jumped", "has_dodged")] == [False] * 3
+    assert spent["game_seconds"] < acquired["car_latest_touch"]["game_seconds"] == acquired["game_seconds"]
+    assert acquired["car_latest_touch"]["ball_index"] == 0
+    assert acquired["dodge_timeout"] == -1
+    assert validate_recording(capture) == []
+    assert capture["metadata"]["source"]["kind"] == "local_player"
+    assert capture["metadata"]["permission"]["distribute"] is False
+
+
+def test_recorder_copies_only_available_packet_evidence_and_no_account_fields():
+    recorder = Recorder(configure_lesson("flip-reset"))
+    observed = frame(70, frame_num=8400, car={"latest_touch": {
+        "game_seconds": 69.99, "position": [1, 2, 3], "normal": [0, 0, 1], "ball_index": 0,
+        "name": "synthetic-private-player-name"}})
+    recorder.append(observed)
+    sample = recorder.export()["samples"][0]
+    assert sample["game_seconds"] == 70 and sample["time"] == 0 and sample["frame_num"] == 8400
+    assert "name" not in sample["car_latest_touch"]
+    observed["car"]["latest_touch"]["position"][0] = 999
+    assert sample["car_latest_touch"]["position"] == [1, 2, 3]
+    legacy_frame = frame(71)
+    for key in ("has_jumped", "has_double_jumped", "has_dodged", "air_state", "dodge_timeout"):
+        legacy_frame["car"].pop(key)
+    recorder.append(legacy_frame)
+    legacy = recorder.export()["samples"][-1]
+    assert all(key not in legacy for key in ("has_jumped", "has_double_jumped", "has_dodged", "air_state",
+                                            "dodge_timeout", "frame_num", "car_latest_touch"))
+
+
+@pytest.mark.parametrize("key,value", [("has_dodged", 1), ("air_state", "unknown"),
+    ("dodge_timeout", float("nan")), ("game_seconds", -1), ("frame_num", True),
+    ("car_latest_touch", {"game_seconds": "unknown"})])
+def test_recording_rejects_malformed_optional_acquisition_evidence(key, value):
+    capture = recording()
+    capture["samples"][0][key] = value
+    with pytest.raises(ValueError):
+        validate_recording(capture)
+
+
 def test_airborne_reset_available_at_start_is_not_acquisition():
     engine = TrainingEngine("flip-reset")
     t = activate(engine)
