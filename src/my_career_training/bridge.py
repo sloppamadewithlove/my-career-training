@@ -68,6 +68,7 @@ class Backend(QObject):
         # without rereading unchanged capture bytes on every view refresh.
         self._recording_practice_cache = {}
         self._native_ghost_retry = None
+        self._ghost_assistance_command_id = None
         # True only while a legacy (no explicit recording_id) play command owns
         # the coach rendering. The new practice flow never falls back to it.
         self._legacy_playback = False
@@ -1284,7 +1285,14 @@ class Backend(QObject):
                     if not self._ghost_pending:
                         self._ghost_deadline = None
                     self._clear_ghost_practice_state(lesson_id=lesson_id, sync_preferences=False)
-                self._send("preferences", preferences=values)
+                if key == "ghost":
+                    command_id = self._send("preferences", preferences=values, acknowledge_ghost=True)
+                    self._remember_ghost_command(command_id, "ghost_control", lesson_id, value,
+                                                 sync_preferences=False)
+                    self._ghost_practice_enabled = value is True
+                    self._ghost_assistance_command_id = command_id if value else None
+                else:
+                    self._send("preferences", preferences=values)
         elif action == "lesson_variant":
             if self._worker_active():
                 raise ValueError("Stop the lesson before changing its starting setup.")
@@ -1457,6 +1465,7 @@ class Backend(QObject):
         if enabled == self._ghost_practice_enabled:
             return  # Single edge; no duplicate command for a repeated press.
         command_id = self._send("ghost_control", operation="toggle", enabled=enabled)
+        self._ghost_assistance_command_id = None
         self._remember_ghost_command(command_id, "ghost_control", lesson_id, enabled)
         self._ghost_practice_enabled = enabled
         # The new practice toggle takes over from any legacy playback; Off must
@@ -1467,11 +1476,16 @@ class Backend(QObject):
             self._clear_ghost_practice_state(lesson_id=lesson_id)
         self.stateChanged.emit()
 
-    def _remember_ghost_command(self, command_id, kind, lesson_id, enabled=None, practice=None):
+    def _remember_ghost_command(self, command_id, kind, lesson_id, enabled=None, practice=None,
+                                sync_preferences=True):
         """Track one bounded ghost command until the worker answers it."""
+        if kind == "ghost_control":
+            self._ghost_pending = {identity: pending for identity, pending in self._ghost_pending.items()
+                if not (pending["kind"] == kind and pending["lesson_id"] == lesson_id
+                        and pending["session_id"] == self.session_id)}
         self._ghost_seq += 1
         self._ghost_pending[command_id] = {"kind": kind, "lesson_id": lesson_id,
-            "enabled": enabled, "practice": practice,
+            "enabled": enabled, "practice": practice, "sync_preferences": sync_preferences,
             "session_id": self.session_id, "seq": self._ghost_seq}
         self._ghost_deadline = time.monotonic() + 5.0
         while len(self._ghost_pending) > 8:
@@ -1502,10 +1516,12 @@ class Backend(QObject):
                for item in self._ghost_pending.values()):
             return  # A newer command for this lesson already superseded it.
         lesson_id = pending["lesson_id"]
-        if event.get("accepted") is not True:
+        sync_preferences = pending.get("sync_preferences", True)
+        if (event.get("accepted") is not True or (pending["kind"] == "ghost_control"
+                and event.get("enabled") is not pending["enabled"])):
             # Never leave an optimistic On behind a worker rejection.
             self._ghost_practice_enabled = False
-            self._clear_ghost_practice_state(lesson_id=lesson_id)
+            self._clear_ghost_practice_state(lesson_id=lesson_id, sync_preferences=sync_preferences)
             self.error = str(event.get("error") or "The game worker did not accept that ghost command.")
             return
         if pending["kind"] == "play_recording":
@@ -1522,9 +1538,10 @@ class Backend(QObject):
         if pending["enabled"] is True and not self._ghost_practice_enabled:
             return  # Local Off already won; a late On answer cannot revive it.
         self._ghost_practice_enabled = pending["enabled"] is True
-        self._sync_ghost_assistance(lesson_id, self._ghost_practice_enabled)
+        if sync_preferences:
+            self._sync_ghost_assistance(lesson_id, self._ghost_practice_enabled)
         if not self._ghost_practice_enabled:
-            self._clear_ghost_practice_state(lesson_id=lesson_id)
+            self._clear_ghost_practice_state(lesson_id=lesson_id, sync_preferences=sync_preferences)
 
     def _expire_ghost_pending(self):
         """Bounded wait: a lost worker answer must not leave practice pending."""
@@ -1532,11 +1549,12 @@ class Backend(QObject):
             return
         if time.monotonic() < self._ghost_deadline:
             return
+        sync_preferences = max(self._ghost_pending.values(), key=lambda item: item["seq"]).get("sync_preferences", True)
         self._ghost_pending = {}
         self._ghost_deadline = None
         if self._ghost_practice_enabled:
             self._ghost_practice_enabled = False
-            self._clear_ghost_practice_state()
+            self._clear_ghost_practice_state(sync_preferences=sync_preferences)
             self.error = "The game worker did not confirm the ghost command. Ghost practice is off."
             self.stateChanged.emit()
 
@@ -1550,6 +1568,7 @@ class Backend(QObject):
         practice = self.telemetry.get("ghost_practice") or {}
         self._ghost_practice_enabled = False
         self._native_ghost_retry = None
+        self._ghost_assistance_command_id = None
         self._legacy_playback = False
         self.telemetry["ghost_practice"] = {
             "available": practice.get("available") is True, "enabled": False, "playing": False,
@@ -1776,6 +1795,11 @@ class Backend(QObject):
         elif kind == "telemetry":
             if cancelled:
                 return
+            if (self._ghost_assistance_command_id and
+                    (event.get("native_ghost_source") or {}).get("ghost_command_id") != self._ghost_assistance_command_id):
+                event = dict(event, native_ghost_source=None,
+                    ghost_practice=dict(event.get("ghost_practice") or {}, visible=False, pose=None,
+                        lines=[], coach_actions=None, controller={"observed": False, "actions": None}))
             pending = self._native_ghost_retry
             if pending and pending["session_id"] == self.session_id:
                 source = event.get("native_ghost_source") or {}

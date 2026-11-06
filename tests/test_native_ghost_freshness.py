@@ -60,6 +60,41 @@ def test_assistance_off_revokes_and_suppresses_delayed_on_without_changing_displ
     assert backend.state["telemetry"]["ghost_practice"]["pose"] is None
 
 
+@pytest.mark.parametrize("result", ["applied", "unavailable", "unsupported", "timeout"])
+def test_assistance_on_requires_real_worker_ack_and_preserves_saved_display(ghost_backend, result):
+    from test_game_worker_ghost_practice import FakeProcess, lesson_session
+    backend = ghost_backend
+    session, events = lesson_session()
+    backend.session_id = session.session_id
+    backend.request = {"lesson_id": "speed-flip"}
+    backend.process = FakeProcess()
+    backend.telemetry = {"ghost_practice": session.practice.snapshot(),
+                         "ghost_practice_support": session.practice_support}
+    if result == "unavailable":
+        session.practice = None
+        session.practice_snapshot = {}
+    elif result == "unsupported":
+        session.practice_support = {"supported": False}
+    display_before = copy.deepcopy(backend.document["settings"].get("training_display"))
+    backend.dispatch("assistance", {"id": "speed-flip", "key": "ghost", "value": True})
+    command = json.loads(backend.process.writes[-1])
+    assert command["acknowledge_ghost"] is True
+    assert backend.state["telemetry"]["ghost_practice_pending"] is True
+    if result == "timeout":
+        backend._ghost_deadline = 0
+        backend._expire_ghost_pending()
+    else:
+        session.handle_command(command)
+        ack = events[-1]
+        assert ack["type"] == "ghost_ack" and ack["id"] == command["id"]
+        assert ack["accepted"] is (result == "applied")
+        backend._event(ack)
+    assert backend._ghost_practice_enabled is (result == "applied")
+    assert backend.state["telemetry"]["ghost_practice_pending"] is False
+    assert backend.document["lesson_preferences"]["speed-flip"]["ghost"] is True
+    assert backend.document["settings"].get("training_display") == display_before
+
+
 def test_packet_arrival_receipt_precedes_inbox_delay_and_coalescing(tmp_path, monkeypatch):
     emitted = []
     session, packet = simulated_session(tmp_path, monkeypatch, emitted)
@@ -226,8 +261,9 @@ def test_actual_worker_backend_file_bridge_and_native_source_age(tmp_path, monke
 
 @pytest.mark.skipif(not os.environ.get("MCT_NATIVE_GHOST_PLAYBACK_TEST"),
                     reason="Requires native playback test and companion recorded-pose integration")
+@pytest.mark.parametrize("lesson", ["speed-flip", "flip-reset"])
 def test_actual_retry_auto_reset_fence_and_assistance_off_revoke_native_ghost(
-        ghost_backend, tmp_path, monkeypatch):
+        ghost_backend, tmp_path, monkeypatch, lesson):
     from my_career_training import adapter
     from my_career_training.storage import Store
     from my_career_training.training import practice_support
@@ -237,17 +273,18 @@ def test_actual_retry_auto_reset_fence_and_assistance_off_revoke_native_ghost(
     backend = ghost_backend
     events = []
     session, template, sent = training_recovery_session(tmp_path, monkeypatch, events, [])
-    session.request.update(lesson_id="speed-flip", in_game=True)
-    teacher, _ = lesson_session()
+    session.request.update(lesson_id=lesson, in_game=True)
+    teacher, _ = lesson_session(lesson)
+    session.engine = teacher.engine
     session.practice, session.coach = teacher.practice, teacher.coach
-    session.practice_support = practice_support("speed-flip")
+    session.practice_support = practice_support(lesson)
     session.practice.set_enabled(True, player_pose={"position": [0, -2500, 17], "rotation": [0, 0, 0]})
     backend.session_id = session.session_id
     backend.session_state = "training"
-    backend.request = {"lesson_id": "speed-flip", "variants": {}}
+    backend.request = {"lesson_id": lesson, "variants": {}}
     backend.process = FakeProcess()
     backend._ghost_practice_enabled = True
-    backend._sync_ghost_assistance("speed-flip", True)
+    backend._sync_ghost_assistance(lesson, True)
     pipe = FileBridge(tmp_path, backend.dispatch, lambda: backend.state, clock=lambda: 2000)
     pipe.poll()
     monkeypatch.setattr(adapter, "desired_state", lambda state, human, *_: (state, human))
@@ -356,14 +393,50 @@ def test_actual_retry_auto_reset_fence_and_assistance_off_revoke_native_ghost(
         assert visible(cached) is True
 
         display_before = copy.deepcopy(backend.document["settings"]["training_display"])
-        backend.dispatch("assistance", {"id": "speed-flip", "key": "ghost", "value": False})
+        backend.dispatch("assistance", {"id": lesson, "key": "ghost", "value": False})
         session.handle_command(json.loads(backend.process.writes[-1]))
+        old_off_ack = events[-1]
+        assert old_off_ack["type"] == "ghost_ack" and old_off_ack["enabled"] is False
         assert session.practice.enabled is False
         assert backend.document["settings"]["training_display"] == display_before
         delayed = [event for event in events if event["type"] == "telemetry"][-1]
         backend._event(delayed)
         pipe.poll()
         assert visible(json.loads((pipe.directory / "state.json").read_text())) is False
+
+        backend.dispatch("assistance", {"id": lesson, "key": "ghost", "value": True})
+        on = json.loads(backend.process.writes[-1])
+        assert on["acknowledge_ghost"] is True and backend._ghost_practice_enabled is True
+        assert backend.state["telemetry"]["ghost_practice_pending"] is True
+        backend._event(delayed)
+        pipe.poll()
+        assert visible(json.loads((pipe.directory / "state.json").read_text())) is False
+        session.handle_command(on)
+        on_ack = events[-1]
+        assert on_ack["id"] == on["id"] and on_ack["accepted"] is True and on_ack["enabled"] is True
+        backend._event(on_ack)
+        backend._event(old_off_ack)  # Older Off after the newer real On acknowledgement.
+        assert backend._ghost_practice_enabled is True
+        assert backend.state["telemetry"]["ghost_practice_pending"] is False
+        backend._event(delayed)  # Old On packet is still not the newly applied On.
+        pipe.poll()
+        assert visible(json.loads((pipe.directory / "state.json").read_text())) is False
+        cached, packet = tick()
+        assert cached["telemetry"]["native_ghost_source"]["ghost_command_id"] == on["id"]
+        assert visible(cached) is True
+        assert backend.document["lesson_preferences"][lesson]["ghost"] is True
+        assert backend.document["settings"]["training_display"] == display_before
+        newer_on_packet = [event for event in events if event["type"] == "telemetry"][-1]
+        backend.dispatch("assistance", {"id": lesson, "key": "ghost", "value": False})
+        session.handle_command(json.loads(backend.process.writes[-1]))
+        backend._event(events[-1])
+        backend._event(on_ack)  # A delayed old On answer after the latest Off.
+        backend._event(newer_on_packet)
+        pipe.poll()
+        assert backend._ghost_practice_enabled is False
+        assert visible(json.loads((pipe.directory / "state.json").read_text())) is False
+        assert backend.document["lesson_preferences"][lesson]["ghost"] is False
+        assert backend.document["settings"]["training_display"] == display_before
 
         benchmark = subprocess.run([os.environ["MCT_NATIVE_GHOST_PLAYBACK_TEST"], "--fence-benchmark"],
             input=json.dumps({"bridge_directory": str(pipe.directory), "session_id": backend.session_id,

@@ -120,6 +120,7 @@ class PacketArrival:
     received_uptime_ms: int | None
     sequence: int
     reset_generation: tuple[str, str] | None = None
+    ghost_command_id: str | None = None
 
     @property
     def match_info(self):
@@ -302,6 +303,7 @@ class GameSession:
         self.last_telemetry = -math.inf
         self.packet_sequence = 0
         self.native_ghost_generation = None
+        self.native_ghost_command_id = None
         self.last_render = -math.inf
         self.seen_active = False
         self.result_sent = False
@@ -335,7 +337,7 @@ class GameSession:
         # Stamp at the RLBot callback, before inbox coalescing or worker delays.
         self.packet_sequence += 1
         self.events.put(("packet", PacketArrival(packet, windows_uptime_ms(), self.packet_sequence,
-                                               self.native_ghost_generation)))
+                                               self.native_ghost_generation, self.native_ghost_command_id)))
 
     def command(self, command):
         if command.get("type", command.get("command")) in {"stop", "shutdown"}:
@@ -1081,6 +1083,18 @@ class GameSession:
                     self.legacy_playback = False
                 elif self.practice.available and self.practice_support.get("supported"):
                     self.practice_snapshot = self.practice.set_enabled(True, player_pose=self._player_pose())
+            if command.get("acknowledge_ghost") is True:
+                enabled = self.practice_snapshot.get("enabled") is True
+                requested = preferences.get("ghost")
+                supported = (self.practice is not None and self.practice.available
+                             and self.practice_support.get("supported") is True)
+                applied = isinstance(requested, bool) and enabled == requested and (not requested or supported)
+                self.native_ghost_command_id = command.get("id")
+                if applied:
+                    self._ack_ghost(command, accepted=True, enabled=enabled)
+                else:
+                    self._ack_ghost(command, accepted=False, enabled=enabled,
+                        error="Choose an available supported recording before showing its ghost.")
         elif kind == "coaching":
             from .training import coaching_preferences
             self.coaching_preferences = coaching_preferences(command.get("preferences", {}))
@@ -1093,6 +1107,7 @@ class GameSession:
             operation, value = command.get("operation"), command.get("value")
             if operation == "toggle":
                 self._toggle_practice(command.get("enabled"))
+                self.native_ghost_command_id = command.get("id")
                 self._ack_ghost(command, accepted=True, enabled=self.practice_snapshot.get("enabled"))
                 return
             elif operation == "pause":
@@ -1475,6 +1490,7 @@ class GameSession:
                            "received_uptime_ms": arrival.received_uptime_ms, "sequence": arrival.sequence,
                            "bridge_session": arrival.reset_generation[0] if arrival.reset_generation else None,
                            "reset_generation": arrival.reset_generation[1] if arrival.reset_generation else None,
+                           "ghost_command_id": arrival.ghost_command_id,
                            "reset_observed": (self.engine is not None and self.engine.state == "active"
                                               and self.engine.started_at is not None),
                            "attempt_id": self.engine.attempt_id if self.engine is not None else None,
@@ -1712,7 +1728,9 @@ class GameSession:
                     try:
                         self.handle_command(value)
                     except (ValueError, RuntimeError, KeyError) as error:
-                        if (value.get("type", value.get("command")) in {"ghost_control", "play_recording"}
+                        if ((value.get("type", value.get("command")) in {"ghost_control", "play_recording"}
+                                or (value.get("type", value.get("command")) == "preferences"
+                                    and value.get("acknowledge_ghost") is True))
                                 and not value.get("_capture_ack")):
                             # A safe rejection for exactly this command; the
                             # bridge reverts any optimistic state on it.
