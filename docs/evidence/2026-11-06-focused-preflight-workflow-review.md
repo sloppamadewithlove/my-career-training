@@ -74,3 +74,21 @@ save root was discovered, or that launch is ready. Supported Steam Without EAC
 selection, the actual loader route, private lease, and runtime compatibility
 remain to be verified. Future operators should run the reviewed one-shot directly
 in the transient shell and poll its private receipt only after that shell exits.
+
+## Real staging and restoration check
+
+A later bounded check staged the reviewed identity observer and isolated the two
+plugin configuration files, then recovered using the reviewed conditional
+transaction; neither phase launched the game or sent input. Both completed
+receipts recorded successful final source validation and the recovery transaction
+reported restored. Independent readback found both configuration files match
+retained baseline hashes, the active marker and staged observer DLL absent, and
+the private journal retained. A fresh comparison found 513 unchanged entries,
+zero changed, new or missing, in the previously identified profile roots. That
+comparison does not prove every possible save root or cloud writer was covered.
+
+One preceding stage attempt was refused by a helper-command guard; its receipt
+cannot identify the offending process. Independent inspection found no marker,
+journal or observer DLL and config hashes unchanged, so no recovery was indicated
+for that attempt. The later successful transaction is distinct evidence and
+establishes no game/plugin load, launch mode, runtime compatibility or gameplay.
