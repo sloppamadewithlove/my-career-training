@@ -80,3 +80,20 @@ scan passed. The private DLL is 165,888 bytes, SHA-256
 PE imports retain exactly the four intended SDK getters; no callback or mutation
 API was introduced. No private request, raw log, account SID, game asset or binary
 is included in the source candidate.
+
+## Steam launch attempt
+
+On 6 November, the owner authorized selecting the official without-EAC option if
+offered; this did not authorize switching Steam to offline mode.
+Restarting Steam displayed **Sign in** before the game or launch-option selection
+was reached. Steam was then relaunched with its original `-silent` argument.
+Its authentication state before the attempt is unknown; this does not establish
+that the attempt signed the owner out.
+
+No credentials were entered, game launched, DLL injected, without-EAC option
+selected or configuration edited. Comparison with the private preflight baseline
+found the original 27/27 profile/config files and checked assets unchanged.
+The fixed-rendezvous observer remains unexecuted, so there is no new identity,
+compatibility, menu-readiness or anti-cheat evidence. The next required owner
+action is to sign in to Steam; ownership and the permitted launch route must then
+be re-established before a bounded observation.

@@ -1,6 +1,6 @@
 # Development and testing workflow
 
-Updated 26 October 2026. Universal working agreement for implementation, review
+Updated 6 November 2026. Universal working agreement for implementation, review
 and evidence. Product/release truth lives in [PROJECT_STATUS.md](PROJECT_STATUS.md);
 the taskboard is [NEXT_TASKS.md](NEXT_TASKS.md); the product contract is
 [BUILD_SPEC.md](BUILD_SPEC.md); the testing recipe is
@@ -102,6 +102,15 @@ Verify restoration after closure. A handoff names game identity, scenario, allow
 condition; both agents acknowledge it. Main does not click while a tester owns
 input; observers stay read-only; user control suspends automation.
 
+Before changing Steam process state, verify whether the current account and
+launch route can resume without credentials, and prepare a recovery route. If
+that cannot be established, leave the process state unchanged and request owner
+help. If Steam requires sign-in, stop; the owner handles credentials. Record an
+unknown prior authentication state as unknown, not as a confirmed sign-out.
+Authorization to select an official without-EAC launch option if offered does
+not authorize switching Steam to offline mode. Actual EAC state remains unverified
+until separately established.
+
 ## Testing and evidence rules
 
 - Tests are boundary-focused; do not repeat a passing check without a change.
@@ -114,6 +123,9 @@ input; observers stay read-only; user control suspends automation.
 - Record times for build, launch, continuation, waiting, review and rework, plus
   actual tokens and cost from the provider-reported source. Unknown values stay
   unknown, never guessed.
+- During requested ten-minute active-session pulses, inspect worker/process
+  status and new errors, then report the next action or meaningful change. This
+  does not guarantee a persistent timer after the chat becomes idle.
 - The 12-second click-to-Playing continuation target remains historical and not
   achieved; its evidence and recovery detail are in the
   [evidence-and-recovery reference](../skills/my-career-training-testing/references/evidence-and-recovery.md).

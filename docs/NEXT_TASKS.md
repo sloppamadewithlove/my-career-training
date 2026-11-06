@@ -45,6 +45,14 @@ Actual Psy build, compatibility, menu readiness and anti-cheat state remain
 unverified. See the
 [fixed-rendezvous receipt](evidence/2026-11-06-observer-fixed-rendezvous.md).
 
+The latest attempt, authorized to select the official without-EAC option if
+offered, stopped at Steam **Sign in**, before game launch or option selection.
+The observer remains
+unexecuted. Next owner action: sign in to Steam; then re-establish the permitted
+session and launch route before any probe. Original 27/27 profile/config files
+and checked assets remained unchanged; see the receipt's
+[attempt record](evidence/2026-11-06-observer-fixed-rendezvous.md#steam-launch-attempt).
+
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
 passed full source/native/package checks and reached the authored hub/GC lesson
@@ -84,7 +92,8 @@ board does not grant ownership of a previous session.
 
 ## Next proof sequence
 
-1. Obtain the reviewed observer's exact leased identity journal on the updated
+1. After the owner signs in to Steam and the permitted launch route is verified,
+   obtain the reviewed observer's exact leased identity journal on the updated
    build, with ordinary MCT excluded. Missing/mismatched output is inconclusive;
    keep normal gates closed and review observations before enabling commands.
 2. After compatibility is established, stage results ABC from `df19252` and build its exact new revision;

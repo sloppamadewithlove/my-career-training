@@ -14,6 +14,16 @@ the executable. A reviewed, default-OFF identity observer with a protected fixed
 per-process rendezvous is available; this new candidate has not been loaded and
 proves no compatibility or anti-cheat state.
 
+The latest attempt, authorized to select the official without-EAC option if
+offered, stopped when restarting Steam displayed **Sign in**. Steam was relaunched
+with its original
+`-silent` argument; its authentication state before the attempt is unknown.
+No credentials were entered, game launched, DLL injected, without-EAC option
+selected or configuration edited. The original 27/27 profile/config files and
+checked assets remained unchanged. The identity probe remains unexecuted; the
+next required owner action is to sign in to Steam. See the
+[attempt receipt](evidence/2026-11-06-observer-fixed-rendezvous.md#steam-launch-attempt).
+
 The owner's current direction is to reuse Rocket League's native training flow,
 maps, HUD and behavior, with custom lesson and ghost additions. The additive hub
 handoff below now has live menu arrival/return evidence; existing Career lessons
