@@ -42,7 +42,7 @@ operations, downloads, private-save inspection or publication were performed.
    incoming packets stall. Attempt completion stops the owned worker/runtime;
    another experiment needs a new scoped request. Existing shutdown/restoration
    still requires exact-candidate live acceptance.
-6. Proof: 289 focused Python checks passed; four optional native parser/menu
+6. Proof: 291 focused Python checks passed; four optional native parser/menu
    executable checks were skipped because their paths were unset for this
    isolated source checkout. Ruff and diff checks passed. Tests cover source
    gates, real installed Nexto CPU inference on a synthetic full packet, exact
@@ -63,6 +63,10 @@ The regression delivers the actual matcher callback at simulated elapsed130
 seconds after fifty seconds of prior startup: the flip trial refuses it despite the matcher's
 fresh ninety-second timeout, while ordinary/speed-flip sessions retain their
 existing timeout and user cancellation still takes precedence.
+The actual control dispatcher also rechecks immediately after policy inference
+before sending inputs. A synthetic slow-policy regression begins at elapsed119
+and returns at elapsed130; no flip-trial input is sent and capture stops. The
+existing speed-flip profile retains its prior behavior.
 
 ## Remaining acceptance
 

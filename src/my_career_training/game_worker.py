@@ -1184,7 +1184,7 @@ class GameSession:
             return
         actor_frame = dict(frame, car=car, actions=car["actions"])
         actions = self._capture_actions(actor_frame)
-        if self.cancel_start.is_set() or self.stopping:
+        if self.cancel_start.is_set() or self.stopping or self._check_capture_deadline():
             return
         self.relays[team].send_msg(flat.PlayerInput(target, flat.ControllerState(**actions)))
 

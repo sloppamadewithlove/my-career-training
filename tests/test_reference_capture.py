@@ -152,6 +152,51 @@ def test_flip_capture_wall_deadline_stops_even_when_game_clock_does_not_advance(
     assert session.sent_inputs == []
 
 
+@pytest.mark.parametrize("profile", [reference_capture.FLIP_PROFILE, "cancel"])
+def test_slow_controller_return_rechecks_flip_deadline_before_actual_input_send(tmp_path, monkeypatch, profile):
+    session, frame, flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = profile
+    session.started_monotonic = 100
+    clock = {"now": 219.0}  # Inference begins at elapsed119.
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+    session.engine.state = "active"
+    session.engine.started_at = 10
+    frame["time"] = 10.36
+    frame["game_speed"] = 1.0
+    seen = []
+    if profile == reference_capture.FLIP_PROFILE:
+        from my_career_training.bots import providers
+
+        def policy_step(observed, index):
+            seen.append(index)
+            assert observed["car"]["index"] == 0
+            clock["now"] = 230.0  # Policy result arrives at elapsed130.
+            return {**reference_capture.neutral_actions(), "boost": True}
+
+        monkeypatch.setattr(providers, "create_controller", lambda provider: NS(reset=lambda: None, step=policy_step))
+        session.capture_controller = reference_capture.InstalledFlipResetTrialController()
+    else:
+        original_step = session.capture_controller.step
+
+        def timed_step(elapsed, observed):
+            seen.append(observed["car"]["index"])
+            actions = original_step(elapsed, observed)
+            clock["now"] = 230.0
+            return actions
+
+        session.capture_controller.step = timed_step
+
+    session._capture_controls(frame, flat)
+    assert seen == [0]
+    if profile == reference_capture.FLIP_PROFILE:
+        assert session.sent_inputs == [] and session.stopping and session.capture_aborted
+        assert session.stop_deadline == 0
+    else:
+        assert len(session.sent_inputs) == 1 and session.sent_inputs[0].index == 0
+        assert session.sent_inputs[0].controller.boost is True
+        assert not session.stopping and session.capture_aborted is None
+
+
 def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completion(tmp_path, monkeypatch):
     session, _frame, _flat = _capture_worker(tmp_path, monkeypatch)
     session.capture["profile"] = reference_capture.FLIP_PROFILE
