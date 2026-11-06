@@ -85,8 +85,10 @@ extracted assets are shipped. The original eight-hour research is on branch
 The owner requests a ten-minute check and a 45-minute workflow improvement review
 in this chat, including durable GitHub notes. The current session has no exposed
 Codex automation control, so neither recurring schedule has been installed or
-verified. Active work can track these intervals, but idle or unattended runs are
-not claimed. Earlier active-session history is in the
+verified. On 6 November the owner explicitly approved a persistent goal for the
+flip-reset lesson; it is active in the current chat and may continue at idle
+boundaries. Active work can track the intervals, but timed or unattended runs
+are not claimed without evidence. Earlier active-session history is in the
 [active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
 and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md),
 plus the [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md)
