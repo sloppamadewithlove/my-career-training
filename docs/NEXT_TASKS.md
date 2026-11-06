@@ -23,15 +23,20 @@ between staging and frozen output. Reuse these results while source and package
 inputs stay unchanged.
 
 The live handoff reached stock Play, then the game lost foreground. The helper
-refused the next input and dispatched no click. The game remains open with the
-test suspended, awaiting owner foreground; native pause is not live accepted.
-Do not automatically retry the refused input or rebuild the unchanged candidate.
-Resume only after the owner restores foreground and fresh same-process/foreground
-checks pass; then capture one stock pause/resume/exit transition. Keep the earlier
+refused the next input and dispatched no click. The test remains suspended. User
+has said continue; read-only process/foreground verification is underway, with no
+input sent. Native pause is not live accepted. Do not automatically retry the
+refused input or rebuild the unchanged candidate. Resume only after fresh
+same-process/foreground checks pass; then capture one stock pause/resume/exit
+transition. Keep the earlier
 [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
 for save and timer limits, and the
 [focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for
 current candidate and live state.
+
+The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic
+frames only. No renderer, drawable registration, live draw or ghost is proven;
+keep this source experiment separate from teaching-feature acceptance.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now

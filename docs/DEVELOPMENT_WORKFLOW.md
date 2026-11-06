@@ -171,7 +171,10 @@ restoration unless hashes prove it.
   If a review is missed, note the missed points and do one catch-up at the next
   natural boundary; set the next due time from that catch-up's actual start. A
   scheduled prompt is not evidence that a review ran. Do not backfill progress or
-  imply continuous monitoring while the chat is idle.
+  imply continuous monitoring while the chat is idle. When work resumes after an
+  idle chat, record the actual restart, do not count elapsed idle targets as
+  actively missed checks, and perform read-only process/foreground verification
+  before any game input.
 - The 12-second click-to-Playing continuation target remains historical and not
   achieved; its evidence and recovery detail are in the
   [evidence-and-recovery reference](../skills/my-career-training-testing/references/evidence-and-recovery.md).
