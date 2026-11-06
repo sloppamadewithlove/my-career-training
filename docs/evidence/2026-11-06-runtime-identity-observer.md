@@ -2,6 +2,8 @@
 
 Base: `9ee0c3333686be74afdd5de0e24cde2932b1af61`. Development-only, no live
 execution or compatibility acceptance. Normal MCT/launcher pins remain unchanged.
+Source `8b6b5bfcb9fab1f14f802691af218df717bde5a4` and Windows directory-handle
+correction `3b4f34a96f0e04b1cea1af9d6312e1d754dabd3e` are independently reviewed.
 
 ## Evidence and scope
 
@@ -102,4 +104,5 @@ PE inspection found exactly the four intended SDK imports; static inspection of
 the installed identity getters shows forwarding to the core's version value and
 cached build-string copy. That is source/static evidence, not a live observation.
 No game package/asset, private request, binary, raw log or account-bearing data is
-included in this commit. The observer must be independently reviewed before use.
+included in this commit. Runtime use still requires the explicit owned lease and
+reviewed artifact; source approval does not establish compatibility or readiness.

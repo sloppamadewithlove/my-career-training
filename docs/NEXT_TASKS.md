@@ -33,6 +33,14 @@ See the [pause repair receipt](evidence/2026-11-05-native-custom-training-stock-
 The [results receipt](evidence/2026-11-06-native-training-stock-results.md) owns
 the later exact-candidate evidence and source repair boundary.
 
+Steam build 26349479 now has a different executable, while the three pinned menu
+packages remain unchanged. Normal MCT gates refuse it. Reviewed source `8b6b5bf`
+plus `3b4f34a` provides a separate default-OFF identity-only observer: exact file
+and process identity, fixed arguments and a fresh private nonce lease precede
+four SDK getters. It is not loaded; actual Psy build, compatibility, menu readiness
+and anti-cheat state remain unverified. See the
+[observer receipt](evidence/2026-11-06-runtime-identity-observer.md).
+
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
 passed full source/native/package checks and reached the authored hub/GC lesson
@@ -66,22 +74,26 @@ board does not grant ownership of a previous session.
 | Coordinator | Hand off one exact reviewed candidate | Name source, compiled movie and packaged revision separately; assign one input owner for a bounded live session |
 | Native-entry builder | Source handoff and saved inactive Career correction complete | `1c21770` + `d98ba04` reviewed; no game control or package build performed |
 | Native results builder | Stock TRAINING/editor results delegation reviewed | `df19252` source/owned movie checked; stage its new results ABC before packaging |
+| Identity observer builder | Default-OFF one-shot observer and Windows path correction reviewed | `8b6b5bf` + `3b4f34a`; 2 CTests/26 Python checks; no normal runtime tuple enabled or live use |
 | Independent reviewer | Native entry, stock-pause and stock-results source approved | New results repair still needs package/live acceptance |
-| Owned tester | `bd9336d` native pause/Resume passed; blocked results, run closed/restored | Next: exact results candidate, native results choices/destination, displaced-state reset and Career results/pause regression; fresh ownership and game-profile protection required |
+| Owned tester | `bd9336d` native pause/Resume passed; blocked results, run closed/restored | Next: fresh leased identity-only observation on updated game; review actual identity before native-menu compatibility/results testing; protect profiles and original plugin files |
 
 ## Next proof sequence
 
-1. Stage the reviewed results ABC from `df19252` and build its exact new revision;
+1. Obtain the reviewed observer's exact leased identity journal on the updated
+   build, with ordinary MCT excluded. Missing/mismatched output is inconclusive;
+   keep normal gates closed and review observations before enabling commands.
+2. After compatibility is established, stage results ABC from `df19252` and build its exact new revision;
    do not reuse the `bd9336d` package. Keep earlier menu/pause evidence distinct.
-2. Prove native End Training results controls, the chosen restart/browser/main-menu
+3. Prove native End Training results controls, the chosen restart/browser/main-menu
    destination, plus normal Career results/Return and pause regressions. Preserve native
    save/discard/cancel choices where applicable. Observe native reset
    from a displaced state separately. A copied MCT profile is not game-save
    isolation; preserve game-owned profile rotation and native save prompts.
-3. Keep custom lesson and ghost work bounded to additions the native flow needs.
+4. Keep custom lesson and ghost work bounded to additions the native flow needs.
    Preserve unresolved custom countdown/reset/goal and physical-controller checks
    as explicit limitations; a successful stock screen does not close them.
-4. Expand only after the representative native lesson loop works. Update the
+5. Expand only after the representative native lesson loop works. Update the
    website for verified major releases, not this source candidate.
 
 ## Product backlog
