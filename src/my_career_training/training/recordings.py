@@ -142,6 +142,14 @@ def import_recording(path, *, require_reference=False):
     return result
 
 
+def flip_reset_practice_eligible(recording):
+    """Eligibility of validated capture data, never proof of an actual reset."""
+    return (recording.get("lesson_id") == "flip-reset"
+            and recording.get("outcome") == "success" and not recording.get("truncated")
+            and bool(recording.get("samples"))
+            and all(_vector(sample.get("ball_position"), 3) for sample in recording["samples"]))
+
+
 def compatible_recordings(first, second):
     """Unknown compatibility is a mismatch, never a silent equivalence."""
     differences = []

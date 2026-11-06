@@ -59,3 +59,30 @@ does not load either playback object. This patch does not add automatic startup
 selection, manufacture a trace, or claim a native stock-training lesson entry.
 Main must integrate the separate SDK callback consumer and verify one exact
 candidate before claiming visible native synchronized playback.
+
+## Selection correction after independent review
+
+The saved recording index had no truncation or observed-ball completeness data.
+The backend now adds a runtime-only `practice_eligible` field to flip-reset rows
+by reading and validating the capture itself and calling the same eligibility
+predicate used by `GhostPractice.load`. It hydrates the newest 64 indexed rows,
+matching the native selector's existing bound. Its parse cache key includes the
+resolved file path, device/file identity, size and modification/change times.
+Bounded file-metadata checks invalidate changed/replaced/deleted files; unchanged
+capture bytes are not reread per refresh, and invalid parses are cached too.
+Stored career indexes and recordings are unchanged. Missing/invalid files and
+unsafe paths are unavailable. Actual load revalidates the full recording.
+Changes racing a metadata check or deliberately preserving all file identity and
+timestamp fields can leave the summary stale until a changed signature; the
+summary is not a file-integrity monitor or certification.
+
+The native menu skips ineligible newer flip-reset rows, preserving access to the
+newest eligible older row, and describes fixed recorded car/ball positions rather
+than placement ahead of the human. Existing personal/import provenance remains.
+Sixty-four focused Python checks passed, including failed, truncated and ball-less
+newer files through actual stored recording bytes -> backend state -> compiled
+native menu selection. They also check unreadable/missing/path-invalid captures,
+unchanged saved indexes, changed/deleted/replaced/same-id-different-file cache
+invalidation and no repeat capture read on view refresh. Native menu
+layout checks and Ruff passed. No gameplay, real reset success, publication or
+DLL/package acceptance is established by this correction.

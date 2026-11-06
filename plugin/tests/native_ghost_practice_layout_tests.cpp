@@ -1,6 +1,7 @@
 #include "NativeMatchLayout.h"
 
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 
@@ -255,8 +256,28 @@ static void runTests() {
     unsupportedAndNonTrainingActivitiesHidePracticeControls();
 }
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        if (argc == 2) {
+            std::ifstream stream(argv[1]);
+            auto state = Json::parse(stream);
+            const auto scope = pauseScope();
+            state["protocol"] = 1;
+            state["offline"] = true;
+            state["bridge_session"] = scope.nonce;
+            NativeMatchLayout layout;
+            require(layout.open(scope, state), "Published flip-reset state did not open pause");
+            auto view = layout.view(scope, state);
+            require(layout.choose(findChoice(view, "pause.training_options"), scope, state, false).accepted,
+                "Published flip-reset state could not open Training options");
+            view = layout.view(scope, state);
+            const auto choice = findAction(view, "play_recording");
+            require(view.body.find("recorded lesson positions") != std::string::npos &&
+                view.body.find("slightly ahead") == std::string::npos,
+                "Flip-reset wording described translated placement");
+            std::cout << choice.payload.dump() << '\n';
+            return 0;
+        }
         runTests();
         std::cout << "Native ghost practice layout and action gates passed.\n";
         return 0;

@@ -562,3 +562,99 @@ def test_loading_a_recording_turns_off_an_already_enabled_ghost(backend):
                     "accepted": True, "available": True})
     assert backend._ghost_practice_enabled is False
     assert backend.telemetry["ghost_practice"]["visible"] is False
+
+
+@pytest.mark.parametrize("failure", ["failed", "truncated", "missing_ball"])
+def test_backend_native_rows_share_worker_flip_reset_eligibility_and_cache_legacy_files(
+        backend, monkeypatch, failure):
+    value = recording("flip-reset")
+    backend._store_recording(value)
+    usable_id = backend.document["recordings"][-1]["id"]
+    bad = json.loads(json.dumps(value))
+    if failure == "failed":
+        bad["outcome"] = "failed"
+    elif failure == "truncated":
+        bad["truncated"] = True
+    else:
+        del bad["samples"][-1]["ball_position"]
+    backend._store_recording(bad)
+    invalid_id = backend.document["recordings"][-1]["id"]
+    saved = json.loads(json.dumps(backend.document))
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    rows = backend.state["recordings"]
+    assert rows[-2]["id"] == usable_id and rows[-2]["practice_eligible"] is True
+    assert rows[-1]["id"] == invalid_id and rows[-1]["practice_eligible"] is False
+    assert backend.document == saved  # Legacy saved indexes are never rewritten.
+    with pytest.raises(ValueError, match="successful complete"):
+        GhostPractice(bad, context=practice_context(configure_lesson("flip-reset"), {
+            "game_version": "test-only-game", "framework_version": "test-only-core", "car_hitbox": "octane"}))
+    monkeypatch.setattr(bridge, "import_recording", lambda *_args: pytest.fail("View refresh reread capture bytes"))
+    assert backend.state["recordings"] == rows
+
+
+@pytest.mark.parametrize("failure", ["missing", "invalid", "path"])
+def test_backend_native_rows_hide_unreadable_legacy_recordings(backend, monkeypatch, failure):
+    backend._store_recording(recording("flip-reset"))
+    entry = backend.document["recordings"][-1]
+    path = backend.store.directory / "recordings" / entry["filename"]
+    if failure == "missing":
+        path.unlink()
+    elif failure == "invalid":
+        path.write_text("not a recording", encoding="utf-8")
+    else:
+        entry["filename"] = "../private-capture.json"
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    assert backend.state["recordings"][-1]["practice_eligible"] is False
+    monkeypatch.setattr(bridge, "import_recording", lambda *_args: pytest.fail("Invalid capture was reread"))
+    assert backend.state["recordings"][-1]["practice_eligible"] is False
+
+
+@pytest.mark.parametrize("change", ["changed", "removed", "replaced", "same_id_new_file"])
+def test_backend_native_eligibility_cache_detects_changed_file_identity(backend, change):
+    value = recording("flip-reset")
+    backend._store_recording(value)
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    assert backend.state["recordings"][-1]["practice_eligible"] is True
+    entry = backend.document["recordings"][-1]
+    path = backend.store.directory / "recordings" / entry["filename"]
+    value["outcome"] = "failed"
+    if change == "changed":
+        path.write_text(json.dumps(value), encoding="utf-8")
+    elif change == "removed":
+        path.unlink()
+    elif change == "replaced":
+        replacement = path.with_suffix(".replacement")
+        replacement.write_text(json.dumps(value), encoding="utf-8")
+        replacement.replace(path)
+    else:
+        alternate = path.with_name(f"{uuid.uuid4()}.json")
+        alternate.write_text(json.dumps(value), encoding="utf-8")
+        entry["filename"] = alternate.name
+    assert backend.state["recordings"][-1]["practice_eligible"] is False
+
+
+@pytest.mark.skipif(not os.environ.get("MCT_NATIVE_GHOST_LAYOUT_TEST"),
+                    reason="Native menu executable is optional outside native checks")
+@pytest.mark.parametrize("failure", ["failed", "truncated", "missing_ball"])
+def test_native_menu_selects_older_eligible_flip_trace_from_actual_backend_rows(backend, tmp_path, failure):
+    value = recording("flip-reset")
+    backend._store_recording(value)
+    usable_id = backend.document["recordings"][-1]["id"]
+    bad = json.loads(json.dumps(value))
+    if failure == "failed":
+        bad["outcome"] = "failed"
+    elif failure == "truncated":
+        bad["truncated"] = True
+    else:
+        del bad["samples"][-1]["ball_position"]
+    backend._store_recording(bad)
+    backend.session_id = str(uuid.uuid4())
+    backend.session_state = "training"
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    backend.process = FakeProcess()
+    backend.telemetry = {"ghost_practice_support": {"supported": True}}
+    payload = tmp_path / "synthetic-flip-menu.json"
+    payload.write_text(json.dumps(backend.state), encoding="utf-8")
+    result = subprocess.run([os.environ["MCT_NATIVE_GHOST_LAYOUT_TEST"], str(payload)],
+                            capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == {"id": "flip-reset", "recording_id": usable_id}

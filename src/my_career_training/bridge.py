@@ -64,6 +64,9 @@ class Backend(QObject):
         self.in_game = False
         self.telemetry = {}
         self._ghost_practice_enabled = False
+        # Cache validated parses; bounded metadata checks detect replaced files
+        # without rereading unchanged capture bytes on every view refresh.
+        self._recording_practice_cache = {}
         # True only while a legacy (no explicit recording_id) play command owns
         # the coach rendering. The new practice flow never falls back to it.
         self._legacy_playback = False
@@ -217,7 +220,7 @@ class Backend(QObject):
             "telemetry": dict(self.telemetry, lesson_id=(self.request or {}).get("lesson_id"),
                               lesson_variant=active_lesson["variant"] if active_lesson else None,
                               ghost_practice_pending=bool(self._ghost_pending)),
-            "recordings": self.document["recordings"], "providers": self._providers(),
+            "recordings": self._native_recording_rows(), "providers": self._providers(),
             "selected_provider": self.document["settings"].get("bot_provider", "mct-specialist-baseline"),
             "workshop": self.workshop_state, "plugin": self.plugin_status,
             "community_plugins": self.community_state,
@@ -1965,6 +1968,39 @@ class Backend(QObject):
                     self.page = "hub"
             except Exception as exc:
                 self.error = "A saved result receipt needs recovery: " + str(exc)
+
+    def _native_recording_rows(self):
+        if (self.request or {}).get("lesson_id") != "flip-reset":
+            return self.document["recordings"]
+        from .training.recordings import flip_reset_practice_eligible
+
+        # Same bounded history as the native selector. Saved indexes from older
+        # versions lack capture completeness, so derive it from validated bytes.
+        rows = copy.deepcopy(self.document["recordings"][-64:])
+        live_keys = set()
+        for row in rows:
+            if row.get("lesson_id") != "flip-reset":
+                continue
+            filename = row.get("filename", "")
+            row["practice_eligible"] = False
+            if not isinstance(filename, str) or not filename or Path(filename).name != filename:
+                continue
+            key = None
+            try:
+                path = (self.store.directory / "recordings" / filename).resolve()
+                info = path.stat()
+                key = (str(path), info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+                live_keys.add(key)
+                if key not in self._recording_practice_cache:
+                    value = import_recording(path)
+                    self._recording_practice_cache[key] = flip_reset_practice_eligible(value)
+                row["practice_eligible"] = self._recording_practice_cache[key]
+            except (OSError, ValueError, TypeError):
+                if key is not None:
+                    self._recording_practice_cache[key] = False
+        self._recording_practice_cache = {key: value for key, value in self._recording_practice_cache.items()
+                                          if key in live_keys}
+        return rows
 
     def _store_recording(self, recording, summary=None):
         state = copy.deepcopy(self.document)

@@ -12,7 +12,7 @@ import math
 
 from .catalog import assistance_preferences, lesson
 from .controller import controller_bindings, controller_display
-from .recordings import (compatible_recordings, ghost_lines, interpolate_pose, relative_placement,
+from .recordings import (compatible_recordings, flip_reset_practice_eligible, ghost_lines, interpolate_pose, relative_placement,
                          validate_recording)
 
 PLAYBACK_SPEEDS = (0.25, 0.5, 0.75, 1.0)
@@ -420,8 +420,7 @@ class GhostPractice:
             raise ValueError("Recording does not match this lesson setup: "
                              + ", ".join(provenance["compatibility_differences"]))
         fixed_world = recording["lesson_id"] == "flip-reset"
-        if fixed_world and (recording.get("outcome") != "success" or recording.get("truncated")
-                            or any("ball_position" not in sample for sample in recording["samples"])):
+        if fixed_world and not flip_reset_practice_eligible(recording):
             raise ValueError("Flip reset ghost needs a successful complete recording with its observed ball.")
         self.recording = deepcopy(recording)
         self.provenance = provenance

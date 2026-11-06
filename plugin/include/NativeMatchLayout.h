@@ -460,6 +460,9 @@ private:
                 entry["variant"] != variant) continue;
             const auto source = stringValue(objectValue(entry, "source"), "kind");
             const auto outcome = stringValue(entry, "outcome");
+            // The backend derives this from validated recording bytes using
+            // the worker's predicate; success text alone is insufficient.
+            if (lesson == "flip-reset" && !boolValue(entry, "practice_eligible", false)) continue;
             const std::string origin = source == "local_player" ? "personal" :
                 source.empty() ? "saved" : "imported";
             GhostRow row;
@@ -469,15 +472,21 @@ private:
             rows.push_back(std::move(row));
         }
         if (rows.empty()) {
-            out.body += "\nNo saved recording matches this lesson and its current variation. "
-                "Complete an attempt or import a permitted recording.";
+            out.body += lesson == "flip-reset"
+                ? "\nNo complete recording declaring success with an observed ball matches this lesson variation. "
+                  "Complete a successful attempt or import a permitted recording; supplied success remains unverified."
+                : "\nNo saved recording matches this lesson and its current variation. "
+                  "Complete an attempt or import a permitted recording.";
             return;
         }
         const auto pages = (std::max)(std::size_t{1}, (rows.size() + kGhostRows - 1) / kGhostRows);
         if (ghostPage_ >= pages) ghostPage_ = pages - 1;
         out.body += "\nSaved recordings are your own or imported attempts; they are not expert-certified references.";
-        out.body += "\nThe ghost repeats the saved attempt at normal speed, slightly ahead of you. "
-            "The toggle shows or hides the ghost controller.";
+        out.body += lesson == "flip-reset"
+            ? "\nThe ghost repeats the recorded car and ball at normal speed in their recorded lesson positions. "
+              "The toggle shows or hides the ghost controller."
+            : "\nThe ghost repeats the saved attempt at normal speed, slightly ahead of you. "
+              "The toggle shows or hides the ghost controller.";
         if (pages > 1)
             out.body += "\nRecordings page " + std::to_string(ghostPage_ + 1) + " of " + std::to_string(pages) + ".";
         const auto first = ghostPage_ * kGhostRows;
