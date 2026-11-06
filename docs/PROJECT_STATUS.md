@@ -96,6 +96,8 @@ and [Steam launch/config recovery checkpoint](evidence/2026-11-06-steam-launch-c
 plus the [observer and launch-mode catch-up](evidence/2026-11-06-steam-observer-launch-checkpoint.md).
 The [flip-reset workflow review](evidence/2026-11-06-flip-reset-workflow-review.md)
 records the 18:49 UTC active-session review and its evidence-based changes.
+The [offline observer workflow review](evidence/2026-11-06-offline-observer-workflow-review.md)
+records the 20:06 UTC review and the current live-test prerequisites.
 Windows scheduling was not used. The earlier scheduled improvement task
 delivered the integrated PR #11 privacy check. Main's build concurrency changes
 preserve the active build and newest pending work. Neither is evidence of gameplay
