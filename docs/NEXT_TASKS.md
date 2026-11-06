@@ -48,10 +48,13 @@ Steam build `25914621`; its source is fail-closed and diagnostic-only. A separat
 standard Steam launch without `-rlbot` was inconclusive: module enumeration was
 denied, so loaded-plugin state is unknown and no cause is established. Candidate
 `9ee0c33` itself was not launched after the update. Keep this route distinct from
-prior `-rlbot` testing and Rocket League's official No EAC option; no Steam
-offline/no-EAC setting was authorized or changed. Official BakkesMod metadata
-for `2.0.78 / RL2.78 / BM229` is a positive version-level compatibility signal,
-not proof of local plugin load or exact Steam-build mapping. Do not change
+prior `-rlbot` testing. Steam Offline Mode is separate from Rocket League's EAC
+setting. The user prefers Steam online and permits gameplay offline only.
+The user has not answered whether to select `Without EAC` if the launcher offers it. Actual EAC
+state is unknown. Official BakkesMod metadata for
+`2.0.78 / RL2.78 / BM229` is a later version-level compatibility signal than
+the April 28 post-EAC notice, not proof of local plugin load or Steam-build
+compatibility. Do not change
 the MCT guard based on version/build ID alone or matching menu packages. First
 establish the exact compatibility contract for the updated binary and supported
 launcher/plugin path. Then, after the gate passes, test the `9ee0c33` candidate's
@@ -61,17 +64,24 @@ same-process/foreground and owned-save checks fresh for each live run. See the
 [Steam launch/config recovery checkpoint](evidence/2026-11-06-steam-launch-config-recovery.md)
 for the distinct standard-Steam attempt and recovery limits.
 
-In a separate launch/config recovery, the temporary config override was
-conditionally restored; four backup saves were restored and one changed/new save
-was preserved. This does not prove the whole profile unchanged. The test-started
-injector did not stop gracefully; only the PID verified as owned by that test was
-terminated. Cleanup of the exact test-config temporary was blocked by automatic
-review with the reported reason `blocked by policy`; it remains. Do not retry a
-broader cleanup. No Steam setting change was made. A builder is preparing an
-isolated, default-OFF identity-only probe; it has not been launched and provides
-no new runtime proof. Next, finish reviewing that probe and its default-off
-behavior, then establish launcher/plugin capability for the exact installed
-binary before any route-specific runtime test.
+The temporary config override was conditionally restored; four missing backup
+saves were restored and changed/new saves were preserved. This does not prove the
+whole profile unchanged. The test-started injector did not close gracefully; only
+its verified test-owned PID was terminated. Cleanup of the exact test-config
+temporary remains blocked by automatic review with the reported reason
+`blocked by policy`; no more specific reason is available and cleanup was not
+broadened or retried.
+
+The default-OFF identity observer (`8b6b5bf` plus Windows junction-race
+correction `3b4f34a`, source branch head `d64d5dd`) is independently reviewed and
+approved for isolated identity observation. The real ancestor-junction swap
+race found during review now has a Windows regression; this is still source and
+test evidence, with no live execution, EAC-state or compatibility proof. The
+next live observation requires exact owned process identity, a fresh short lease, exact
+config staging and a rollback plan, with ordinary MCT excluded. Keep Steam online
+as requested and gameplay offline only. If the launcher offers `Without EAC`,
+wait for the user's answer before selecting. Record the actual choice; do not infer EAC state from the observer.
+Review the exact identity output before any separate compatibility test.
 
 The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic
 frames only. SDK owner-scoped uninstall is static evidence; unload concurrency

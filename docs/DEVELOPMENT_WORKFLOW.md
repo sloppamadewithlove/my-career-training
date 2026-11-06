@@ -107,13 +107,18 @@ input was dispatched. Do not automatically retry a refused click. Resume only
 after the owner restores the intended game foreground and fresh same-process and
 foreground checks pass; never reuse stale focus state.
 
-Keep launch routes distinct: an RLBot `-rlbot` launch, a standard Steam launch
-without that flag, and Rocket League's official No EAC option are separate
-conditions. If module enumeration is unavailable, plugin-loaded state remains
-unknown; it does not prove absence or establish a cause. Do not change Steam
-offline/No EAC settings without explicit authorization. After upstream updates,
-verify the exact installed executable identity and supported launcher/plugin
-capability for that binary before testing the candidate.
+Keep launch modes distinct: an RLBot `-rlbot` launch, a standard Steam launch
+without that flag, Rocket League's EAC choice and Steam Offline Mode are separate
+conditions. Steam Offline Mode disconnects the Steam client; it is not the game's
+EAC setting. A normal Steam launch, an offered launcher choice or Bakkes version
+metadata does not prove the active EAC state or a plugin's load state. If module
+access is unavailable or no fresh log is retained, record loaded-plugin status as
+unknown without inferring absence or cause. If a launcher choice requires the
+user, wait for their explicit selection; a pending question is not consent.
+Record the actual choice and follow the authorized gameplay mode. After upstream
+updates, verify the exact
+installed executable identity and supported launcher/plugin capability for that
+binary before testing the candidate.
 
 Native Custom Training's Created editor can write a `.Tem` and rotate the actual
 Rocket League game profile before an explicit Save. A copied MCT Career does not
@@ -161,6 +166,10 @@ an exact cleanup, record the limit and do not broaden or repeat it blindly.
   critical module's `__file__` before retrying from the initial staging build.
   For the native candidate, stage source/license evidence, collect licenses, then
   freeze and smoke in the order recorded by `docs/BUILDING.md`.
+- For Windows identity observers, exercise a real directory-junction swap between
+  validation and open; keep validated handles through use and test write/delete
+  sharing. Canonicalizing a path string alone does not close that race. A source/test review
+  of a default-OFF observer remains distinct from loading it live.
 - Timing-sensitive controls need a regression through the production packet
   dispatcher, including valid game ticks with uneven wall-clock arrivals and
   a real missing tick. A passing controller-only test cannot prove dispatch.
