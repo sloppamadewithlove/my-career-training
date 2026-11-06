@@ -140,6 +140,11 @@ input; observers stay read-only; user control suspends automation.
 - Record times for build, launch, continuation, waiting, review and rework, plus
   actual tokens and cost from the provider-reported source. Unknown values stay
   unknown, never guessed.
+- For requested active-session reviews, record actual due times and completion.
+  If a review is missed, note the missed points and do one catch-up at the next
+  natural boundary; set the next due time from that catch-up's actual start. A
+  scheduled prompt is not evidence that a review ran. Do not backfill progress or
+  imply continuous monitoring while the chat is idle.
 - The 12-second click-to-Playing continuation target remains historical and not
   achieved; its evidence and recovery detail are in the
   [evidence-and-recovery reference](../skills/my-career-training-testing/references/evidence-and-recovery.md).
@@ -157,3 +162,6 @@ The [second cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md)
 records package progress and the first bounded live retry/progression observations.
 The [third cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md)
 records matched clock evidence requirements and passive capture-cadence screening.
+The [fourth cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md)
+records the Custom Training route and save side effect, unresolved clock lead and
+missed-review catch-up.

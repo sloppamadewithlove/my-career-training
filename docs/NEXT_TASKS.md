@@ -1,6 +1,17 @@
 # Next work and acceptance board
 
-Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
+Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
+
+## Current priority: native Custom Training
+
+The authored native Play handoff is under development and is not implemented or
+tested. A stock RLBot route reached the Custom Training editor, but Create defaults
+changed save state before an explicit Save. Keep further creation tests on an
+isolated copied profile and verify save restoration. The [fourth-cycle receipt]
+(evidence/2026-11-06-session-improvement-cycle-4.md) records the route and limits.
+The finite acceptance is the authored Play handoff through Training → Custom
+Training → Create New → editor, with no changes to the original profile and
+verified cleanup after closing the owned game.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now
@@ -31,9 +42,9 @@ source repair `eb1be7d` (`ef94b24` published) passed 268 checks and prevents a
 reproduced late-score-after-timeout case; it is not a verified live diagnosis.
 Return reached the hub. The prior session eventually exited through owned
 WM_CLOSE and restoration checks passed; authored Quit completion remains open.
-The separate clock run is in progress with no results yet. Correlate fresh native
-clock fields with HUD/attempt state before proposing another write; tested 2c08
-already contains the integer-sync/notification repair.
+No current clock run or causal finding is recorded. Correlate fresh native clock
+fields with HUD/attempt state before proposing another write; tested 2c08 already
+contains the integer-sync/notification repair.
 See the [second-cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md).
 The [third-cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md)
 records the current matched-clock and cadence-first next actions.

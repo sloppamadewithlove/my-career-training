@@ -1,11 +1,11 @@
 # Current project status
 
-Updated 5 November 2026. GitHub is canonical. No new release or owner-accepted
+Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. The 29 October live receipts below remain historical;
 exact `2c08e74` now has source/native/package checks and bounded offline live
 observations. The earlier session's eventual shutdown/restoration is verified;
-a separate clock run is in progress with no result recorded at this checkpoint.
-Whole-level retry/progression and full lesson/release acceptance remain open.
+the earlier clock run's cause remains unresolved. Whole-level retry/progression
+and full lesson/release acceptance remain open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -16,7 +16,8 @@ Whole-level retry/progression and full lesson/release acceptance remain open.
 | Grand Champion live probe | Exact `2c08e74`: authored hub and GC Power Shots reached; no-input timeout captured defender touch; Up restored observed car/ball but score stayed 0–1; automatic second-scenario transition after timeout observed, cause unestablished |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
 | Last completed live probe | Exact `2c08e74`, distinct from later source-only repairs/experiments |
-| Native clock | Tested 2c08 already includes integer synchronization but still visibly held 0:01 at timeout; matched runtime/HUD sampling is in progress, no new result or causal repair established |
+| Native clock | Tested 2c08 already includes integer synchronization; a historical sample showed HUD 0:01 while native SecondsRemaining was zero. Source binds the HUD to GameEvent.TimeRemaining; the same-attempt relationship and cause remain unestablished |
+| Native Custom Training | Immediate priority. Stock RLBot route reached the Custom Training editor with Epic reconnect declined; Create defaults changed save state before an explicit Save. The authored native Play handoff remains under development and is not implemented or tested. See the [fourth-cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md); no live game process remains |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Completed GC-session shutdown | Exact `2c08e74`: Return reached hub; Quit acknowledgement did not establish exit; owned WM_CLOSE eventually closed game/app/helper, and original-save/plugin/config/game-file restoration checks passed; separate clock-run cleanup remains unverified |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
@@ -42,11 +43,13 @@ the selected twelve, provenance and limitations. No proprietary pack binaries or
 extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
-The saved desktop task **Improve My Career Training** runs every 45 minutes;
-Windows scheduling was not used. Its delivered change is the integrated PR #11 privacy
-check. Main's build concurrency changes preserve the active build and newest
-pending work. Neither is evidence of gameplay readiness. The task board owns
-current agent assignments and release blockers.
+The saved desktop prompt **Improve My Career Training** is configured for 45-minute
+intervals; two review points after 22:49 UTC were missed by orchestration, as recorded
+in the fourth-cycle receipt. The configured interval does not prove a review ran.
+Windows scheduling was not used. Its earlier delivered change is the integrated PR #11
+privacy check. Main's build concurrency changes preserve the active build and newest
+pending work. Neither is evidence of gameplay readiness. The task board owns current
+agent assignments and release blockers.
 
 [Reset and clock verification receipt](evidence/2026-10-29-reset-clock-verification.md) records independent checks and the remaining live boundary.
 
@@ -75,3 +78,7 @@ and shutdown proofs. Source, package and live evidence remain separate.
 
 [Third-cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md) records
 why clock-field correlation and actual packet-cadence screening precede more code.
+
+[Fourth-cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md) records
+the Custom Training route, its save side effect and recovery, the unresolved clock
+lead, and the missed-review catch-up.
