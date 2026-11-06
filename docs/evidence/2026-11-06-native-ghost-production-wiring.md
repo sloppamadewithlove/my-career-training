@@ -3,6 +3,9 @@
 Implementation base: `fc3195e`. Wiring commits: `d5f8337`, `d7288a3`.
 Builder assignment: GPT-6.1 Sol high. This is source integration and synthetic
 transport evidence, not a rendered or accepted flip-reset demonstration.
+The initial retry/Off behavior below is superseded by
+[the reset-fence correction](2026-11-06-native-ghost-reset-fence.md), which records
+the reviewed source defects and the corrected acceptance evidence.
 
 ## Explicit dependency
 
