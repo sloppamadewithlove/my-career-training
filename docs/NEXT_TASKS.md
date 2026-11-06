@@ -19,6 +19,9 @@ passed. GPT-6 Astra max found no blocking defects and reported 98 passing tests.
 Branch `feat/ghost-ball-timeline-2026-11-06` is published but not integrated.
 It does not draw a ghost, create a successful recording, or establish gameplay
 acceptance. GhostPractice still drops ball coordinates during placement.
+The complementary `test/ghost-playback-ball-2026-11-06` branch checks the
+production playback interface; Astra review reported 102 passing checks and ten
+rejected mutations. This is still synthetic, not native or live evidence.
 
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
