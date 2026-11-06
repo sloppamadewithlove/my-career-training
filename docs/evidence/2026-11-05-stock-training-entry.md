@@ -1,7 +1,9 @@
 # Stock Training entry candidate
 
 5 November 2026. Base: `ef94b24d73033aa52265602d7cf3bf68f801fd3d`.
-Status: source and authored-movie compilation checks only; not live accepted.
+Status: `1c21770` + `d98ba04` independently reviewed; source and authored-movie
+compilation checks only, not packaged or live accepted. The owner prefers native
+game training flow, maps, HUD and behavior with custom lesson/ghost additions.
 
 ## Route evidence
 
@@ -26,7 +28,8 @@ menu exploration is not a guarantee of no profile writes.
 ## Bounded behavior contract
 
 1. The owned offline frontend is fresh and ready, with no active worker or
-   pending result choice. Pending Return disables the new control.
+   pending result choice. The existing shared `lessonReady` gate allows a saved
+   inactive Career. Pending Return disables the new control.
 2. The player activates the separate **Rocket League Training** hub row. Its
    explanation says it opens Play and the player should then choose Training.
    The existing My Career Training browser remains unchanged.
@@ -60,6 +63,12 @@ isolation; a copied MCT profile does not isolate Rocket League's own profile.
   browser, menu data binding and match movie. Layout/protocol regressions cover
   the typed stock route, unchanged lesson navigation, hidden active/unknown-worker
   choices and blocked pending Return.
+- Independent review found the first gate also rejected a saved pending Career
+  without a running worker. A new regression reproduced the missing stock control.
+  Correction `d98ba04` reuses `lessonReady`; both affected Release layout/protocol
+  targets were rebuilt and their CTests passed after the correction. The authored
+  movie did not change.
 
 No plugin DLL, frozen app or installer was produced. No game input was sent.
-The exact compiled candidate still needs independent review and live acceptance.
+Independent source review is complete. Exact-candidate packaging and live arrival,
+Back and native training behavior remain unverified.
