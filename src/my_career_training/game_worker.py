@@ -675,6 +675,12 @@ class GameSession:
             "bridge_session": nonce, "session_id": self.session_id, "generation": generation}).encode())
         return nonce, generation
 
+    def _send_actor_state(self, message):
+        if self.capture is not None and (self.cancel_start.is_set() or self.stopping or self._check_capture_deadline()):
+            return False
+        self.manager.rlbot_interface.send_msg(message)
+        return True
+
     def reset(self):
         if self.cancel_start.is_set() or self.stopping:
             return
@@ -708,9 +714,8 @@ class GameSession:
             # Legacy lessons keep the exact two-argument call.
             message = desired_state(settle_state, self.training_actor_index)
         generation = self._native_ghost_reset_fence()
-        if self.capture is not None and (self.cancel_start.is_set() or self.stopping or self._check_capture_deadline()):
+        if not self._send_actor_state(message):
             return
-        self.manager.rlbot_interface.send_msg(message)
         self.native_ghost_generation = generation
         if self.scenario is not None:
             # Every scenario controller restarts from its beginning on retry.
@@ -785,7 +790,8 @@ class GameSession:
         # Revoke drawing before the state write. Everything after that write is
         # prepared local assignment, preserving one coherent accepted transition.
         generation = self._native_ghost_reset_fence()
-        self.manager.rlbot_interface.send_msg(message)
+        if not self._send_actor_state(message):
+            raise RuntimeError("Capture stopped before the scenario state could be applied.")
         self.native_ghost_generation = generation
         self.request.update(next_setup)
         self.scenario = definition
@@ -1440,7 +1446,8 @@ class GameSession:
                         else:
                             message = adapter.desired_state(
                                 event["state"], self.training_actor_index)
-                        self.manager.rlbot_interface.send_msg(message)
+                        if not self._send_actor_state(message):
+                            return
                     elif event["type"] == "completed":
                         self.publish_attempt()
                     else:

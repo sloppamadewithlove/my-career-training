@@ -278,6 +278,88 @@ def test_validated_capture_reset_rechecks_slow_boundaries_before_reset_or_actor_
         assert not session.stopping and session.capture_aborted is None
 
 
+@pytest.mark.parametrize("profile,interruption,allowed", [
+    (reference_capture.FLIP_PROFILE, "deadline", False),
+    (reference_capture.FLIP_PROFILE, "cancel", False),
+    ("cancel", "deadline", True),
+    ("cancel", "cancel", False),
+    (None, "deadline", True),
+])
+def test_real_settle_ready_packet_rechecks_capture_scope_at_actor_send(
+        tmp_path, monkeypatch, profile, interruption, allowed):
+    from copy import deepcopy
+    from my_career_training.training import TrainingEngine
+    from test_training import frame as training_frame
+    if profile == reference_capture.FLIP_PROFILE:
+        request = _flip_request(tmp_path, monkeypatch)
+    else:
+        request = _capture_request(tmp_path, profile=profile or "cancel")
+        if profile is None:
+            request.pop("reference_capture")
+        _enable_profile(tmp_path, monkeypatch)
+    session = game_worker.GameSession(request, lambda _event: None)
+    session.capture = reference_capture.validate_capture_request(request)
+    assert (session.capture is None) is (profile is None)
+    session.human_index = 0 if profile is None else 1
+    session.human_team = 1 if profile == reference_capture.FLIP_PROFILE else 0
+    session.training_actor_index = 0
+    session.descriptors = {} if profile is None else {0: {"team": 0}}
+    session.mapping = {} if profile is None else {0: [0]}
+    session.capture_ready = profile is not None
+    session.owned = object()
+    session._discover_game = lambda: None
+    session.engine = TrainingEngine(request["lesson_id"], strict_capture=profile is not None)
+    session.last_controls = session.last_render = session.last_telemetry = float("inf")
+    session.started_monotonic = 100
+    clock = {"now": 219.0}
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+    writes, launch_conversions = [], []
+    session.manager = NS(rlbot_interface=NS(send_msg=writes.append))
+    monkeypatch.setitem(sys.modules, "rlbot", NS(flat=NS(MatchPhase=NS(Active=3, Ended=7))))
+
+    def desired(state, index):
+        if session.engine.state == "ready":
+            assert state == session.engine.starting_state
+            launch_conversions.append(index)
+            if interruption == "deadline":
+                clock["now"] = 230.0
+            else:
+                session.cancel_start.set()
+        return {"actor_index": index, "state": state}
+
+    monkeypatch.setattr(adapter, "desired_state", desired)
+    monkeypatch.setattr(adapter, "normalized_packet", lambda packet, *_: deepcopy(packet.synthetic_frame))
+    session.reset()
+    assert len(writes) == 1 and session.applied_reset
+    writes.clear()
+    for step in range(50):
+        target = session.engine.lesson["settle_state"]
+        frame = training_frame(step / 120, target["car"]["position"], target["ball"]["position"],
+            car={key: target["car"][key] for key in ("rotation", "velocity", "boost")})
+        frame["ball"]["velocity"] = list(target["ball"]["velocity"])
+        actor = dict(frame["car"], index=0, team=0, is_bot=profile is not None, actions=frame["actions"])
+        cars = [actor]
+        if profile is not None:
+            cars.append(dict(actor, index=1, team=session.human_team, is_bot=False, position=[2000, 2500, 17]))
+        packet = NS(match_info=NS(match_phase=3), players=[NS() for _ in cars],
+            teams=[NS(team_index=0, score=0), NS(team_index=1, score=0)],
+            synthetic_frame={"time": frame["time"], "frame_num": step, "cars": cars, "ball": frame["ball"]})
+        session.receive_packet(packet)
+        session.process_packet(session.events.get()[1])
+        if launch_conversions:
+            break
+    assert launch_conversions == [0] and session.engine.state == "ready"
+    if allowed:
+        assert len(writes) == 1 and writes[0]["actor_index"] == 0
+        assert not session.stopping
+    else:
+        assert writes == []
+        if interruption == "deadline":
+            assert session.stopping and session.stop_deadline == 0 and session.capture_aborted
+        else:
+            assert session.cancel_start.is_set()
+
+
 def test_flip_candidate_requires_real_engine_success_event_and_stops_after_one_attempt(tmp_path, monkeypatch):
     from test_training import reset_contact_case
     # Synthetic production-detector regression; no actual demonstration supplied.
