@@ -12,6 +12,13 @@ The ghost must not affect the player's car, ball, scoring or physics. An actual,
 permitted successful demonstration and the native renderer remain unverified;
 the existing diagnostic crosses do not satisfy this request.
 
+An isolated source candidate adds recorded-ball interpolation on the same
+timeline as the car, while retaining missing-data and packet-gap boundaries.
+The author and an independent tester each ran 50 focused Python checks; Ruff
+passed. It remains local and is not integrated: independent source review is
+pending after two empty reviewer responses. It does not draw a ghost, create a
+successful recording, or establish gameplay acceptance.
+
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
 online. This does not establish the current EAC state or grant game-input
