@@ -70,6 +70,9 @@ matching the native selector's existing bound. Its parse cache key includes the
 resolved file path, device/file identity, size and modification/change times.
 Bounded file-metadata checks invalidate changed/replaced/deleted files; unchanged
 capture bytes are not reread per refresh, and invalid parses are cached too.
+Transient I/O failures are unavailable for that refresh and retried on the next;
+they are never cached as invalid content. Malformed index values are skipped in
+the runtime copy without changing the stored save.
 Stored career indexes and recordings are unchanged. Missing/invalid files and
 unsafe paths are unavailable. Actual load revalidates the full recording.
 Changes racing a metadata check or deliberately preserving all file identity and
@@ -79,10 +82,11 @@ summary is not a file-integrity monitor or certification.
 The native menu skips ineligible newer flip-reset rows, preserving access to the
 newest eligible older row, and describes fixed recorded car/ball positions rather
 than placement ahead of the human. Existing personal/import provenance remains.
-Sixty-four focused Python checks passed, including failed, truncated and ball-less
+Seventy focused Python checks passed, including failed, truncated and ball-less
 newer files through actual stored recording bytes -> backend state -> compiled
 native menu selection. They also check unreadable/missing/path-invalid captures,
 unchanged saved indexes, changed/deleted/replaced/same-id-different-file cache
-invalidation and no repeat capture read on view refresh. Native menu
+invalidation, malformed index values, unchanged-file recovery after an injected
+PermissionError and no repeat capture read on view refresh. Native menu
 layout checks and Ruff passed. No gameplay, real reset success, publication or
 DLL/package acceptance is established by this correction.

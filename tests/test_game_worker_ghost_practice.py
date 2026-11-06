@@ -609,6 +609,37 @@ def test_backend_native_rows_hide_unreadable_legacy_recordings(backend, monkeypa
     assert backend.state["recordings"][-1]["practice_eligible"] is False
 
 
+@pytest.mark.parametrize("malformed", [None, True, 12, "invalid", []])
+def test_backend_native_rows_skip_malformed_index_values_without_changing_save(backend, malformed):
+    backend._store_recording(recording("flip-reset"))
+    valid = backend.document["recordings"][0]
+    backend.document["recordings"] = [malformed, valid]
+    saved = json.loads(json.dumps(backend.document))
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    rows = backend.state["recordings"]
+    assert len(rows) == 1 and rows[0]["id"] == valid["id"] and rows[0]["practice_eligible"] is True
+    assert backend.document == saved
+
+
+def test_backend_native_rows_retry_transient_read_failure_for_unchanged_file(backend, monkeypatch):
+    backend._store_recording(recording("flip-reset"))
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    original_import = bridge.import_recording
+    calls = []
+
+    def temporarily_locked(path):
+        calls.append(path.stat())
+        if len(calls) == 1:
+            raise PermissionError("Synthetic transient recording lock")
+        return original_import(path)
+
+    monkeypatch.setattr(bridge, "import_recording", temporarily_locked)
+    assert backend.state["recordings"][-1]["practice_eligible"] is False
+    assert backend.state["recordings"][-1]["practice_eligible"] is True
+    assert len(calls) == 2 and calls[0] == calls[1]
+    assert backend.state["recordings"][-1]["practice_eligible"] is True and len(calls) == 2
+
+
 @pytest.mark.parametrize("change", ["changed", "removed", "replaced", "same_id_new_file"])
 def test_backend_native_eligibility_cache_detects_changed_file_identity(backend, change):
     value = recording("flip-reset")

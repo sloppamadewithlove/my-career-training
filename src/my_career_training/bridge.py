@@ -1976,7 +1976,7 @@ class Backend(QObject):
 
         # Same bounded history as the native selector. Saved indexes from older
         # versions lack capture completeness, so derive it from validated bytes.
-        rows = copy.deepcopy(self.document["recordings"][-64:])
+        rows = [copy.deepcopy(row) for row in self.document["recordings"][-64:] if isinstance(row, dict)]
         live_keys = set()
         for row in rows:
             if row.get("lesson_id") != "flip-reset":
@@ -1995,7 +1995,11 @@ class Backend(QObject):
                     value = import_recording(path)
                     self._recording_practice_cache[key] = flip_reset_practice_eligible(value)
                 row["practice_eligible"] = self._recording_practice_cache[key]
-            except (OSError, ValueError, TypeError):
+            except OSError:
+                # A temporary file lock must not hide a usable capture for the
+                # rest of the session; retry its read on the next refresh.
+                pass
+            except (ValueError, TypeError):
                 if key is not None:
                     self._recording_practice_cache[key] = False
         self._recording_practice_cache = {key: value for key, value in self._recording_practice_cache.items()
