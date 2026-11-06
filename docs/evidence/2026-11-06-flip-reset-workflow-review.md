@@ -66,3 +66,10 @@ The candidate is held for correction. For future staging reviews, test guard
 changes immediately before each mutation, persist and compare directory identity
 across recovery, and exercise valid-but-altered as well as malformed journal
 records. Earlier timing and review claims above are unchanged.
+
+A private profile-baseline helper passed its initial Windows fixtures, but Astra
+showed a copied file could change after its first verification while completion
+still reported success. A correction is being tested that retains and rechecks
+the copied files through completion. The helper covers explicitly supplied,
+quiescent ordinary roots and file bytes only; root discovery, process/writer
+absence, full NTFS metadata and live profile preservation remain separate.
