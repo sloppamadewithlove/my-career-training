@@ -42,7 +42,7 @@ operations, downloads, private-save inspection or publication were performed.
    incoming packets stall. Attempt completion stops the owned worker/runtime;
    another experiment needs a new scoped request. Existing shutdown/restoration
    still requires exact-candidate live acceptance.
-6. Proof: 281 focused Python checks passed; four optional native parser/menu
+6. Proof: 289 focused Python checks passed; four optional native parser/menu
    executable checks were skipped because their paths were unset for this
    isolated source checkout. Ruff and diff checks passed. Tests cover source
    gates, real installed Nexto CPU inference on a synthetic full packet, exact
@@ -51,6 +51,18 @@ operations, downloads, private-save inspection or publication were performed.
    completion cutoff, worker regressions and existing speed-flip behavior.
    Synthetic tests are not teaching recordings. No DLL/package or live capture
    is established by these checks.
+
+The independent-review deadline correction uses the same absolute trial budget
+through setup, model loading, core verification/creation, connection completion,
+match acknowledgement and the active loop. Connector/wait slices are capped by
+the remaining budget; a late configuration callback cannot mark acknowledgement.
+Checks after synchronous startup work prevent progression when it returns after
+the deadline. Such a synchronous call itself must return before Python can
+perform cleanup; this is not an ability to preempt a blocked native library.
+The regression delivers the actual matcher callback at simulated elapsed130
+seconds after fifty seconds of prior startup: the flip trial refuses it despite the matcher's
+fresh ninety-second timeout, while ordinary/speed-flip sessions retain their
+existing timeout and user cancellation still takes precedence.
 
 ## Remaining acceptance
 

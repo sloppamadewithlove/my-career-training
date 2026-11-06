@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import threading
 import uuid
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -929,13 +930,99 @@ def test_capture_match_ack_accepts_the_exact_requested_configuration(tmp_path):
     assert master.match_config_handlers == []
 
 
+@pytest.mark.parametrize("scope", ["flip", "speed-flip", "ordinary", "cancelled"])
+def test_delayed_real_match_ack_respects_absolute_flip_deadline_and_user_cancel(tmp_path, monkeypatch, scope):
+    expected = _fake_ack_configuration()
+    session, master = _capture_handshake_session(tmp_path, expected)
+    session.started_monotonic = 100
+    clock = {"now": 150.0}  # Startup already used fifty seconds.
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+    if scope in ("flip", "cancelled"):
+        session.capture["profile"] = reference_capture.FLIP_PROFILE
+        expected.player_configurations[1].team = 1
+    elif scope == "ordinary":
+        session.capture = None
+    callback_done = threading.Event()
+    timers = []
+
+    def delayed_ack():
+        clock["now"] = 230.0  # Elapsed130, inside a fresh90s handshake but past the trial limit.
+        if scope == "cancelled":
+            session.cancel_start.set()
+        for handler in list(master.match_config_handlers):
+            handler(expected)
+        callback_done.set()
+
+    def start_match(_config, **_kwargs):
+        timer = threading.Timer(.01, delayed_ack)
+        timers.append(timer)
+        timer.start()
+
+    session.manager.start_match = start_match
+    try:
+        if scope in ("flip", "cancelled"):
+            with pytest.raises(game_worker.SessionCancelled):
+                session.start_acknowledged_match(expected)
+            assert session.capture_configuration_ack is None
+            assert session.stopping is (scope == "flip")
+            assert bool(session.capture_aborted) is (scope == "flip")
+        else:
+            session.start_acknowledged_match(expected)
+            assert not session.stopping
+            if scope == "speed-flip":
+                assert session.capture_configuration_ack == session.capture_configuration
+    finally:
+        for timer in timers:
+            timer.join(timeout=1)
+    assert callback_done.is_set() and master.match_config_handlers == []
+
+
+def test_flip_connect_uses_remaining_trial_budget_and_rejects_late_success(tmp_path, monkeypatch):
+    session, _frame, _flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.started_monotonic = 100
+    clock = {"now": 219.8}
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+    relay = NS(socket=None, is_connected=False)
+
+    def connector(**_kwargs):
+        assert relay.connection_timeout == pytest.approx(.2)
+        clock["now"] = 230
+
+    with pytest.raises(game_worker.SessionCancelled):
+        session.connect(connector, relay, 24123)
+    assert session.stopping and session.capture_aborted
+
+
+def test_flip_spawn_checks_deadline_after_core_verification_before_creation(tmp_path, monkeypatch):
+    session, _frame, _flat = _capture_worker(tmp_path, monkeypatch)
+    session.capture["profile"] = reference_capture.FLIP_PROFILE
+    session.started_monotonic = 100
+    clock = {"now": 219}
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(game_worker, "preflight", lambda _owned: None)
+
+    def core_path():
+        clock["now"] = 230
+        return Path("verified-runtime.exe")
+
+    monkeypatch.setattr(game_worker, "core_path", core_path)
+    monkeypatch.setattr(game_worker.subprocess, "Popen", lambda *_args, **_kwargs: pytest.fail("Expired trial spawned a core"))
+    with pytest.raises(game_worker.SessionCancelled):
+        session.spawn_core(tmp_path, 24123)
+    assert session.core is None and session.stopping
+
+
+@pytest.mark.parametrize("profile,slow_load", [("cancel", False), (reference_capture.FLIP_PROFILE, False),
+                                               (reference_capture.FLIP_PROFILE, True)])
 def test_capture_setup_disables_a_saved_auto_reset_preference_and_records_owned_game_version(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, profile, slow_load
 ):
     from my_career_training import map_guard
 
-    request = _capture_request(tmp_path)
-    request.update(lesson_id="speed-flip", preferences={"auto_reset": True})
+    request = _capture_request(tmp_path, profile=profile)
+    request.update(lesson_id="flip-reset" if profile == reference_capture.FLIP_PROFILE else "speed-flip",
+                   preferences={"auto_reset": True})
     _enable_profile(tmp_path, monkeypatch)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(game_worker, "preflight", lambda _owned=None: None)
@@ -968,6 +1055,8 @@ def test_capture_setup_disables_a_saved_auto_reset_preference_and_records_owned_
                 handler(config)
 
     fake_config = _fake_ack_configuration()
+    if profile == reference_capture.FLIP_PROFILE:
+        fake_config.player_configurations[1].team = 1
     monkeypatch.setattr(adapter, "match_config", lambda _request: (
         fake_config, {0: {"team": 0, "role": "all-rounder", "level": 1,
                          "difficulty": .5, "seed": 0}}, 1,
@@ -979,10 +1068,25 @@ def test_capture_setup_disables_a_saved_auto_reset_preference_and_records_owned_
 
     session = game_worker.GameSession(request, lambda _event: None)
     session.core = NS(poll=lambda: None)
-    monkeypatch.setattr(session, "spawn_core", lambda _runtime, _port: Path("verified-runtime.exe"))
+    spawns = []
+    monkeypatch.setattr(session, "spawn_core", lambda _runtime, _port: spawns.append(True) or Path("verified-runtime.exe"))
     monkeypatch.setattr(session, "connect", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(session, "_relay_thread", lambda _relay: None)
 
+    if slow_load:
+        session.started_monotonic = 100
+        clock = {"now": 150}
+        monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+
+        def slow_controller(_capture):
+            clock["now"] = 230
+            return NS(finish=lambda: None, controller_plan=lambda: pytest.fail("Expired policy entered setup"))
+
+        monkeypatch.setattr(reference_capture, "create_capture_controller", slow_controller)
+        with pytest.raises(game_worker.SessionCancelled):
+            session.setup()
+        assert session.stopping and session.capture_aborted and spawns == []
+        return
     session.setup()
 
     assert request["preferences"]["auto_reset"] is True  # the saved request itself is untouched

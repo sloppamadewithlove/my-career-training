@@ -312,6 +312,8 @@ class GameSession:
     def check_cancel(self):
         if self.cancel_start.is_set():
             raise SessionCancelled()
+        if self._check_capture_deadline():
+            raise SessionCancelled()
 
     def spawn_core(self, runtime, port):
         # Cancellation and the only core creation share one lock. A stop that
@@ -322,6 +324,7 @@ class GameSession:
                 raise RuntimeError("Rocket League did not connect within two minutes. Check launcher setup and retry.")
             preflight(self.owned)
             executable = core_path()  # Recheck the pinned file after model loading.
+            self.check_cancel()
             self.core = subprocess.Popen([str(executable), str(port)], cwd=runtime, shell=False,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -359,7 +362,10 @@ class GameSession:
         deadline = time.monotonic() + 8
         while True:
             self.check_cancel()
-            relay.connection_timeout = .5
+            remaining = self._capture_seconds_remaining()
+            if remaining <= 0:
+                self.check_cancel()
+            relay.connection_timeout = min(.5, remaining)
             try:
                 connector(wants_match_communications=False, wants_ball_predictions=predictions,
                           close_between_matches=bool(getattr(relay, "agent_id", "")), rlbot_server_port=port)
@@ -398,6 +404,8 @@ class GameSession:
         expected = self.config_signature(config)
         master = self.manager.rlbot_interface
         def on_config(received):
+            if self.cancel_start.is_set() or self._check_capture_deadline():
+                return
             if self.config_signature(received) == expected:
                 if self.capture is not None:
                     from .reference_capture import configuration_snapshot
@@ -411,7 +419,7 @@ class GameSession:
         try:
             self.check_cancel()
             self.manager.start_match(config, wait_for_start=False, ensure_server_started=False)
-            while not acknowledged.wait(.05):
+            while not acknowledged.wait(min(.05, max(0, self._capture_seconds_remaining()))):
                 self.check_cancel()
                 if self.core.poll() is not None:
                     raise RuntimeError("The offline runtime exited before acknowledging the requested match.")
@@ -438,6 +446,7 @@ class GameSession:
         # The capture gate runs here as well as inside adapter.match_config, so
         # neither entry point alone can reach a capture session.
         self.capture = validate_capture_request(self.request)
+        self.check_cancel()
         # An explicit scenario is validated before any match or core launch.
         # Reference capture never runs a ball-launch scenario.
         self.scenario = None
@@ -451,14 +460,18 @@ class GameSession:
         preflight(self.owned)
         if self.capture is not None and self.owned is not None:
             self.game_version = game_file_version(self.owned.executable)
+        self.check_cancel()
         # Heal a journal an older build already wrote, only after preflight says no game is open.
         # This does not copy a custom map or write a new journal.
         if self.request.get("data_dir"):
             from .map_guard import MapGuard
             self.map_guard = MapGuard(self.request["data_dir"])
             self.map_guard.recover()
+        self.check_cancel()
         core_path()
+        self.check_cancel()
         config, descriptors, self.human_index = adapter.match_config(self.request)
+        self.check_cancel()
         self.human_team = config.player_configurations[self.human_index].team
         self.descriptors = descriptors
         # Ordinary sessions observe the Human. Capture observes only the
@@ -472,6 +485,7 @@ class GameSession:
                 raise RuntimeError("The capture match layout is unexpected. No controls were sent.")
             self.training_actor_index = self.capture["target_index"]
             self.capture_controller = create_capture_controller(self.capture)
+            self.check_cancel()
             self.capture_metadata = {
                 "source": {
                     "kind": "actual_execution",
@@ -534,6 +548,7 @@ class GameSession:
                     self.controllers[index] = create_controller(self.request.get("provider", "mct-specialist-baseline"),
                         descriptor.get("role", "all-rounder"), descriptor["level"], descriptor["difficulty"], descriptor["seed"])
                 self.check_cancel()
+        self.check_cancel()
         runtime = Path(self.request["data_dir"]).resolve() / "runtime" / self.session_id
         runtime.mkdir(parents=True, exist_ok=True)
         port = free_port()
@@ -1124,11 +1139,17 @@ class GameSession:
         elapsed = frame["time"] - self.engine.started_at
         return self.capture_controller.step(elapsed, frame)
 
-    def _check_capture_deadline(self):
+    def _capture_seconds_remaining(self):
         from .reference_capture import FLIP_PROFILE, FLIP_TRIAL_WALL_SECONDS
-        if (self.capture is not None and self.capture["profile"] == FLIP_PROFILE
-                and time.monotonic() - self.started_monotonic >= FLIP_TRIAL_WALL_SECONDS):
+        if self.capture is not None and self.capture["profile"] == FLIP_PROFILE:
+            return self.started_monotonic + FLIP_TRIAL_WALL_SECONDS - time.monotonic()
+        return math.inf
+
+    def _check_capture_deadline(self):
+        if self._capture_seconds_remaining() <= 0:
             self._abort_capture("The bounded flip-reset trial reached its wall-time limit.")
+            return True
+        return False
 
     def _capture_controls(self, frame, flat):
         """Send inputs only to the mapped capture bot, never to the Human.
