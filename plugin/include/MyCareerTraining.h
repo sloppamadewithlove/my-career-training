@@ -15,6 +15,9 @@
 #include "TrainingLessonInput.h"
 #include "TrainingBallVisibility.h"
 #include "TrainingClock.h"
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+#include "NativeResetObservation.h"
+#endif
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -128,6 +131,10 @@ private:
     mct::TrainingBindingGuard trainingBindings_;
     mct::TrainingBallVisibility trainingBallVisibility_;
     mct::TrainingClock trainingClock_;
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+    mct::NativeResetObservation nativeResetObservation_;
+    void updateNativeResetObservation();
+#endif
     mct::Json trainingClockStatus_ = mct::Json::object();
     void updateTrainingClock(const mct::Json& state, bool cleanup = false);
     struct ClockProbe {

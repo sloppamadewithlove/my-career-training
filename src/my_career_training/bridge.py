@@ -28,6 +28,7 @@ from .training import (assistance_preferences, catalog, configure_lesson, import
                        validate_recording)
 from .training.packs import training_packs
 from .training.native_packs import NativeTrainingPackController
+from .training.native_reset_observation import NativeResetObservation
 from .training.scenario_setup import (scenario_options, setup_for, start_setup, step_setup,
                                       validate_action, validate_lesson_scenarios, validate_setup)
 
@@ -59,7 +60,7 @@ class Backend(QObject):
     stateChanged = Signal()
     exitRequested = Signal()
 
-    def __init__(self, directory, parent=None):
+    def __init__(self, directory, parent=None, *, native_reset_observation=False):
         super().__init__(parent)
         self.in_game = False
         self.telemetry = {}
@@ -76,6 +77,8 @@ class Backend(QObject):
         self.plugin_status = {}
         self.native_community = None
         self.native_training_pack = NativeTrainingPackController(self._training_pack_observation)
+        self.native_reset_observation = NativeResetObservation(
+            self._training_pack_observation, enabled=native_reset_observation)
         self.career_draft = {"team_name": "My Career Club"}
         self.workshop_state = {}
         self.community_state = {"catalog": community_plugins.curated_catalog(), "downloaded": [],
@@ -229,6 +232,8 @@ class Backend(QObject):
             "training_packs": training_packs(),
             "native_training_pack": training_pack_state,
             "training_pack_request": self.native_training_pack.request(),
+            "native_reset_observation_request": self.native_reset_observation.request(),
+            "native_reset_observation": self.native_reset_observation.state(),
             "owned_game": self.owned_game.as_dict() if self.owned_game else None,
             "offline": self.in_game, "human_team": (0 if not self.request or
                 not self.request.get("fixture") or self.request["fixture"].get("home") == "human" else 1)}
@@ -685,7 +690,11 @@ class Backend(QObject):
                     "navigate", "diagnostics", "open_data", "community_cancel",
                     "community_browse_cancel"}:
                 raise ValueError("The next match is being prepared. Wait for it to start, or choose Quit My Career.")
-            if action == "navigate":
+            if action == "native_reset_observe":
+                if payload or self._worker_active() or self.lifecycle.frozen or self.stop_reason:
+                    raise ValueError("The private native reset diagnostic cannot start during another transition.")
+                self.native_reset_observation.start()
+            elif action == "navigate":
                 self.page = payload["page"]
                 if self.page in ("community", "workshop"):
                     self._refresh_workshop()

@@ -19,6 +19,12 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <Xinput.h>
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+#include <chrono>
+#include "bakkesmod/wrappers/GameObject/CarWrapper.h"
+#include "bakkesmod/wrappers/GameEvent/TrainingEditorWrapper.h"
+#include "bakkesmod/wrappers/Engine/WorldInfoWrapper.h"
+#endif
 
 // The SDK normally embeds __FILE__, including the builder's private home path.
 // Keep the same public metadata field and ABI with a repository-relative name.
@@ -191,6 +197,9 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+    nativeResetObservation_.cancel();
+#endif
     try { updateTrainingClock(Json::object(), true); } catch (...) {}
     try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
     try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
@@ -1124,6 +1133,52 @@ void MyCareerTraining::updateTrainingBallVisibility(const Json& state, bool allo
         });
 }
 
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+void MyCareerTraining::updateNativeResetObservation() {
+    // Same-user IPC routes intent; it does not authenticate its publisher.
+    const auto state = bridge_->state();
+    const auto found = state.find("native_reset_observation_request");
+    const auto request = found == state.end() ? Json(nullptr) : *found;
+    nativeResetObservation_.tick(request, [this, &request] {
+        mct::NativeResetScope scope;
+        auto& p = scope.process;
+        scope.monotonic = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        p.pid = GetCurrentProcessId(); p.created = processScope_.created;
+        p.processAvailable = gameWrapper != nullptr;
+        p.fresh = bridge_->fresh(); p.ownedOffline = ownedOfflineNow();
+        p.nonce = stringValue(bridge_->state(), "bridge_session");
+        std::string sha, core, build;
+        p.buildVerified = nativeMovie_ && nativeMovie_->verifiedBuild(sha, core, build);
+        if (!p.processAvailable || !p.fresh || !p.ownedOffline || !p.buildVerified) return scope;
+        char created[64]{};
+        std::snprintf(created, sizeof(created), "%.3f", p.created);
+        if (request["pid"] != p.pid || request["nonce"] != p.nonce ||
+            request["start_identity"] != created) return scope;
+        p.online = gameWrapper->IsInOnlineGame(); p.replay = gameWrapper->IsInReplay();
+        p.frontend = !gameWrapper->IsInGame(); scope.paused = gameWrapper->IsPaused();
+        p.inCustomTraining = gameWrapper->IsInCustomTraining();
+        if (p.online || p.replay || p.frontend || scope.paused || !p.inCustomTraining) return scope;
+        auto server = gameWrapper->GetGameEventAsServer();
+        auto car = gameWrapper->GetLocalCar();
+        if (!server || !car) return scope;
+        auto ball = server.GetBall();
+        if (!ball) return scope;
+        scope.event = server.memory_address; scope.car = car.memory_address; scope.ball = ball.memory_address;
+        return scope;
+    }, [this] {
+        auto server = gameWrapper->GetGameEventAsServer();
+        if (!server) throw std::runtime_error("event_missing");
+        TrainingEditorWrapper editor(server.memory_address);
+        auto world = server.GetWorldInfo();
+        if (!world) throw std::runtime_error("world_missing");
+        // Names and units are raw SDK observations, not established reset semantics.
+        return mct::NativeResetSample{editor.GetActiveRoundNumber(), editor.GetShotAttempt(),
+            server.GetSecondsRemaining(), world.GetTimeSeconds(), server.GetGameTimeRemaining(),
+            server.GetTotalGameTimePlayed()};
+    }, mct::unixTime());
+}
+#endif
+
 void MyCareerTraining::tick() {
     if (!alive_ || !bridge_) return;
     try {
@@ -1144,6 +1199,9 @@ void MyCareerTraining::tick() {
         next.toggleKey = toggleKey_;
         const auto publishedState = bridge_->state();
         offlineReady_ = fresh && ownedOfflineNow();
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+        updateNativeResetObservation();
+#endif
         maintainWorkshop();
         if (nativeMovie_) {
             nativeMovie_->tick();
@@ -1233,6 +1291,9 @@ void MyCareerTraining::tick() {
                     {"native_training_clock", trainingClockStatus_},
                     {"native_training_pack", trainingPackStatus()},
                     {"native_dialog_trial", {{"active", nativeDialogActive_.load()}, {"verified", false}}}};
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+                status["native_reset_observation"] = nativeResetObservation_.status();
+#endif
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
             }
@@ -1259,6 +1320,9 @@ void MyCareerTraining::tick() {
                     {"native_training_pack", trainingPackStatus()},
                     {"native_movie_trial", nativeMovie_ ? nativeMovie_->status() : Json::object()},
                     {"runtime_verified", false}, {"production_ready", false}};
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+                status["native_reset_observation"] = nativeResetObservation_.status();
+#endif
                 bridge_->publishStatus(std::move(status));
                 lastStatus_ = mct::unixTime();
             }
@@ -1282,6 +1346,9 @@ void MyCareerTraining::tick() {
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+#if MCT_ENABLE_NATIVE_RESET_OBSERVATION
+        nativeResetObservation_.cancel();
+#endif
         try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
         try { updateTrainingClock(Json::object(), true); } catch (...) {}
         try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
