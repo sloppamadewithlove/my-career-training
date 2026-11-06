@@ -25,11 +25,12 @@ inputs stay unchanged.
 The live handoff reached stock Play, then the game lost foreground. The helper
 refused the next input and dispatched no click. The game remains open with the
 test suspended, awaiting owner foreground; native pause is not live accepted.
-Resume only after a fresh same-process and foreground check, then capture one
-stock pause/resume/exit transition. Do not retry the refused input or rebuild the
-unchanged candidate. Keep the earlier [native-training catch-up receipt]
-(evidence/2026-11-06-native-training-catch-up.md) for save and timer limits, and
-the [focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for
+Do not automatically retry the refused input or rebuild the unchanged candidate.
+Resume only after the owner restores foreground and fresh same-process/foreground
+checks pass; then capture one stock pause/resume/exit transition. Keep the earlier
+[native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
+for save and timer limits, and the
+[focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for
 current candidate and live state.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt

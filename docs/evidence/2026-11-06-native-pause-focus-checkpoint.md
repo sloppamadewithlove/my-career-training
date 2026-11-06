@@ -32,7 +32,8 @@ produced no new timer or reset evidence.
 
 - On foreground loss or helper refusal, stop immediately. Resume only after the
   owner restores the intended game foreground and a fresh process/foreground
-  check passes; never retry the refused click or use stale focus state.
+  check passes. Do not automatically retry the refused click or reuse stale
+  focus state.
 - Reuse the exact candidate's compiled, CTest, Return-fixture, smoke and
   stage/frozen hash results while its source, dependencies and staged assets are
   unchanged. Repeat build/preflight work only after an input changes or a

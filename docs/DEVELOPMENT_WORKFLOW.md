@@ -103,9 +103,9 @@ condition; both agents acknowledge it. Main does not click while a tester owns
 input; observers stay read-only; user control suspends automation.
 
 If foreground is lost or the helper refuses an input, stop: refusal means no
-input was dispatched. Wait for owner foreground, then revalidate the same game
-process and foreground before any next action. Do not retry a refused click or
-reuse stale focus state.
+input was dispatched. Do not automatically retry a refused click. Resume only
+after the owner restores the intended game foreground and fresh same-process and
+foreground checks pass; never reuse stale focus state.
 
 Native Custom Training's Created editor can write a `.Tem` and rotate the actual
 Rocket League game profile before an explicit Save. A copied MCT Career does not
