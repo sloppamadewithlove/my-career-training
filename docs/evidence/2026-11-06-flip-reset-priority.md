@@ -33,3 +33,9 @@ neither is an approval. Reported costs were $0.002001 and $0.00423972. Stop
 repeating that unchanged reviewer request; obtain an approved independent code
 review through another available route before integration. The reviewed source
 and gameplay evidence remain separate.
+
+The specified GPT-5.6 Codex fallback was also attempted; the existing ChatGPT
+login reported that model unsupported, so no review occurred. The owner has
+been asked whether the available GPT-6.1 Sol may review instead. A pinned SDK
+header declares car spawn and collision-related methods, but declarations alone
+do not establish safe translucent, non-contact car rendering or cleanup.
