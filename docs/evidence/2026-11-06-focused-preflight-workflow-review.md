@@ -92,3 +92,23 @@ cannot identify the offending process. Independent inspection found no marker,
 journal or observer DLL and config hashes unchanged, so no recovery was indicated
 for that attempt. The later successful transaction is distinct evidence and
 establishes no game/plugin load, launch mode, runtime compatibility or gameplay.
+
+## Empty marker and restoration
+
+A later stage attempt stopped incomplete after creating the fixed active marker.
+The new journal and observer DLL were absent; the marker was zero bytes and
+both configs still matched the prior completed recovery baseline. The receipt
+omitted the exception details, so the exact failure is unknown. The marker was
+absent immediately before the owned attempt and appeared during it; this
+supports attribution without proving a historical creator PID.
+
+After independent review of the exact-marker cleanup and its caller, a bounded
+cleanup removed the pinned, private-ACL-validated empty marker while checking the
+completed journal, config identities and baseline bytes and refusing conflicts.
+The completed receipt confirms final validation and the exact marker deletion.
+Independent readback found marker/new journal/observer absent, prior completed
+journal retained, both configs matching baseline hashes, and 513 entries in the
+identified profile roots unchanged. No game was launched and Steam launch
+settings were not modified. Root completeness and unrelated process behavior
+remain unproved. Do not repeat the failed stage without improving its exception
+and mutation-phase evidence.
