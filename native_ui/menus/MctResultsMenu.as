@@ -24,10 +24,12 @@ package menus
     import scaleform.clik.events.InputEvent;
     import scaleform.clik.managers.FocusHandler;
     import tagame.api.DevUtil;
+    import tagame.api.GameEvent;
     import tagame.api.LoadoutSets;
     import tagame.api.LoadoutSetsLoadoutSets;
     import tagame.api.LoadoutSetsLoadoutSetsRow;
     import tagame.api.Shell;
+    import tagame.constants.MatchType;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
 
@@ -110,6 +112,13 @@ package menus
             attached = true;
             wireGesture();
             releaseGesture();
+            if (usesStockResults())
+            {
+                if (timer != null) timer.stop();
+                closeLoader();
+                if (details != null) details.visible = false;
+                return;
+            }
             if (timer == null)
             {
                 timer = new Timer(250);
@@ -140,6 +149,8 @@ package menus
         {
             disarm();
             super.refreshMenu();
+            if (details != null) details.visible = !usesStockResults();
+            if (usesStockResults()) return;
             fitControls();
             layoutDetails();
             syncFocus();
@@ -148,6 +159,7 @@ package menus
         override protected function handleStageResized(event:Event = null) : void
         {
             super.handleStageResized(event);
+            if (usesStockResults()) return;
             fitControls();
             layoutDetails();
         }
@@ -156,7 +168,19 @@ package menus
         // hidden; the game timer itself is untouched.
         override protected function onTimeToNextMatchChanged() : void
         {
+            if (usesStockResults())
+            {
+                super.onTimeToNextMatchChanged();
+                return;
+            }
             if (nextMatchCountdown != null) nextMatchCountdown.visible = false;
+        }
+
+        public static function usesStockResults() : Boolean
+        {
+            // Match type owns the stock results branch, even after training ends.
+            return !GameEvent.bOnline && (GameEvent.MatchType == MatchType.TRAINING ||
+                GameEvent.MatchType == MatchType.GAME_EDITOR);
         }
 
         // Longer local pages (up to eight controls) must stay on screen. Move
@@ -233,6 +257,11 @@ package menus
 
         override protected function generateControls() : void
         {
+            if (usesStockResults())
+            {
+                super.generateControls();
+                return;
+            }
             var focusName:String = openerFocus != "" ? openerFocus : currentFocus != null ? currentFocus.name : "";
             openerFocus = "";
             suppressHoldFocus = false;
@@ -279,6 +308,17 @@ package menus
 
         private function wireGesture() : void
         {
+            if (usesStockResults())
+            {
+                if (gestureContainer != null)
+                {
+                    gestureContainer.removeEventListener(ButtonEvent.PRESS, armGesture, true);
+                    gestureContainer.removeEventListener(ButtonEvent.CLICK, gateGesture, true);
+                    gestureContainer.removeEventListener(ButtonEvent.RELEASE_OUTSIDE, abandonGesture, true);
+                    gestureContainer = null;
+                }
+                return;
+            }
             if (m_controlContainer == null || gestureContainer === m_controlContainer) return;
             if (gestureContainer != null)
             {
@@ -527,6 +567,7 @@ package menus
 
         override protected function getDirectionalFocus(direction:String) : InteractiveObject
         {
+            if (usesStockResults()) return super.getDirectionalFocus(direction);
             return null;
         }
 
@@ -540,10 +581,12 @@ package menus
         override protected function handleReadyChanged() : void
         {
             if (m_readyButton == null) return;
+            if (usesStockResults()) super.handleReadyChanged();
         }
 
         override protected function checkForFTE() : void
         {
+            if (usesStockResults()) super.checkForFTE();
         }
 
         // The document can close without entering this menu's close method.
@@ -563,6 +606,11 @@ package menus
 
         override protected function handleInput(event:InputEvent) : void
         {
+            if (usesStockResults())
+            {
+                super.handleInput(event);
+                return;
+            }
             if (localBackKey != "" && event != null && event.details != null &&
                 event.details.navEquivalent == localBackKey)
             {
@@ -699,6 +747,12 @@ package menus
 
         private function poll(event:TimerEvent = null) : void
         {
+            if (usesStockResults())
+            {
+                if (timer != null) timer.stop();
+                closeLoader();
+                return;
+            }
             if (!attached && !UIMenu.isMenuInStack(menuName)) return;
             if (view != null && !current()) loseConnection();
             if (presetOpen && isFrontMenu() && (!presetValid() || signatureOf(presetRows()) != presetSignature))
@@ -720,6 +774,11 @@ package menus
 
         private function loaded(event:Event) : void
         {
+            if (usesStockResults())
+            {
+                closeLoader();
+                return;
+            }
             if (loader == null || event.currentTarget !== loader) return;
             var raw:String = String(loader.data);
             closeLoader();
@@ -806,6 +865,11 @@ package menus
 
         override protected function validateFocus(event:Event = null) : void
         {
+            if (usesStockResults())
+            {
+                super.validateFocus(event);
+                return;
+            }
             var control:UIComponent = currentFocus as UIComponent;
             if (suppressHoldFocus && returnLocked() &&
                 (control == null || !control.enabled || control.stage == null || !contains(control)))
@@ -954,7 +1018,7 @@ package menus
 
         private function current() : Boolean
         {
-            return acceptable(view);
+            return !usesStockResults() && acceptable(view);
         }
 
         private function isFrontMenu() : Boolean

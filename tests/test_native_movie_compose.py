@@ -888,3 +888,43 @@ def test_stock_pause_owns_input_buttons_focus_and_document_chrome():
     assert added.index("usesStockPause()") < added.index("addEventListener(Event.ENTER_FRAME")
     chrome = method(screen, "keepMatchChrome")
     assert chrome.index("usesStockPause()") < chrome.index("shell.hideMatchmakingView()")
+
+
+def test_stock_training_results_own_controls_input_and_screen_before_menu_exists():
+    root = Path(__file__).resolve().parents[1] / "native_ui"
+    menu = (root / "menus" / "MctResultsMenu.as").read_text(encoding="utf-8")
+    screen = (root / "MctResultsMenuScreen.as").read_text(encoding="utf-8")
+
+    def method(source, name):
+        return source.split(f"function {name}(", 1)[1].split("\n        }", 1)[0]
+
+    selector = method(menu, "usesStockResults")
+    assert "public static function usesStockResults()" in menu
+    assert "!GameEvent.bOnline" in selector
+    assert "GameEvent.MatchType == MatchType.TRAINING" in selector
+    assert "GameEvent.MatchType == MatchType.GAME_EDITOR" in selector
+    assert "bIsCustomTraining" not in selector
+    assert "MatchType.OFFLINE" not in selector and "MatchType.SEASON" not in selector
+    for name in ("generateControls", "handleInput", "validateFocus", "onTimeToNextMatchChanged"):
+        stock = method(menu, name).split("if (usesStockResults())", 1)[1].split("}", 1)[0]
+        assert f"super.{name}(" in stock and "return;" in stock
+    assert "super.getDirectionalFocus(direction)" in method(menu, "getDirectionalFocus")
+    ready = method(menu, "handleReadyChanged")
+    assert ready.index("m_readyButton == null") < ready.index("super.handleReadyChanged()")
+    assert "if (usesStockResults()) super.checkForFTE();" in method(menu, "checkForFTE")
+    assert "!usesStockResults() && acceptable(view)" in method(menu, "current")
+    assert "details.visible = !usesStockResults()" in method(menu, "refreshMenu")
+    for name in ("poll", "loaded"):
+        body = method(menu, name)
+        boundary = "com.adobe.serialization.json.JSON.decode" if name == "loaded" else "new URLLoader"
+        assert body.index("usesStockResults()") < body.index(boundary)
+    wire = method(menu, "wireGesture")
+    assert wire.index("usesStockResults()") < wire.index("addEventListener(ButtonEvent.PRESS")
+    assert "gestureContainer = null" in wire
+    # TrainingResults animates before the child menu is created. The document
+    # must use native state directly rather than depending on that child.
+    added = method(screen, "handleAddedToStage")
+    assert added.index("MctResultsMenu.usesStockResults()") < added.index("addEventListener(Event.ENTER_FRAME")
+    chrome = method(screen, "keepMatchChrome")
+    assert chrome.index("MctResultsMenu.usesStockResults()") < chrome.index("m_endGameMenu as MctResultsMenu")
+    assert chrome.index("MctResultsMenu.usesStockResults()") < chrome.index("shell.hideMatchmakingView()")

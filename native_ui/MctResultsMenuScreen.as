@@ -35,6 +35,7 @@ package
         override protected function handleAddedToStage(event:Event) : void
         {
             super.handleAddedToStage(event);
+            if (MctResultsMenu.usesStockResults()) return;
             addEventListener(Event.ENTER_FRAME, keepMatchChrome, false, 0, true);
             keepMatchChrome();
         }
@@ -60,6 +61,11 @@ package
 
         private function keepMatchChrome(event:Event = null) : void
         {
+            if (MctResultsMenu.usesStockResults())
+            {
+                lastReturnHeld = false;
+                return;
+            }
             var authored:MctResultsMenu = m_endGameMenu as MctResultsMenu;
             lastReturnHeld = authored != null && authored.shouldHoldScreenClose();
             var shell:ITAGameShell = TAGameShellInstance.get();
