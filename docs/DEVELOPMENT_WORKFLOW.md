@@ -1,6 +1,6 @@
 # Development and testing workflow
 
-Updated 5 November 2026. Universal working agreement for implementation, review
+Updated 6 November 2026. Universal working agreement for implementation, review
 and evidence. Product/release truth lives in [PROJECT_STATUS.md](PROJECT_STATUS.md);
 the taskboard is [NEXT_TASKS.md](NEXT_TASKS.md); the product contract is
 [BUILD_SPEC.md](BUILD_SPEC.md); the testing recipe is
@@ -102,6 +102,14 @@ Verify restoration after closure. A handoff names game identity, scenario, allow
 condition; both agents acknowledge it. Main does not click while a tester owns
 input; observers stay read-only; user control suspends automation.
 
+Native Custom Training's Created editor can write a `.Tem` and rotate the actual
+Rocket League game profile before an explicit Save. A copied MCT Career does not
+isolate those game saves. Keep private preflight copies and record a baseline
+inventory before Create; after the owned game exits, compare changed names/hashes.
+Preserve newly written active saves. Restore only missing originals with
+create-new semantics; never overwrite changed files or claim byte-identical
+restoration unless hashes prove it.
+
 ## Testing and evidence rules
 
 - Tests are boundary-focused; do not repeat a passing check without a change.
@@ -120,12 +128,22 @@ input; observers stay read-only; user control suspends automation.
 - Destructive fault tests use isolated copied test data only; there is no
   requirement to kill or restart the real game merely to test saves.
 - Source scripts must select the correct project and a validated toolchain.
+- If packaging imports a module from an old environment or another checkout, stop
+  before building. Select the pinned project interpreter, set an absolute
+  `PYTHONPATH` for the intended checkout, and verify `sys.executable` plus each
+  critical module's `__file__` before retrying from the initial staging build.
+  For the native candidate, stage source/license evidence, collect licenses, then
+  freeze and smoke in the order recorded by `docs/BUILDING.md`.
 - Timing-sensitive controls need a regression through the production packet
   dispatcher, including valid game ticks with uneven wall-clock arrivals and
   a real missing tick. A passing controller-only test cannot prove dispatch.
 - Check whether the loaded candidate already contains a proposed repair before
   repeating an old hypothesis. Match runtime fields and the visible HUD within
   the same attempt; historical readbacks cannot explain a later display failure.
+- A timer returning to its initial display only suggests expiry. Verify the exact
+  zero transition with same-attempt native timer/state evidence. A reset input at
+  the initial state proves nothing; first change the attempt, then verify every
+  relevant actor and state returns.
 - Screen actual packet cadence before expanding a strict capture entry. Retained
   per-packet timestamps/gap flags can reject coarse delivery; positive strict
   acceptance also needs frame-number continuity. Throttled telemetry spacing is
@@ -165,3 +183,5 @@ records matched clock evidence requirements and passive capture-cadence screenin
 The [fourth cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md)
 records the Custom Training route and save side effect, unresolved clock lead and
 missed-review catch-up.
+The [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
+records native local-save behavior, timer/reset limits and packaging provenance.

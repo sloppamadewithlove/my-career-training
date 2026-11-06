@@ -20,6 +20,12 @@ Tests use temporary fixtures and do not start Rocket League. A process-probe tes
 must explicitly mock its process state, so an open real game cannot affect it.
 macOS can run applicable domain/UI tests; Windows artifacts must be built on Windows.
 
+If a build import resolves from an old virtual environment or another checkout,
+stop before packaging. Confirm `sys.executable` and the imported module's
+`__file__`; set an absolute `PYTHONPATH` for this checkout's `src`, then verify
+the origins again before retrying. Restart at the initial staging build after
+correcting the import root; do not reuse mixed-import output.
+
 ## Current native bundle
 
 ```powershell
@@ -33,8 +39,10 @@ uv run --frozen python scripts/smoke_native_candidate.py
 ```
 
 The first native build stages the plugin source/license evidence before license
-collection. The final build enables the native movie trial and disables the host
-probe. Output is `build/native-candidate/dist/MyCareerTrainingNativeCandidate/`.
+collection. Keep `collect_licenses.py` after that staging build and before
+freezing; do not skip license collection after an import or packaging failure.
+The final build enables the native movie trial and disables the host probe.
+Output is `build/native-candidate/dist/MyCareerTrainingNativeCandidate/`.
 Only `MyCareerTraining.exe` is at the top. The private worker is at
 `_internal/MyCareerTrainingWorker.exe`, requires explicit `--worker`, and shares
 the support libraries there. Its bootloader hides a console it owns. The app

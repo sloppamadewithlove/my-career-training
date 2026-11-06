@@ -3,8 +3,9 @@
 Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. The 29 October live receipts below remain historical;
 exact `2c08e74` now has source/native/package checks and bounded offline live
-observations. The earlier session's eventual shutdown/restoration is verified;
-the earlier clock run's cause remains unresolved. Whole-level retry/progression
+observations. Exact `a59c45f` later passed the bounded native Training menu and
+Back route; it did not verify editor gameplay or reset. A reviewed native-pause
+source fix remains un-packaged and untested live. Whole-level retry/progression
 and full lesson/release acceptance remain open.
 
 | Area | Current evidence |
@@ -15,9 +16,12 @@ and full lesson/release acceptance remain open.
 | Native/package candidate | Exact `2c08e74`: shorter checkout resolved SDK include depth; 1654 Python checks passed/15 skipped, Ruff, 38 plugin CTests, 13 launcher checks, backend/native fixture and frozen smoke passed |
 | Grand Champion live probe | Exact `2c08e74`: authored hub and GC Power Shots reached; no-input timeout captured defender touch; Up restored observed car/ball but score stayed 0–1; automatic second-scenario transition after timeout observed, cause unestablished |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Last completed live probe | Exact `2c08e74`, distinct from later source-only repairs/experiments |
+| Last GC gameplay probe | Exact `2c08e74`, distinct from later source-only repairs/experiments |
 | Native clock | Tested 2c08 already includes integer synchronization; a historical sample showed HUD 0:01 while native SecondsRemaining was zero. Source binds the HUD to GameEvent.TimeRemaining; the same-attempt relationship and cause remain unestablished |
-| Native Custom Training | Immediate priority. Stock RLBot route reached the Custom Training editor with Epic reconnect declined; Create defaults changed save state before an explicit Save. The authored native Play handoff remains under development and is not implemented or tested. See the [fourth-cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md); no live game process remains |
+| Native Training handoff | Exact `a59c45f`: packaged/live Play → Training → Custom Training → Created; native Back returned to the responsive authored hub. Epic reconnect declined; no pack was created, but the actual game-profile primary changed and a rotated save was preserved; not byte-identical restoration |
+| Native local editor and saves | Separate stock Created-editor visit reached local training without a pack download. Create defaults wrote `.Tem` and rotated the actual game profile before explicit Save; primary changed and was retained. Originals remain private |
+| Native local timer/reset | Exact `a59c45f`: `0:10` → `0:07` after movement → later initial `0:10`; expiry is inferred, with no exact zero or native telemetry. Backspace at initial state showed no change; reset not accepted |
+| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b` passed authored-source/compiled checks. It is not packaged or live tested; the prior native session showed MCT pause instead of stock pause |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Completed GC-session shutdown | Exact `2c08e74`: Return reached hub; Quit acknowledgement did not establish exit; owned WM_CLOSE eventually closed game/app/helper, and original-save/plugin/config/game-file restoration checks passed; separate clock-run cleanup remains unverified |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
@@ -44,8 +48,11 @@ extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
 The saved desktop prompt **Improve My Career Training** is configured for 45-minute
-intervals; two review points after 22:49 UTC were missed by orchestration, as recorded
-in the fourth-cycle receipt. The configured interval does not prove a review ran.
+intervals, but its configuration does not prove a review ran. After the prior
+receipt set 01:45:49 UTC as the next target, that point and later points at 02:30:49
+and 03:15:49 passed before this catch-up began; the next active-chat target is
+04:15:49 UTC.
+No persistent timer is claimed. See the [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md).
 Windows scheduling was not used. Its earlier delivered change is the integrated PR #11
 privacy check. Main's build concurrency changes preserve the active build and newest
 pending work. Neither is evidence of gameplay readiness. The task board owns current
@@ -82,3 +89,7 @@ why clock-field correlation and actual packet-cadence screening precede more cod
 [Fourth-cycle receipt](evidence/2026-11-06-session-improvement-cycle-4.md) records
 the Custom Training route, its save side effect and recovery, the unresolved clock
 lead, and the missed-review catch-up.
+
+[Native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
+records the exact native handoff, editor write side effect, timer/reset limits,
+reviewed pause fix and packaging prerequisites.

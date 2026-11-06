@@ -4,14 +4,25 @@ Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PR
 
 ## Current priority: native Custom Training
 
-The authored native Play handoff is under development and is not implemented or
-tested. A stock RLBot route reached the Custom Training editor, but Create defaults
-changed save state before an explicit Save. Keep further creation tests on an
-isolated copied profile and verify save restoration. The [fourth-cycle receipt]
-(evidence/2026-11-06-session-improvement-cycle-4.md) records the route and limits.
-The finite acceptance is the authored Play handoff through Training → Custom
-Training → Create New → editor, with no changes to the original profile and
-verified cleanup after closing the owned game.
+Native-first direction remains in force. Exact packaged candidate `a59c45f` passed
+the bounded native Play → Training → Custom Training → Created → Back menu route;
+it did not prove editor gameplay or reset. A separate local Created-editor visit
+showed that Create defaults write `.Tem` and rotate the actual Rocket League game
+profile before explicit Save. Keep original game saves private and preflight them
+separately from the copied MCT Career.
+
+Native Striker timer/reset behavior remains unverified: `0:10` changed to `0:07`
+after movement and later returned to initial `0:10`; expiry is inferred, not
+captured at zero. Backspace at the initial state did not prove reset. Reviewed
+source fix `3b9ef72` (`bd9336d` review branch) addresses stock pause in native
+training but has not been packaged or live tested.
+
+The next bounded acceptance is to package the reviewed fix from the intended
+checkout, verify Python import origins and collected licenses, then exercise the
+native menu/editor and stock pause on an isolated actual game profile. Test reset
+only after changing actor state, correlate timer expiry with same-attempt native
+state, and verify save handling after the owned process exits. See the [catch-up
+receipt](evidence/2026-11-06-native-training-catch-up.md) for limits and recovery.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now
@@ -42,9 +53,11 @@ source repair `eb1be7d` (`ef94b24` published) passed 268 checks and prevents a
 reproduced late-score-after-timeout case; it is not a verified live diagnosis.
 Return reached the hub. The prior session eventually exited through owned
 WM_CLOSE and restoration checks passed; authored Quit completion remains open.
-No current clock run or causal finding is recorded. Correlate fresh native clock
-fields with HUD/attempt state before proposing another write; tested 2c08 already
-contains the integer-sync/notification repair.
+The 2c08 HUD/SecondsRemaining mismatch still has no established cause; the later
+`a59c45f` `0:10` → `0:07` → `0:10` sequence lacks exact-zero/native telemetry and
+only suggests expiry. Correlate fresh same-attempt native clock fields with HUD
+and state before proposing another write; tested 2c08 already contains the
+integer-sync/notification repair.
 See the [second-cycle receipt](evidence/2026-11-05-session-improvement-cycle-2.md).
 The [third-cycle receipt](evidence/2026-11-05-session-improvement-cycle-3.md)
 records the current matched-clock and cadence-first next actions.
