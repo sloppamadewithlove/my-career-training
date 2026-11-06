@@ -2,6 +2,21 @@
 
 Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
+## Owner priority: flip-reset teaching ghost
+
+The owner wants the first playable skill to be a flip-reset lesson with a
+toggleable ghost that looks like a translucent car. It should approach the ball
+in the air and demonstrate gaining the flip by contacting the ball with its
+wheels. Keep the car, ball and observed inputs on one fixed-start timeline.
+The ghost must not affect the player's car, ball, scoring or physics. An actual,
+permitted successful demonstration and the native renderer remain unverified;
+the existing diagnostic crosses do not satisfy this request.
+
+On 6 November the owner authorized selecting Rocket League's official
+`Without EAC` option for offline mod testing if offered, while keeping Steam
+online. This does not establish the current EAC state or grant game-input
+ownership. Continue the compatibility and ownership checks below.
+
 ## Current priority: native Custom Training
 
 Native-first direction remains in force. Exact packaged candidate `a59c45f` passed
@@ -50,8 +65,8 @@ denied, so loaded-plugin state is unknown and no cause is established. Candidate
 `9ee0c33` itself was not launched after the update. Keep this route distinct from
 prior `-rlbot` testing. Steam Offline Mode is separate from Rocket League's EAC
 setting. The user prefers Steam online and permits gameplay offline only.
-The user has not answered whether to select `Without EAC` if the launcher offers it. Actual EAC
-state is unknown. Official BakkesMod metadata for
+The owner now authorizes selecting `Without EAC` for offline testing if offered;
+actual EAC state is unknown. Official BakkesMod metadata for
 `2.0.78 / RL2.78 / BM229` is a later version-level compatibility signal than
 the April 28 post-EAC notice, not proof of local plugin load or Steam-build
 compatibility. Do not change
@@ -80,7 +95,7 @@ test evidence, with no live execution, EAC-state or compatibility proof. The
 next live observation requires exact owned process identity, a fresh short lease, exact
 config staging and a rollback plan, with ordinary MCT excluded. Keep Steam online
 as requested and gameplay offline only. If the launcher offers `Without EAC`,
-wait for the user's answer before selecting. Record the actual choice; do not infer EAC state from the observer.
+the owner permits selecting it for offline testing. Record the actual choice; do not infer EAC state from the observer.
 Review the exact identity output before any separate compatibility test.
 
 The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic

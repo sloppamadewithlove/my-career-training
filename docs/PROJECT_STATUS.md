@@ -27,9 +27,14 @@ establish compatibility with the updated executable. Official BakkesMod release
 update, provides later version-level metadata than its 28 April post-EAC notice;
 it does not establish local plugin loading or compatibility with Steam build
 `26349479`. The user prefers Steam stay online and permits gameplay only offline.
-The user has not answered whether to select `Without EAC` if the launcher offers it.
+The owner now authorizes selecting `Without EAC` for offline mod testing if offered.
 Actual EAC state is unverified. Steam Offline Mode is a separate client setting.
 Whole-level retry/progression and full lesson/release acceptance remain open.
+
+The owner's first requested playable skill is flip reset, with a toggleable
+translucent-looking ghost car demonstrating the aerial approach and wheel
+contact with the ball. No successful lesson-specific ghost recording or native
+car renderer is accepted yet; see the task board for the current boundary.
 
 | Area | Current evidence |
 | --- | --- |
@@ -47,7 +52,7 @@ Whole-level retry/progression and full lesson/release acceptance remain open.
 | Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. Live Escape → native pause → Resume passed on the earlier tested setup; updated-executable compatibility is unverified |
 | Native results repair | Exact `bd9336d` End Training → Yes reached 0% results waiting for the offline Career service; no usable controls or hub return. Reviewed source repair `df19252` at branch head `9ee0c33`; candidate build, tests and smoke passed, but it has not been launched after the reported Steam update |
 | Steam executable compatibility | Steam build `26349479`, FileVersion `1.0.10897.0`, and executable SHA-256 prefix `bcfb3233…` were read locally; three menu-package hashes were reported matching. Official BakkesMod `2.0.78 / RL2.78 / BM229` was released on 20 October with an RL2.78 compatibility update, later version-level metadata than its 28 April post-EAC notice. This does not prove local plugin loading or Steam-build compatibility |
-| Launch route and injector check | Latest reported Bakkes-only standard Steam launch without `-rlbot` was inconclusive; module access was unavailable and no fresh log was retained. Plugin-loaded and EAC state are unknown. User prefers Steam online and permits gameplay offline only; the user has not answered whether to select `Without EAC` if offered. Injector graceful close failed; its verified test-owned PID was terminated |
+| Launch route and injector check | Latest reported Bakkes-only standard Steam launch without `-rlbot` was inconclusive; module access was unavailable and no fresh log was retained. Plugin-loaded and EAC state are unknown. User prefers Steam online and permits gameplay offline only, including selecting `Without EAC` if offered. Injector graceful close failed; its verified test-owned PID was terminated |
 | Config and save recovery | Temporary config override was conditionally restored; four backup saves were restored and one changed/new file preserved. No whole-profile unchanged claim. Cleanup of the exact test-config temporary was blocked by policy and it remains |
 | Identity observer | Reviewed default-OFF observer and Windows junction-race correction (`8b6b5bf` + `3b4f34a`, source branch head `d64d5dd`); no live execution, EAC-state or compatibility proof |
 | Native session restoration | Owned `bd9336d` session closed gracefully. Original Career and local sequence hashes matched preflight; three absent backup saves restored create-new-only; changed current saves/profile files preserved. Whole-profile unchanged is not claimed |
