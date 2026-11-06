@@ -52,3 +52,9 @@ proxy: test alpha, projection, toggle and cleanup in an owned offline session,
 and compare real car, ball and score with the proxy off and on. Do not spawn a
 game actor for this test. A successful proxy would not prove a final
 translucent car model, a permitted successful trace or teaching readiness.
+
+The first pure proxy mesh candidate passed edge-pairing and volume checks, but
+independent Astra review found overlapping, inward-facing triangles in the
+concave side polygon. The candidate is held for correction. Improvement: mesh
+tests must also check face orientation and coverage/area against the intended
+silhouette; a closed edge topology alone does not establish a valid surface.
