@@ -5,10 +5,17 @@ Gold playlist is available. The 29 October live receipts below remain historical
 exact `2c08e74` now has source/native/package checks and bounded offline live
 observations. Exact `a59c45f` later passed the bounded native Training menu and
 Back route; it did not verify editor gameplay or reset. Exact candidate `bd9336d`
-passed compiled/package checks, but the live test lost foreground at Play and did
-not reach native pause. The current restart is at read-only process/foreground
-verification; no new input or native-pause result is recorded. Whole-level
-retry/progression and full lesson/release acceptance remain open.
+was resumed after fresh process/foreground verification and confirmation of a
+sole input owner: Escape opened the native pause and Resume returned to training.
+End Training → Yes reached a native results screen at 0% waiting for the offline
+Career service, with no usable controls and no hub return. The owned session was
+closed gracefully; the original Career and local sequence hashes matched their
+preflight values, three absent backup saves were restored create-new-only, and
+changed current saves/profile files were preserved. This does not establish that
+the whole game profile was unchanged. Reviewed results repair `df19252` is at
+source branch head `9ee0c33`; a package build is underway, with no packaged or
+live result yet. Whole-level retry/progression and full lesson/release acceptance
+remain open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -23,9 +30,10 @@ retry/progression and full lesson/release acceptance remain open.
 | Native Training handoff | Exact `a59c45f`: packaged/live Play → Training → Custom Training → Created; native Back returned to the responsive authored hub. Epic reconnect declined; no pack was created, but the actual game-profile primary changed and a rotated save was preserved; not byte-identical restoration |
 | Native local editor and saves | Separate stock Created-editor visit reached local training without a pack download. Create defaults wrote `.Tem` and rotated the actual game profile before explicit Save; primary changed and was retained. Originals remain private |
 | Native local timer/reset | Exact `a59c45f`: `0:10` → `0:07` after movement → later initial `0:10`; expiry is inferred, with no exact zero or native telemetry. Backspace at initial state showed no change; reset not accepted |
-| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. No live native pause proof |
-| Native pause live check | Exact `bd9336d` handoff reached stock Play; foreground was lost before the next input. Helper refused it and dispatched no click. User said continue; read-only process/foreground verification is underway, with no input yet. No live native pause proof |
-| Native draw experiment | Branch `8759a83` records independently reviewed source `a983c618`: pure diagnostic frame preparation; dedicated C++ check passed 1/1. No drawable registration, renderer, ghost, full plugin/package build or live test |
+| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. Live Escape → native pause → Resume passed |
+| Native results repair | Exact `bd9336d` End Training → Yes reached 0% results waiting for the offline Career service; no usable controls or hub return. Reviewed source repair `df19252` at branch head `9ee0c33` passed source/compiled-movie checks; package build underway at this checkpoint, not yet packaged or live tested |
+| Native session restoration | Owned `bd9336d` session closed gracefully. Original Career and local sequence hashes matched preflight; three absent backup saves restored create-new-only; changed current saves/profile files preserved. Whole-profile unchanged is not claimed |
+| Native draw experiment | Branch `8759a83` records independently reviewed source `a983c618`: pure diagnostic frame preparation; dedicated C++ check passed 1/1. SDK owner-scoped uninstall is static evidence only and unload concurrency remains unresolved. No drawable registration, live renderer, ghost, full plugin/package build or live test |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Completed GC-session shutdown | Exact `2c08e74`: Return reached hub; Quit acknowledgement did not establish exit; owned WM_CLOSE eventually closed game/app/helper, and original-save/plugin/config/game-file restoration checks passed; separate clock-run cleanup remains unverified |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
@@ -52,10 +60,10 @@ extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
 The requested 45-minute active-session cadence is not a persistent timer. The
-05:01:00 UTC target elapsed while the chat was idle and is not counted as an
-actively missed review. Active work resumed at 05:30:22 UTC; the next active-chat
-target is 06:15:22 UTC. No unattended review is claimed. See the
-[active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md).
+06:15:22 UTC review target was recorded at 06:16:37 UTC, 75 seconds later; the
+next active-chat target is 07:01:37 UTC. No unattended review is claimed. See the
+[active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
+and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md).
 Windows scheduling was not used. The earlier scheduled improvement task
 delivered the integrated PR #11 privacy check. Main's build concurrency changes
 preserve the active build and newest pending work. Neither is evidence of gameplay
@@ -102,3 +110,7 @@ records candidate checks and the live focus stop; it is not native-pause accepta
 
 [Active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
 records the idle-to-active restart, current read-only gate and source-only drawing experiment.
+
+[Native results live checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md)
+records the resumed pause/Resume pass, blocked native results route, save recovery,
+and the source-only results repair/build boundary.

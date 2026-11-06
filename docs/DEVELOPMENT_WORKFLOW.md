@@ -124,7 +124,10 @@ restoration unless hashes prove it.
 - For a native candidate, retain its manifest, smoke receipt and staged/frozen
   authored-ABC hash comparison. Reuse them while source, dependencies and staged
   assets are unchanged; do not rebuild or repeat stable preflight to compensate
-  for a focus failure.
+  for a focus failure. When a new compiled ABC changes, stage it once and build
+  one coherent candidate; retain receipts for unchanged inputs and rerun only
+  checks invalidated by the change. Preserve the manifest, license collection,
+  exact source provenance and frozen asset/hash checks.
 - Monitor a quiet package build through its current process and logs at bounded
   intervals; set completion/failure/stop conditions before waiting or retrying.
   Gather stable launch prerequisites once per candidate and repeat them only

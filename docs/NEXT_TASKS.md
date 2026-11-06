@@ -13,30 +13,44 @@ separately from the copied MCT Career.
 
 Native Striker timer/reset behavior remains unverified: `0:10` changed to `0:07`
 after movement and later returned to initial `0:10`; expiry is inferred, not
-captured at zero. Backspace at the initial state did not prove reset. Reviewed
-source fix `3b9ef72` (`bd9336d` review branch) is included in the packaged
-candidate; live native pause is still unverified.
+captured at zero. Backspace at the initial state did not prove reset. Exact
+candidate `bd9336d` has now passed Escape → native pause → Resume after fresh
+process/foreground checks and sole-owner confirmation. End Training → Yes reached
+a 0% native results screen waiting for the offline Career service, without usable
+controls or a hub return. Reviewed results repair `df19252` is at source branch
+head `9ee0c33`; a package build is underway, not yet packaged or live tested.
 
 Exact candidate `bd9336d` now passes 1,659 Python checks/15 skipped, 38 plugin and
 13 launcher CTests, the Return fixture and frozen smoke; pause ABC hashes matched
 between staging and frozen output. Reuse these results while source and package
 inputs stay unchanged.
 
-The live handoff reached stock Play, then the game lost foreground. The helper
-refused the next input and dispatched no click. The test remains suspended. User
-has said continue; read-only process/foreground verification is underway, with no
-input sent. Native pause is not live accepted. Do not automatically retry the
-refused input or rebuild the unchanged candidate. Resume only after fresh
-same-process/foreground checks pass; then capture one stock pause/resume/exit
-transition. Keep the earlier
+The earlier handoff reached stock Play, then lost foreground; the helper refused
+the next input and dispatched no click. After fresh same-process/foreground checks
+and sole-owner confirmation, the run resumed: native pause/Resume passed, while
+End Training remained blocked as described above. Graceful close preserved the
+original Career and local sequence hashes; three absent backup saves were restored
+create-new-only, and changed saves/profile files were preserved. The whole game
+profile was not proven unchanged. Keep the earlier
 [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
 for save and timer limits, and the
-[focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for
-current candidate and live state.
+[focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for the
+initial refused-input boundary, plus the
+[results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md) for
+this later run.
+
+Next, finish the package build already underway for `df19252`, staging the new
+results ABC once and checking its source, license, manifest and frozen-asset
+provenance. Reuse passing checks and preflight receipts whose inputs did not
+change; retain fresh same-process/foreground and owned-save checks for the next
+live run. Then test the exact packaged results controls and chosen restart/browser/
+main-menu path, followed by a Career results/Return regression. Do not treat the
+source checks or an in-progress build as live acceptance.
 
 The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic
-frames only. No renderer, drawable registration, live draw or ghost is proven;
-keep this source experiment separate from teaching-feature acceptance.
+frames only. SDK owner-scoped uninstall is static evidence; unload concurrency
+remains unresolved. No renderer, drawable registration, live draw or ghost is
+proven; keep this source experiment separate from teaching-feature acceptance.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now
