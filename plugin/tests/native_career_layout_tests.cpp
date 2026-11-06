@@ -210,6 +210,12 @@ int main() {
         stockUnknownWorker["session"].erase("worker_running");
         require(!hasChoice(layout.view(scope, stockUnknownWorker), NativeCareerLayout::kStockTraining),
             "Unknown worker state granted stock Training");
+        auto savedStockCareer = state;
+        savedStockCareer["career"]["pending_session"] = {{"fixture_id", "saved-fixture"}, {"session_id", "saved-session"}};
+        savedStockCareer["session"]["kind"] = "career";
+        const auto savedStockChoice = findChoice(layout.view(scope, savedStockCareer), NativeCareerLayout::kStockTraining);
+        require(choose(layout, savedStockChoice, scope, savedStockCareer, false).accepted,
+            "A saved Career with no running worker blocked stock Training");
         require(root.suppress.size() == 6, "Suppression plan missing");
         require(root.suppress[0] == NativeRouteId::OnlineMatchmaking && root.suppress[1] == NativeRouteId::TournamentJoin, "Suppress order");
         require(root.suppress[2] == NativeRouteId::Store && root.suppress[3] == NativeRouteId::RocketPass, "Store and pass");

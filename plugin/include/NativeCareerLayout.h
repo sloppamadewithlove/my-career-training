@@ -1205,8 +1205,7 @@ private:
         addLine(view.body, "Rocket League Training opens Play, then choose Training.");
         navigate(view, kCareer, "My Career", CareerLayoutPage::Career);
         navigate(view, kTraining, "Training", CareerLayoutPage::Training);
-        if (ready(state) && !flag(sessionOf(state), "worker_running", true) &&
-            !flag(sessionOf(state), "results_pending_choice", false)) {
+        if (lessonReady(state)) {
             CareerLayoutChoice stock;
             stock.id = kStockTraining;
             stock.label = "Rocket League Training";

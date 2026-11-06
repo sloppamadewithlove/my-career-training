@@ -136,6 +136,16 @@ int main() {
                     "Stock Training wire route is not native Play");
         require(first.at("body").get<std::string>().find("opens Play, then choose Training") != std::string::npos,
             "Stock Training destination was not explained");
+        NativeMovieProtocol savedCareer;
+        auto savedData = data;
+        savedData["career"]["pending_session"] = {{"fixture_id", "saved-fixture"}, {"session_id", "saved-session"}};
+        savedData["session"]["kind"] = "career";
+        require(savedCareer.open(live, savedData), "Saved Career movie did not open");
+        const auto savedRoot = savedCareer.publish(live, savedData, 100);
+        const auto savedStock = savedCareer.select(command(savedRoot, NativeCareerLayout::kStockTraining), live, savedData, true);
+        require(savedStock.accepted && savedStock.kind == CareerLayoutEffectKind::PreserveStockRoute &&
+            savedStock.stock == StockRoute::Play && savedStock.action.empty(),
+            "Saved Career stock Training route missing or dispatching a service action");
         NativeMovieProtocol returning;
         require(returning.open(live, data), "Return stock route fixture did not open");
         const auto waitingRoot = returning.publish(live, data, 100, {}, {}, true);
