@@ -2,6 +2,8 @@
 
 Base: `bd9336d869363c51375bb9c35f0ae351aea74bb0`. This source repair is not
 the live-tested binary. No new package or game session was launched by its builder.
+Repair `df19252f021699c333d9da65ce0814eda1ddbd02` is independently reviewed;
+its source/compiled-movie checks passed. Packaging and live acceptance remain open.
 
 ## Observed defect and source cause
 

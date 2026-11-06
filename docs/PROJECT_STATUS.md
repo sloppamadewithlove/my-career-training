@@ -1,11 +1,12 @@
 # Current project status
 
-Updated 5 November 2026. GitHub is canonical. No new release or owner-accepted
+Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. Exact `2c08e74` has completed developer candidate
 checks and a bounded GC live probe. Exact `a59c45f` was subsequently packaged and
-passed the bounded native Training menu handoff. A later local native Striker
-probe exposed the pause defect below; it did not exercise the included MCT
-terminal-score repair `eb1be7d`.
+passed the bounded native Training menu handoff. Exact `bd9336d` later proved
+stock native pause/Resume, then exposed a blocked training-results screen after
+End Training. Reviewed results repair `df19252` is source-only. These native
+probes did not exercise the included MCT terminal-score repair `eb1be7d`.
 
 The owner's current direction is to reuse Rocket League's native training flow,
 maps, HUD and behavior, with custom lesson and ghost additions. The additive hub
@@ -18,17 +19,19 @@ acceptance remain open.
 | Native Training handoff | Exact packaged `a59c45f`: first menu-only run reached stock Play, Training, Custom Training Created and responsive authored-hub Back; no pack created/saved; physical controller untested |
 | Native-entry package | Exact `a59c45f` candidate and frozen smoke passed; source `1c21770` + `d98ba04` independently reviewed; authored ABC hash and package provenance verified |
 | Native local sequence probe | Exact `a59c45f`: existing local sequence entered native Striker; W moved car/ball with 0:07 shown, later initial scene at 0:10 suggests timeout reset; Backspace at initial state gave no reset proof; Escape showed MCT pause with disabled Return and no native exit |
-| Native stock-pause source repair | `3b9ef72`: independently reviewed; authored pause delegates native Custom Training/editor to stock classes; 111 Python checks/one skip and three native test binaries passed; not packaged or live tested |
+| Native stock pause | Reviewed source `3b9ef72`; exact packaged `bd9336d` showed stock native pause and Resume; End Training/Yes reached results, not the hub; Career pause regression remains open |
+| Native results blocker/repair | Exact `bd9336d`: training 0% results had no usable controls and waited for the offline Career service while backend Idle; reviewed `df19252` delegates offline native TRAINING/editor results to stock; 112 Python checks/one skip, compiled selector and three native test binaries passed; new repair not packaged/live tested |
 | Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; complete live attribution acceptance remains open |
 | Terminal-score source repair | `eb1be7d`: independently reviewed; 268 focused checks passed; included in packaged `a59c45f` but not exercised by its native UI/sequence probes; original live transition cause remains unverified |
 | Developer candidate checks | Exact `2c08e74`: 1654 Python checks passed/15 skipped, Ruff, 38 plugin CTests, 13 launcher checks, backend/native fixture and frozen smoke passed after using a shorter exact-commit worktree |
 | GC live probe | Exact `2c08e74`: two provisional situations; no-input timeout recorded defender contact; Up restored observed car/ball, score stayed 0–1; automatic 1/2 to 2/2 transition observed without navigation input; cause unestablished |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Last loaded candidate | Exact `a59c45f`: native UI handoff/Back and separate local sequence probe; later docs and stock-pause repair are not the loaded revision |
+| Last tested candidate | Exact `bd9336d`: native pause/Resume passed, End Training exposed blocked results; run closed/restored; later results repair and docs are not this tested binary |
 | Native clock | Exact `2c08e74` timed out while the visible native clock remained at 0:01; correct zero display/hold remains unverified |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Shutdown/restoration | Exact `2c08e74`: Quit acknowledged but game remained after seven seconds; owned graceful WM_CLOSE fallback eventually closed game/app/helper; relevant processes gone, original saves and plugin/config/game-file hashes matched pretest baselines; authored Quit completion remains unaccepted |
 | Native-entry restoration | `a59c45f` game exited; original MCT Career, game Training/Config, BakkesMod plugin/config and checked game assets matched baselines; game profile rotation was preserved and missing backups restored without overwriting new saves; no byte-identical profile claim |
+| Native-pause restoration | `bd9336d` owned processes exited; original/isolated MCT careers, sequence, checked plugin/config and game assets matched preflight; changed game saves/new profile files preserved, three absent backups restored create-new-only; no unchanged whole-profile claim |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
@@ -40,9 +43,12 @@ command-file read failure; its read-retry repair passed a real Windows lock test
 160 focused passing checks and independent review. Other ranks still contain two
 provisional shots each; the ultimate target remains twelve per lesson per rank.
 
-Next runtime priority: build the reviewed stock-pause repair and prove native
-pause/resume/exit plus a Career pause/Return regression. Observe a displaced-state
-native reset separately; retain the accepted stock Play/Training menu handoff.
+Next runtime priority: stage/build reviewed results repair `df19252`, prove
+native End Training results controls and the chosen restart/browser/main-menu
+destination, plus Career results/Return and pause regressions. Observe a
+displaced-state native reset separately; retain the accepted stock Play/Training
+handoff and bounded `bd9336d` pause/Resume evidence. See the
+[results receipt](evidence/2026-11-06-native-training-stock-results.md).
 Retained custom-lesson blockers: actual native countdown,
 zero-time ball removal/restoration, Up whole retry and goal/Left/Right transitions
 without kickoff. Physical controller acceptance is distinct from generated keys.

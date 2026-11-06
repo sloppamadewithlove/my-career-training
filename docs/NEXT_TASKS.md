@@ -1,6 +1,6 @@
 # Next work and acceptance board
 
-Updated 5 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
+Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last tested candidate.
 
 Current owner direction: reuse the game's native training menus, maps, HUD and
 behavior; add custom lesson content and a successful synchronized ghost where
@@ -21,9 +21,17 @@ W moved car/ball and showed 0:07, then a later initial scene at 0:10 suggested
 timeout reset. Backspace at the initial state had no visible effect, so manual
 reset is unaccepted. Escape exposed MCT pause with disabled Return and no native
 exit. Reviewed repair `3b9ef72` delegates native Custom Training/editor pause to
-the stock classes; it is source-tested only and needs a fresh exact-candidate
-build. The local sequence file was unchanged and the owned run exited/restored.
+the stock classes. Exact packaged `bd9336d` subsequently proved stock pause and
+Resume, but End Training/Yes reached a 0% results screen with no usable controls,
+waiting for the offline Career service while the backend was Idle. It did not
+reach the hub. Reviewed source repair `df19252` delegates offline native
+TRAINING/editor results to stock; it has no package/live acceptance yet.
+The owned run closed; MCT careers, sequence, checked plugin/config and game assets
+matched preflight. Changed game saves/new profile files were preserved and three
+absent backups restored create-new-only; the whole profile was not unchanged.
 See the [pause repair receipt](evidence/2026-11-05-native-custom-training-stock-pause.md).
+The [results receipt](evidence/2026-11-06-native-training-stock-results.md) owns
+the later exact-candidate evidence and source repair boundary.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
@@ -57,16 +65,16 @@ board does not grant ownership of a previous session.
 | --- | --- | --- |
 | Coordinator | Hand off one exact reviewed candidate | Name source, compiled movie and packaged revision separately; assign one input owner for a bounded live session |
 | Native-entry builder | Source handoff and saved inactive Career correction complete | `1c21770` + `d98ba04` reviewed; no game control or package build performed |
-| Native pause builder | Stock Custom Training/editor delegation reviewed | `3b9ef72` source/owned movie checked; stage its new pause ABC before packaging |
-| Independent reviewer | Native entry and stock-pause source approved | Live behavior remains a separate acceptance gate |
-| Owned tester | `a59c45f` local sequence probe ended/restored | Next: exact stock-pause candidate, native resume/exit, displaced-state reset and Career pause regression; fresh ownership and game-profile protection required |
+| Native results builder | Stock TRAINING/editor results delegation reviewed | `df19252` source/owned movie checked; stage its new results ABC before packaging |
+| Independent reviewer | Native entry, stock-pause and stock-results source approved | New results repair still needs package/live acceptance |
+| Owned tester | `bd9336d` native pause/Resume passed; blocked results, run closed/restored | Next: exact results candidate, native results choices/destination, displaced-state reset and Career results/pause regression; fresh ownership and game-profile protection required |
 
 ## Next proof sequence
 
-1. Stage the reviewed stock-pause ABC and build its exact new revision; do not
-   reuse the old `a59c45f` package. Keep the earlier accepted menu handoff distinct.
-2. Prove native pause/resume, the applicable stock exit confirmation and actual
-   destination, plus a normal Career pause/Return regression. Preserve native
+1. Stage the reviewed results ABC from `df19252` and build its exact new revision;
+   do not reuse the `bd9336d` package. Keep earlier menu/pause evidence distinct.
+2. Prove native End Training results controls, the chosen restart/browser/main-menu
+   destination, plus normal Career results/Return and pause regressions. Preserve native
    save/discard/cancel choices where applicable. Observe native reset
    from a displaced state separately. A copied MCT profile is not game-save
    isolation; preserve game-owned profile rotation and native save prompts.
