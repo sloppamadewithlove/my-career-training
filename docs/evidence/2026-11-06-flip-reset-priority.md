@@ -35,7 +35,8 @@ review through another available route before integration. The reviewed source
 and gameplay evidence remain separate.
 
 The specified GPT-5.6 Codex fallback was also attempted; the existing ChatGPT
-login reported that model unsupported, so no review occurred. The owner has
-been asked whether the available GPT-6.1 Sol may review instead. A pinned SDK
+login reported that model unsupported, so no review occurred. The owner then
+selected GPT-6 Astra max for independent review, with DeepSeek V4.1 Flash 1017
+max and GPT-6.1 Sol high for building. A pinned SDK
 header declares car spawn and collision-related methods, but declarations alone
 do not establish safe translucent, non-contact car rendering or cleanup.

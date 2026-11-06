@@ -24,8 +24,8 @@ only current rules.
 | Role | Model / route | Boundary |
 | --- | --- | --- |
 | Main | Current main agent | Interviews, defines contracts, independently reviews, integrates, accountable for correctness |
-| Preferred builder | DeepSeek V4.1 Flash 1017 via RunInfra, request ID `deepseek-v4-1-flash-1017`; multiple workers allowed | Scoped implementation patches, previews, behavior and bug fixes, including HTML/CSS/JavaScript and event handling |
-| Fallback builders by depth | GPT-5.6 Sol high via Codex CLI; Grok 4.7 high via Cursor CLI; existing login sessions | Difficult implementation, integration or fixes when main judges escalation useful |
+| Code builders | DeepSeek V4.1 Flash 1017 max via RunInfra, request ID `deepseek-v4-1-flash-1017`; GPT-6.1 Sol high | Scoped implementation patches, previews, behavior and bug fixes, including HTML/CSS/JavaScript and event handling |
+| Independent code reviewer | GPT-6 Astra max | Review immutable code changes and actual producer/consumer contracts; no automatic integration |
 | Design only | Claude Opus 5.5 high | Mockups, layout/appearance specifications, design review. No HTML/CSS/JS, code, scripts, builds, input logic or behavior fixes |
 | Reverse-engineering research | DeepSeek V4.1 Flash 1017 with bounded read-only REA/source tools | Separate from builders; exact artifact/source evidence, independent review, no unattended integration |
 | Public research, exploration, testing | GPT-6 Luna max | Bounded research, test plans, independent verification, exact-candidate evidence |
@@ -49,8 +49,8 @@ evidence. Send only the source and task context the assignment needs.
 - Parallel workers may share one goal through complementary scopes, or through
   bounded competing approaches in separate copies. Main selects one; never merge
   two alternatives blind. No concurrent writes to the same file.
-- Builders self-check, then an independent targeted review/testing pass (Luna or
-  the exact approved build reviewer) returns a compact acceptance receipt against
+- Builders self-check, then GPT-6 Astra max independently reviews and returns a
+  compact acceptance receipt against
   an immutable patch. Main reviews shared interfaces, high-risk changes, actual
   evidence and integrated behavior. Never rubberstamp; there is no automatic
   merge, and integration stays gated on main.
