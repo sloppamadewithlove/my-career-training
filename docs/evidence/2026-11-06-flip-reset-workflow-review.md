@@ -69,7 +69,15 @@ records. Earlier timing and review claims above are unchanged.
 
 A private profile-baseline helper passed its initial Windows fixtures, but Astra
 showed a copied file could change after its first verification while completion
-still reported success. A correction is being tested that retains and rechecks
-the copied files through completion. The helper covers explicitly supplied,
-quiescent ordinary roots and file bytes only; root discovery, process/writer
-absence, full NTFS metadata and live profile preservation remain separate.
+still reported success. A correction retaining and rechecking copies through
+completion passed independent Astra review. The helper covers explicitly supplied,
+quiescent ordinary roots and file bytes only; process/writer absence, full NTFS
+metadata and live profile preservation remain separate.
+
+Read-only Steam metadata identified the game's Windows Auto Cloud save and
+replay patterns under the Rocket League Documents tree, and the SaveData marker
+matched the active Steam account. Cloud enablement and in-flight synchronization
+remain unknown. The first marker parser used an incorrect root-key assumption;
+the corrected parser requires exactly one structurally located account field.
+Future preflights should validate the actual metadata structure instead of
+guessing it. Private account identifiers and paths stay outside the repository.
