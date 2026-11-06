@@ -12,9 +12,14 @@ Career service, with no usable controls and no hub return. The owned session was
 closed gracefully; the original Career and local sequence hashes matched their
 preflight values, three absent backup saves were restored create-new-only, and
 changed current saves/profile files were preserved. This does not establish that
-the whole game profile was unchanged. Reviewed results repair `df19252` is at
-source branch head `9ee0c33`; a package build is underway, with no packaged or
-live result yet. Whole-level retry/progression and full lesson/release acceptance
+the whole game profile was unchanged. Those live observations do not establish
+compatibility with the current executable after a Steam update. A read-only check
+identified the installed file at build `26349479`, FileVersion `1.0.10897.0`,
+SHA-256 `bcfb3233…`; the native diagnostic guard in source `9ee0c33` remains pinned
+to the prior executable/build and fails closed on mismatch. Results repair
+`df19252` at `9ee0c33` has candidate build/test/smoke evidence, but no game launch
+occurred after the update. The plugin/launcher has no post-update runtime
+acceptance. Whole-level retry/progression and full lesson/release acceptance
 remain open.
 
 | Area | Current evidence |
@@ -30,8 +35,9 @@ remain open.
 | Native Training handoff | Exact `a59c45f`: packaged/live Play → Training → Custom Training → Created; native Back returned to the responsive authored hub. Epic reconnect declined; no pack was created, but the actual game-profile primary changed and a rotated save was preserved; not byte-identical restoration |
 | Native local editor and saves | Separate stock Created-editor visit reached local training without a pack download. Create defaults wrote `.Tem` and rotated the actual game profile before explicit Save; primary changed and was retained. Originals remain private |
 | Native local timer/reset | Exact `a59c45f`: `0:10` → `0:07` after movement → later initial `0:10`; expiry is inferred, with no exact zero or native telemetry. Backspace at initial state showed no change; reset not accepted |
-| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. Live Escape → native pause → Resume passed |
-| Native results repair | Exact `bd9336d` End Training → Yes reached 0% results waiting for the offline Career service; no usable controls or hub return. Reviewed source repair `df19252` at branch head `9ee0c33` passed source/compiled-movie checks; package build underway at this checkpoint, not yet packaged or live tested |
+| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. Live Escape → native pause → Resume passed on the earlier tested setup; updated-executable compatibility is unverified |
+| Native results repair | Exact `bd9336d` End Training → Yes reached 0% results waiting for the offline Career service; no usable controls or hub return. Reviewed source repair `df19252` at branch head `9ee0c33`; candidate build, tests and smoke passed, but it has not been launched after the reported Steam update |
+| Steam executable compatibility | Automatic update was reported at 06:08–06:15 UTC, changing Steam build ID `25914621` → `26349479`; read-only check confirmed installed FileVersion `1.0.10897.0` and SHA-256 prefix `bcfb3233…`. Three menu-package hashes were reported matching. The diagnostic source guard is pinned to the old executable hash/build and rejects mismatches; launcher/plugin runtime compatibility after the update remains unverified |
 | Native session restoration | Owned `bd9336d` session closed gracefully. Original Career and local sequence hashes matched preflight; three absent backup saves restored create-new-only; changed current saves/profile files preserved. Whole-profile unchanged is not claimed |
 | Native draw experiment | Branch `8759a83` records independently reviewed source `a983c618`: pure diagnostic frame preparation; dedicated C++ check passed 1/1. SDK owner-scoped uninstall is static evidence only and unload concurrency remains unresolved. No drawable registration, live renderer, ghost, full plugin/package build or live test |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
@@ -60,10 +66,11 @@ extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
 The requested 45-minute active-session cadence is not a persistent timer. The
-06:15:22 UTC review target was recorded at 06:16:37 UTC, 75 seconds later; the
-next active-chat target is 07:01:37 UTC. No unattended review is claimed. See the
+07:01:37 UTC target was caught up starting at 07:02:15 UTC, 38 seconds later; the
+next active-chat target is 07:47:15 UTC. No unattended review is claimed. See the
 [active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
-and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md).
+and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md),
+plus the [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md).
 Windows scheduling was not used. The earlier scheduled improvement task
 delivered the integrated PR #11 privacy check. Main's build concurrency changes
 preserve the active build and newest pending work. Neither is evidence of gameplay
@@ -114,3 +121,7 @@ records the idle-to-active restart, current read-only gate and source-only drawi
 [Native results live checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md)
 records the resumed pause/Resume pass, blocked native results route, save recovery,
 and the source-only results repair/build boundary.
+
+[Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md)
+records the reported upstream executable change, current launch stop and exact
+compatibility evidence still required.

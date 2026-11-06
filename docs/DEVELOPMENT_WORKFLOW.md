@@ -128,6 +128,10 @@ restoration unless hashes prove it.
   one coherent candidate; retain receipts for unchanged inputs and rerun only
   checks invalidated by the change. Preserve the manifest, license collection,
   exact source provenance and frozen asset/hash checks.
+- After a platform update, verify the exact installed executable identity and
+  launcher/plugin capability for that binary before launch. An unchanged file
+  version, platform build ID or matching menu-package hashes alone do not prove
+  compatibility; do not bypass or repin around the guard based on version alone.
 - Monitor a quiet package build through its current process and logs at bounded
   intervals; set completion/failure/stop conditions before waiting or retrying.
   Gather stable launch prerequisites once per candidate and repeat them only

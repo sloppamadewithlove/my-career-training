@@ -18,7 +18,8 @@ candidate `bd9336d` has now passed Escape → native pause → Resume after fres
 process/foreground checks and sole-owner confirmation. End Training → Yes reached
 a 0% native results screen waiting for the offline Career service, without usable
 controls or a hub return. Reviewed results repair `df19252` is at source branch
-head `9ee0c33`; a package build is underway, not yet packaged or live tested.
+head `9ee0c33`; candidate build, tests and smoke passed. It has not been launched
+after the reported Steam executable update.
 
 Exact candidate `bd9336d` now passes 1,659 Python checks/15 skipped, 38 plugin and
 13 launcher CTests, the Return fixture and frozen smoke; pause ABC hashes matched
@@ -39,13 +40,19 @@ initial refused-input boundary, plus the
 [results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md) for
 this later run.
 
-Next, finish the package build already underway for `df19252`, staging the new
-results ABC once and checking its source, license, manifest and frozen-asset
-provenance. Reuse passing checks and preflight receipts whose inputs did not
-change; retain fresh same-process/foreground and owned-save checks for the next
-live run. Then test the exact packaged results controls and chosen restart/browser/
-main-menu path, followed by a Career results/Return regression. Do not treat the
-source checks or an in-progress build as live acceptance.
+The installed Rocket League executable has been re-read: Steam build ID
+`26349479`, FileVersion `1.0.10897.0`, and SHA-256 recorded in the
+[Steam update checkpoint](evidence/2026-11-06-steam-update-compatibility.md).
+The `9ee0c33` diagnostic gate is still keyed to the previous executable hash and
+Steam build `25914621`; its source is fail-closed and diagnostic-only. No runtime
+launcher/plugin capability was verified after the update. Do not change those pins
+based on version/build ID alone, bypass the guard or launch based on unchanged
+FileVersion or matching menu packages. First establish the exact compatibility contract for the updated
+binary and supported launcher/plugin path. Then, after the gate passes, test the
+`9ee0c33` candidate's results controls and chosen restart/browser/main-menu path,
+followed by a Career results/Return regression. Reuse prior checks when inputs
+are unchanged; keep same-process/foreground and owned-save checks fresh for each
+live run.
 
 The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic
 frames only. SDK owner-scoped uninstall is static evidence; unload concurrency
