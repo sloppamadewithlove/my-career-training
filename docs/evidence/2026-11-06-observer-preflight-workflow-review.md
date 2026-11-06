@@ -50,6 +50,20 @@ the already authorized offline session to establish current-game identity and
 native reset behavior. Do not substitute synthetic mesh or source checks for
 the real demonstration, and do not re-ask the already granted session permission.
 
+## Later preflight adjustment
+
+The first reviewed real preflight accepted the owner-approved shell and three
+identified Codex service trees, but refused additional Node processes. Read-only
+attribution found additional Codex infrastructure and an unrelated desktop
+service, all with unknown in-process behavior. Per-process allowlisting would
+repeat as ordinary app services start or stop. The owner had already chosen to
+proceed with file locks and offline-test preservation. A simpler candidate is
+under development: block identified game/injector/MCT/RLBot processes or helper
+commands and fail on incomplete enumeration, explicitly report other processes
+as user-accepted unknown, retain exact profile/config locks and conflict-aware
+recovery, and never claim full process absence or authentication. It is not yet
+reviewed or used. This is not permission to terminate other applications.
+
 ## Subsequent read-only baseline
 
 After the owner chose to proceed with one identified interactive shell left
