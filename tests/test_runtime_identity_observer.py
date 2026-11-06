@@ -18,7 +18,11 @@ def test_observer_adapter_has_only_four_sdk_getters_and_no_background_lifecycle(
                       "WriteProcessMemory", "SendInput", "CreateProcess", "NativeMovieHost", "MyCareerTraining::"):
         assert forbidden not in source
     assert source.index("Probe::fresh(lease, scope, now())") < source.index("Probe::observe(lease, scope")
-    assert "CREATE_NEW" in source and "CREATE_ALWAYS" not in source
+    guarded = (ROOT / "plugin/include/ObserverPinnedPath.h").read_text(encoding="utf-8")
+    assert "CREATE_NEW" in guarded and "CREATE_ALWAYS" not in guarded
+    assert "sha256File(" not in source
+    assert "mct::ObserverPinnedPath leaseFile(path)" in source
+    assert "mct::ObserverPinnedPath file(path)" in source
     assert '"plugin/src/RuntimeIdentityObserver.cpp"' in source
 
 

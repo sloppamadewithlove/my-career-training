@@ -1,49 +1,19 @@
 // Default-off development DLL: one leased observation, no normal MCT lifecycle.
 #include <windows.h>
 #include <shellapi.h>
-#include "ExecutableHash.h"
+#include "ObserverPinnedPath.h"
 #include "NativeRuntimeIdentityObserver.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include <filesystem>
 
 namespace {
 using Probe = mct::RuntimeIdentityObserver;
-struct Handle {
-    HANDLE value = INVALID_HANDLE_VALUE;
-    explicit Handle(HANDLE handle) : value(handle) {}
-    ~Handle() { if (value != INVALID_HANDLE_VALUE) CloseHandle(value); }
-    Handle(const Handle&) = delete;
-    Handle& operator=(const Handle&) = delete;
-};
 std::filesystem::path modulePath(HMODULE module) {
     std::wstring value(32768, L'\0');
     const auto count = GetModuleFileNameW(module, value.data(), static_cast<DWORD>(value.size()));
     if (!count || count >= value.size()) throw std::runtime_error("module_path");
     value.resize(count);
     return value;
-}
-bool ordinaryPath(std::filesystem::path path) {
-    if (!path.is_absolute() || path.native().size() > 480 || path.native().substr(0, 2) == L"\\\\" ||
-        path.lexically_normal() != path) return false;
-    for (;;) {
-        const auto attr = GetFileAttributesW(path.c_str());
-        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
-        const auto parent = path.parent_path();
-        if (parent == path || parent.empty()) return true;
-        path = parent;
-    }
-}
-HANDLE holdFile(const std::filesystem::path& path) {
-    const auto handle = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) throw std::runtime_error("file_unavailable");
-    BY_HANDLE_FILE_INFORMATION info{};
-    if (!GetFileInformationByHandle(handle, &info) ||
-        (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
-        CloseHandle(handle);
-        throw std::runtime_error("not_regular_file");
-    }
-    return handle;
 }
 double now() {
     FILETIME filetime{};
@@ -79,15 +49,14 @@ Probe::Json readLease(HANDLE file) {
 }
 void writeNew(const std::filesystem::path& path, const Probe::Json& result) {
     const auto bytes = result.dump();
-    if (bytes.size() > 4096 || !ordinaryPath(path.parent_path())) return;
-    Handle file(CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
-        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
-    if (file.value == INVALID_HANDLE_VALUE) return;
+    if (bytes.size() > 4096) return;
+    mct::ObserverPinnedPath file(path);
+    file.createNew();
     DWORD written = 0;
     // A partial/failed write is retained as inconclusive private evidence.
-    if (!WriteFile(file.value, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) ||
+    if (!WriteFile(file.get(), bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) ||
         written != bytes.size()) return;
-    FlushFileBuffers(file.value);
+    FlushFileBuffers(file.get());
 }
 }
 
@@ -101,23 +70,22 @@ public:
             if (!count || count >= request.size()) return;
             request.resize(count);
             const std::filesystem::path path(request);
-            if (path.filename() != L"native-runtime-identity-request.json" || !ordinaryPath(path)) return;
+            if (path.filename() != L"native-runtime-identity-request.json") return;
+            mct::ObserverPinnedPath leaseFile(path);
             const auto output = path.parent_path() / L"native-runtime-identity-observation.json";
             if (GetFileAttributesW(output.c_str()) != INVALID_FILE_ATTRIBUTES) return;
-            Handle leaseFile(holdFile(path));
-            const auto lease = readLease(leaseFile.value);
+            leaseFile.openExisting();
+            const auto lease = readLease(leaseFile.get());
             const auto exe = modulePath(nullptr);
             const auto coreModule = GetModuleHandleW(L"bakkesmod.dll");
             const auto sdkModule = GetModuleHandleW(L"pluginsdk.dll");
             if (!coreModule || !sdkModule || !exactArguments()) return;
             const auto core = modulePath(coreModule);
             const auto sdk = modulePath(sdkModule);
-            if (!ordinaryPath(exe) || !ordinaryPath(core) || !ordinaryPath(sdk)) return;
-            Handle exeHold(holdFile(exe)), coreHold(holdFile(core)), sdkHold(holdFile(sdk));
-            LARGE_INTEGER size{};
-            if (!GetFileSizeEx(exeHold.value, &size) || size.QuadPart <= 0) return;
-            Probe::Scope scope{GetCurrentProcessId(), created(), mct::sha256File(exe),
-                mct::sha256File(core), mct::sha256File(sdk), static_cast<std::uint64_t>(size.QuadPart), true};
+            mct::ObserverPinnedPath exeHold(exe), coreHold(core), sdkHold(sdk);
+            exeHold.openExisting(); coreHold.openExisting(); sdkHold.openExisting();
+            Probe::Scope scope{GetCurrentProcessId(), created(), exeHold.sha256(),
+                coreHold.sha256(), sdkHold.sha256(), exeHold.size(), true};
             if (!gameWrapper || !Probe::fresh(lease, scope, now())) return;
             const auto result = Probe::observe(lease, scope, {
                 [this] { return gameWrapper->GetBakkesModVersion(); },

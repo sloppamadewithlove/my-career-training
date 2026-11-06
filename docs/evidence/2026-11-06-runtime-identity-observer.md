@@ -33,7 +33,11 @@ Before its explicit SDK getter calls, OS checks require the exact new executable
 hash/size, exact loaded Bakkes core and SDK file hashes, current PID and creation
 FILETIME, the project's complete fixed four-argument RLBot invocation, and a
 fresh operator-issued nonce lease of at most 30 seconds. Held file handles deny
-write/delete while their identities are used. Reparse paths and malformed,
+write/delete while their identities are used. Each ancestor directory is opened
+and checked through its handle before proceeding, then retained with directory
+list access and no write/delete sharing. Opened final paths/volumes are checked;
+hashing uses the validated file handle instead of reopening its pathname.
+Reparse paths and malformed,
 duplicate, nested or oversized requests are refused. No file or SDK log is
 written for an invalid request.
 
@@ -80,9 +84,19 @@ selection, crossed old/new identities, core/build mismatch ordering, expiry
 between getters, online/replay refusal and filtered errors. Three Python checks
 cover the actual adapter's SDK surface, absent background lifecycle, default-OFF
 and packaging boundary, and preserved old launcher pins. Ruff passed.
-With the existing candidate suite, 26 Python checks passed. The observer CTest
-passed 1/1. The private compiled DLL is 156,160 bytes, SHA-256
-`ab8f69f28a63975f291828092448125203cceef25d67b5ff5aa05085ddd86c00`.
+With the existing candidate suite, 26 Python checks passed. Both native CTests
+passed (2/2). The private corrected DLL is 160,256 bytes, SHA-256
+`7b59f003548ecc73488226da540c8f4a9c5bc14b6a3451294b9e041ab864daa1`.
+
+Independent review reproduced an ancestor-junction swap between the initial
+path check and open in the first adapter. A real Windows regression now performs
+that exact swap and requires both request reading and journal creation to refuse
+redirection. It separately proves directory/grandparent rename and write/delete
+access are blocked before leaf open, verifies the held-handle hash, and exercises
+Unicode paths and create-new journal behavior. The first correction's
+attribute-only directory handles failed this test; directory-list access is
+required for the sharing boundary. Fixtures use Windows reparse operations and
+explicit local cleanup, with no game process or recursive target deletion.
 
 PE inspection found exactly the four intended SDK imports; static inspection of
 the installed identity getters shows forwarding to the core's version value and
