@@ -88,6 +88,16 @@ do not use a barrier or access car or ball actors until that contract is known.
 
 The first pure proxy mesh candidate passed edge-pairing and volume checks, but
 independent Astra review found overlapping, inward-facing triangles in the
-concave side polygon. The candidate is held for correction. Improvement: mesh
+concave side polygon. The correction passed independent review. Improvement: mesh
 tests must also check face orientation and coverage/area against the intended
 silhouette; a closed edge topology alone does not establish a valid surface.
+
+The older [Ghost Plugin](https://bakkesplugins.com/plugin/174) documents recorded
+workshop racing ghosts. Its [map integration guide](https://rocketleaguemapmaking.com/guide/misc/ghostplugin)
+describes a map-authored mover and Kismet position/rotation variables, optionally
+with a holographic material. This is a custom-map technique, not evidence of a
+noncontact car ghost in native Custom Training. The 2021 listing names one supported
+map; current compatibility, source license and video playback were not verified.
+The current Free Touch catalog mentions ghost races, but its rendering mechanism,
+license and Custom Training behavior remain unverified. Neither plugin was
+downloaded, installed or executed.
