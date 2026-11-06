@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include "ObserverPinnedPath.h"
+#include "ObserverRendezvous.h"
 #include "NativeRuntimeIdentityObserver.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include <filesystem>
@@ -22,12 +23,6 @@ double now() {
     ticks.LowPart = filetime.dwLowDateTime; ticks.HighPart = filetime.dwHighDateTime;
     return static_cast<double>(ticks.QuadPart - 116444736000000000ULL) / 10000000.0;
 }
-std::string created() {
-    FILETIME start{}, end{}, kernel{}, user{};
-    if (!GetProcessTimes(GetCurrentProcess(), &start, &end, &kernel, &user)) return {};
-    ULARGE_INTEGER ticks{}; ticks.LowPart = start.dwLowDateTime; ticks.HighPart = start.dwHighDateTime;
-    return std::to_string(ticks.QuadPart);
-}
 bool exactArguments() {
     int count = 0;
     auto args = CommandLineToArgvW(GetCommandLineW(), &count);
@@ -47,10 +42,10 @@ Probe::Json readLease(HANDLE file) {
         throw std::runtime_error("lease_read");
     return Probe::parseLease(bytes);
 }
-void writeNew(const std::filesystem::path& path, const Probe::Json& result) {
+void writeNew(const std::filesystem::path& path, const Probe::Json& result, const mct::ObserverRendezvous& rendezvous) {
     const auto bytes = result.dump();
     if (bytes.size() > 4096) return;
-    mct::ObserverPinnedPath file(path);
+    mct::ObserverPinnedPath file(path, rendezvous.owner(), rendezvous.root);
     file.createNew();
     DWORD written = 0;
     // A partial/failed write is retained as inconclusive private evidence.
@@ -64,17 +59,13 @@ class MCTRuntimeIdentityObserver final : public BakkesMod::Plugin::BakkesModPlug
 public:
     void onLoad() override {
         try {
-            std::wstring request(481, L'\0');
-            const auto count = GetEnvironmentVariableW(L"MCT_RUNTIME_IDENTITY_REQUEST", request.data(),
-                static_cast<DWORD>(request.size()));
-            if (!count || count >= request.size()) return;
-            request.resize(count);
-            const std::filesystem::path path(request);
-            if (path.filename() != L"native-runtime-identity-request.json") return;
-            mct::ObserverPinnedPath leaseFile(path);
+            const mct::ObserverRendezvous rendezvous;
+            const auto& path = rendezvous.request;
+            mct::ObserverPinnedPath leaseFile(path, rendezvous.owner(), rendezvous.root);
             const auto output = path.parent_path() / L"native-runtime-identity-observation.json";
             if (GetFileAttributesW(output.c_str()) != INVALID_FILE_ATTRIBUTES) return;
             leaseFile.openExisting();
+            mct::ObserverPinnedPath::requirePrivateAcl(leaseFile.get(), rendezvous.owner(), false);
             const auto lease = readLease(leaseFile.get());
             const auto exe = modulePath(nullptr);
             const auto coreModule = GetModuleHandleW(L"bakkesmod.dll");
@@ -84,7 +75,7 @@ public:
             const auto sdk = modulePath(sdkModule);
             mct::ObserverPinnedPath exeHold(exe), coreHold(core), sdkHold(sdk);
             exeHold.openExisting(); coreHold.openExisting(); sdkHold.openExisting();
-            Probe::Scope scope{GetCurrentProcessId(), created(), exeHold.sha256(),
+            Probe::Scope scope{GetCurrentProcessId(), rendezvous.createdFiletime, exeHold.sha256(),
                 coreHold.sha256(), sdkHold.sha256(), exeHold.size(), true};
             if (!gameWrapper || !Probe::fresh(lease, scope, now())) return;
             const auto result = Probe::observe(lease, scope, {
@@ -92,7 +83,7 @@ public:
                 [this] { return gameWrapper->GetPsyBuildID(); },
                 [this] { return gameWrapper->IsInOnlineGame(); },
                 [this] { return gameWrapper->IsInReplay(); }, now});
-            if (!result.is_null()) writeNew(output, result);
+            if (!result.is_null()) writeNew(output, result, rendezvous);
         } catch (...) { /* Invalid scope is silent: no SDK logger or fallback. */ }
     }
     void onUnload() override {}

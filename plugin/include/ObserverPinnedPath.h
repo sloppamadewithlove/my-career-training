@@ -2,8 +2,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
+#include <aclapi.h>
 #include <array>
 #include <cstdint>
+#include <cstddef>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -56,9 +58,9 @@ class ObserverPinnedPath {
             static_cast<int>(wanted.size()), TRUE) != CSTR_EQUAL) throw std::runtime_error("opened_path_mismatch");
         return info;
     }
-    void pinDirectory(const std::filesystem::path& path) {
+    void pinDirectory(const std::filesystem::path& path, bool readSecurity) {
         // Attribute-only opens do not enforce the read/delete sharing boundary.
-        Handle directory(CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+        Handle directory(CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | (readSecurity ? READ_CONTROL : 0), FILE_SHARE_READ, nullptr, OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
         const auto info = validate(directory.value, path, true);
         if (!directories_.empty() && info.dwVolumeSerialNumber != volume_)
@@ -76,18 +78,62 @@ class ObserverPinnedPath {
         file_ = std::move(file);
     }
 public:
-    explicit ObserverPinnedPath(std::filesystem::path path) : path_(std::move(path)) {
+    // Exact owner/SYSTEM ACL, not a heuristic absence of Everyone permissions.
+    static void requirePrivateAcl(HANDLE handle, PSID owner, bool directory) {
+        PSID actualOwner = nullptr;
+        PACL dacl = nullptr;
+        PSECURITY_DESCRIPTOR descriptor = nullptr;
+        const auto status = GetSecurityInfo(handle, SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &actualOwner, nullptr, &dacl, nullptr, &descriptor);
+        struct Release { PSECURITY_DESCRIPTOR value; ~Release() { if (value) LocalFree(value); } } release{descriptor};
+        SECURITY_DESCRIPTOR_CONTROL control{};
+        DWORD revision = 0;
+        if (status != ERROR_SUCCESS || !descriptor || !owner || !IsValidSid(owner) ||
+            !actualOwner || !EqualSid(actualOwner, owner) || !dacl || !IsValidAcl(dacl) || dacl->AceCount != 2 ||
+            !GetSecurityDescriptorControl(descriptor, &control, &revision) ||
+            !(control & SE_DACL_PRESENT) || (directory && !(control & SE_DACL_PROTECTED)))
+            throw std::runtime_error("private_acl_required");
+        BYTE system[SECURITY_MAX_SID_SIZE]{};
+        DWORD systemBytes = sizeof(system);
+        if (!CreateWellKnownSid(WinLocalSystemSid, nullptr, system, &systemBytes))
+            throw std::runtime_error("system_sid_unavailable");
+        bool ownerSeen = false, systemSeen = false;
+        for (DWORD i = 0; i < dacl->AceCount; ++i) {
+            void* raw = nullptr;
+            if (!GetAce(dacl, i, &raw) || !raw) throw std::runtime_error("private_ace_unavailable");
+            const auto ace = static_cast<ACCESS_ALLOWED_ACE*>(raw);
+            const auto flags = ace->Header.AceFlags;
+            if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE ||
+                ace->Header.AceSize < offsetof(ACCESS_ALLOWED_ACE, SidStart) + GetSidLengthRequired(0) ||
+                ace->Mask != FILE_ALL_ACCESS ||
+                (directory ? flags != (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) : (flags & ~INHERITED_ACE) != 0))
+                throw std::runtime_error("private_ace_required");
+            const auto sid = reinterpret_cast<PSID>(const_cast<DWORD*>(&ace->SidStart));
+            if (!IsValidSid(sid) || GetLengthSid(sid) > ace->Header.AceSize - offsetof(ACCESS_ALLOWED_ACE, SidStart))
+                throw std::runtime_error("private_sid_required");
+            if (EqualSid(sid, owner) && !ownerSeen) ownerSeen = true;
+            else if (EqualSid(sid, system) && !systemSeen) systemSeen = true;
+            else throw std::runtime_error("private_principal_required");
+        }
+        if (!ownerSeen || !systemSeen) throw std::runtime_error("private_principals_required");
+    }
+    explicit ObserverPinnedPath(std::filesystem::path path, PSID privateOwner = nullptr,
+        const std::filesystem::path& privateRoot = {}) : path_(std::move(path)) {
         const auto& text = path_.native();
         if (text.size() < 4 || text.size() > 480 || text[1] != L':' || text[2] != L'\\' ||
             !((text[0] >= L'A' && text[0] <= L'Z') || (text[0] >= L'a' && text[0] <= L'z')) ||
             !path_.is_absolute() || path_.lexically_normal() != path_ || path_.filename().empty())
             throw std::runtime_error("not_canonical_drive_file");
         auto current = path_.root_path();
-        pinDirectory(current);
+        pinDirectory(current, privateOwner != nullptr);
+        bool privateDirectory = false;
         for (const auto& part : path_.parent_path().relative_path()) {
             current /= part;
-            pinDirectory(current);
+            pinDirectory(current, privateOwner != nullptr);
+            if (current == privateRoot) privateDirectory = true;
+            if (privateOwner && privateDirectory) requirePrivateAcl(directories_.back().value, privateOwner, true);
         }
+        if (privateOwner && !privateDirectory) throw std::runtime_error("private_root_not_ancestor");
     }
     ObserverPinnedPath(const ObserverPinnedPath&) = delete;
     ObserverPinnedPath& operator=(const ObserverPinnedPath&) = delete;

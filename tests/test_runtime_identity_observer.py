@@ -21,9 +21,21 @@ def test_observer_adapter_has_only_four_sdk_getters_and_no_background_lifecycle(
     guarded = (ROOT / "plugin/include/ObserverPinnedPath.h").read_text(encoding="utf-8")
     assert "CREATE_NEW" in guarded and "CREATE_ALWAYS" not in guarded
     assert "sha256File(" not in source
-    assert "mct::ObserverPinnedPath leaseFile(path)" in source
-    assert "mct::ObserverPinnedPath file(path)" in source
+    assert "mct::ObserverPinnedPath leaseFile(path, rendezvous.owner(), rendezvous.root)" in source
+    assert "mct::ObserverPinnedPath file(path, rendezvous.owner(), rendezvous.root)" in source
     assert '"plugin/src/RuntimeIdentityObserver.cpp"' in source
+
+
+def test_observer_discovery_uses_known_folder_and_current_process_without_environment_fallback():
+    source = (ROOT / "plugin/src/RuntimeIdentityObserver.cpp").read_text(encoding="utf-8")
+    discovery = (ROOT / "plugin/include/ObserverRendezvous.h").read_text(encoding="utf-8")
+    assert "GetEnvironmentVariable" not in source + discovery
+    assert "SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DONT_VERIFY, token" in discovery
+    assert 'root / (std::to_wstring(pid) + L"-"' in discovery
+    assert "GetProcessTimes(GetCurrentProcess()" in discovery
+    assert "GetCurrentProcessId()" in discovery
+    assert "requirePrivateAcl(leaseFile.get(), rendezvous.owner(), false)" in source
+    assert "create_directories" not in source + discovery
 
 
 def test_observer_is_default_off_and_has_no_install_or_candidate_entry():
