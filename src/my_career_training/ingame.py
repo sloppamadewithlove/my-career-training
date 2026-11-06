@@ -73,6 +73,18 @@ def _publish_state(path: Path, data: bytes):
             time.sleep(0.01 * (attempt + 1))
 
 
+def native_ghost_poll_interval(state):
+    """Publish an active worker ghost faster than its 100 ms render expiry."""
+    session = state.get("session") or {}
+    telemetry = state.get("telemetry") or {}
+    practice = telemetry.get("ghost_practice") or {}
+    source = telemetry.get("native_ghost_source") or {}
+    return 33 if (session.get("kind") == "training" and session.get("state") == "training"
+                  and session.get("worker_running") is True and session.get("id")
+                  and source.get("session_id") == session["id"]
+                  and practice.get("enabled") is True and practice.get("visible") is True) else 100
+
+
 class FileBridge:
     def __init__(self, directory, dispatch, snapshot, clock=time.time):
         self.directory = Path(directory) / "bridge"
@@ -127,6 +139,7 @@ class FileBridge:
         state = dict(self.snapshot(), protocol=1, bridge_session=self.session,
                      published_at=self.clock(), offline=True, command_ack=self.ack)
         _publish_state(self.directory / "state.json", json.dumps(state, allow_nan=False).encode())
+        return native_ghost_poll_interval(state)
 
     def plugin_status(self):
         path = self.directory / "plugin-status.json"

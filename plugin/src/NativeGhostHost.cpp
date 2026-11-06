@@ -26,7 +26,7 @@ mct::NativeDrawObservation MyCareerTraining::nativeGhostObservation(const mct::J
     if (!server || !car || !player || server.GetbMatchEnded()) return live;
     auto ball = server.GetBall();
     if (!ball) return live;
-    live.identity.pid = processScope_.pid;
+    live.identity.pid = GetCurrentProcessId();
     live.identity.created = processScope_.created;
     live.identity.nonce = mct::stringValue(state, "bridge_session");
     live.identity.event = server.memory_address;

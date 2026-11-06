@@ -8,7 +8,7 @@ import subprocess
 import pytest
 
 from my_career_training import game_worker as worker
-from my_career_training.ingame import FileBridge
+from my_career_training.ingame import FileBridge, native_ghost_poll_interval
 from test_worker import simulated_session, training_frame, training_recovery_session
 
 
@@ -50,6 +50,24 @@ def test_direct_packet_without_callback_receipt_has_no_native_age_authority(tmp_
     packet.match_info.match_phase = 3
     session.process_packet(packet)
     assert next(event for event in events if event["type"] == "telemetry")["native_ghost_source"] is None
+
+
+def test_fast_publish_interval_requires_active_same_worker_ghost():
+    state = {"session": {"id": "synthetic-worker", "kind": "training", "state": "training", "worker_running": True},
+             "telemetry": {"ghost_practice": {"enabled": True, "visible": True},
+                           "native_ghost_source": {"session_id": "synthetic-worker"}}}
+    assert native_ghost_poll_interval(state) == 33
+    for group, key, value in [
+        ("session", "kind", "career"), ("session", "state", "Idle"),
+        ("session", "worker_running", False), ("session", "id", "other-worker"),
+        ("ghost_practice", "enabled", False), ("ghost_practice", "visible", False),
+        ("native_ghost_source", "session_id", "old-worker"),
+    ]:
+        changed = json.loads(json.dumps(state))
+        target = changed[group] if group == "session" else changed["telemetry"][group]
+        target[key] = value
+        assert native_ghost_poll_interval(changed) == 100
+    assert native_ghost_poll_interval({}) == 100
 
 
 @pytest.mark.skipif(not os.environ.get("MCT_NATIVE_GHOST_PLAYBACK_TEST"),
@@ -100,14 +118,14 @@ def test_actual_worker_backend_file_bridge_and_native_source_age(tmp_path, monke
             session.process_packet(session.events.get()[1])
             event = [event for event in events if event["type"] == "telemetry"][-1]
             backend._event(event)
-            pipe.poll()
+            assert pipe.poll() == 33
             value = json.loads((pipe.directory / "state.json").read_text())
             assert value["telemetry"]["native_ghost_source"] == event["native_ghost_source"]
             return value
 
         original = dispatch(1000)
         published[0] = 2100
-        pipe.poll()
+        assert pipe.poll() == 33
         heartbeat = json.loads((pipe.directory / "state.json").read_text())
         assert heartbeat["published_at"] != original["published_at"]
         assert heartbeat["telemetry"]["native_ghost_source"] == original["telemetry"]["native_ghost_source"]
@@ -124,6 +142,9 @@ def test_actual_worker_backend_file_bridge_and_native_source_age(tmp_path, monke
         assert [row["visible"] for row in native] == [True, False, True, False]
         assert native[0]["observed_at"] == pytest.approx(100)
         assert native[2]["observed_at"] == pytest.approx(100.11)
+        backend._ghost_practice_enabled = False
+        backend._clear_ghost_practice_state()
+        assert pipe.poll() == 100
     finally:
         backend.process = None
         backend.close()

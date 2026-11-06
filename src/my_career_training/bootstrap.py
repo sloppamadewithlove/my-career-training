@@ -327,7 +327,7 @@ def run_service(directory, *, native_movie_trial=False):
                 warning = native_session.warning()
                 if warning:
                     backend.error = warning
-            bridge.poll()
+            timer.setInterval(bridge.poll())
             if time.monotonic() - started > 5 and not is_alive(backend.owned_game):
                 # The backend's separate timer still needs to restore setup and
                 # request the normal launcher after the career process exits.
