@@ -135,6 +135,8 @@ void MyCareerTraining::onLoad() {
             [this](const mct::NativeCosmeticRequest& request) { return applyNativeCosmetic(request); },
             [this] { return nativeWorkshopContext(); },
             [this](const mct::NativeWorkshopRequest& request) { return requestNativeWorkshop(request); });
+        nativeGhostRenderer_ = std::make_unique<mct::NativeGhostRenderer>(gameWrapper,
+            [this] { return currentNativeGhostLease(); });
         loadPreferences();
         for (const auto command : {"mct_training_previous", "mct_training_next", "mct_training_retry", "mct_training_ghost"})
             cvarManager->registerNotifier(command,
@@ -191,6 +193,9 @@ void MyCareerTraining::onLoad() {
 }
 
 void MyCareerTraining::onUnload() {
+    if (nativeGhostRenderer_) nativeGhostRenderer_->stop();
+    nativeGhostRenderer_.reset();
+    nativeGhostPlayback_.clear();
     try { updateTrainingClock(Json::object(), true); } catch (...) {}
     try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
     try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}
@@ -1278,11 +1283,13 @@ void MyCareerTraining::tick() {
         updateTrainingClock(publishedState);
         updateTrainingBallVisibility(publishedState, true);
         pollTrainingLessonControls(publishedState, next);
+        updateNativeGhost(publishedState);
         {
             std::lock_guard<std::mutex> guard(runtimeMutex_);
             runtime_ = std::move(next);
         }
     } catch (const std::exception& error) {
+        clearNativeGhost();
         try { updateTrainingClockProbe(bridge_ ? bridge_->state() : Json::object(), false, true); } catch (...) {}
         try { updateTrainingClock(Json::object(), true); } catch (...) {}
         try { updateTrainingBallVisibility(Json::object(), false); } catch (...) {}

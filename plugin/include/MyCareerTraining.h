@@ -15,6 +15,8 @@
 #include "TrainingLessonInput.h"
 #include "TrainingBallVisibility.h"
 #include "TrainingClock.h"
+#include "NativeGhostPlayback.h"
+#include "NativeGhostRenderer.h"
 #include "bakkesmod/wrappers/modals/ModalWrapper.h"
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -128,6 +130,12 @@ private:
     mct::TrainingBindingGuard trainingBindings_;
     mct::TrainingBallVisibility trainingBallVisibility_;
     mct::TrainingClock trainingClock_;
+    mct::NativeGhostPlayback nativeGhostPlayback_;
+    std::unique_ptr<mct::NativeGhostRenderer> nativeGhostRenderer_;
+    mct::NativeDrawObservation nativeGhostObservation(const mct::Json& state) const;
+    std::optional<mct::NativeDrawLease> currentNativeGhostLease();
+    void updateNativeGhost(const mct::Json& state);
+    void clearNativeGhost();
     mct::Json trainingClockStatus_ = mct::Json::object();
     void updateTrainingClock(const mct::Json& state, bool cleanup = false);
     struct ClockProbe {

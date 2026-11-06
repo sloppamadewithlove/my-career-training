@@ -6,6 +6,7 @@ closure is delegated to the app's identity-scoped window-close transition.
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 import hashlib
 import importlib
 import json
@@ -111,6 +112,31 @@ def free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
         connection.bind(("127.0.0.1", 0))
         return connection.getsockname()[1]
+
+
+@dataclass(frozen=True)
+class PacketArrival:
+    packet: object
+    received_uptime_ms: int | None
+    sequence: int
+
+    @property
+    def match_info(self):
+        return self.packet.match_info
+
+
+def windows_uptime_ms():
+    # GetTickCount64 is a boot-relative clock shared by Python and the game DLL.
+    # Other platforms provide no age authority for the Windows native renderer.
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        clock = ctypes.windll.kernel32.GetTickCount64
+        clock.restype = ctypes.c_ulonglong
+        return int(clock())
+    except (OSError, AttributeError):
+        return None
 
 
 class SessionInbox:
@@ -273,6 +299,7 @@ class GameSession:
         self.last_frame = None
         self.last_controls = -math.inf
         self.last_telemetry = -math.inf
+        self.packet_sequence = 0
         self.last_render = -math.inf
         self.seen_active = False
         self.result_sent = False
@@ -301,6 +328,11 @@ class GameSession:
 
     def event(self, kind, **values):
         self.emit({"type": kind, "session_id": self.session_id, **values})
+
+    def receive_packet(self, packet):
+        # Stamp at the RLBot callback, before inbox coalescing or worker delays.
+        self.packet_sequence += 1
+        self.events.put(("packet", PacketArrival(packet, windows_uptime_ms(), self.packet_sequence)))
 
     def command(self, command):
         if command.get("type", command.get("command")) in {"stop", "shutdown"}:
@@ -560,7 +592,7 @@ class GameSession:
         self.manager.rlbot_interface = isolated_relay(self.manager.rlbot_interface)
         master = self.manager.rlbot_interface
         master.connection_timeout = 8
-        master.packet_handlers.append(lambda packet: self.events.put(("packet", packet)))
+        master.packet_handlers.append(self.receive_packet)
         master.field_info_handlers.append(lambda field: self.events.put(("field", field)))
         master.ball_prediction_handlers.append(lambda prediction: self.events.put(("prediction", prediction)))
         self.connect(self.manager.connect, master, port, predictions=True)
@@ -1235,6 +1267,9 @@ class GameSession:
     def process_packet(self, packet):
         from rlbot import flat
         from . import adapter
+        arrival = packet if isinstance(packet, PacketArrival) else None
+        if arrival is not None:
+            packet = arrival.packet
         self._discover_game()
         if self.owned is None:
             return  # Never accept packets or control from an unowned game.
@@ -1409,6 +1444,11 @@ class GameSession:
                         "boost", "wheel_contact", "air_state", "has_jumped",
                         "has_double_jumped", "has_dodged", "actions") if key in actor})
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
+                       native_ghost_source=({"session_id": self.session_id,
+                           "received_uptime_ms": arrival.received_uptime_ms, "sequence": arrival.sequence,
+                           "attempt_id": self.engine.attempt_id if self.engine is not None else None,
+                           "packet_gap": frame["packet_gap"], "active": phase == 3}
+                           if arrival is not None else None),
                        frame_num=frame["frame_num"], phase=str(packet.match_info.match_phase),
                        game_time_remaining=frame.get("game_time_remaining"),
                        is_unlimited_time=frame.get("is_unlimited_time"),
