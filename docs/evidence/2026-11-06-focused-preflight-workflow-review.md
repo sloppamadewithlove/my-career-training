@@ -43,3 +43,17 @@ The user-facing objective remains a real flip-reset lesson and translucent
 non-interfering ghost. The native raw-pose diagnostic and proxy mesh are source/
 build evidence only, not a successful trace or a visible ghost. The owner has
 already authorized the offline test; do not re-ask that permission.
+
+## Later integration review
+
+The first normal one-shot integration checked protected source scopes only as
+text paths; an independent Windows junction fixture redirected private status
+output into a declared profile. Reuse the previously reviewed retained-handle
+source-scope check instead of maintaining separate lexical-only checks.
+
+The follow-up hashed an exact Python source file but imported it normally.
+Astra reproduced execution of a poisoned timestamp-valid bytecode cache while
+the checked source hash and module path remained correct. A correction is under
+review to execute only the verified source bytes and validate the dependency
+surface. Lesson: checking `.py` bytes alone does not prove ordinary import ran
+those bytes; test cached bytecode and preexisting module state at this boundary.
