@@ -22,6 +22,10 @@ acceptance. GhostPractice still drops ball coordinates during placement.
 The complementary `test/ghost-playback-ball-2026-11-06` branch checks the
 production playback interface; Astra review reported 102 passing checks and ten
 rejected mutations. This is still synthetic, not native or live evidence.
+The separate `experiment/native-ghost-proxy-2026-11-06` branch contains a
+reviewed pure car-shaped diagnostic mesh. Astra caught an overlap in the first
+version and independently cleared its correction. There is no renderer, SDK
+pose conversion, alpha, game model, accepted trace or live non-interference proof.
 
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
