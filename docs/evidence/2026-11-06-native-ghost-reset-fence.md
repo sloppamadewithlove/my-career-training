@@ -4,6 +4,8 @@ Review base: `19891da`. Corrected code: `09ab19bfb123d57d6dd9d5ffebfe18bfdbf48cd
 Builder: GPT-6.1 Sol high. The companion recorded-pose dependency remains the
 one named in [the production wiring receipt](2026-11-06-native-ghost-production-wiring.md).
 Independent delta review is still required. No game operations were performed.
+The subsequent [assistance roundtrip correction](2026-11-06-native-ghost-assistance-roundtrip.md)
+repairs re-enabling after Off and extends the ordered acknowledgement evidence.
 
 Review found two actual state defects. Manual retry reset the worker's attempt
 and playback cursor while Backend retained the previous visible source and pose;
