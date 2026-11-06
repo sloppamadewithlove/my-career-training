@@ -655,7 +655,8 @@ class GameSession:
 
     def _native_ghost_reset_fence(self):
         self.native_ghost_generation = None
-        if self.request.get("in_game") is not True:
+        # Capture prohibits playback; keep its bounded control path free of ghost I/O.
+        if self.capture is not None or self.request.get("in_game") is not True:
             return None
         from .ingame import _read_shared
         from .storage import Store

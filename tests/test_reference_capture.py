@@ -197,8 +197,12 @@ def test_slow_controller_return_rechecks_flip_deadline_before_actual_input_send(
         assert not session.stopping and session.capture_aborted is None
 
 
-def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completion(tmp_path, monkeypatch):
+@pytest.mark.parametrize("native_frontend", [False, True])
+def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completion(tmp_path, monkeypatch, native_frontend):
+    from my_career_training import ingame
     session, _frame, _flat = _capture_worker(tmp_path, monkeypatch)
+    session.request["in_game"] = native_frontend
+    monkeypatch.setattr(ingame, "_read_shared", lambda *_: pytest.fail("Capture entered ghost bridge I/O"))
     session.capture["profile"] = reference_capture.FLIP_PROFILE
     session.engine.reset = lambda: {"car": {"position": [0, -650, 17]}, "ball": {}}
     writes = []
@@ -206,6 +210,7 @@ def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completi
     monkeypatch.setattr(adapter, "desired_state", lambda state, index: {"actor_index": index, "state": state})
     session.reset()
     assert len(writes) == 1 and writes[0]["actor_index"] == 0
+    assert session.native_ghost_generation is None
     with pytest.raises(RuntimeError, match="one attempt"):
         session.reset()
     assert len(writes) == 1
