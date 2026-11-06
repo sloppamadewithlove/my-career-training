@@ -28,6 +28,11 @@ recurring Codex timer. The active goal is distinct from a scheduled timer.
   Cloud enablement and in-flight writes remain unverified. Exact paths and account
   identifiers remain private. A complete fresh source baseline and process/writer
   guard are still prerequisites, not established by metadata alone.
+- A real read-only preflight refused because a separate interactive PowerShell
+  could not be classified. The owner then said to proceed with it left open.
+  Preserve that window; a future exception must bind its exact current process
+  identity and retain file locks and checks. This does not establish what code
+  may execute inside the window or authorize exempting other processes.
 - Public research found an older racing ghost using map-authored mover/Kismet
   hooks. It does not establish a translucent car in native Custom Training; its
   license, current compatibility and video playback remain unverified.
