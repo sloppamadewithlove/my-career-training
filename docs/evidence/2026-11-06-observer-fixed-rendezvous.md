@@ -3,6 +3,9 @@
 Base: `d64d5dd0302e16c29f7d3738e887fb4468a96747`. Development-only source
 candidate; not loaded or live accepted. Normal MCT, launcher identities, build
 defaults and candidate packaging are unchanged.
+Source `7f3a9a5175af2723734fc6f37f4a57039dd99e5c` was independently reviewed,
+including all three native CTests and 27 Python checks. Subsequent status-only
+commits do not change the DLL or constitute runtime evidence.
 
 ## Reason and scope
 

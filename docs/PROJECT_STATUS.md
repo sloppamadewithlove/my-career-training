@@ -10,8 +10,9 @@ probes did not exercise the included MCT terminal-score repair `eb1be7d`.
 
 Steam has since updated the installation to build 26349479 and a new executable
 hash. The three menu package pins still match, but normal MCT correctly refuses
-the executable. A reviewed, default-OFF identity observer is available for a
-bounded private observation; it has not been loaded and proves no compatibility.
+the executable. A reviewed, default-OFF identity observer with a protected fixed
+per-process rendezvous is available; this new candidate has not been loaded and
+proves no compatibility or anti-cheat state.
 
 The owner's current direction is to reuse Rocket League's native training flow,
 maps, HUD and behavior, with custom lesson and ghost additions. The additive hub
@@ -27,7 +28,7 @@ acceptance remain open.
 | Native stock pause | Reviewed source `3b9ef72`; exact packaged `bd9336d` showed stock native pause and Resume; End Training/Yes reached results, not the hub; Career pause regression remains open |
 | Native results blocker/repair | Exact `bd9336d`: training 0% results had no usable controls and waited for the offline Career service while backend Idle; reviewed `df19252` delegates offline native TRAINING/editor results to stock; 112 Python checks/one skip, compiled selector and three native test binaries passed; new repair not packaged/live tested |
 | Updated Steam build | Build 26349479, executable `bcfb3233…bd1c`; embedded Psy-build hypothesis `261031.63733.533021`; official Bakkes 229 updater lists the build; actual SDK result and MCT compatibility remain unverified |
-| Development identity observer | Reviewed `8b6b5bf` + directory-handle correction `3b4f34a`; separate default-OFF DLL, exact identity/argv/PID/FILETIME/nonce lease, four getters and one private create-new journal; 2 native CTests/26 Python checks passed; not loaded, no readiness/anti-cheat claim |
+| Development identity observer | Reviewed `7f3a9a5`, following `8b6b5bf` + `3b4f34a`; default-OFF DLL uses a protected OS-known-folder/PID/FILETIME rendezvous without inherited environment; exact identity/argv/nonce lease and four getters retained; 3 native CTests/27 Python checks passed; new candidate not loaded, no compatibility/readiness/anti-cheat proof |
 | Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; complete live attribution acceptance remains open |
 | Terminal-score source repair | `eb1be7d`: independently reviewed; 268 focused checks passed; included in packaged `a59c45f` but not exercised by its native UI/sequence probes; original live transition cause remains unverified |
 | Developer candidate checks | Exact `2c08e74`: 1654 Python checks passed/15 skipped, Ruff, 38 plugin CTests, 13 launcher checks, backend/native fixture and frozen smoke passed after using a shorter exact-commit worktree |
@@ -53,7 +54,8 @@ provisional shots each; the ultimate target remains twelve per lesson per rank.
 Next runtime priority: obtain a fresh owned identity observation with the reviewed
 observer, then review that evidence before a new native-menu compatibility trial.
 Normal executable gates remain unchanged. See the
-[observer receipt](evidence/2026-11-06-runtime-identity-observer.md).
+[fixed-rendezvous receipt](evidence/2026-11-06-observer-fixed-rendezvous.md)
+for the protected owner/ACL preparation and observation limits.
 After compatibility is established, stage/build results repair `df19252`, prove
 native End Training results controls and the chosen restart/browser/main-menu
 destination, plus Career results/Return and pause regressions. Observe a

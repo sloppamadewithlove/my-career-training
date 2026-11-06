@@ -34,12 +34,16 @@ The [results receipt](evidence/2026-11-06-native-training-stock-results.md) owns
 the later exact-candidate evidence and source repair boundary.
 
 Steam build 26349479 now has a different executable, while the three pinned menu
-packages remain unchanged. Normal MCT gates refuse it. Reviewed source `8b6b5bf`
-plus `3b4f34a` provides a separate default-OFF identity-only observer: exact file
-and process identity, fixed arguments and a fresh private nonce lease precede
-four SDK getters. It is not loaded; actual Psy build, compatibility, menu readiness
-and anti-cheat state remain unverified. See the
-[observer receipt](evidence/2026-11-06-runtime-identity-observer.md).
+packages remain unchanged. Normal MCT gates refuse it. Reviewed source `7f3a9a5`
+extends the separate default-OFF identity-only observer with a protected fixed
+OS-known-folder/PID/FILETIME rendezvous, avoiding inherited request environment.
+Exact file/process identities, fixed arguments and a fresh private nonce lease
+still precede four SDK getters. Three native CTests and 27 Python checks passed;
+this new candidate has not been loaded. Prepare the documented private owner/ACL
+boundary and obtain a fresh owned observation before any compatibility trial.
+Actual Psy build, compatibility, menu readiness and anti-cheat state remain
+unverified. See the
+[fixed-rendezvous receipt](evidence/2026-11-06-observer-fixed-rendezvous.md).
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
