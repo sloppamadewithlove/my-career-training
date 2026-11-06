@@ -321,12 +321,17 @@ def interpolate_pose(recording, time, *, speed=1.0, max_gap=0.1, sample_times=No
     if span and (span > max_gap or b.get("packet_gap")) and target != a["time"]:
         return None
     fraction = (target - a["time"]) / span if span else 0
-    return {
+    pose = {
         "time": target,
         "position": [x + fraction * (y - x) for x, y in zip(a["position"], b["position"])],
         "quaternion": _slerp(euler_quaternion(a["rotation"]), euler_quaternion(b["rotation"]), fraction),
         "actions": deepcopy(a["actions"]),
     }
+    if _vector(a.get("ball_position"), 3) and (fraction == 0 or _vector(b.get("ball_position"), 3)):
+        ball_a = a["ball_position"]
+        ball_b = b["ball_position"] if fraction else ball_a
+        pose["ball_position"] = [x + fraction * (y - x) for x, y in zip(ball_a, ball_b)]
+    return pose
 
 
 def _rotate(quaternion, point):

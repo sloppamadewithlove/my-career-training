@@ -375,6 +375,23 @@ def test_pose_interpolation_wraps_yaw_and_does_not_bridge_gaps():
     assert interpolate_pose(value, 10) is None
 
 
+def test_pose_interpolates_recorded_ball_on_same_timeline_without_inventing_missing_data():
+    value = recording()
+    first, second = value["samples"][:2]
+    first["ball_position"] = [0, 10, 100]
+    second["ball_position"] = [20, 30, 300]
+    midpoint = (first["time"] + second["time"]) / 2
+    assert interpolate_pose(value, midpoint)["ball_position"] == pytest.approx([10, 20, 200])
+    assert interpolate_pose(value, midpoint, speed=0.5)["ball_position"] == pytest.approx([5, 15, 150])
+    second.pop("ball_position")
+    assert "ball_position" not in interpolate_pose(value, midpoint)
+    assert interpolate_pose(value, first["time"])["ball_position"] == [0, 10, 100]
+    first.pop("ball_position")
+    assert "ball_position" not in interpolate_pose(value, midpoint)
+    second["packet_gap"] = True
+    assert interpolate_pose(value, midpoint) is None
+
+
 def test_variants_are_explicit_and_do_not_change_physics():
     standard = configure_lesson("flip-reset")
     short = configure_lesson("flip-reset", simplified=True)
