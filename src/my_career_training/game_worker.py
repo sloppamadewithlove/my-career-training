@@ -119,6 +119,7 @@ class PacketArrival:
     packet: object
     received_uptime_ms: int | None
     sequence: int
+    reset_generation: tuple[str, str] | None = None
 
     @property
     def match_info(self):
@@ -300,6 +301,7 @@ class GameSession:
         self.last_controls = -math.inf
         self.last_telemetry = -math.inf
         self.packet_sequence = 0
+        self.native_ghost_generation = None
         self.last_render = -math.inf
         self.seen_active = False
         self.result_sent = False
@@ -332,7 +334,8 @@ class GameSession:
     def receive_packet(self, packet):
         # Stamp at the RLBot callback, before inbox coalescing or worker delays.
         self.packet_sequence += 1
-        self.events.put(("packet", PacketArrival(packet, windows_uptime_ms(), self.packet_sequence)))
+        self.events.put(("packet", PacketArrival(packet, windows_uptime_ms(), self.packet_sequence,
+                                               self.native_ghost_generation)))
 
     def command(self, command):
         if command.get("type", command.get("command")) in {"stop", "shutdown"}:
@@ -648,6 +651,27 @@ class GameSession:
             self.relays[team].send_msg(flat.InitComplete())
             self.ready_teams.add(team)
 
+    def _native_ghost_reset_fence(self):
+        self.native_ghost_generation = None
+        if self.request.get("in_game") is not True:
+            return None
+        from .ingame import _read_shared
+        from .storage import Store
+        directory = Path(self.request["data_dir"]) / "bridge"
+        raw, _modified = _read_shared(directory / "state.json", 8 * 1024 * 1024)
+        if len(raw) > 8 * 1024 * 1024:
+            raise RuntimeError("The offline bridge state exceeded the reset fence limit.")
+        state = json.loads(raw)
+        nonce = state.get("bridge_session")
+        if (state.get("protocol") != 1 or state.get("offline") is not True
+                or (state.get("session") or {}).get("id") != self.session_id
+                or not isinstance(nonce, str) or str(uuid.UUID(nonce)) != nonce):
+            raise RuntimeError("The native ghost reset fence has no current offline session.")
+        generation = str(uuid.uuid4())
+        Store._atomic(directory / "native-ghost-reset.json", json.dumps({"protocol": 1,
+            "bridge_session": nonce, "session_id": self.session_id, "generation": generation}).encode())
+        return nonce, generation
+
     def reset(self):
         if self.cancel_start.is_set() or self.stopping:
             return
@@ -678,7 +702,9 @@ class GameSession:
         else:
             # Legacy lessons keep the exact two-argument call.
             message = desired_state(settle_state, self.training_actor_index)
+        generation = self._native_ghost_reset_fence()
         self.manager.rlbot_interface.send_msg(message)
+        self.native_ghost_generation = generation
         if self.scenario is not None:
             # Every scenario controller restarts from its beginning on retry.
             for controller in self.controllers.values():
@@ -749,10 +775,11 @@ class GameSession:
         message = desired_state(
             settle_state, self.training_actor_index, settle_state.get("bots") or None)
 
-        # The state write is the only fallible external operation. Everything
-        # after it is prepared local assignment, so the accepted transition
-        # cannot expose a half-old engine/controller/request combination.
+        # Revoke drawing before the state write. Everything after that write is
+        # prepared local assignment, preserving one coherent accepted transition.
+        generation = self._native_ghost_reset_fence()
         self.manager.rlbot_interface.send_msg(message)
+        self.native_ghost_generation = generation
         self.request.update(next_setup)
         self.scenario = definition
         self.engine = replacement
@@ -1446,6 +1473,10 @@ class GameSession:
             self.event("telemetry", time=frame["time"], car=human, ball=frame["ball"], actions=human["actions"],
                        native_ghost_source=({"session_id": self.session_id,
                            "received_uptime_ms": arrival.received_uptime_ms, "sequence": arrival.sequence,
+                           "bridge_session": arrival.reset_generation[0] if arrival.reset_generation else None,
+                           "reset_generation": arrival.reset_generation[1] if arrival.reset_generation else None,
+                           "reset_observed": (self.engine is not None and self.engine.state == "active"
+                                              and self.engine.started_at is not None),
                            "attempt_id": self.engine.attempt_id if self.engine is not None else None,
                            "packet_gap": frame["packet_gap"], "active": phase == 3}
                            if arrival is not None else None),

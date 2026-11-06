@@ -3,16 +3,20 @@
 #include "NativeGhostRecording.h"
 #include <iostream>
 #include <stdexcept>
+#include <chrono>
+#include <algorithm>
+#include <vector>
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 using namespace mct;
+static constexpr const char* generation = "00000000-0000-4000-8000-000000000001";
 static void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 
 static NativeDrawObservation observation() {
     NativeDrawObservation out;
-    out.identity = {42, 100, "synthetic-owned-nonce", 1, 2, 3, 0, 0};
+    out.identity = {42, 100, std::string("synthetic-owned-nonce:") + generation, 1, 2, 3, 0, 0};
     out.ownedOffline = out.fresh = out.buildVerified = out.workerTraining = true;
     out.carObserved = out.ballObserved = out.actionsObserved = true;
     out.gameSeconds = 50;
@@ -25,8 +29,22 @@ static Json state(std::uint64_t sequence = 1, std::uint64_t received = 1000) {
     return {{"bridge_session", "synthetic-owned-nonce"}, {"published_at", 100},
         {"session", {{"id", "synthetic-worker"}}}, {"telemetry", {{"native_ghost_source", {
             {"session_id", "synthetic-worker"}, {"sequence", sequence},
+            {"bridge_session", "synthetic-owned-nonce"}, {"reset_generation", generation},
+            {"reset_observed", true},
             {"received_uptime_ms", received}, {"attempt_id", "synthetic-attempt"},
             {"packet_gap", false}, {"active", true}}}}}};
+}
+
+static Json transport(NativeGhostPlayback& playback, const Json& item) {
+    const auto& snapshot = item.at("state");
+    auto live = observation();
+    LocalBridge bridge(std::filesystem::u8path(item.at("bridge_directory").get<std::string>()));
+    const auto nonce = stringValue(snapshot, "bridge_session");
+    live.identity.nonce = nonce + ":" + bridge.nativeGhostResetGeneration(
+        stringValue(objectValue(snapshot, "session"), "id"), nonce);
+    const auto frame = playback.update(snapshot, live, nativeGhostSampleFromState(snapshot),
+        item.at("now").get<double>(), item.at("uptime_ms").get<std::uint64_t>());
+    return {{"visible", bool(frame)}, {"observed_at", frame ? Json(frame->observedAt) : Json(nullptr)}};
 }
 
 int main(int argc, char** argv) {
@@ -39,19 +57,35 @@ int main(int argc, char** argv) {
 #endif
             return 0;
         }
+        if (argc > 1 && std::string(argv[1]) == "--live-transport") {
+            NativeGhostPlayback playback;
+            std::string line;
+            while (std::getline(std::cin, line))
+                std::cout << transport(playback, Json::parse(line)).dump() << std::endl;
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "--fence-benchmark") {
+            Json request;
+            std::cin >> request;
+            LocalBridge bridge(std::filesystem::u8path(request.at("bridge_directory").get<std::string>()));
+            std::vector<double> micros;
+            for (int i = 0; i < 2000; ++i) {
+                const auto start = std::chrono::steady_clock::now();
+                require(!bridge.nativeGhostResetGeneration(request.at("session_id"), request.at("bridge_session")).empty(),
+                    "Fence benchmark scope was invalid");
+                micros.push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count());
+            }
+            std::sort(micros.begin(), micros.end());
+            std::cout << Json{{"median_us", micros[1000]}, {"p95_us", micros[1900]}, {"reads", micros.size()}}.dump() << '\n';
+            return 0;
+        }
         if (argc > 1) {
             Json request;
             std::cin >> request;
             NativeGhostPlayback playback;
             Json results = Json::array();
             for (const auto& item : request) {
-                const auto& snapshot = item.at("state");
-                auto live = observation();
-                live.identity.nonce = stringValue(snapshot, "bridge_session");
-                const auto frame = playback.update(snapshot, live, nativeGhostSampleFromState(snapshot),
-                    item.at("now").get<double>(), item.at("uptime_ms").get<std::uint64_t>());
-                results.push_back({{"visible", bool(frame)},
-                    {"observed_at", frame ? Json(frame->observedAt) : Json(nullptr)}});
+                results.push_back(transport(playback, item));
             }
             std::cout << results.dump() << '\n';
             return 0;

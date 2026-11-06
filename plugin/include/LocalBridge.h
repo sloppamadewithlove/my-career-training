@@ -23,6 +23,8 @@ public:
     bool poll(double now = unixTime());
     Json state() const;
     bool fresh(double now = unixTime()) const;
+    // Fixed session fence, read afresh per draw; missing/invalid has no cache fallback.
+    std::string nativeGhostResetGeneration(const std::string& session, const std::string& nonce) const;
     bool send(const std::string& action, Json payload = Json::object());
     std::optional<std::string> sendWithId(const std::string& action, Json payload = Json::object());
     void publishStatus(Json status);

@@ -172,5 +172,7 @@ class FileBridge:
             return {}
 
     def close(self):
+        _publish_state(self.directory / "native-ghost-reset.json", json.dumps({"protocol": 1,
+            "bridge_session": self.session, "session_id": "", "generation": ""}).encode())
         _publish_state(self.directory / "state.json", json.dumps({"protocol":1,"offline":True,
             "bridge_session":"", "published_at":0,"error":"My Career is closed."}).encode())

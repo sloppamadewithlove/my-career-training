@@ -67,6 +67,7 @@ class Backend(QObject):
         # Cache validated parses; bounded metadata checks detect replaced files
         # without rereading unchanged capture bytes on every view refresh.
         self._recording_practice_cache = {}
+        self._native_ghost_retry = None
         # True only while a legacy (no explicit recording_id) play command owns
         # the coach rendering. The new practice flow never falls back to it.
         self._legacy_playback = False
@@ -1276,6 +1277,13 @@ class Backend(QObject):
             state["lesson_preferences"][lesson_id] = values
             self._commit(state)
             if self._worker_active() and self.request.get("lesson_id") == lesson_id:
+                if key == "ghost" and value is False:
+                    self._ghost_pending = {identity: pending for identity, pending in self._ghost_pending.items()
+                        if not (pending["session_id"] == self.session_id and pending["lesson_id"] == lesson_id
+                                and pending["kind"] == "ghost_control" and pending.get("enabled") is True)}
+                    if not self._ghost_pending:
+                        self._ghost_deadline = None
+                    self._clear_ghost_practice_state(lesson_id=lesson_id, sync_preferences=False)
                 self._send("preferences", preferences=values)
         elif action == "lesson_variant":
             if self._worker_active():
@@ -1292,6 +1300,14 @@ class Backend(QObject):
                 raise ValueError("The lesson changed. Open its menu again before retrying.")
             if not self._worker_active() or not (self.request or {}).get("lesson_id"):
                 raise ValueError("Start a lesson before retrying it.")
+            source = self.telemetry.get("native_ghost_source") or {}
+            self._native_ghost_retry = {"session_id": self.session_id,
+                "generation": source.get("reset_generation") or
+                    (self._native_ghost_retry or {}).get("generation")}
+            self.telemetry["native_ghost_source"] = None
+            practice = self.telemetry.get("ghost_practice") or {}
+            self.telemetry["ghost_practice"] = dict(practice, visible=False, pose=None, lines=[],
+                coach_actions=None, status="reset_pending", controller={"observed": False, "actions": None})
             self._send("retry")
         elif action == "stop_session":
             self._begin_stop("stop")
@@ -1524,7 +1540,7 @@ class Backend(QObject):
             self.error = "The game worker did not confirm the ghost command. Ghost practice is off."
             self.stateChanged.emit()
 
-    def _clear_ghost_practice_state(self, *, lesson_id=None):
+    def _clear_ghost_practice_state(self, *, lesson_id=None, sync_preferences=True):
         """Hide the ghost, lines and controller depiction immediately.
 
         Used by both the practice toggle and the legacy stop paths so a packet
@@ -1533,6 +1549,7 @@ class Backend(QObject):
         """
         practice = self.telemetry.get("ghost_practice") or {}
         self._ghost_practice_enabled = False
+        self._native_ghost_retry = None
         self._legacy_playback = False
         self.telemetry["ghost_practice"] = {
             "available": practice.get("available") is True, "enabled": False, "playing": False,
@@ -1544,7 +1561,7 @@ class Backend(QObject):
         }
         if lesson_id is None:
             lesson_id = (self.request or {}).get("lesson_id")
-        if lesson_id:
+        if lesson_id and sync_preferences:
             self._sync_ghost_assistance(lesson_id, False)
         self.stateChanged.emit()
 
@@ -1759,6 +1776,18 @@ class Backend(QObject):
         elif kind == "telemetry":
             if cancelled:
                 return
+            pending = self._native_ghost_retry
+            if pending and pending["session_id"] == self.session_id:
+                source = event.get("native_ghost_source") or {}
+                generation = source.get("reset_generation")
+                if (isinstance(generation, str) and generation
+                        and generation != pending["generation"] and source.get("reset_observed") is True):
+                    self._native_ghost_retry = None
+                else:
+                    event = dict(event, native_ghost_source=None,
+                        ghost_practice=dict(event.get("ghost_practice") or {}, visible=False, pose=None,
+                            lines=[], coach_actions=None, status="reset_pending",
+                            controller={"observed": False, "actions": None}))
             self.telemetry = {key: value for key, value in event.items() if key not in ("type", "session_id")}
             practice = self.telemetry.get("ghost_practice")
             if isinstance(practice, dict):

@@ -16,6 +16,11 @@ mct::NativeDrawObservation MyCareerTraining::nativeGhostObservation(const mct::J
     if (mct::stringValue(session, "kind") != "training" ||
         mct::stringValue(session, "state") != "training" ||
         !mct::boolValue(session, "worker_running") || mct::boolValue(session, "busy")) return live;
+    const auto nonce = mct::stringValue(state, "bridge_session");
+    const auto source = mct::objectValue(mct::objectValue(state, "telemetry"), "native_ghost_source");
+    const auto generation = bridge_->nativeGhostResetGeneration(mct::stringValue(session, "id"), nonce);
+    if (generation.empty() || mct::stringValue(source, "reset_generation") != generation ||
+        mct::stringValue(source, "bridge_session") != nonce || !mct::boolValue(source, "reset_observed")) return live;
     live.online = gameWrapper->IsInOnlineGame();
     live.replay = gameWrapper->IsInReplay();
     live.paused = gameWrapper->IsPaused();
@@ -28,7 +33,7 @@ mct::NativeDrawObservation MyCareerTraining::nativeGhostObservation(const mct::J
     if (!ball) return live;
     live.identity.pid = GetCurrentProcessId();
     live.identity.created = processScope_.created;
-    live.identity.nonce = mct::stringValue(state, "bridge_session");
+    live.identity.nonce = nonce + ":" + generation;
     live.identity.event = server.memory_address;
     live.identity.car = car.memory_address;
     live.identity.ball = ball.memory_address;
@@ -54,14 +59,17 @@ std::optional<mct::NativeDrawLease> MyCareerTraining::currentNativeGhostLease() 
     if (!bridge_) { clearNativeGhost(); return {}; }
     const auto state = bridge_->state();
     if (!mct::nativeGhostSampleFromState(state)) { nativeGhostPlayback_.clear(); return {}; }
-    return nativeGhostPlayback_.current(state, nativeGhostObservation(state),
-        mct::NativeGhostRenderer::now(), GetTickCount64());
+    const auto live = nativeGhostObservation(state);
+    // Sample expiry clocks after the fence and SDK reads, including any I/O delay.
+    return nativeGhostPlayback_.current(state, live, mct::NativeGhostRenderer::now(), GetTickCount64());
 }
 
 void MyCareerTraining::updateNativeGhost(const mct::Json& state) {
     if (!nativeGhostRenderer_) return;
-    const auto frame = nativeGhostPlayback_.update(state, nativeGhostObservation(state),
-        mct::nativeGhostSampleFromState(state), mct::NativeGhostRenderer::now(), GetTickCount64());
+    const auto sample = mct::nativeGhostSampleFromState(state);
+    const auto live = sample ? nativeGhostObservation(state) : mct::NativeDrawObservation{};
+    const auto frame = nativeGhostPlayback_.update(state, live, sample,
+        mct::NativeGhostRenderer::now(), GetTickCount64());
     if (!frame || !nativeGhostRenderer_->submit(frame)) clearNativeGhost();
 }
 

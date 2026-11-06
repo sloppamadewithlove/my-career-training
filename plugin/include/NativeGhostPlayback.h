@@ -22,7 +22,8 @@ public:
         if (sequence < sequence_) { clear(); return {}; }
         const bool next = sequence > sequence_;
         sequence_ = sequence;
-        if (!sample || !sourceValid(source, session, uptimeMs)) { clear(); return {}; }
+        if (!sample || !sourceValid(source, session, uptimeMs) ||
+            !fenceBound(state, source, live)) { clear(); return {}; }
         if (!next) return current(state, live, now, uptimeMs) ? frame_ : nullptr;
         const auto received = source["received_uptime_ms"].get<std::uint64_t>();
         if (received < received_) { clear(); return {}; }
@@ -53,6 +54,7 @@ public:
         live.identity.epoch = epoch_;
         if (!frame_ || session != session_ || source != source_ ||
             !sourceValid(source, session, uptimeMs) || !sameNativeDrawIdentity(live.identity, identity_) ||
+            !fenceBound(state, source, live) ||
             !nativeGhostRenderFrameCurrent(*frame_, frame_->lease, now)) { clear(); return {}; }
         // Recheck all ownership/build/mode/data gates even between production ticks.
         live.observedAt = frame_->observedAt;
@@ -63,6 +65,11 @@ public:
     void clear() { frame_.reset(); }
 
 private:
+    static bool fenceBound(const Json& state, const Json& source, const NativeDrawObservation& live) {
+        const auto nonce = stringValue(state, "bridge_session"), generation = stringValue(source, "reset_generation");
+        return !generation.empty() && stringValue(source, "bridge_session") == nonce &&
+            live.identity.nonce == nonce + ":" + generation;
+    }
     static bool orderedSource(const Json& source, const std::string& session) {
         return !session.empty() && stringValue(source, "session_id") == session &&
             source.contains("sequence") && source["sequence"].is_number_integer() &&
@@ -73,6 +80,7 @@ private:
             stringValue(source, "attempt_id").empty() || stringValue(source, "attempt_id").size() > 128 ||
             !source.contains("packet_gap") || source["packet_gap"] != false ||
             !source.contains("active") || source["active"] != true ||
+            !source.contains("reset_observed") || source["reset_observed"] != true ||
             !source.contains("sequence") || !source["sequence"].is_number_integer() ||
             source["sequence"].get<double>() < 1 || source["sequence"].get<double>() > 9007199254740991.0 ||
             !source.contains("received_uptime_ms") || !source["received_uptime_ms"].is_number_integer() ||

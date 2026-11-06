@@ -98,7 +98,8 @@ struct StateFile {
 };
 
 StateFile readStateFile(const std::filesystem::path& path, bool maySkip,
-                        std::uint64_t knownModified, std::uintmax_t knownSize) {
+                        std::uint64_t knownModified, std::uintmax_t knownSize,
+                        std::uintmax_t maxBytes = 8 * 1024 * 1024) {
     // The service atomically replaces state.json. A CRT ifstream omits
     // FILE_SHARE_DELETE on Windows and can block that replacement.
     HANDLE raw = CreateFileW(path.c_str(), GENERIC_READ,
@@ -117,7 +118,7 @@ StateFile readStateFile(const std::filesystem::path& path, bool maySkip,
             std::to_string(GetLastError()) + ").");
     StateFile result;
     result.size = (static_cast<std::uint64_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
-    if (result.size > 8 * 1024 * 1024)
+    if (result.size > maxBytes)
         throw std::runtime_error("The offline career state is too large.");
     result.modified = (static_cast<std::uint64_t>(info.ftLastWriteTime.dwHighDateTime) << 32) |
         info.ftLastWriteTime.dwLowDateTime;
@@ -209,6 +210,32 @@ Json LocalBridge::state() const {
 bool LocalBridge::fresh(double now) const {
     std::lock_guard<std::mutex> guard(mutex_);
     return validState(state_, now);
+}
+std::string LocalBridge::nativeGhostResetGeneration(const std::string& session, const std::string& nonce) const {
+    try {
+        if (session.empty() || nonce.empty()) return {};
+        const auto path = directory_ / "native-ghost-reset.json";
+#ifdef _WIN32
+        const auto bytes = readStateFile(path, false, 0, 0, 1024).bytes;
+#else
+        std::ifstream input(path, std::ios::binary);
+        std::string bytes(1025, '\0');
+        input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        bytes.resize(static_cast<std::size_t>(input.gcount()));
+        if (!input.eof() || bytes.size() > 1024) return {};
+#endif
+        const auto fence = Json::parse(bytes, nullptr, false);
+        if (!fence.is_object() || fence.size() != 4 || fence.value("protocol", 0) != 1 ||
+            stringValue(fence, "session_id") != session || stringValue(fence, "bridge_session") != nonce) return {};
+        const auto generation = stringValue(fence, "generation");
+        if (generation.size() != 36) return {};
+        for (std::size_t i = 0; i < generation.size(); ++i) {
+            const char c = generation[i];
+            if (i == 8 || i == 13 || i == 18 || i == 23) { if (c != '-') return {}; }
+            else if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return {};
+        }
+        return generation;
+    } catch (...) { return {}; }
 }
 std::string LocalBridge::error() const {
     std::lock_guard<std::mutex> guard(mutex_);
