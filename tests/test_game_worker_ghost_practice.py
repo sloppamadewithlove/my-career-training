@@ -619,6 +619,21 @@ def test_backend_native_rows_skip_malformed_index_values_without_changing_save(b
     rows = backend.state["recordings"]
     assert len(rows) == 1 and rows[0]["id"] == valid["id"] and rows[0]["practice_eligible"] is True
     assert backend.document == saved
+    session, events = lesson_session("flip-reset")
+    session.last_frame["time"] = 10.0
+    backend.session_id = session.session_id
+    backend.session_state = "training"
+    backend.process = FakeProcess()
+    backend.dispatch("play_recording", {"id": "flip-reset", "recording_id": rows[0]["id"]})
+    assert backend.error == "" and len(backend.process.writes) == 1
+    command = json.loads(backend.process.writes[0])
+    assert command["type"] == "play_recording" and command["practice"] is True
+    assert command["recording"]["lesson_id"] == "flip-reset"
+    assert command["recording"]["samples"] == recording("flip-reset")["samples"]
+    session.handle_command(command)
+    assert events[-1]["type"] == "ghost_ack" and events[-1]["accepted"] is True
+    assert session.practice_snapshot["available"] is True and session.practice_snapshot["enabled"] is False
+    assert backend.document["recordings"] == saved["recordings"]
 
 
 def test_backend_native_rows_retry_transient_read_failure_for_unchanged_file(backend, monkeypatch):

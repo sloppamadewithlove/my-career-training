@@ -90,3 +90,10 @@ invalidation, malformed index values, unchanged-file recovery after an injected
 PermissionError and no repeat capture read on view refresh. Native menu
 layout checks and Ruff passed. No gameplay, real reset success, publication or
 DLL/package acceptance is established by this correction.
+
+The malformed-index regressions also follow the offered valid row through the
+actual `Backend.dispatch("play_recording", {id, recording_id})` lookup and its
+emitted worker command into `GameSession.handle_command`. Lookup skips malformed
+index values, the worker acknowledges the exact recording, playback remains Off,
+and the stored recording list is preserved. This closes the selection-to-load
+boundary; the seventy-check count above includes these extended cases.

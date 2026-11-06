@@ -1377,10 +1377,12 @@ class Backend(QObject):
             selected_id = p.get("recording_id")
             if selected_id:
                 entry = next((item for item in self.document["recordings"]
-                              if item["id"] == selected_id and item["lesson_id"] == p["id"]), None)
-                if entry is None or Path(entry["filename"]).name != entry["filename"]:
+                              if isinstance(item, dict) and item.get("id") == selected_id
+                              and item.get("lesson_id") == p["id"]), None)
+                filename = entry.get("filename") if entry is not None else None
+                if not isinstance(filename, str) or not filename or Path(filename).name != filename:
                     raise ValueError("Choose a recording from this lesson's saved attempts.")
-                best = import_recording(self.store.directory / "recordings" / entry["filename"])
+                best = import_recording(self.store.directory / "recordings" / filename)
                 if best.get("variant") != variant:
                     raise ValueError("This recording uses a different lesson setup. Choose the matching variation.")
                 practice = True
