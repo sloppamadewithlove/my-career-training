@@ -82,10 +82,11 @@ the selected twelve, provenance and limitations. No proprietary pack binaries or
 extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
-The requested 45-minute active-session cadence is not a persistent timer. The
-09:24:31 UTC target elapsed while the chat stayed active; one catch-up began at
-09:29:02 UTC, 4 minutes 31 seconds later. The next active-chat target is
-10:14:02 UTC. No unattended review is claimed. See the
+The owner requests a ten-minute check and a 45-minute workflow improvement review
+in this chat, including durable GitHub notes. The current session has no exposed
+Codex automation control, so neither recurring schedule has been installed or
+verified. Active work can track these intervals, but idle or unattended runs are
+not claimed. Earlier active-session history is in the
 [active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
 and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md),
 plus the [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md)
