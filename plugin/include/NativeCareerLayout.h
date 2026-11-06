@@ -114,7 +114,7 @@ enum class CareerLayoutRefusal {
     None, NoPlan, StaleScope, StaleChoice, NotConsumed, Disabled, UnknownControl
 };
 
-enum class StockRoute { None, Garage, Options, Resume, Preset, Settings };
+enum class StockRoute { None, Garage, Options, Resume, Preset, Settings, Play };
 
 enum class NativeMenuSurface { None, Frontend, Pause, Results };
 
@@ -266,6 +266,7 @@ public:
     static constexpr std::int64_t kMaxCatalogSourceId = 9999999999LL;
     static constexpr const char* kCareer = "career.open";
     static constexpr const char* kTraining = "training.open";
+    static constexpr const char* kStockTraining = "training.stock";
     static constexpr const char* kGarage = "garage.open";
     static constexpr const char* kAppearance = "garage.appearance";
     static constexpr const char* kWorkshop = "workshop.open";
@@ -452,7 +453,8 @@ public:
             return effect;
         }
         if (match->kind == CareerLayoutEffectKind::PreserveStockRoute) {
-            if ((match->stock != StockRoute::Garage && match->stock != StockRoute::Options) || !match->action.empty())
+            if ((match->stock != StockRoute::Garage && match->stock != StockRoute::Options &&
+                 match->stock != StockRoute::Play) || !match->action.empty())
                 return refuse(effect, CareerLayoutRefusal::UnknownControl, kUnknown);
             effect.accepted = true;
             effect.kind = CareerLayoutEffectKind::PreserveStockRoute;
@@ -1022,7 +1024,8 @@ private:
         choice.reason = plain(choice.reason, kMaxReason);
         if (choice.label.empty()) return;
         if (choice.kind == CareerLayoutEffectKind::PreserveStockRoute) {
-            if (!choice.enabled || (choice.stock != StockRoute::Garage && choice.stock != StockRoute::Options)) return;
+            if (!choice.enabled || (choice.stock != StockRoute::Garage && choice.stock != StockRoute::Options &&
+                                    choice.stock != StockRoute::Play)) return;
             choice.action.clear();
             choice.payload = Json::object();
         } else if (!choice.enabled || choice.kind != CareerLayoutEffectKind::Dispatch) {
@@ -1199,8 +1202,19 @@ private:
         view.title = "My Career";
         addLine(view.body, "Offline career and one Training browser for lessons, workshop items, and mods.");
         addLine(view.body, "Your garage and game options stay the game's own screens.");
+        addLine(view.body, "Rocket League Training opens Play, then choose Training.");
         navigate(view, kCareer, "My Career", CareerLayoutPage::Career);
         navigate(view, kTraining, "Training", CareerLayoutPage::Training);
+        if (ready(state) && !flag(sessionOf(state), "worker_running", true) &&
+            !flag(sessionOf(state), "results_pending_choice", false)) {
+            CareerLayoutChoice stock;
+            stock.id = kStockTraining;
+            stock.label = "Rocket League Training";
+            stock.enabled = true;
+            stock.kind = CareerLayoutEffectKind::PreserveStockRoute;
+            stock.stock = StockRoute::Play;
+            push(view, std::move(stock));
+        }
         navigate(view, kGarage, "Garage", CareerLayoutPage::Garage);
         // Retained as internal typed routes for compatibility tests and direct
         // host planning. NativeMovieProtocol does not publish these legacy root

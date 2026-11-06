@@ -69,7 +69,7 @@ int main() {
         auto data = state();
         require(protocol.open(live, data), "browser protocol did not open");
         auto root = protocol.publish(live, data, 100);
-        require(root.at("controls").size() == 5, "root did not collapse Workshop and Community");
+        require(root.at("controls").size() == 6, "root did not retain stock Training and collapse Workshop and Community");
         for (const auto& item : root.at("controls"))
             require(item.at("id") != NativeCareerLayout::kWorkshop && item.at("id") != NativeCareerLayout::kCommunity,
                 "obsolete root entry remained");

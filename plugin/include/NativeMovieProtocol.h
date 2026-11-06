@@ -61,7 +61,7 @@ public:
         for (auto& choice : view.choices) {
             if (returnPending && ((choice.kind == CareerLayoutEffectKind::Dispatch &&
                 !NativeReturnGate::permitsAction(choice.action)) || choice.kind == CareerLayoutEffectKind::LocalWorkshop ||
-                choice.id == "pause.return" || choice.id == "match.confirm_return")) {
+                choice.stock == StockRoute::Play || choice.id == "pause.return" || choice.id == "match.confirm_return")) {
                 choice.enabled = false;
                 choice.reason = "Wait until My Career has returned to the hub.";
             }
@@ -111,6 +111,7 @@ public:
             wire["controls"].push_back({{"id", choice.id}, {"label", choice.label},
                 {"enabled", choice.enabled}, {"reason", choice.reason},
                 {"stock", choice.stock == StockRoute::Garage ? "garage" :
+                    choice.stock == StockRoute::Play ? "play" :
                     choice.stock == StockRoute::Options ? "options" : choice.stock == StockRoute::Resume ? "resume" :
                     choice.stock == StockRoute::Preset ? "preset" : choice.stock == StockRoute::Settings ? "settings" : ""},
                 {"revision", std::to_string(choice.revision)},

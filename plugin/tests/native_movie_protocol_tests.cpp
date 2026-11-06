@@ -9,7 +9,7 @@ static void require(bool ok, const char* message) { if (!ok) throw std::runtime_
 static CareerLayoutScope scope() { return {true, true, true, false, "native-test-session", 1}; }
 static Json state() {
     return {{"protocol", 1}, {"offline", true}, {"bridge_session", "native-test-session"},
-        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}}}};
+        {"setup_required", false}, {"session", {{"state", "Career Ready"}, {"busy", false}, {"worker_running", false}}}};
 }
 static std::string command(const Json& view, const std::string& id) {
     for (const auto& item : view.at("controls")) if (item.at("id") == id)
@@ -129,7 +129,21 @@ int main() {
         auto data = state();
         require(protocol.open(live, data), "Owned movie did not open");
         auto first = protocol.publish(live, data, 100);
-        require(first.at("active") && first.at("controls").size() == 5, "Collapsed native root controls missing");
+        require(first.at("active") && first.at("controls").size() == 6, "Collapsed native root controls missing");
+        for (const auto& control : first.at("controls"))
+            if (control.at("id") == NativeCareerLayout::kStockTraining)
+                require(control.at("stock") == "play" && control.at("enabled") == true,
+                    "Stock Training wire route is not native Play");
+        require(first.at("body").get<std::string>().find("opens Play, then choose Training") != std::string::npos,
+            "Stock Training destination was not explained");
+        NativeMovieProtocol returning;
+        require(returning.open(live, data), "Return stock route fixture did not open");
+        const auto waitingRoot = returning.publish(live, data, 100, {}, {}, true);
+        for (const auto& control : waitingRoot.at("controls"))
+            if (control.at("id") == NativeCareerLayout::kStockTraining)
+                require(control.at("enabled") == false, "Return granted stock Play navigation");
+        require(!returning.select(command(waitingRoot, NativeCareerLayout::kStockTraining), live, data, true).accepted,
+            "Return allowed a stock Play callback");
         require(!first.at("production_ready") && !first.at("runtime_verified"), "Compatibility falsely granted");
         auto repeat = protocol.publish(live, data, 101);
         require(first.at("generation") == repeat.at("generation"), "Heartbeat rebuilt focus generation");

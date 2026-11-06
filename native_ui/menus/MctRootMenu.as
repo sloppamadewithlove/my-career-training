@@ -38,6 +38,7 @@ package menus
     import tagame.constants.MenuName;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
+    import tagame.managers.MenuManager;
     import tagame.menus.BranchingMenu;
 
     // Authored mod source, compiled against private external game declarations.
@@ -1212,6 +1213,14 @@ package menus
             for each (var candidate:Object in view.controls)
                 if (candidate === item) present = true;
             if (!present) return;
+            if (item.stock === "play")
+            {
+                var playShell:ITAGameShell = TAGameShellInstance.get();
+                if (playShell == null || playShell.screenManager.isScreenOpen("ChallengesPrimeMenu") ||
+                    playShell.screenManager.isScreenOpen("PlayMenuV4")) return;
+                MenuManager.getInstance().enterTreeAtRoot(MenuManager.PLAY_MENU);
+                return;
+            }
             if (item.stock === "garage")
             {
                 if (TAGameShellInstance.get() == null) return;

@@ -36,7 +36,8 @@ static void audit(const CareerLayoutView& view) {
         if (!choice.action.empty()) require(NativeCareerLayout::supportedAction(choice.action), "Action is not supported");
         if (choice.kind == CareerLayoutEffectKind::PreserveStockRoute) {
             require(choice.enabled && choice.action.empty() && choice.payload.empty(), "Stock route is paired with a dispatch");
-            require(choice.stock == StockRoute::Garage || choice.stock == StockRoute::Options, "Stock route is not typed");
+            require(choice.stock == StockRoute::Garage || choice.stock == StockRoute::Options ||
+                choice.stock == StockRoute::Play, "Stock route is not typed");
         }
     }
 }
@@ -184,13 +185,31 @@ int main() {
         auto root = layout.view(scope, state);
         audit(root);
         require(root.offersReplacement && root.page == CareerLayoutPage::Root, "Root plan missing");
-        require(root.choices.size() == 7, "Top menu must have seven controls");
-        const char* ids[] = {NativeCareerLayout::kCareer, NativeCareerLayout::kTraining, NativeCareerLayout::kGarage,
+        require(root.choices.size() == 8, "Top menu must retain existing controls and stock Training");
+        const char* ids[] = {NativeCareerLayout::kCareer, NativeCareerLayout::kTraining,
+            NativeCareerLayout::kStockTraining, NativeCareerLayout::kGarage,
             NativeCareerLayout::kWorkshop, NativeCareerLayout::kCommunity, NativeCareerLayout::kSettings, NativeCareerLayout::kExit};
-        const char* labels[] = {"My Career", "Training", "Garage", "Workshop", "Community", "Settings", "Quit My Career"};
-        for (std::size_t i = 0; i < 7; ++i) {
+        const char* labels[] = {"My Career", "Training", "Rocket League Training", "Garage", "Workshop", "Community", "Settings", "Quit My Career"};
+        for (std::size_t i = 0; i < 8; ++i) {
             require(root.choices[i].id == ids[i] && root.choices[i].label == labels[i], "Top menu order");
         }
+        const auto stockTraining = findChoice(root, NativeCareerLayout::kStockTraining);
+        const auto stockPlay = choose(layout, stockTraining, scope, state, false);
+        require(stockPlay.accepted && stockPlay.kind == CareerLayoutEffectKind::PreserveStockRoute &&
+            stockPlay.stock == StockRoute::Play && stockPlay.page == CareerLayoutPage::Root,
+            "Stock Training did not preserve the hub and native Play route");
+        for (const char* unsafe : {"worker_running", "busy", "results_pending_choice"}) {
+            auto active = state;
+            active["session"][unsafe] = true;
+            require(!hasChoice(layout.view(scope, active), NativeCareerLayout::kStockTraining),
+                "Stock Training remained available during an active session");
+            require(!choose(layout, stockTraining, scope, active, false).accepted,
+                "Stale stock Training choice bypassed active-session gate");
+        }
+        auto stockUnknownWorker = state;
+        stockUnknownWorker["session"].erase("worker_running");
+        require(!hasChoice(layout.view(scope, stockUnknownWorker), NativeCareerLayout::kStockTraining),
+            "Unknown worker state granted stock Training");
         require(root.suppress.size() == 6, "Suppression plan missing");
         require(root.suppress[0] == NativeRouteId::OnlineMatchmaking && root.suppress[1] == NativeRouteId::TournamentJoin, "Suppress order");
         require(root.suppress[2] == NativeRouteId::Store && root.suppress[3] == NativeRouteId::RocketPass, "Store and pass");

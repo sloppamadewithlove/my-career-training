@@ -1,5 +1,17 @@
 # Native My Career movie
 
+## Stock Training entry
+
+The hub's separate **Rocket League Training** row opens the game's stock Play
+screen; choose Training there. The existing My Career Training browser remains
+available. This uses the stock root's `MenuManager.enterTreeAtRoot(PLAY_MENU)`
+action, without an automatic branch jump, pack launch or editor creation.
+The row requires a ready owned offline frontend with no worker or pending
+results; a pending Return disables it. Stock Play owns focus and Back while
+open. Arrival, Back to the authored hub and subsequent native training/editor
+behavior require exact-candidate live verification. Rocket League can write its
+own profile even when the operator only navigates menus.
+
 ## Pause and results movies
 
 `menus/MctPauseMenu.as` and `menus/MctResultsMenu.as` each have an authored
