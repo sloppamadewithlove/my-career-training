@@ -36,6 +36,14 @@ clock, then validate an actual fixed-start successful reset before enabling
 teaching playback. An RLBot trace is not interchangeable without proving its
 setup and success match the native lesson.
 
+The first sampler implementation attempt found the required capture authority
+missing: `NativeDrawLease` and its reset epoch are supplied only in synthetic
+tests, and bridge freshness is not explicit capture intent. Existing owned
+session and build checks are not a replacement for that lease. The builder made
+no code change and did not arm native reads. Next, define a trusted issuer and
+an observed reset-generation boundary using the owned-session flow; do not infer
+an attempt from stable wrapper pointers or a merely fresh bridge.
+
 Two bounded DeepSeek reviewer requests
 returned no visible answer after 3,000 and 7,000 completion tokens respectively;
 neither is an approval. Reported costs were $0.002001 and $0.00423972. Stop
