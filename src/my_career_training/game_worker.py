@@ -692,6 +692,8 @@ class GameSession:
                     or self.mapping.get(team) != [target]):
                 raise RuntimeError("Capture cannot reset after its bot mapping was lost or capture stopped.")
             recheck_capture(self.capture)
+            if self.cancel_start.is_set() or self.stopping or self._check_capture_deadline():
+                return
         from .adapter import desired_state
         if self.engine is None:
             raise RuntimeError("Retry is available during a training lesson.")
@@ -706,6 +708,8 @@ class GameSession:
             # Legacy lessons keep the exact two-argument call.
             message = desired_state(settle_state, self.training_actor_index)
         generation = self._native_ghost_reset_fence()
+        if self.capture is not None and (self.cancel_start.is_set() or self.stopping or self._check_capture_deadline()):
+            return
         self.manager.rlbot_interface.send_msg(message)
         self.native_ghost_generation = generation
         if self.scenario is not None:

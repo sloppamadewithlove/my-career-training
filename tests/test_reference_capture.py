@@ -216,6 +216,68 @@ def test_flip_capture_allows_only_initial_bot_reset_even_before_attempt_completi
     assert len(writes) == 1
 
 
+@pytest.mark.parametrize("profile", [reference_capture.FLIP_PROFILE, "cancel"])
+@pytest.mark.parametrize("interruption", ["deadline", "cancel"])
+@pytest.mark.parametrize("boundary", ["marker", "desired_state"])
+def test_validated_capture_reset_rechecks_slow_boundaries_before_reset_or_actor_write(
+        tmp_path, monkeypatch, profile, interruption, boundary):
+    from my_career_training.training import TrainingEngine
+    request = (_flip_request(tmp_path, monkeypatch) if profile == reference_capture.FLIP_PROFILE
+               else _capture_request(tmp_path, profile=profile))
+    _enable_profile(tmp_path, monkeypatch)
+    session = game_worker.GameSession(request, lambda _event: None)
+    session.capture = reference_capture.validate_capture_request(request)
+    assert session.capture["profile"] == profile
+    session.training_actor_index = session.capture["target_index"]
+    session.descriptors = {0: {"team": 0}}
+    session.mapping = {0: [0]}
+    session.capture_ready = True
+    session.engine = TrainingEngine(request["lesson_id"], strict_capture=True)
+    original_reset, original_marker = session.engine.reset, reference_capture.recheck_capture
+    engine_resets, actor_writes = [], []
+    session.manager = NS(rlbot_interface=NS(send_msg=actor_writes.append))
+    session.started_monotonic = 100
+    clock = {"now": 219.0}
+    monkeypatch.setattr(game_worker.time, "monotonic", lambda: clock["now"])
+
+    def interrupt():
+        if interruption == "deadline":
+            clock["now"] = 230.0
+        else:
+            session.cancel_start.set()
+
+    def verify(capture):
+        result = original_marker(capture)
+        if boundary == "marker":
+            interrupt()
+        return result
+
+    def reset():
+        engine_resets.append(True)
+        return original_reset()
+
+    def desired(state, index):
+        assert state["car"]["position"] == session.engine.lesson["settle_state"]["car"]["position"]
+        if boundary == "desired_state":
+            interrupt()
+        return {"actor_index": index, "state": state}
+
+    monkeypatch.setattr(reference_capture, "recheck_capture", verify)
+    monkeypatch.setattr(session.engine, "reset", reset)
+    monkeypatch.setattr(adapter, "desired_state", desired)
+    session.reset()
+    refused = interruption == "cancel" or profile == reference_capture.FLIP_PROFILE
+    if refused:
+        assert actor_writes == [] and session.applied_reset is False
+        assert len(engine_resets) == (0 if boundary == "marker" else 1)
+        if interruption == "deadline":
+            assert session.stopping and session.stop_deadline == 0 and session.capture_aborted
+    else:
+        assert len(engine_resets) == len(actor_writes) == 1
+        assert actor_writes[0]["actor_index"] == 0
+        assert not session.stopping and session.capture_aborted is None
+
+
 def test_flip_candidate_requires_real_engine_success_event_and_stops_after_one_attempt(tmp_path, monkeypatch):
     from test_training import reset_contact_case
     # Synthetic production-detector regression; no actual demonstration supplied.
