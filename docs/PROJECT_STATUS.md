@@ -100,6 +100,8 @@ The [offline observer workflow review](evidence/2026-11-06-offline-observer-work
 records the 20:06 UTC review and the current live-test prerequisites.
 The [observer preflight review](evidence/2026-11-06-observer-preflight-workflow-review.md)
 records the 20:52 UTC review, the user's proceed choice and the remaining guard refusal.
+The [focused preflight review](evidence/2026-11-06-focused-preflight-workflow-review.md)
+records the 21:37 UTC review and the unverified guard correction.
 Windows scheduling was not used. The earlier scheduled improvement task
 delivered the integrated PR #11 privacy check. Main's build concurrency changes
 preserve the active build and newest pending work. Neither is evidence of gameplay
