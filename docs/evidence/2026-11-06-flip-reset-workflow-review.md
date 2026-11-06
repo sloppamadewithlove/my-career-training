@@ -54,3 +54,15 @@ establish updated-game compatibility before a live observation. The actual
 successful flip-reset trace, translucent native car, cleanup and non-interference
 remain required. Next active review target: 19:34:16 UTC, only while this chat
 is actively working; no persisted schedule is implied.
+
+## Later offline-test preparation
+
+After the owner authorized an isolated offline game session, a private operator
+transaction and console helper were prepared without touching live files. Astra
+reproduced three disposable-fixture blockers: a process-absence check could go
+stale before creating the staged DLL; recovery did not detect replacement of an
+ancestor directory; and changed or missing valid journal events could be accepted.
+The candidate is held for correction. For future staging reviews, test guard
+changes immediately before each mutation, persist and compare directory identity
+across recovery, and exercise valid-but-altered as well as malformed journal
+records. Earlier timing and review claims above are unchanged.
