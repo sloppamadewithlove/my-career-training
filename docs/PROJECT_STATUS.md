@@ -56,10 +56,10 @@ The requested 45-minute active-session cadence is not a persistent timer. The
 actively missed review. Active work resumed at 05:30:22 UTC; the next active-chat
 target is 06:15:22 UTC. No unattended review is claimed. See the
 [active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md).
-Windows scheduling was not used. Its earlier delivered change is the integrated PR #11
-privacy check. Main's build concurrency changes preserve the active build and newest
-pending work. Neither is evidence of gameplay readiness. The task board owns current
-agent assignments and release blockers.
+Windows scheduling was not used. The earlier scheduled improvement task
+delivered the integrated PR #11 privacy check. Main's build concurrency changes
+preserve the active build and newest pending work. Neither is evidence of gameplay
+readiness. The task board owns current agent assignments and release blockers.
 
 [Reset and clock verification receipt](evidence/2026-10-29-reset-clock-verification.md) records independent checks and the remaining live boundary.
 
