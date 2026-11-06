@@ -19,6 +19,14 @@ ball-dependent lessons or introduce a native renderer. Two runs of 50 focused
 Python tests passed, including independent test execution; Ruff passed. Neither
 run exercised an actual recording or the game.
 
+The existing Python lesson detector requires an observed `has_dodged` transition
+before it accepts reset acquisition, and the lesson text tells the player to use
+the initial flip. A direct aerial approach without that observed dodge therefore
+cannot pass that detector, even if the game grants a reset. This is a source-path
+finding, not a live diagnosis. Before relaxing the guard, verify actual
+flip-availability and reset transitions for the native scenario; do not treat an
+already available flip as a newly acquired reset.
+
 Independent source review is pending. Two bounded DeepSeek reviewer requests
 returned no visible answer after 3,000 and 7,000 completion tokens respectively;
 neither is an approval. Reported costs were $0.002001 and $0.00423972. Stop
