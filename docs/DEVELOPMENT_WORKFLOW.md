@@ -107,13 +107,24 @@ input was dispatched. Do not automatically retry a refused click. Resume only
 after the owner restores the intended game foreground and fresh same-process and
 foreground checks pass; never reuse stale focus state.
 
+Keep launch routes distinct: an RLBot `-rlbot` launch, a standard Steam launch
+without that flag, and Rocket League's official No EAC option are separate
+conditions. If module enumeration is unavailable, plugin-loaded state remains
+unknown; it does not prove absence or establish a cause. Do not change Steam
+offline/No EAC settings without explicit authorization. After upstream updates,
+verify the exact installed executable identity and supported launcher/plugin
+capability for that binary before testing the candidate.
+
 Native Custom Training's Created editor can write a `.Tem` and rotate the actual
 Rocket League game profile before an explicit Save. A copied MCT Career does not
 isolate those game saves. Keep private preflight copies and record a baseline
 inventory before Create; after the owned game exits, compare changed names/hashes.
-Preserve newly written active saves. Restore only missing originals with
-create-new semantics; never overwrite changed files or claim byte-identical
-restoration unless hashes prove it.
+Test config override and restore helpers first against disposable config data;
+restore an original only conditionally. Preserve newly written active saves and
+other changed/new files. Restore only missing originals with create-new semantics;
+never overwrite changed files or claim byte-identical restoration unless hashes
+prove it. Keep cleanup scoped to verified test-owned artifacts; if review blocks
+an exact cleanup, record the limit and do not broaden or repeat it blindly.
 
 ## Testing and evidence rules
 
@@ -175,13 +186,15 @@ restoration unless hashes prove it.
   actual tokens and cost from the provider-reported source. Unknown values stay
   unknown, never guessed.
 - For requested active-session reviews, record actual due times and completion.
-  If a review is missed, note the missed points and do one catch-up at the next
-  natural boundary; set the next due time from that catch-up's actual start. A
-  scheduled prompt is not evidence that a review ran. Do not backfill progress or
-  imply continuous monitoring while the chat is idle. When work resumes after an
-  idle chat, record the actual restart, do not count elapsed idle targets as
-  actively missed checks, and perform read-only process/foreground verification
-  before any game input.
+  If one or more targets elapse while the chat remains active, record all elapsed
+  targets and perform one catch-up at the next natural boundary; set the next due
+  time from that catch-up's actual start. Bound waits on builders and background
+  processes so an open-ended wait does not defer a due review; make independent
+  progress while a dependency runs. A scheduled prompt is not evidence that a
+  review ran. Do not backfill progress or imply continuous monitoring while the
+  chat is idle. When work resumes after an idle chat, record the actual restart,
+  do not count elapsed idle targets as actively missed checks, and perform
+  read-only process/foreground verification before any game input.
 - The 12-second click-to-Playing continuation target remains historical and not
   achieved; its evidence and recovery detail are in the
   [evidence-and-recovery reference](../skills/my-career-training-testing/references/evidence-and-recovery.md).

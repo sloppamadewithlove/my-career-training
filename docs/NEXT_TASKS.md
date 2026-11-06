@@ -44,15 +44,34 @@ The installed Rocket League executable has been re-read: Steam build ID
 `26349479`, FileVersion `1.0.10897.0`, and SHA-256 recorded in the
 [Steam update checkpoint](evidence/2026-11-06-steam-update-compatibility.md).
 The `9ee0c33` diagnostic gate is still keyed to the previous executable hash and
-Steam build `25914621`; its source is fail-closed and diagnostic-only. No runtime
-launcher/plugin capability was verified after the update. Do not change those pins
-based on version/build ID alone, bypass the guard or launch based on unchanged
-FileVersion or matching menu packages. First establish the exact compatibility contract for the updated
-binary and supported launcher/plugin path. Then, after the gate passes, test the
-`9ee0c33` candidate's results controls and chosen restart/browser/main-menu path,
-followed by a Career results/Return regression. Reuse prior checks when inputs
-are unchanged; keep same-process/foreground and owned-save checks fresh for each
-live run.
+Steam build `25914621`; its source is fail-closed and diagnostic-only. A separate
+standard Steam launch without `-rlbot` was inconclusive: module enumeration was
+denied, so loaded-plugin state is unknown and no cause is established. Candidate
+`9ee0c33` itself was not launched after the update. Keep this route distinct from
+prior `-rlbot` testing and Rocket League's official No EAC option; no Steam
+offline/no-EAC setting was authorized or changed. Official BakkesMod metadata
+for `2.0.78 / RL2.78 / BM229` is a positive version-level compatibility signal,
+not proof of local plugin load or exact Steam-build mapping. Do not change
+the MCT guard based on version/build ID alone or matching menu packages. First
+establish the exact compatibility contract for the updated binary and supported
+launcher/plugin path. Then, after the gate passes, test the `9ee0c33` candidate's
+results controls and chosen restart/browser/main-menu path, followed by a Career
+results/Return regression. Reuse prior checks when inputs are unchanged; keep
+same-process/foreground and owned-save checks fresh for each live run. See the
+[Steam launch/config recovery checkpoint](evidence/2026-11-06-steam-launch-config-recovery.md)
+for the distinct standard-Steam attempt and recovery limits.
+
+In a separate launch/config recovery, the temporary config override was
+conditionally restored; four backup saves were restored and one changed/new save
+was preserved. This does not prove the whole profile unchanged. The test-started
+injector did not stop gracefully; only the PID verified as owned by that test was
+terminated. Cleanup of the exact test-config temporary was blocked by automatic
+review with the reported reason `blocked by policy`; it remains. Do not retry a
+broader cleanup. No Steam setting change was made. A builder is preparing an
+isolated, default-OFF identity-only probe; it has not been launched and provides
+no new runtime proof. Next, finish reviewing that probe and its default-off
+behavior, then establish launcher/plugin capability for the exact installed
+binary before any route-specific runtime test.
 
 The experimental drawing core on `8759a83` (`a983c618`) prepares diagnostic
 frames only. SDK owner-scoped uninstall is static evidence; unload concurrency

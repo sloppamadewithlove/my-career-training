@@ -17,10 +17,15 @@ compatibility with the current executable after a Steam update. A read-only chec
 identified the installed file at build `26349479`, FileVersion `1.0.10897.0`,
 SHA-256 `bcfb3233…`; the native diagnostic guard in source `9ee0c33` remains pinned
 to the prior executable/build and fails closed on mismatch. Results repair
-`df19252` at `9ee0c33` has candidate build/test/smoke evidence, but no game launch
-occurred after the update. The plugin/launcher has no post-update runtime
-acceptance. Whole-level retry/progression and full lesson/release acceptance
-remain open.
+`df19252` at `9ee0c33` has candidate build/test/smoke evidence, but that candidate
+was not launched after the update. A separate standard Steam launch without
+`-rlbot` was attempted but inconclusive; module enumeration was denied, so
+plugin-loaded state remains unknown and no cause is established. This launch is
+distinct from prior `-rlbot` testing and Rocket League's official No EAC option.
+The user did not authorize Steam offline/no-EAC setting changes, and none were
+made. Official BakkesMod 2.0.78 release metadata lists RL2.78/BM229 compatibility,
+but that does not prove local plugin loading or an exact Steam-build mapping.
+Whole-level retry/progression and full lesson/release acceptance remain open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -37,7 +42,10 @@ remain open.
 | Native local timer/reset | Exact `a59c45f`: `0:10` → `0:07` after movement → later initial `0:10`; expiry is inferred, with no exact zero or native telemetry. Backspace at initial state showed no change; reset not accepted |
 | Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. Live Escape → native pause → Resume passed on the earlier tested setup; updated-executable compatibility is unverified |
 | Native results repair | Exact `bd9336d` End Training → Yes reached 0% results waiting for the offline Career service; no usable controls or hub return. Reviewed source repair `df19252` at branch head `9ee0c33`; candidate build, tests and smoke passed, but it has not been launched after the reported Steam update |
-| Steam executable compatibility | Automatic update was reported at 06:08–06:15 UTC, changing Steam build ID `25914621` → `26349479`; read-only check confirmed installed FileVersion `1.0.10897.0` and SHA-256 prefix `bcfb3233…`. Three menu-package hashes were reported matching. The diagnostic source guard is pinned to the old executable hash/build and rejects mismatches; launcher/plugin runtime compatibility after the update remains unverified |
+| Steam executable compatibility | Steam build `26349479`, FileVersion `1.0.10897.0`, and executable SHA-256 prefix `bcfb3233…` were read locally; three menu-package hashes were reported matching. Official BakkesMod `2.0.78 / RL2.78 / BM229` release metadata describes an RL2.78 compatibility update, a positive version-level signal; the MCT diagnostic pin remains on the prior executable/build. It is not proof of local plugin loading or exact Steam-build mapping |
+| Launch and injector check | Standard Steam launch without `-rlbot` was inconclusive; module enumeration was denied and loaded-plugin state is unknown. Injector graceful stop failed; only its verified test-owned PID was terminated. No cause is established |
+| Config and save recovery | Temporary config override was conditionally restored; four backup saves were restored and one changed/new file preserved. No whole-profile unchanged claim. Cleanup of the exact test-config temporary was blocked by policy and it remains |
+| Identity probe | Builder is preparing an isolated default-OFF, identity-only probe; no game launch or new runtime proof |
 | Native session restoration | Owned `bd9336d` session closed gracefully. Original Career and local sequence hashes matched preflight; three absent backup saves restored create-new-only; changed current saves/profile files preserved. Whole-profile unchanged is not claimed |
 | Native draw experiment | Branch `8759a83` records independently reviewed source `a983c618`: pure diagnostic frame preparation; dedicated C++ check passed 1/1. SDK owner-scoped uninstall is static evidence only and unload concurrency remains unresolved. No drawable registration, live renderer, ghost, full plugin/package build or live test |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
@@ -65,12 +73,14 @@ the selected twelve, provenance and limitations. No proprietary pack binaries or
 extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
-The requested 45-minute active-session cadence is not a persistent timer. The
-07:01:37 UTC target was caught up starting at 07:02:15 UTC, 38 seconds later; the
-next active-chat target is 07:47:15 UTC. No unattended review is claimed. See the
+The requested 45-minute active-session cadence is not a persistent timer. Targets
+07:47:15 and 08:32:15 UTC elapsed while the chat stayed active; this is one
+catch-up started at 08:39:31 UTC. The next active-chat target is 09:24:31 UTC.
+No unattended review is claimed. See the
 [active-session restart checkpoint](evidence/2026-11-06-active-session-restart.md)
 and [native results checkpoint](evidence/2026-11-06-native-results-live-checkpoint.md),
-plus the [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md).
+plus the [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md)
+and [Steam launch/config recovery checkpoint](evidence/2026-11-06-steam-launch-config-recovery.md).
 Windows scheduling was not used. The earlier scheduled improvement task
 delivered the integrated PR #11 privacy check. Main's build concurrency changes
 preserve the active build and newest pending work. Neither is evidence of gameplay
@@ -125,3 +135,7 @@ and the source-only results repair/build boundary.
 [Steam update compatibility checkpoint](evidence/2026-11-06-steam-update-compatibility.md)
 records the reported upstream executable change, current launch stop and exact
 compatibility evidence still required.
+
+[Steam launch/config recovery checkpoint](evidence/2026-11-06-steam-launch-config-recovery.md)
+records separate launch-route evidence, configuration/save recovery, and the
+pending identity-only probe.
