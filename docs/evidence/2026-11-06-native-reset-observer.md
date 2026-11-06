@@ -26,3 +26,11 @@ These DLLs have not been installed or loaded. The existing build gate targets
 an earlier game runtime. Current-game compatibility, native clock and reset
 semantics, wrapper behavior, live ownership and no-interference remain unverified.
 This diagnostic is not a successful flip-reset trace or a visible ghost.
+
+For a future owned offline test, first prove updated executable compatibility and
+the exact loaded candidate, then arm one request before a single deliberate
+native retry within the five-second window. Compare the raw before/after round,
+shot-attempt and clock observations with the visible input and resulting state.
+Missing samples, unchanged values or a timeout are inconclusive; repeat only
+after diagnosing the observed failure and establishing a fresh authorized session.
+Preserve and reconcile the real game profile separately from the copied Career.
