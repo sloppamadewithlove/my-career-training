@@ -37,6 +37,8 @@ package
         override protected function handleAddedToStage(event:Event) : void
         {
             super.handleAddedToStage(event);
+            var authored:MctPauseMenu = midGameMenu as MctPauseMenu;
+            if (authored != null && authored.usesStockPause()) return;
             addEventListener(Event.ENTER_FRAME, keepMatchChrome, false, 0, true);
             keepMatchChrome();
         }
@@ -55,6 +57,11 @@ package
         private function keepMatchChrome(event:Event = null) : void
         {
             var authored:MctPauseMenu = midGameMenu as MctPauseMenu;
+            if (authored != null && authored.usesStockPause())
+            {
+                lastReturnHeld = false;
+                return;
+            }
             lastReturnHeld = authored != null && authored.shouldHoldScreenClose();
             var shell:ITAGameShell = TAGameShellInstance.get();
             if (shell == null) return;

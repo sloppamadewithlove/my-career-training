@@ -141,7 +141,7 @@ MATCH_SCENES = {
         "document_target_name": "MctPauseMenuScreen",
         "symbol_character": 6,
         "symbol_name": "MidGameMenuMovie",
-        "method_bodies": 95,
+        "method_bodies": 96,
         "class_flags": [9, 8, 9, 11, 9, 9, 11, 9, 11, 9],
         "authored_classes": [
             "menus::MctPauseMenu",

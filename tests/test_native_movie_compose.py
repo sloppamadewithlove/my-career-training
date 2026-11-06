@@ -863,3 +863,28 @@ def test_training_browser_uses_the_authored_panel_instead_of_the_branching_stack
     assert 'browserCommand("primary", String(selected.key))' in source
     assert 'browserCommand("tool", String(tool.key))' in source
     assert 'state == "loading"' in source and 'state == "error"' in source
+
+
+def test_stock_pause_owns_input_buttons_focus_and_document_chrome():
+    root = Path(__file__).resolve().parents[1] / "native_ui"
+    menu = (root / "menus" / "MctPauseMenu.as").read_text(encoding="utf-8")
+    screen = (root / "MctPauseMenuScreen.as").read_text(encoding="utf-8")
+
+    def method(source, name):
+        return source.split(f"function {name}(", 1)[1].split("\n        }", 1)[0]
+
+    # These independent overrides can steal stock controls even when its button
+    # builder delegates. Keep every input/focus boundary on the same policy.
+    for name in ("handleInput", "refreshButtons", "validateFocus"):
+        body = method(menu, name)
+        stock = body.split("if (usesStockPause())", 1)[1].split("}", 1)[0]
+        assert f"super.{name}(" in stock and "return;" in stock
+    assert "if (!usesStockPause()) layoutDetails();" in method(menu, "handleStageResized")
+    assert "!usesStockPause() && acceptable(view)" in method(menu, "current")
+    for name in ("poll", "loaded"):
+        body = method(menu, name)
+        assert body.index("usesStockPause()") < body.index("com.adobe.serialization.json.JSON.decode" if name == "loaded" else "new URLLoader")
+    added = method(screen, "handleAddedToStage")
+    assert added.index("usesStockPause()") < added.index("addEventListener(Event.ENTER_FRAME")
+    chrome = method(screen, "keepMatchChrome")
+    assert chrome.index("usesStockPause()") < chrome.index("shell.hideMatchmakingView()")

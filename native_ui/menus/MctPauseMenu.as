@@ -25,7 +25,10 @@ package menus
     import scaleform.clik.managers.FocusHandler;
     import scaleform.gfx.TextFieldEx;
     import tagame.api.DevUtil;
+    import tagame.api.GameEvent;
     import tagame.api.Shell;
+    import tagame.api.Training;
+    import tagame.constants.MatchType;
     import tagame.core.ITAGameShell;
     import tagame.core.TAGameShellInstance;
 
@@ -79,6 +82,13 @@ package menus
         {
             super.handleAddedToStage(event);
             attached = true;
+            if (usesStockPause())
+            {
+                if (timer != null) timer.stop();
+                closeLoader();
+                DevUtil.Log("MCT_NATIVE_PAUSE_SCOPE", "stock_custom_training");
+                return;
+            }
             if (timer == null)
             {
                 timer = new Timer(250);
@@ -101,6 +111,13 @@ package menus
             super.handleRemovedFromStage(event);
         }
 
+        public function usesStockPause() : Boolean
+        {
+            // Match type prevents a retained training flag from affecting Career.
+            return !GameEvent.bOnline && (GameEvent.MatchType == MatchType.GAME_EDITOR ||
+                (GameEvent.MatchType == MatchType.TRAINING && Training.bIsCustomTraining));
+        }
+
         // The document can close without entering this menu's close method.
         // Expose only the existing bounded decision, never a second authority.
         public function shouldHoldScreenClose() : Boolean
@@ -118,6 +135,11 @@ package menus
 
         override protected function handleInput(event:InputEvent) : void
         {
+            if (usesStockPause())
+            {
+                super.handleInput(event);
+                return;
+            }
             if (suppressHoldFocus && returnLocked() && isFrontMenu() &&
                 event != null && event.details != null && event.details.value == InputValue.KEY_DOWN &&
                 (event.details.navEquivalent == NavigationCode.UP || event.details.navEquivalent == NavigationCode.DOWN))
@@ -172,6 +194,8 @@ package menus
         override protected function refreshMenu() : void
         {
             super.refreshMenu();
+            if (details != null) details.visible = !usesStockPause();
+            if (usesStockPause()) return;
             layoutDetails();
             x = UIScreen.ContentStageWidth * 0.5;
             y = Math.max(0, (UIScreen.ContentStageHeight - height) * 0.5);
@@ -180,7 +204,7 @@ package menus
 
         override protected function handleStageResized(event:Event = null) : void
         {
-            layoutDetails();
+            if (!usesStockPause()) layoutDetails();
             super.handleStageResized(event);
         }
 
@@ -248,6 +272,11 @@ package menus
 
         override protected function refreshButtons() : void
         {
+            if (usesStockPause())
+            {
+                super.refreshButtons();
+                return;
+            }
             var focusName:String = currentFocus != null ? currentFocus.name : "";
             suppressHoldFocus = false;
             var resumeButton:Button = null;
@@ -399,6 +428,7 @@ package menus
 
         private function poll(event:TimerEvent = null) : void
         {
+            if (usesStockPause()) { closeLoader(); return; }
             if (!attached && !UIMenu.isMenuInStack(menuName)) return;
             if (view != null && !current()) loseConnection();
             if (loader != null)
@@ -430,6 +460,7 @@ package menus
             if (loader == null || event.currentTarget !== loader) return;
             var raw:String = String(loader.data);
             closeLoader();
+            if (usesStockPause()) return;
             if (raw.length > 65536) { loseConnection(); return; }
             try
             {
@@ -512,6 +543,11 @@ package menus
 
         override protected function validateFocus(event:Event = null) : void
         {
+            if (usesStockPause())
+            {
+                super.validateFocus(event);
+                return;
+            }
             var control:UIComponent = currentFocus as UIComponent;
             if (suppressHoldFocus && returnLocked() &&
                 (control == null || !control.enabled || control.stage == null || !contains(control)))
@@ -660,7 +696,7 @@ package menus
 
         private function current() : Boolean
         {
-            return acceptable(view);
+            return !usesStockPause() && acceptable(view);
         }
 
         private function isFrontMenu() : Boolean

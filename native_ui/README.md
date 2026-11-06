@@ -14,6 +14,12 @@ own profile even when the operator only navigates menus.
 
 ## Pause and results movies
 
+Offline native Custom Training and its editor delegate pause buttons, input,
+focus and document chrome to the original midgame classes. Their own save/exit
+prompts remain in charge; no MCT Return request is added. Ordinary Career and
+RLBot lesson pauses keep the authored behavior below. This delegation is a
+source-tested candidate and still needs exact-build live acceptance.
+
 `menus/MctPauseMenu.as` and `menus/MctResultsMenu.as` each have an authored
 dynamic movie wrapper and document subclass. Their two compiled ABC files and
 `compiled/match-manifest.json` are separate from the unchanged frontend artifact.
