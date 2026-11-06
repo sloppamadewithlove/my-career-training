@@ -62,9 +62,12 @@ and removal reaches a keyed helper. That suggests type-scoped removal, but does
 not establish the ownership mapping, synchronization or whether an in-flight
 callback is drained. The Ghidra provider was unavailable due to its local temp
 volume self-test; other REA disassemblers were unavailable. No runtime claim
-follows from the fallback. A future isolated offline experiment should compare
-two plugin types and use a short, automatically released callback barrier to
-observe scope and drain, without accessing car or ball actors.
+follows from the fallback. A proposed two-plugin callback-barrier experiment was
+subsequently held: the SDK does not establish the callback thread or make a
+concurrent unregister call safe, and a timed callback does not bound an opaque
+unregister call. First establish callback thread identity and a supported
+registration/unregistration route with a nonblocking isolated observation;
+do not use a barrier or access car or ball actors until that contract is known.
 
 The first pure proxy mesh candidate passed edge-pairing and volume checks, but
 independent Astra review found overlapping, inward-facing triangles in the
