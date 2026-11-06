@@ -33,3 +33,6 @@ no native rebuild or new package claim is made.
 No game was launched or controlled, no DLL installed and nothing published. Tests
 remain synthetic execution evidence, not a successful actual flip-reset recording
 or live acceptance. Provider-reported time/token/cost totals were unavailable.
+
+The subsequent packet-driven READY-launch correction is recorded in the
+[packet actuation deadline receipt](2026-11-06-capture-packet-actuation-deadline.md).
