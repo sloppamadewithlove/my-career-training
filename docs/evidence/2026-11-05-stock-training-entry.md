@@ -1,8 +1,9 @@
 # Stock Training entry candidate
 
 5 November 2026. Base: `ef94b24d73033aa52265602d7cf3bf68f801fd3d`.
-Status: `1c21770` + `d98ba04` independently reviewed; source and authored-movie
-compilation checks only, not packaged or live accepted. The owner prefers native
+Status: `1c21770` + `d98ba04` independently reviewed; exact candidate
+`a59c45f925d10268cacce0a7c78cb18b11b9493d` packaged, smoke-checked and live verified
+for the bounded menu handoff and Back route. The owner prefers native
 game training flow, maps, HUD and behavior with custom lesson/ghost additions.
 
 ## Route evidence
@@ -40,10 +41,10 @@ menu exploration is not a guarantee of no profile writes.
 4. This action issues no backend request, starts no worker and creates no MCT
    attempt or training pack. The stock game retains its own persistence behavior.
 5. The player uses native Back to leave Play; the source route closes its screen
-   and reveals the retained hub. Actual visible arrival and return require live
-   verification. No automatic navigation retry or fallback is added.
-6. Live acceptance must show one activation reaching stock Play, manual Training
-   selection, Back to a responsive authored hub, and preserved Career state.
+   and reveals the retained hub. The bounded run below verified visible arrival
+   and return. No automatic navigation retry or fallback is added.
+6. Acceptance covers one activation reaching stock Play, manual Training
+   selection, Back to a responsive authored hub, and preserved original Career.
    Native pack/editor play and returning from gameplay are separate checks.
 
 No branch jump, automatic Create, local training-file parser or private asset
@@ -69,6 +70,25 @@ isolation; a copied MCT profile does not isolate Rocket League's own profile.
   targets were rebuilt and their CTests passed after the correction. The authored
   movie did not change.
 
-No plugin DLL, frozen app or installer was produced. No game input was sent.
-Independent source review is complete. Exact-candidate packaging and live arrival,
-Back and native training behavior remain unverified.
+## Exact-candidate live check
+
+The tester built and smoke-checked exact `a59c45f`, then loaded its authored hub.
+Activating **Rocket League Training** reached genuine stock Play. Manual native
+navigation reached Training, Custom Training and the Created tab. Epic reconnect
+was declined; the local New Sequence entry remained visible. No pack was created
+or saved during this run.
+
+Native Back returned from the browser through Play to the authored hub. A further
+Down input moved focus to Garage, demonstrating the returned hub was responsive.
+This is menu handoff/return evidence only: no actual lesson, editor gameplay,
+teaching ghost or physical controller was tested.
+
+The game exited. Original MCT Career, game Training/Config, BakkesMod DLL/config
+and checked game-asset hashes matched their baselines. The game-owned profile
+primary changed and an additional rotated save was created; both were preserved.
+Three missing backup files were restored with create-new semantics and verified,
+without overwriting the new saves. This does not claim byte-identical game-profile
+restoration. Raw profiles, logs, account-bearing captures and paths remain private.
+
+The tested revision is `a59c45f`, not any later documentation-only commit. Native
+lesson execution and gameplay return remain separate acceptance work.

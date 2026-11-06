@@ -2,26 +2,29 @@
 
 Updated 5 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. Exact `2c08e74` has completed developer candidate
-checks and a bounded GC live probe. The later terminal-score repair `eb1be7d`
-is independently reviewed and source-tested; it has not been built or live-tested.
+checks and a bounded GC live probe. Exact `a59c45f` was subsequently packaged and
+passed the bounded native Training menu handoff; it did not exercise a lesson or
+the included terminal-score repair `eb1be7d` in gameplay.
 
 The owner's current direction is to reuse Rocket League's native training flow,
 maps, HUD and behavior, with custom lesson and ghost additions. The additive hub
-handoff below is the next candidate; existing Career lessons remain available
-while its native arrival and return are unverified.
+handoff below now has live menu arrival/return evidence; existing Career lessons
+remain available. Native lesson gameplay and controller acceptance remain open.
 
 | Area | Current evidence |
 | --- | --- |
-| Native Training handoff | `1c21770` + `d98ba04`: independently reviewed source and compiled authored movie; **Rocket League Training** opens stock Play, then the player chooses Training; 110 Python checks/one skip, five Release CTests and two rebuilt correction CTests passed; no plugin/app package or live MCT handoff acceptance |
+| Native Training handoff | Exact packaged `a59c45f`: authored row reached genuine stock Play, Training, Custom Training Created; local New Sequence was visible, Epic reconnect declined; Back reached the responsive authored hub; no pack created/saved; controller and lesson gameplay untested |
+| Native-entry package | Exact `a59c45f` candidate and frozen smoke passed; source `1c21770` + `d98ba04` independently reviewed; authored ABC hash and package provenance verified |
 | Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; complete live attribution acceptance remains open |
-| Terminal-score source repair | `eb1be7d`: independently reviewed; 268 focused checks passed; a later score cannot reopen a completed timeout; original live transition cause remains unverified; no native build or live test of this repair |
+| Terminal-score source repair | `eb1be7d`: independently reviewed; 268 focused checks passed; included in packaged `a59c45f` but not exercised in its menu-only run; original live transition cause remains unverified |
 | Developer candidate checks | Exact `2c08e74`: 1654 Python checks passed/15 skipped, Ruff, 38 plugin CTests, 13 launcher checks, backend/native fixture and frozen smoke passed after using a shorter exact-commit worktree |
 | GC live probe | Exact `2c08e74`: two provisional situations; no-input timeout recorded defender contact; Up restored observed car/ball, score stayed 0–1; automatic 1/2 to 2/2 transition observed without navigation input; cause unestablished |
 | Gold content | `5258ab3`: twelve reference-derived shots from actual downloaded Poquito/Skogur packs; 269 targeted checks including the final persistence delta; not live accepted |
-| Last loaded candidate | Exact `2c08e74`, distinct from the later source repair; authored hub, GC Power Shots and Return to authored hub observed |
+| Last loaded candidate | Exact `a59c45f`: authored hub to stock Training UI and Back observed; later documentation commits are not the loaded revision |
 | Native clock | Exact `2c08e74` timed out while the visible native clock remained at 0:01; correct zero display/hold remains unverified |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Shutdown/restoration | Exact `2c08e74`: Quit acknowledged but game remained after seven seconds; owned graceful WM_CLOSE fallback eventually closed game/app/helper; relevant processes gone, original saves and plugin/config/game-file hashes matched pretest baselines; authored Quit completion remains unaccepted |
+| Native-entry restoration | `a59c45f` game exited; original MCT Career, game Training/Config, BakkesMod plugin/config and checked game assets matched baselines; game profile rotation was preserved and missing backups restored without overwriting new saves; no byte-identical profile claim |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
 | Privacy improvement | PR #11 integrated as `c14cb5d`, same tree as checked `c969569`: 25 privacy tests, scanner, Ruff and Windows CI passed |
 
@@ -33,8 +36,8 @@ command-file read failure; its read-retry repair passed a real Windows lock test
 160 focused passing checks and independent review. Other ranks still contain two
 provisional shots each; the ultimate target remains twelve per lesson per rank.
 
-Next runtime priority: build the exact reviewed native handoff, then verify stock
-Play arrival, manual Training selection and Back to a responsive authored hub.
+Next runtime priority: prove one bounded native lesson/editor gameplay loop and
+its return, retaining the accepted stock Play/Training menu handoff.
 Retained custom-lesson blockers: actual native countdown,
 zero-time ball removal/restoration, Up whole retry and goal/Left/Right transitions
 without kickoff. Physical controller acceptance is distinct from generated keys.
@@ -73,5 +76,5 @@ persistence is unchanged and is not established as a separate product defect.
 
 [Stock Training entry receipt](evidence/2026-11-05-stock-training-entry.md)
 records the exact stock callback, saved inactive Career correction, authored ABC
-provenance and remaining live boundary. Stock editor exploration succeeded in a
-separate native-game session; that does not validate this new MCT entry.
+provenance and exact `a59c45f` live menu/return proof. Earlier separate stock editor
+exploration and this menu-only run do not establish MCT native lesson gameplay.

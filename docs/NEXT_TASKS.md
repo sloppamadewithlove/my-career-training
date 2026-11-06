@@ -6,12 +6,14 @@ Current owner direction: reuse the game's native training menus, maps, HUD and
 behavior; add custom lesson content and a successful synchronized ghost where
 needed. Do not rebuild stock training behavior before checking its native route.
 
-Next candidate: independently reviewed `1c21770` + correction `d98ba04`, rooted at
-`ef94b24`. Its separate **Rocket League Training** hub row opens stock **Play**;
-the player then selects Training manually. Existing Career lessons are unchanged.
-Source/compiled authored-movie checks passed; no plugin/app packaging or live MCT
-arrival/return proof exists. A saved inactive Career is allowed through the shared
-`lessonReady` guard; live workers, pending results and pending Return remain gated.
+Exact live candidate `a59c45f` includes independently reviewed `1c21770` + correction
+`d98ba04`, rooted at `ef94b24`. Candidate packaging/frozen smoke passed. The separate
+**Rocket League Training** row reached stock **Play**, then manual Training and
+Custom Training Created. Back reached the authored hub and Down moved focus to
+Garage. Local New Sequence was visible, but no pack was created/saved or lesson
+played; controller acceptance remains open. Later docs commits are not this tested
+candidate. A saved inactive Career is allowed through the shared `lessonReady`
+guard; live workers, pending results and pending Return remain gated.
 See the [entry receipt](evidence/2026-11-05-stock-training-entry.md).
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
@@ -23,7 +25,8 @@ remain unaccepted.
 The terminal-score repair `eb1be7d` is independently reviewed with 268 focused
 source checks. It blocks a reproduced late-score-after-timeout source defect;
 it does not establish the cause of the observed live 1/2 to 2/2 transition.
-Build/package this exact repair before claiming any new runtime evidence.
+It is included in packaged `a59c45f`; that menu-only run did not exercise its
+gameplay behavior.
 
 For retained custom-lesson diagnosis, retain settled rank/scenario, attempt identity, score
 packets and automatic/manual command acknowledgements around timeout and retry.
@@ -46,21 +49,20 @@ board does not grant ownership of a previous session.
 | Coordinator | Hand off one exact reviewed candidate | Name source, compiled movie and packaged revision separately; assign one input owner for a bounded live session |
 | Native-entry builder | Source handoff and saved inactive Career correction complete | `1c21770` + `d98ba04` reviewed; no game control or package build performed |
 | Independent reviewer | Source and correction approved | Live behavior remains a separate acceptance gate |
-| Owned tester | Build and verify native menu handoff | Confirm current ownership/restoration, stock Play arrival, manual Training selection and Back; protect both MCT and game-owned profiles |
+| Owned tester | Native menu handoff passed on `a59c45f`; session ended | Next scope is one native lesson/editor gameplay loop and return, with fresh ownership and separate game-profile protection |
 
 ## Next proof sequence
 
-1. Stage the newly compiled authored movie and build the exact native-entry
-   candidate in a short isolated worktree. Verify source/ABC/package provenance.
-2. From the owned authored hub, activate Rocket League Training once, observe
-   stock Play, manually choose Training and verify Back to the responsive hub.
-3. Separately prove native Custom Training/editor use and gameplay return before
+1. Retain the exact `a59c45f` package and source/ABC provenance for the accepted
+   authored hub to stock Training UI and responsive Back route. Rebuild only for
+   a changed candidate or an acceptance question that requires it.
+2. Separately prove native Custom Training/editor use and gameplay return before
    adding a lesson to that flow. Creating a native sequence can write a game-owned
    file even before manual Save; a copied MCT profile is not game-save isolation.
-4. Keep custom lesson and ghost work bounded to additions the native flow needs.
+3. Keep custom lesson and ghost work bounded to additions the native flow needs.
    Preserve unresolved custom countdown/reset/goal and physical-controller checks
    as explicit limitations; a successful stock screen does not close them.
-5. Expand only after the representative native lesson loop works. Update the
+4. Expand only after the representative native lesson loop works. Update the
    website for verified major releases, not this source candidate.
 
 ## Product backlog
