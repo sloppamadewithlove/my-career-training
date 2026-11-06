@@ -57,3 +57,20 @@ the checked source hash and module path remained correct. A correction is under
 review to execute only the verified source bytes and validate the dependency
 surface. Lesson: checking `.py` bytes alone does not prove ordinary import ran
 those bytes; test cached bytecode and preexisting module state at this boundary.
+
+## Read-only preflight result
+
+On 2026-11-06, the corrected source-byte integration passed independent Astra
+review and its 21 fixture tests. The first actual preflight refused an identified
+helper command; its receipt did not retain the offending process identity. A
+subsequent invocation bound the one-shot directly to the transient launcher
+shell and passed the point-in-time identifier and attribution checks at 21:57
+UTC. The prior refusal is consistent with the nested launcher seeing its own
+outer shell, but its exact cause is not established. No game or configuration
+mutation occurred in either invocation.
+
+The result does not establish that unrelated processes are inert, that every
+save root was discovered, or that launch is ready. Supported Steam Without EAC
+selection, the actual loader route, private lease, and runtime compatibility
+remain to be verified. Future operators should run the reviewed one-shot directly
+in the transient shell and poll its private receipt only after that shell exits.
