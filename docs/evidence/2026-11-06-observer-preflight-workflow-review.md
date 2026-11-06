@@ -49,3 +49,15 @@ real flip reset. Once one coherent preflight and recovery route is ready, use
 the already authorized offline session to establish current-game identity and
 native reset behavior. Do not substitute synthetic mesh or source checks for
 the real demonstration, and do not re-ask the already granted session permission.
+
+## Subsequent read-only baseline
+
+After the owner chose to proceed with one identified interactive shell left
+open, the reviewed profile-copy helper was run directly against five identified
+candidate roots. It created a protected private byte baseline of 460 files and
+53 directories; immediate comparison reported 513 unchanged entries and no
+changed, new or missing entries. No game or relevant helper was observed at the
+start or end. This direct snapshot did not use the broader process guard, did
+not prove all possible roots or cloud-writer quiescence, and did not alter the
+source profiles. Do not treat it as a staging authorization or complete NTFS
+backup. A full guard and fresh comparison remain required before mutation.
