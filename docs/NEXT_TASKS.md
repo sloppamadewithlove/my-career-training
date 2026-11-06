@@ -30,6 +30,10 @@ The separately reviewed `experiment/native-flip-capture-2026-11-06` branch
 adds a default-off raw native reset observer. Both native DLL configurations
 compiled and focused tests passed. It issues no capture lease or teaching trace;
 updated-game compatibility and actual reset semantics remain unverified.
+`experiment/native-raw-pose-2026-11-06` extends that observer with raw car,
+ball and player-controller data; its enabled/disabled DLL builds and focused
+checks passed independent review. Sequential reads do not establish physics-frame
+synchrony, a successful reset, rendering or live-game compatibility.
 
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
