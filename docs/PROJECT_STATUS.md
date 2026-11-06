@@ -19,6 +19,7 @@ acceptance remain open.
 | Native-entry package | Exact `a59c45f` candidate and frozen smoke passed; source `1c21770` + `d98ba04` independently reviewed; authored ABC hash and package provenance verified |
 | Native local sequence probe | Exact `a59c45f`: existing local sequence entered native Striker; W moved car/ball with 0:07 shown, later initial scene at 0:10 suggests timeout reset; Backspace at initial state gave no reset proof; Escape showed MCT pause with disabled Return and no native exit |
 | Native stock-pause source repair | `3b9ef72`: independently reviewed; authored pause delegates native Custom Training/editor to stock classes; 111 Python checks/one skip and three native test binaries passed; not packaged or live tested |
+| Experimental drawing core | `a983c61`: independently reviewed pure diagnostic frame preparation; synthetic MSVC test and reviewer CMake/CTest 1/1 passed; no renderer registration, live arm, replay, UI or teaching demonstration; not integrated into the pause candidate |
 | Defender attribution | `d733917`, receipt clarified by `41d3730`: independently reviewed; all configured opponents participate in latest-contact credit; 232 focused checks passed; complete live attribution acceptance remains open |
 | Terminal-score source repair | `eb1be7d`: independently reviewed; 268 focused checks passed; included in packaged `a59c45f` but not exercised by its native UI/sequence probes; original live transition cause remains unverified |
 | Developer candidate checks | Exact `2c08e74`: 1654 Python checks passed/15 skipped, Ruff, 38 plugin CTests, 13 launcher checks, backend/native fixture and frozen smoke passed after using a shorter exact-commit worktree |
@@ -87,3 +88,8 @@ exploration and this menu-only run do not establish MCT native lesson gameplay.
 [Native stock-pause receipt](evidence/2026-11-05-native-custom-training-stock-pause.md)
 records the separate local sequence probe, its timer/reset limits and the reviewed
 source-only delegation repair. Its actual native exit destination is unverified.
+
+[Native drawing core receipt](evidence/2026-11-05-native-draw-diagnostic-core.md)
+records an experimental immutable position-marker/input frame contract only.
+Native callback/thread/unload behavior, reset timing and a permitted successful
+synchronized car/ball/input demonstration remain unproved.

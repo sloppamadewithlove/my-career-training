@@ -25,6 +25,13 @@ the stock classes; it is source-tested only and needs a fresh exact-candidate
 build. The local sequence file was unchanged and the owned run exited/restored.
 See the [pause repair receipt](evidence/2026-11-05-native-custom-training-stock-pause.md).
 
+Experimental `a983c61` supplies a reviewed pure drawing-diagnostic frame core;
+synthetic checks and CMake/CTest 1/1 passed. It has no live renderer, registration,
+arm route, replay or teaching availability. Before any live adapter, prove callback
+ownership/thread/unload semantics. Teaching playback additionally needs native
+reset/clock identity and a permitted validated successful car/ball/input trace
+at the fixed scenario start. See the [core receipt](evidence/2026-11-05-native-draw-diagnostic-core.md).
+
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` subsequently
 passed full source/native/package checks and reached the authored hub/GC lesson
@@ -83,7 +90,7 @@ board does not grant ownership of a previous session.
 | T01 | Power Shot situation — planned | Rework the rejected provisional feeds and prove useful pass geometry; Bronze/Silver solo, Gold/Platinum ground keeper, Diamond/Champion one advancing defender, GC/SSL two; verify human shot, feedback, whole-level retry and Return |
 | T02 | Scenario lifecycle — planned | Stable IDs, actor roles, reset/settle, seeds, success/failure; prove switching removes old bots/timers |
 | T03 | DS4 controls — planned | Adjustable Left previous/Right next/Up retry/Down supported ghost only in lessons; physical USB DS4, stock-conflict suppression, boundaries 1/12 and 12/12, restore outside |
-| T04 | Ghost — blocked on valid trace | Capture successful actual skill; validate car/ball/action trace. For shots/flip resets render at fixed lesson start with faint non-contact demonstration ball/controller; prove no effect on real attempt/physics/scoring |
+| T04 | Ghost — blocked on valid trace and native lifecycle | `a983c61` is pure diagnostic preparation only, with no renderer or teaching feature; prove native callback/reset lifecycle, then capture/validate successful synchronized car/ball/actions at fixed lesson start; verify no effect on real physics/scoring |
 | T05 | Twelve situations per skill — planned | Review distinct scenario cards after first full loop; flip reset 1–4 solo/5–8 keeper/9–12 two defenders; no cosmetic duplicates |
 | T06 | Thumbnails — planned | Parallel builder after item/image contract; real gameplay lesson thumbnails and correct map/mod images, bounded cache, honest fallback |
 | T07 | Browser — partial | Three tabs compiled and native-tested; verify search/scroll/details/primary/Back via mouse/keyboard/DS4; fix redraw flicker |

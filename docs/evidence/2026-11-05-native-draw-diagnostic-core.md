@@ -1,7 +1,8 @@
 # Native drawing diagnostic core
 
 Base: `bd9336d869363c51375bb9c35f0ae351aea74bb0`.
-Status: pure source-only diagnostic preparation, synthetic checks only.
+Status: `a983c6183c7b7f9a1cefbad05d0da39d01791912` independently reviewed;
+pure source-only diagnostic preparation, synthetic checks only.
 No drawable is registered or armed; no visible feature is enabled.
 
 The native Custom Training path has no RLBot worker. Existing recorded ghost
@@ -40,6 +41,7 @@ Imported success metadata alone must not enable a validated teaching feature.
 
 The dedicated C++ test compiled with MSVC 19.44 in C++17 mode with `/W4` and
 passed immutable-copy, mode/scope/identity, frame age, lease and invalid-data
-cases. A CMake test target is supplied; full plugin/package builds were not run.
+cases. Independent review built the dedicated CMake target and its CTest passed
+1/1. Full plugin/package builds were not run for this diagnostic core.
 Privacy and diff checks passed. No game action, installation change, private
 recording or native asset is included.
