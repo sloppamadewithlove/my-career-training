@@ -1160,21 +1160,49 @@ void MyCareerTraining::updateNativeResetObservation() {
         if (p.online || p.replay || p.frontend || scope.paused || !p.inCustomTraining) return scope;
         auto server = gameWrapper->GetGameEventAsServer();
         auto car = gameWrapper->GetLocalCar();
-        if (!server || !car) return scope;
+        auto player = gameWrapper->GetPlayerController();
+        if (!server || !car || !player) return scope;
+        auto playerCar = player.GetCar();
+        if (!playerCar || playerCar.memory_address != car.memory_address) return scope;
         auto ball = server.GetBall();
         if (!ball) return scope;
         scope.event = server.memory_address; scope.car = car.memory_address; scope.ball = ball.memory_address;
+        scope.controller = player.memory_address;
         return scope;
-    }, [this] {
+    }, [this](const mct::NativeResetScope& admitted) {
         auto server = gameWrapper->GetGameEventAsServer();
-        if (!server) throw std::runtime_error("event_missing");
+        auto car = gameWrapper->GetLocalCar();
+        auto player = gameWrapper->GetPlayerController();
+        if (!server || !car || !player || server.memory_address != admitted.event ||
+            car.memory_address != admitted.car || player.memory_address != admitted.controller)
+            throw std::runtime_error("actor_scope_changed");
+        auto playerCar = player.GetCar();
+        if (!playerCar || playerCar.memory_address != admitted.car) throw std::runtime_error("player_car_changed");
+        auto ball = server.GetBall();
+        if (!ball || ball.memory_address != admitted.ball) throw std::runtime_error("ball_scope_changed");
         TrainingEditorWrapper editor(server.memory_address);
         auto world = server.GetWorldInfo();
         if (!world) throw std::runtime_error("world_missing");
         // Names and units are raw SDK observations, not established reset semantics.
-        return mct::NativeResetSample{editor.GetActiveRoundNumber(), editor.GetShotAttempt(),
+        mct::NativeResetSample sample{editor.GetActiveRoundNumber(), editor.GetShotAttempt(),
             server.GetSecondsRemaining(), world.GetTimeSeconds(), server.GetGameTimeRemaining(),
             server.GetTotalGameTimePlayed()};
+        const auto copyBody = [](const RBState& raw) {
+            mct::NativeResetBody body;
+            body.location = {raw.Location.X, raw.Location.Y, raw.Location.Z};
+            body.linearVelocity = {raw.LinearVelocity.X, raw.LinearVelocity.Y, raw.LinearVelocity.Z};
+            body.angularVelocity = {raw.AngularVelocity.X, raw.AngularVelocity.Y, raw.AngularVelocity.Z};
+            body.quaternionXyzw = {raw.Quaternion.X, raw.Quaternion.Y, raw.Quaternion.Z, raw.Quaternion.W};
+            body.time = raw.Time; body.sleeping = raw.bSleeping != 0; body.newData = raw.bNewData != 0;
+            return body;
+        };
+        sample.car = copyBody(car.GetRBState()); sample.ball = copyBody(ball.GetRBState());
+        // Same observed logical input source as runtime actions; no input timing or execution claim.
+        const auto input = player.GetVehicleInput();
+        sample.controls = {input.Throttle, input.Steer, input.Pitch, input.Yaw, input.Roll,
+            input.DodgeForward, input.DodgeStrafe, input.Handbrake != 0, input.Jump != 0,
+            input.ActivateBoost != 0, input.HoldingBoost != 0, input.Jumped != 0};
+        return sample;
     }, mct::unixTime());
 }
 #endif

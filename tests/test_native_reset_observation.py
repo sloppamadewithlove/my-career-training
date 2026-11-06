@@ -17,13 +17,23 @@ class World:
         self.calls += 1
         return self.observed
 
-    def terminal_report(self):
-        request = self.probe.request()
+    def terminal_report(self, request=None):
+        request = self.probe.request() if request is None else request
         return dict(request, status="complete", reason="deadline", semantics_verified=False,
                     reset_generation=None, teaching_recording=False, samples=[{
                         "round": 2, "shot_attempt": 3, "seconds_remaining": 10,
                         "world_seconds": 40, "remaining": 10, "total_played": 4,
                         "elapsed_monotonic": 0,
+                        "car_rb_state": {"location": [1, 2, 3], "linear_velocity": [4, 5, 6],
+                                         "angular_velocity": [7, 8, 9], "quaternion_xyzw": [0.1, 0.2, 0.3, 0.4],
+                                         "time": 40, "sleeping": False, "new_data": True},
+                        "ball_rb_state": {"location": [-1, -2, -3], "linear_velocity": [-4, -5, -6],
+                                          "angular_velocity": [-7, -8, -9], "quaternion_xyzw": [0, 0, 0, 1],
+                                          "time": 41, "sleeping": True, "new_data": False},
+                        "observed_controls": {"throttle": 1, "steer": -1, "pitch": 0.5, "yaw": -0.5,
+                                              "roll": 0.25, "dodge_forward": 0, "dodge_strafe": 0,
+                                              "jump": True, "handbrake": False, "boost": True,
+                                              "activate_boost": False, "holding_boost": True, "jumped": True},
                     }])
 
 
@@ -176,13 +186,22 @@ def test_file_bridge_routes_explicit_request_and_acknowledgment(tmp_path):
     request = published["native_reset_observation_request"]
     assert request["nonce"] == bridge.session and request["pid"] == 42
     assert request["expires_at"] - request["issued_at"] == 5
-    report = dict(request, status="complete", samples=[{"round": 2}])
+    report = world.terminal_report(request)
+    report["samples"] *= 150
+    report["controls_source"] = "PlayerControllerWrapper::GetVehicleInput"
+    heartbeat = dict(report)
+    (bridge.directory / "plugin-status.json").write_text(json.dumps({
+        "bridge_session": bridge.session, "published_at": bridge.clock(),
+        "native_reset_observation": heartbeat,
+    }), encoding="utf-8")
+    assert (bridge.directory / "plugin-status.json").stat().st_size < 2 * 1024 * 1024
+    assert bridge.plugin_status()["native_reset_observation"] == report
     world.observed["heartbeat"]["native_reset_observation"] = report
     backend.plugin_status = world.observed["heartbeat"]
     bridge.poll()
     published = json.loads((bridge.directory / "state.json").read_text(encoding="utf-8"))
     assert published["native_reset_observation_request"] is None
-    assert published["plugin"]["native_reset_observation"]["samples"] == [{"round": 2}]
+    assert published["plugin"]["native_reset_observation"]["samples"] == report["samples"]
     assert "samples" not in published["native_reset_observation"]
     backend.store.close()
     assert app is not None
