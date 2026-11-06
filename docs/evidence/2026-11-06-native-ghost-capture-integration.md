@@ -3,6 +3,8 @@
 Integration base: `35f4d83`. Final code:
 `0a765088b4132b7cb7a08ed7ea8e3a0343178cad`. Builder: GPT-6.1 Sol high.
 Independent review of this exact integration is pending; main alone publishes.
+The subsequent [reset actuation deadline correction](2026-11-06-capture-reset-actuation-deadline.md)
+closes the marker-verification timing gap found during that review.
 
 The reviewed production wiring chain `d5f8337`, `d7288a3`, `19891da`, `09ab19b`,
 `85df20a`, `200f630`, `fcd04da` is integrated with the already-published recording
