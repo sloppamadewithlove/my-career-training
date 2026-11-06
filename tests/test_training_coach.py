@@ -18,8 +18,8 @@ from my_career_training.training import (
 from my_career_training.training.recordings import Recorder, validate_recording
 
 
-def capture(*, reference=False, gap=False):
-    lesson = configure_lesson("speed-flip")
+def capture(*, reference=False, gap=False, lesson_id="speed-flip"):
+    lesson = configure_lesson(lesson_id)
     recorder = Recorder(lesson, {"game_version": "test-only-game", "framework_version": "test-only-core",
                                  "car_hitbox": "octane"})
     for index in range(121):
@@ -72,6 +72,59 @@ def test_watch_pause_resume_seek_rate_and_loop_have_no_clock_catchup():
     player.seek(1.95)
     player.update(50)
     assert player.update(50.4)["cursor"] == pytest.approx(.05)
+
+
+@pytest.mark.parametrize("mode", ["watch", "lead"])
+def test_flip_reset_playback_synchronizes_recorded_car_ball_and_held_actions(mode):
+    value = capture(lesson_id="flip-reset")
+    value["samples"][29]["ball_position"] = [100, 200, 500]
+    value["samples"][30]["ball_position"] = [140, 260, 540]
+    player = GhostPlayback(value, mode=mode, speed=.5, lead_seconds=.25)
+    target = 29.5 / 60
+    player.update(100, attempt_seconds=0)
+    state = player.update(100 + target * 2, attempt_seconds=(target - .25) * 2)
+
+    assert state["cursor"] == pytest.approx(target)
+    assert state["pose"]["time"] == pytest.approx(target)
+    assert state["pose"]["position"] == pytest.approx([147.5, 0, 17])
+    assert state["pose"]["ball_position"] == pytest.approx([120, 230, 520])
+    assert state["coach_actions"] == state["pose"]["actions"] == value["samples"][29]["actions"]
+    assert state["controller"]["actions"] == state["coach_actions"]
+    assert state["controller"]["controls"]["cross"] == 0
+    assert player.snapshot()["pose"] == state["pose"]
+    assert player.seek(.5)["coach_actions"]["jump"] is True
+
+
+def test_flip_reset_playback_gap_hides_recorded_ball_car_and_actions_until_recovery():
+    player = GhostPlayback(capture(lesson_id="flip-reset", gap=True))
+    player.update(100)
+    state = player.update(100 + 29.5 / 60)
+
+    assert state["status"] == "capture_gap" and state["visible"] is False
+    assert state["pose"] is None and state["coach_actions"] is None
+    assert state["lines"] == [] and state["view_targets"] == {}
+    assert state["controller"]["observed"] is False
+    assert state["controller"]["actions"] is None
+    recovered = player.update(100.5)
+    assert recovered["visible"] is True
+    assert recovered["pose"]["ball_position"] == [0, 0, 93]
+    assert recovered["coach_actions"]["jump"] is True
+
+
+def test_legacy_car_only_playback_keeps_pose_and_actions_without_inventing_a_ball():
+    value = capture(lesson_id="flip-reset")
+    for sample in value["samples"]:
+        sample.pop("ball_position")
+        sample.pop("ball_velocity")
+    player = GhostPlayback(value)
+    player.update(100)
+    state = player.update(100 + 29.5 / 60)
+
+    assert state["visible"] is True and state["status"] == "playing"
+    assert state["pose"]["position"][0] == pytest.approx(147.5)
+    assert "ball_position" not in state["pose"]
+    assert state["coach_actions"] == value["samples"][29]["actions"]
+    assert state["controller"]["observed"] is True
 
 
 def test_lead_mode_tracks_attempt_clock_restarts_and_pause_is_stable():
