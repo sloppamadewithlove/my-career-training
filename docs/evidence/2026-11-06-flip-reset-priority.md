@@ -101,3 +101,13 @@ map; current compatibility, source license and video playback were not verified.
 The current Free Touch catalog mentions ghost races, but its rendering mechanism,
 license and Custom Training behavior remain unverified. Neither plugin was
 downloaded, installed or executed.
+
+On 6 November, a read-only local Steam appinfo inspection found the official
+anti-cheat-disabled launch entry selects `RocketLeague.exe` and supplies no
+configured arguments, while the default entry selects `RocketLeague_EAC.exe`.
+This is local metadata, not a launched-process observation. Official
+[Rocket League support](https://www.epicgames.com/help/c-37599050/c-42869540/a16737879)
+describes the launch choice, and [Steam support](https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955)
+describes custom launch options. The exact combination and final ordered OS
+arguments remain unverified; inspect the actual owned process before loading
+the observer, and preserve/restore any test-only preference changes.
