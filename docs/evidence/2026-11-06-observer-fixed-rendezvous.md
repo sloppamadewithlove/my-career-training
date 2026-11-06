@@ -85,6 +85,8 @@ is included in the source candidate.
 
 On 6 November, the owner authorized selecting the official without-EAC option if
 offered; this did not authorize switching Steam to offline mode.
+The restart was attempted to propagate process-local probe environment. The newer
+fixed-rendezvous design does not require a Steam restart for request discovery.
 Restarting Steam displayed **Sign in** before the game or launch-option selection
 was reached. Steam was then relaunched with its original `-silent` argument.
 Its authentication state before the attempt is unknown; this does not establish
