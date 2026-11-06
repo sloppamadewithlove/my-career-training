@@ -124,9 +124,10 @@ public:
         if (busy || latched_) return {};
 
         Action action = Action::None;
-        if (pressed[0]) action = Action::Previous;
-        else if (pressed[1]) action = Action::Next;
-        else if (pressed[2]) action = Action::Retry;
+        const bool scenarios = text(telemetry, "lesson_id") == "power-shots";
+        if (scenarios && pressed[0]) action = Action::Previous;
+        else if (scenarios && pressed[1]) action = Action::Next;
+        else if (scenarios && pressed[2]) action = Action::Retry;
         else if (pressed[3] && ghostToggleAvailable(practice, support, ghostPending)) action = Action::ToggleGhost;
         if (action == Action::None) return {};
 
@@ -168,7 +169,7 @@ public:
         const auto telemetry = object(state, "telemetry");
         return !text(session, "id").empty() && text(session, "kind") == "training" &&
             text(session, "state") == "training" && boolean(session, "worker_running", false) &&
-            text(telemetry, "lesson_id") == "power-shots";
+            (text(telemetry, "lesson_id") == "power-shots" || text(telemetry, "lesson_id") == "flip-reset");
     }
 
     static bool ghostAvailable(const Json& state) {
@@ -267,24 +268,29 @@ public:
     using Write = std::function<void(const std::string&, const std::string&)>;
     using Remove = std::function<void(const std::string&)>;
 
-    bool acquire(const Read& read, const Write& write, const Remove& remove) {
-        if (active_) return true;
+    bool acquire(const Read& read, const Write& write, const Remove& remove, bool downOnly = false) {
+        if (active_ && downOnly_ == downOnly) return true;
+        if (active_ && !release(read, write, remove)) return false;
         if (restorePending_) {
             if (!restore(read, write, remove)) return false;
             restorePending_ = false;
             previous_.fill({});
         }
+        downOnly_ = downOnly;
         try {
-            for (std::size_t index = 0; index < keys.size(); ++index) previous_[index] = read(keys[index]);
+            for (std::size_t index = 0; index < keys.size(); ++index)
+                if (!downOnly_ || index % 4 == 3) previous_[index] = read(keys[index]);
         } catch (...) {
             previous_.fill({});
             return false;
         }
         restorePending_ = true;
         try {
-            for (std::size_t index = 0; index < keys.size(); ++index) write(keys[index], commands[index]);
             for (std::size_t index = 0; index < keys.size(); ++index)
-                if (read(keys[index]) != commands[index]) throw std::runtime_error("Binding write was not retained.");
+                if (!downOnly_ || index % 4 == 3) write(keys[index], commands[index]);
+            for (std::size_t index = 0; index < keys.size(); ++index)
+                if ((!downOnly_ || index % 4 == 3) && read(keys[index]) != commands[index])
+                    throw std::runtime_error("Binding write was not retained.");
         } catch (...) {
             if (restore(read, write, remove)) {
                 restorePending_ = false;
@@ -313,6 +319,7 @@ private:
     bool restore(const Read& read, const Write& write, const Remove& remove) {
         bool restored = true;
         for (std::size_t index = 0; index < keys.size(); ++index) {
+            if (downOnly_ && index % 4 != 3) continue;
             try {
                 if (read(keys[index]) != commands[index]) continue;
                 if (previous_[index].empty()) remove(keys[index]);
@@ -326,6 +333,7 @@ private:
     }
 
     bool active_ = false;
+    bool downOnly_ = false;
     bool restorePending_ = false;
     std::array<std::string, keys.size()> previous_{};
 };

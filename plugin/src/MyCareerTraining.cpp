@@ -829,7 +829,7 @@ bool referenceCaptureActive(const mct::Json& state) {
 }
 }  // namespace
 
-bool MyCareerTraining::updateTrainingBindings(bool active) {
+bool MyCareerTraining::updateTrainingBindings(bool active, bool downOnly) {
     const auto read = [this](const std::string& key) { return cvarManager->getBindStringForKey(key); };
     const auto write = [this](const std::string& key, const std::string& command) { cvarManager->setBind(key, command); };
     const auto remove = [this](const std::string& key) { cvarManager->removeBind(key); };
@@ -837,7 +837,7 @@ bool MyCareerTraining::updateTrainingBindings(bool active) {
         trainingBindings_.release(read, write, remove);
         return false;
     }
-    return trainingBindings_.acquire(read, write, remove);
+    return trainingBindings_.acquire(read, write, remove, downOnly);
 }
 
 void MyCareerTraining::releaseTrainingBindings() {
@@ -863,7 +863,8 @@ void MyCareerTraining::pollTrainingLessonControls(const Json& state, const MctRu
         imguiKeyboardCaptured_.load();
     scope.referenceCaptureActive = referenceCaptureActive(state);
 
-    const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state));
+    const bool bindingsReady = updateTrainingBindings(mct::TrainingLessonInput::lessonScope(scope, state),
+        stringValue(objectValue(state, "telemetry"), "lesson_id") == "flip-reset");
     mct::TrainingLessonInput::Pad pad;
     int connected = 0;
     for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index) {

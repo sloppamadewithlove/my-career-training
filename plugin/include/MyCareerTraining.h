@@ -191,7 +191,7 @@ private:
     void removeProbeHooks();
     void scanProducts(MctRuntime& result);
     void enforceCareer(const mct::Json& state, MctRuntime& result);
-    bool updateTrainingBindings(bool active);
+    bool updateTrainingBindings(bool active, bool downOnly = false);
     void releaseTrainingBindings();
     void updateTrainingBallVisibility(const mct::Json& state, bool allowHide);
     void pollTrainingLessonControls(const mct::Json& state, const MctRuntime& runtime);

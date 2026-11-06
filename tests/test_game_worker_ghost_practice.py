@@ -5,6 +5,7 @@ import json
 import math
 import os
 import sys
+import subprocess
 import uuid
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -62,8 +63,8 @@ def backend(tmp_path, monkeypatch, qt_app):
     instance.close()
 
 
-def recording():
-    lesson = configure_lesson("speed-flip")
+def recording(lesson_id="speed-flip"):
+    lesson = configure_lesson(lesson_id)
     metadata = {"game_version": "test-only-game", "framework_version": "test-only-core",
                 "car_hitbox": "octane"}
     recorder = Recorder(lesson, metadata)
@@ -78,21 +79,72 @@ def recording():
                            events=[{"name": "target_crossed", "confidence": "observed"}])
 
 
-def lesson_session():
+def lesson_session(lesson_id="speed-flip"):
     events = []
     metadata = {"game_version": "test-only-game", "framework_version": "test-only-core",
                 "car_hitbox": "octane"}
-    engine = TrainingEngine("speed-flip", metadata=metadata)
-    session = GameSession({"session_id": str(uuid.uuid4()), "lesson_id": "speed-flip"}, events.append)
+    engine = TrainingEngine(lesson_id, metadata=metadata)
+    session = GameSession({"session_id": str(uuid.uuid4()), "lesson_id": lesson_id}, events.append)
     session.engine = engine
     session.coaching_preferences = {"mode": "watch", "lead_seconds": 0.75,
                                     "playback_speed": 1.0, "loop": False}
-    session.practice_support = practice_support("speed-flip")
+    session.practice_support = practice_support(lesson_id)
     session.practice = GhostPractice(context=practice_context(engine.lesson, metadata))
-    session.practice.load(recording(), kind="personal")
+    session.practice.load(recording(lesson_id), kind="personal")
     session.coach = GhostPlayback()
     session.last_frame = {"car": {"position": [0, -2500, 17], "rotation": [0, 0, 0]}}
     return session, events
+
+
+def test_worker_flip_reset_recording_load_toggle_and_retry_keep_paired_world_trace():
+    session, events = lesson_session("flip-reset")
+    session.last_frame["time"] = 10.0
+    value = recording("flip-reset")
+    session.handle_command({"id": "load-flip", "type": "play_recording", "recording": value,
+                            "practice": True, "mode": "watch"})
+    assert events[-1]["accepted"] is True and session.practice_snapshot["enabled"] is False
+    session.handle_command({"id": "on-flip", "type": "ghost_control", "operation": "toggle", "enabled": True})
+    assert events[-1]["accepted"] is True
+    session.practice.update(10)
+    state = session.practice.update(10.5)
+    assert state["pose"]["position"] == value["samples"][30]["position"]
+    assert state["pose"]["ball_position"] == value["samples"][30]["ball_position"]
+    assert state["pose"]["actions"] == state["coach_actions"] == value["samples"][30]["actions"]
+    assert state["provenance"]["independently_validated"] is False
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": False})
+    assert session.practice_snapshot["pose"] is None
+    assert session.practice_snapshot["coach_actions"] is None
+
+
+@pytest.mark.skipif(not os.environ.get("MCT_NATIVE_GHOST_RECORDING_TEST"),
+                    reason="Native parser test executable is optional outside Windows native checks")
+def test_actual_worker_and_backend_payload_reaches_native_recording_parser(backend, tmp_path):
+    session, _events = lesson_session("flip-reset")
+    session.last_frame["time"] = 10.0
+    session.handle_command({"type": "play_recording", "recording": recording("flip-reset"),
+                            "practice": True, "mode": "watch"})
+    session.handle_command({"type": "ghost_control", "operation": "toggle", "enabled": True})
+    session.practice.update(10)
+    snapshot = session.practice.update(10.5)
+    backend.session_id = session.session_id
+    backend.session_state = "training"
+    backend.request = {"lesson_id": "flip-reset", "variants": {}}
+    backend.process = FakeProcess()
+    backend._ghost_practice_enabled = True
+    backend._event({"type": "telemetry", "session_id": session.session_id,
+                    "ghost_practice": snapshot, "ghost_practice_support": session.practice_support})
+    payload = tmp_path / "synthetic-worker-bridge.json"
+    payload.write_text(json.dumps(backend.state), encoding="utf-8")
+    result = subprocess.run([os.environ["MCT_NATIVE_GHOST_RECORDING_TEST"], str(payload)],
+                            capture_output=True, text=True, check=True)
+    native = json.loads(result.stdout)
+    assert native["time"] == snapshot["pose"]["time"]
+    assert native["position"] == pytest.approx(snapshot["pose"]["position"])
+    assert native["ball_position"] == pytest.approx(snapshot["pose"]["ball_position"])
+    w, x, y, z = snapshot["pose"]["quaternion"]
+    assert native["orientation"] == pytest.approx([x, y, z, w])
+    assert native["jump"] == snapshot["coach_actions"]["jump"]
+    assert native["boost"] == snapshot["coach_actions"]["boost"]
 
 
 def test_worker_toggle_synchronizes_logical_actions_and_off_clears_snapshot():

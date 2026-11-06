@@ -193,6 +193,63 @@ static void acknowledgementsAndGhostAvailabilityFailClosed() {
         "An enabled ghost could not be turned off after support loss");
 }
 
+static void flipResetUsesOnlyDownAndPreservesOtherBindings() {
+    auto state = trainingState();
+    state["telemetry"]["lesson_id"] = "flip-reset";
+    const auto scope = liveScope();
+    for (const auto key : {pad(true), pad(false, true), pad(false, false, true)}) {
+        TrainingLessonInput input;
+        require(freshPress(input, scope, state, key).action == TrainingLessonInput::Action::None,
+            "Flip reset acquired a scenario navigation/retry command");
+    }
+    TrainingLessonInput input;
+    input.observe(scope, state, pad(), 10);
+    const auto on = input.observe(scope, state, pad(false, false, false, true), 10.033);
+    require(on.action == TrainingLessonInput::Action::ToggleGhost && on.ghostEnabled,
+        "Flip reset Down did not reach the production lesson input dispatcher");
+    input.commandSent("flip-down-on");
+    state["telemetry"]["ghost_practice_pending"] = true;
+    input.observe(scope, state, pad(false, false, false, true), 10.11);
+    state["telemetry"]["ghost_practice_pending"] = false;
+    state["telemetry"]["ghost_practice"]["enabled"] = true;
+    require(input.observe(scope, state, pad(false, false, false, true), 10.3).action ==
+        TrainingLessonInput::Action::None, "Held Down repeated after a real frame gap/acknowledgement");
+    input.observe(scope, state, pad(), 10.34);
+    const auto off = input.observe(scope, state, pad(false, false, false, true), 10.35);
+    require(off.action == TrainingLessonInput::Action::ToggleGhost && !off.ghostEnabled,
+        "Separate flip reset Down press did not turn the ghost off");
+    for (int failure = 0; failure < 5; ++failure) {
+        TrainingLessonInput blocked;
+        auto current = state;
+        auto blockedScope = scope;
+        current["telemetry"]["ghost_practice"]["enabled"] = false;
+        if (failure == 0) current["telemetry"]["ghost_practice"]["available"] = false;
+        if (failure == 1) blockedScope.referenceCaptureActive = true;
+        if (failure == 2) blockedScope.paused = true;
+        if (failure == 3) current["telemetry"]["ghost_practice_pending"] = true;
+        if (failure == 4) current["session"]["kind"] = "career";
+        require(freshPress(blocked, blockedScope, current, pad(false, false, false, true)).action ==
+            TrainingLessonInput::Action::None, "Ineligible flip reset Down dispatched");
+    }
+
+    std::map<std::string, std::string> bindings;
+    for (const auto key : TrainingBindingGuard::keys) bindings[key] = std::string("user_") + key;
+    const auto original = bindings;
+    const auto read = [&](const std::string& key) { return bindings[key]; };
+    const auto write = [&](const std::string& key, const std::string& value) { bindings[key] = value; };
+    const auto remove = [&](const std::string& key) { bindings.erase(key); };
+    TrainingBindingGuard guard;
+    require(guard.acquire(read, write, remove, true), "Flip Down binding acquisition failed");
+    for (std::size_t index = 0; index < TrainingBindingGuard::keys.size(); ++index)
+        require(bindings[TrainingBindingGuard::keys[index]] == (index % 4 == 3 ?
+            TrainingBindingGuard::commands[index] : original.at(TrainingBindingGuard::keys[index])),
+            "Flip reset changed a non-Down binding");
+    require(guard.acquire(read, write, remove, false), "Flip-to-scenario binding transition failed");
+    require(guard.acquire(read, write, remove, true), "Scenario-to-flip binding transition failed");
+    require(guard.release(read, write, remove) && bindings == original,
+        "Down-only binding transition did not restore exact original keys");
+}
+
 static void retryWhileSettlingUsesAttemptAcknowledgement() {
     auto state = trainingState();
     state["telemetry"]["coaching"]["phase"] = "settle";
@@ -341,6 +398,7 @@ static void hudUsesOnlyValidatedMetadataAndStaysInTheTopSafeArea() {
 int main() {
     try {
         allFourActionsAreEdges();
+        flipResetUsesOnlyDownAndPreservesOtherBindings();
         retryWhileSettlingUsesAttemptAcknowledgement();
         scopeAndIdentityChangesRequireRelease();
         acknowledgementsAndGhostAvailabilityFailClosed();

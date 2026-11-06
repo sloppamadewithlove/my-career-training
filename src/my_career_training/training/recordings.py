@@ -401,12 +401,17 @@ def relative_placement(pose, *, origin, anchor, forward_offset=300.0):
     offset = _rotate(anchor_quaternion, [float(forward_offset), 0.0, 0.0])
     delta = [float(b) - float(a) for a, b in zip(origin["position"], pose["position"])]
     moved = _rotate(turn, delta)
-    return {
+    result = {
         "time": pose.get("time"),
         "position": [float(a) + b + c for a, b, c in zip(anchor["position"], offset, moved)],
         "quaternion": _quaternion_product(turn, _pose_quaternion(pose)),
         "actions": deepcopy(pose.get("actions")),
     }
+    if _vector(pose.get("ball_position"), 3):
+        ball_delta = [float(b) - float(a) for a, b in zip(origin["position"], pose["ball_position"])]
+        ball_moved = _rotate(turn, ball_delta)
+        result["ball_position"] = [float(a) + b + c for a, b, c in zip(anchor["position"], offset, ball_moved)]
+    return result
 
 
 def ghost_lines(pose, *, dimensions=(118, 84, 36)):

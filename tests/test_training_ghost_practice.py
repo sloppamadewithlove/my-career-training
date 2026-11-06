@@ -227,12 +227,55 @@ def test_invalid_recording_is_rejected_with_existing_validation():
         validate_recording(value)
 
 
-def test_ball_and_wall_drills_expose_unsupported_context_and_car_drills_are_supported():
+def test_ball_and_wall_drills_stay_unsupported_except_paired_flip_reset():
     assert practice_support("speed-flip")["supported"] is True
-    for lesson_id in ("flip-reset", "dribble-flick", "power-shots", "shot-placement"):
+    assert practice_support("flip-reset")["placement"] == "recorded_world"
+    assert practice_support("flip-reset")["requires_ball"] is True
+    for lesson_id in ("dribble-flick", "power-shots", "shot-placement"):
         support = practice_support(lesson_id)
         assert support["supported"] is False
         assert "ball" in support["reason"]
+
+
+def test_relative_placement_rotates_ball_with_the_car_and_keeps_contact_geometry():
+    pose = {"time": .5, "position": [50, 0, 500], "rotation": [0, 0, 0],
+            "ball_position": [50, 0, 600], "actions": {"jump": True}}
+    before = deepcopy(pose)
+    placed = relative_placement(pose, origin={"position": [0, 0, 17], "rotation": [0, 0, 0]},
+        anchor=player((100, 200, 17), (0, math.pi / 2, 0)), forward_offset=300)
+    assert placed["position"] == pytest.approx([100, 550, 500])
+    assert placed["ball_position"] == pytest.approx([100, 550, 600])
+    assert placed["time"] == .5 and placed["actions"] == pose["actions"]
+    assert pose == before
+
+
+def test_flip_reset_replays_successful_car_and_ball_in_recorded_world_space():
+    value = capture(lesson_id="flip-reset")
+    practice = GhostPractice(value, context=context_for("flip-reset"))
+    practice.set_enabled(True, player_pose=player((9000, 8000, 7000), (1, 2, 3)))
+    practice.update(100)
+    state = practice.update(100.5)
+    assert state["lesson_id"] == "flip-reset" and state["lesson_version"] == value["lesson_version"]
+    assert state["cursor"] == state["pose"]["time"] == .5
+    assert state["pose"]["position"] == pytest.approx(value["samples"][30]["position"])
+    assert state["pose"]["ball_position"] == value["samples"][30]["ball_position"]
+    assert state["coach_actions"] == value["samples"][30]["actions"]
+    assert practice.set_enabled(False)["pose"] is None
+    # The fixed lesson start does not depend on a fresh human placement.
+    assert practice.set_enabled(True)["visible"] is True
+
+
+@pytest.mark.parametrize("failure", ["failed", "truncated", "missing_ball"])
+def test_flip_reset_refuses_incomplete_or_unsuccessful_recording(failure):
+    value = capture(lesson_id="flip-reset")
+    if failure == "failed":
+        value["outcome"] = "failed"
+    elif failure == "truncated":
+        value["truncated"] = True
+    else:
+        del value["samples"][30]["ball_position"]
+    with pytest.raises(ValueError, match="successful complete recording"):
+        GhostPractice(value, context=context_for("flip-reset"))
 
 
 def test_ghost_outline_has_car_cues_and_no_collision_actor():

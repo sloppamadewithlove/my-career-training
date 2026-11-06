@@ -325,13 +325,18 @@ class GhostPlayback:
 
 
 def practice_support(lesson_id):
-    """Whether a translated car-only ghost is an honest depiction of this drill.
+    """Whether the installed playback geometry can depict this drill honestly.
 
     Ball- and wall-contact drills depend on the demonstration's spatial
     relationship to the ball, so a car-only path moved in front of the player
     would imply a scenario that is not actually set up. Those lessons stay
-    unsupported until a compatible placement or a ghost ball exists.
+    unsupported until a compatible placement or a ghost ball exists. Flip reset
+    uses a paired car/ball trace in recorded world space.
     """
+    if lesson_id == "flip-reset":
+        # This lesson has no wall/goal target: replay its own ball and car in
+        # recorded world space, preserving the successful contact geometry.
+        return {"supported": True, "reason": "", "placement": "recorded_world", "requires_ball": True}
     value = lesson(lesson_id)
     target_types = {target.get("type") for target in value["targets"]}
     events = set(value["success_events"])
@@ -377,6 +382,8 @@ class GhostPractice:
     current pose plus a forward offset. Later poses keep their recorded relative
     motion; the ghost is never dragged to follow the player. Disabling hides the
     pose, lines and coach controller state immediately, before any new packet.
+    Flip reset instead retains recorded world placement for both car and ball;
+    its trace must declare a successful complete execution, still unverified.
     """
 
     def __init__(self, recording=None, *, forward_offset=PRACTICE_FORWARD_OFFSET, context=None):
@@ -412,6 +419,10 @@ class GhostPractice:
         if provenance["compatibility"] is False:
             raise ValueError("Recording does not match this lesson setup: "
                              + ", ".join(provenance["compatibility_differences"]))
+        fixed_world = recording["lesson_id"] == "flip-reset"
+        if fixed_world and (recording.get("outcome") != "success" or recording.get("truncated")
+                            or any("ball_position" not in sample for sample in recording["samples"])):
+            raise ValueError("Flip reset ghost needs a successful complete recording with its observed ball.")
         self.recording = deepcopy(recording)
         self.provenance = provenance
         self.kind = kind
@@ -463,6 +474,8 @@ class GhostPractice:
         return self.set_enabled(not self.enabled, player_pose=player_pose)
 
     def _anchor_from(self, player_pose):
+        if self.recording is not None and self.recording["lesson_id"] == "flip-reset":
+            return deepcopy(self._origin)
         if not isinstance(player_pose, dict):
             return None
         position = player_pose.get("position")
@@ -510,15 +523,20 @@ class GhostPractice:
             recorded = interpolate_pose(self.recording, self.cursor, sample_times=self._times)
             if recorded is not None:
                 pose = relative_placement(recorded, origin=self._origin, anchor=self._anchor,
-                                          forward_offset=self.forward_offset)
+                                          forward_offset=(0 if self.recording["lesson_id"] == "flip-reset"
+                                                          else self.forward_offset))
         gap = self.enabled and self.recording is not None and self._anchor is not None and pose is None
         visible = pose is not None
         actions = deepcopy(pose["actions"]) if visible else None
         return {
+            "lesson_id": self.recording["lesson_id"] if self.recording else None,
+            "lesson_version": self.recording["lesson_version"] if self.recording else None,
             "available": self.available, "enabled": self.enabled, "playing": self.playing,
             "visible": visible, "status": "capture_gap" if gap else self.status,
             "cursor": self.cursor, "duration": self.duration, "speed": 1.0,
-            "mode": "practice", "loop": True, "forward_offset": self.forward_offset,
+            "mode": "practice", "loop": True,
+            "forward_offset": (0 if self.recording and self.recording["lesson_id"] == "flip-reset"
+                               else self.forward_offset),
             "pose": deepcopy(pose) if visible else None,
             "lines": ghost_lines(pose) if visible else [],
             "coach_actions": actions,
@@ -529,6 +547,8 @@ class GhostPractice:
                         else NO_REFERENCE if self.recording is None
                         else "Ghost practice off" if not self.enabled
                         else "Waiting for your car's pose to place the ghost." if self._anchor is None
+                        else "Render-only recorded car and ball in the lesson's recorded positions"
+                        if self.recording["lesson_id"] == "flip-reset"
                         else "Render-only recorded ghost, slightly ahead of your car"),
             "controls": ["toggle"],
             "player_input_applied": False,
