@@ -9,8 +9,9 @@ product detail. Archived handoffs and dated receipts are evidence, not current o
 Before a broad new build, establish the intended player outcome and ask only unresolved
 material questions. Reuse confirmed decisions. Apply [the universal workflow](docs/DEVELOPMENT_WORKFLOW.md)
 to every player-facing function. That file owns model roles, assignments, review,
-failure and cost rules. Multiple scoped DeepSeek builders; Luna independently researches
-and tests; Opus designs only; main reviews/integrates. Same-goal parallel work needs
+failure and cost rules. The owner selected DeepSeek V4.1 Flash 1017 max and GPT-6.1
+Sol high for building, and GPT-6 Astra max for independent review. Luna independently
+researches and tests; Opus designs only; main integrates. Same-goal parallel work needs
 separate scopes or isolated alternatives, never competing writes to one file.
 
 Use [the project skill](skills/my-career-training-testing/SKILL.md) for coordinated

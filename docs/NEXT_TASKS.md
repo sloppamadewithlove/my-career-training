@@ -1,5 +1,16 @@
 # Next work and acceptance board
 
+The current owner priority is flip reset with a toggleable translucent-looking
+car demonstrating a real successful reset. The reviewed source-only integration
+is described in [the foundation receipt](evidence/2026-11-06-flip-reset-foundation.md).
+The actual recording, native rendering and live non-interference remain open.
+The owner allows the official `Without EAC` option for offline testing, while
+Steam remains online; game ownership and current EAC state still require proof.
+The requested ten-minute check and 45-minute workflow review are not installed
+as recurring app schedules because the required scheduling tool was unavailable.
+The [current coordination branch](https://github.com/sloppamadewithlove/my-career-training/tree/docs/flip-reset-priority-2026-11-06)
+contains later compatibility and workflow evidence than the historical board below.
+
 Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last tested candidate.
 
 Current owner direction: reuse the game's native training menus, maps, HUD and

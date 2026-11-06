@@ -1,5 +1,15 @@
 # Current project status
 
+**6 November continuation:** The owner selected flip reset as the first playable
+skill, with a toggleable translucent-looking car demonstrating the reset against
+the ball. The source integration and its limits are recorded in
+[the flip-reset foundation receipt](evidence/2026-11-06-flip-reset-foundation.md).
+The current executable matches the updated identity in the later
+[Steam checkpoint](https://github.com/sloppamadewithlove/my-career-training/blob/docs/flip-reset-priority-2026-11-06/docs/evidence/2026-11-06-steam-observer-launch-checkpoint.md);
+that is not local compatibility proof. The results repair was packaged and
+smoke-tested before the update but has not been live-tested after it. Details
+below describe earlier checkpoints and must not be read as newer acceptance.
+
 Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. Exact `2c08e74` has completed developer candidate
 checks and a bounded GC live probe. Exact `a59c45f` was subsequently packaged and
