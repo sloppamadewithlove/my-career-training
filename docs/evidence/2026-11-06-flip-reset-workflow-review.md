@@ -38,6 +38,9 @@ no Codex scheduling control. No unattended continuation is claimed.
   monotonic clocks together and exercise realistic acknowledgement delay without
   renewing observation authority. Raw results remain in the existing private
   heartbeat; adding another export is unnecessary for this diagnostic.
+  The corrected observer was subsequently reviewed by Astra with no new blocker
+  and published on `experiment/native-flip-capture-2026-11-06`; it remains a
+  default-off source/compiled candidate with no loaded or live-game acceptance.
 - The game's updated executable matches the previously identified hash in a
   read-only check. That does not establish that the candidate loads or works.
   The user authorized the official `Without EAC` option for offline testing;

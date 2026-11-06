@@ -26,6 +26,10 @@ The separate `experiment/native-ghost-proxy-2026-11-06` branch contains a
 reviewed pure car-shaped diagnostic mesh. Astra caught an overlap in the first
 version and independently cleared its correction. There is no renderer, SDK
 pose conversion, alpha, game model, accepted trace or live non-interference proof.
+The separately reviewed `experiment/native-flip-capture-2026-11-06` branch
+adds a default-off raw native reset observer. Both native DLL configurations
+compiled and focused tests passed. It issues no capture lease or teaching trace;
+updated-game compatibility and actual reset semantics remain unverified.
 
 On 6 November the owner authorized selecting Rocket League's official
 `Without EAC` option for offline mod testing if offered, while keeping Steam
