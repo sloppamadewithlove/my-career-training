@@ -14,15 +14,23 @@ separately from the copied MCT Career.
 Native Striker timer/reset behavior remains unverified: `0:10` changed to `0:07`
 after movement and later returned to initial `0:10`; expiry is inferred, not
 captured at zero. Backspace at the initial state did not prove reset. Reviewed
-source fix `3b9ef72` (`bd9336d` review branch) addresses stock pause in native
-training but has not been packaged or live tested.
+source fix `3b9ef72` (`bd9336d` review branch) is included in the packaged
+candidate; live native pause is still unverified.
 
-The next bounded acceptance is to package the reviewed fix from the intended
-checkout, verify Python import origins and collected licenses, then exercise the
-native menu/editor and stock pause on an isolated actual game profile. Test reset
-only after changing actor state, correlate timer expiry with same-attempt native
-state, and verify save handling after the owned process exits. See the [catch-up
-receipt](evidence/2026-11-06-native-training-catch-up.md) for limits and recovery.
+Exact candidate `bd9336d` now passes 1,659 Python checks/15 skipped, 38 plugin and
+13 launcher CTests, the Return fixture and frozen smoke; pause ABC hashes matched
+between staging and frozen output. Reuse these results while source and package
+inputs stay unchanged.
+
+The live handoff reached stock Play, then the game lost foreground. The helper
+refused the next input and dispatched no click. The game remains open with the
+test suspended, awaiting owner foreground; native pause is not live accepted.
+Resume only after a fresh same-process and foreground check, then capture one
+stock pause/resume/exit transition. Do not retry the refused input or rebuild the
+unchanged candidate. Keep the earlier [native-training catch-up receipt]
+(evidence/2026-11-06-native-training-catch-up.md) for save and timer limits, and
+the [focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md) for
+current candidate and live state.
 
 The defender-attribution source fix is independently reviewed (`d733917`, receipt
 correction `41d3730`), with 232 focused checks passing. Exact `2c08e74` has now

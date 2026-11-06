@@ -4,9 +4,10 @@ Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. The 29 October live receipts below remain historical;
 exact `2c08e74` now has source/native/package checks and bounded offline live
 observations. Exact `a59c45f` later passed the bounded native Training menu and
-Back route; it did not verify editor gameplay or reset. A reviewed native-pause
-source fix remains un-packaged and untested live. Whole-level retry/progression
-and full lesson/release acceptance remain open.
+Back route; it did not verify editor gameplay or reset. Exact candidate `bd9336d`
+passed compiled/package checks, but the live test lost foreground at Play and did
+not reach native pause. Whole-level retry/progression and full lesson/release
+acceptance remain open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -21,7 +22,8 @@ and full lesson/release acceptance remain open.
 | Native Training handoff | Exact `a59c45f`: packaged/live Play → Training → Custom Training → Created; native Back returned to the responsive authored hub. Epic reconnect declined; no pack was created, but the actual game-profile primary changed and a rotated save was preserved; not byte-identical restoration |
 | Native local editor and saves | Separate stock Created-editor visit reached local training without a pack download. Create defaults wrote `.Tem` and rotated the actual game profile before explicit Save; primary changed and was retained. Originals remain private |
 | Native local timer/reset | Exact `a59c45f`: `0:10` → `0:07` after movement → later initial `0:10`; expiry is inferred, with no exact zero or native telemetry. Backspace at initial state showed no change; reset not accepted |
-| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b` passed authored-source/compiled checks. It is not packaged or live tested; the prior native session showed MCT pause instead of stock pause |
+| Native pause repair | Reviewed fix `3b9ef72` on base `0bc322b`; exact candidate `bd9336d` passed 1,659 Python checks/15 skipped, 38 plugin and 13 launcher CTests, Return fixture and frozen smoke. Pause ABC hash matched staging/frozen. No live native pause proof |
+| Native pause live check | Exact `bd9336d` handoff reached stock Play; foreground was lost before the next input. Helper refused it and dispatched no click. Test suspended with game open, awaiting owner foreground |
 | 29 October repair evidence | Grounded reset/floor friction and transient command-read repairs passed repeated live resets; Training Return reached hub with copied Career unchanged |
 | Completed GC-session shutdown | Exact `2c08e74`: Return reached hub; Quit acknowledgement did not establish exit; owned WM_CLOSE eventually closed game/app/helper, and original-save/plugin/config/game-file restoration checks passed; separate clock-run cleanup remains unverified |
 | Career boundary | `af08455`: five saved-result guard and 41 continuation checks passed; explicit result choice retained |
@@ -48,11 +50,9 @@ extracted assets are shipped. The original eight-hour research is on branch
 `research/rocket-league-2026-10-27`, folder `research to be applied/`.
 
 The saved desktop prompt **Improve My Career Training** is configured for 45-minute
-intervals, but its configuration does not prove a review ran. After the prior
-receipt set 01:45:49 UTC as the next target, that point and later points at 02:30:49
-and 03:15:49 passed before this catch-up began; the next active-chat target is
-04:15:49 UTC.
-No persistent timer is claimed. See the [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md).
+intervals, but its configuration does not prove a review ran. The 04:15:49 UTC
+checkpoint was recorded at 04:16:00; the next active-chat target is 05:01:00 UTC.
+No persistent timer is claimed. See the [native-pause focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md).
 Windows scheduling was not used. Its earlier delivered change is the integrated PR #11
 privacy check. Main's build concurrency changes preserve the active build and newest
 pending work. Neither is evidence of gameplay readiness. The task board owns current
@@ -93,3 +93,6 @@ lead, and the missed-review catch-up.
 [Native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
 records the exact native handoff, editor write side effect, timer/reset limits,
 reviewed pause fix and packaging prerequisites.
+
+[Native-pause focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md)
+records candidate checks and the live focus stop; it is not native-pause acceptance.

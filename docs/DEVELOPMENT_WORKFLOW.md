@@ -102,6 +102,11 @@ Verify restoration after closure. A handoff names game identity, scenario, allow
 condition; both agents acknowledge it. Main does not click while a tester owns
 input; observers stay read-only; user control suspends automation.
 
+If foreground is lost or the helper refuses an input, stop: refusal means no
+input was dispatched. Wait for owner foreground, then revalidate the same game
+process and foreground before any next action. Do not retry a refused click or
+reuse stale focus state.
+
 Native Custom Training's Created editor can write a `.Tem` and rotate the actual
 Rocket League game profile before an explicit Save. A copied MCT Career does not
 isolate those game saves. Keep private preflight copies and record a baseline
@@ -116,6 +121,10 @@ restoration unless hashes prove it.
 - A UI preview is not gameplay. Source checks do not authorize a player-ready claim.
 - Binaries must trace to exact source provenance. Docs-only changes and helper
   provenance notes do not trigger a binary rebuild.
+- For a native candidate, retain its manifest, smoke receipt and staged/frozen
+  authored-ABC hash comparison. Reuse them while source, dependencies and staged
+  assets are unchanged; do not rebuild or repeat stable preflight to compensate
+  for a focus failure.
 - Monitor a quiet package build through its current process and logs at bounded
   intervals; set completion/failure/stop conditions before waiting or retrying.
   Gather stable launch prerequisites once per candidate and repeat them only
@@ -185,3 +194,5 @@ records the Custom Training route and save side effect, unresolved clock lead an
 missed-review catch-up.
 The [native-training catch-up receipt](evidence/2026-11-06-native-training-catch-up.md)
 records native local-save behavior, timer/reset limits and packaging provenance.
+The [native-pause focus checkpoint](evidence/2026-11-06-native-pause-focus-checkpoint.md)
+records exact-candidate checks and the required stop on focus loss.
