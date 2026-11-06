@@ -30,8 +30,8 @@ base: `9b861cd6a927b19f92d2f8375b6753622e44ee42`.
 ## Process improvement
 
 Resume input only after fresh same-process/foreground checks and an explicit sole
-operator. For the already-started `df19252` build, complete one candidate build,
-stage the changed results ABC once, and retain its source, license, manifest and
+operator. For the already-started `df19252` build, stage the changed results ABC once,
+then complete one candidate build and retain its source, license, manifest and
 frozen-asset provenance. Carry forward checks and preflight receipts for unchanged
 inputs; repeat only checks invalidated by changes. For each later live run, keep
 foreground/process verification fresh and reconcile owned saves against the
