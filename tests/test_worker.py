@@ -2,6 +2,7 @@
 import io
 import json
 import sys
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace as NS
 import uuid
@@ -219,6 +220,69 @@ def test_attempt_ack_required_before_reset(tmp_path):
     assert not instance.attempt_acked
     instance.handle_command({"type": "attempt_ack", "attempt_id": "attempt-1"})
     assert instance.attempt_acked
+
+
+@pytest.mark.parametrize("failure", ["fence", "send"])
+@pytest.mark.parametrize("scenario", [False, True])
+def test_retry_failure_preserves_attempt_until_actor_state_is_dispatched(
+        tmp_path, monkeypatch, failure, scenario):
+    events = []
+    instance, _packet, sent = training_recovery_session(tmp_path, monkeypatch, events, [])
+    if scenario:
+        instance.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold")
+        instance.scenario = instance.engine.scenario
+        instance.request.update(lesson_id="power-shots", scenario_id="low-side-pass", difficulty="gold")
+    original = instance.engine
+    original.state = "finished"
+    original.outcome = "timeout"
+    original.events.append({"type": "original-observation"})
+    original.recorder.samples.append({"original": "recording sample"})
+    original.scenario_state["seen_touch"][1] = {"time": 7.0}
+    original.metadata["test"] = {"nested": ["preserve"]}
+    before = deepcopy(dict(vars(original), recorder=vars(original.recorder)))
+    attempt_id = original.attempt_id
+    recorder = original.recorder
+    instance.attempt_sent = attempt_id
+    instance.attempt_acked = True
+    instance.attempt_retryable = True
+    instance.auto_reset_at = 123.0
+    monkeypatch.setattr(adapter, "desired_state", lambda state, *_args: state)
+
+    def fail(*_args):
+        raise RuntimeError("injected reset boundary failure")
+
+    if failure == "fence":
+        monkeypatch.setattr(instance, "_native_ghost_reset_fence", fail)
+    else:
+        monkeypatch.setattr(instance.manager.rlbot_interface, "send_msg", fail)
+    command = {"type": "retry_lesson", "id": "retry", "session_id": instance.session_id}
+    if scenario:
+        instance.handle_command(command)
+        assert events[-1]["type"] == "training_control_notice"
+        assert "injected reset boundary failure" in events[-1]["message"]
+    else:
+        with pytest.raises(RuntimeError, match="injected reset boundary failure"):
+            instance.handle_command(command)
+
+    assert instance.engine is original
+    assert original.attempt_id == attempt_id and original.finished
+    assert original.events == [{"type": "original-observation"}]
+    assert original.recorder is recorder and recorder.samples == [{"original": "recording sample"}]
+    assert dict(vars(original), recorder=vars(original.recorder)) == before
+    assert instance.attempt_sent == attempt_id and instance.attempt_acked
+    assert instance.attempt_retryable and instance.auto_reset_at == 123.0
+    assert sent == []
+
+    monkeypatch.setattr(instance, "_native_ghost_reset_fence", lambda: None)
+    monkeypatch.setattr(instance.manager.rlbot_interface, "send_msg", sent.append)
+    instance.handle_command(dict(command, id="retry-after-recovery"))
+    assert len(sent) == 1
+    assert instance.engine.attempt_id != attempt_id and instance.engine.state == "settling"
+    assert instance.engine.recorder.samples == [] and original.recorder is recorder
+    assert recorder.samples == [{"original": "recording sample"}]
+    assert dict(vars(original), recorder=vars(original.recorder)) == before
+    assert instance.attempt_sent is None and not instance.attempt_acked
+    assert instance.auto_reset_at is None
 
 
 def test_auto_reset_waits_one_second_after_first_durable_ack_and_duplicate_ack_does_not_extend(

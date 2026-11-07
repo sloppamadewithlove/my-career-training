@@ -6,6 +6,7 @@ closure is delegated to the app's identity-scoped window-close transition.
 from __future__ import annotations
 
 from collections import deque
+from copy import copy
 from dataclasses import dataclass
 import hashlib
 import importlib
@@ -705,7 +706,9 @@ class GameSession:
             raise RuntimeError("Retry is available during a training lesson.")
         if self.attempt_sent and not self.attempt_acked:
             raise RuntimeError("The previous attempt is still being saved. Wait before retrying.")
-        settle_state = self.engine.reset()
+        # reset replaces attempt-owned fields; prepare without copying the old recording.
+        replacement = copy(self.engine)
+        settle_state = replacement.reset()
         bot_states = settle_state.get("bots") or {}
         if bot_states:
             # Only a scenario with known bot actors passes the third argument.
@@ -716,6 +719,7 @@ class GameSession:
         generation = self._native_ghost_reset_fence()
         if not self._send_actor_state(message):
             return
+        self.engine = replacement
         self.native_ghost_generation = generation
         if self.scenario is not None:
             # Every scenario controller restarts from its beginning on retry.

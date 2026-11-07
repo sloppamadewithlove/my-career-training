@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import uuid
+from copy import deepcopy
 from contextlib import nullcontext
 from types import SimpleNamespace
 
@@ -387,6 +388,58 @@ def test_retry_restarts_at_the_new_reset_pose(monkeypatch):
     assert session.practice._anchor == {"position": [100.0, 200.0, 17.0],
                                        "rotation": [0.0, math.pi / 2, 0.0]}
     assert session.practice_snapshot["cursor"] == 0.0
+
+
+@pytest.mark.parametrize("failure", ["fence", "send"])
+def test_failed_retry_retains_ghost_cursor_until_successful_dispatch(tmp_path, monkeypatch, failure):
+    session, events = lesson_session()
+    session.request.update(in_game=True, data_dir=str(tmp_path))
+    session.practice_snapshot = session.practice.set_enabled(True, player_pose=session.last_frame["car"])
+    session.practice.update(10.0)
+    session.practice_snapshot = session.practice.update(10.5)
+    session.coach.load(recording())
+    session.coach.seek(0.5)
+    session.playback_origin = 9.0
+    original = session.engine
+    practice_before = deepcopy(vars(session.practice))
+    snapshot_before = deepcopy(session.practice_snapshot)
+    coach_before = deepcopy(vars(session.coach))
+    session.native_ghost_generation = ("old-nonce", "old-generation")
+    directory = tmp_path / "bridge"
+    directory.mkdir()
+    (directory / "state.json").write_text(json.dumps({"protocol": 1, "offline": True,
+        "bridge_session": str(uuid.uuid4()), "session": {"id": session.session_id}}))
+    sent = []
+
+    def send(message):
+        # A published fence precedes all actor-state writes.
+        assert session.native_ghost_generation is None
+        assert json.loads((directory / "native-ghost-reset.json").read_text())["session_id"] == session.session_id
+        if failure == "send":
+            raise RuntimeError("reset transport unavailable")
+        sent.append(message)
+
+    session.manager = SimpleNamespace(rlbot_interface=SimpleNamespace(send_msg=send))
+    monkeypatch.setattr("my_career_training.adapter.desired_state", lambda state, *_args: state)
+    # Invalid JSON exercises the actual reset fence reader and its ValueError.
+    if failure == "fence":
+        (directory / "state.json").write_text("{")
+    with pytest.raises((ValueError, RuntimeError)):
+        session.handle_command({"type": "retry_lesson"})
+    assert session.engine is original and session.native_ghost_generation is None
+    assert vars(session.practice) == practice_before and session.practice_snapshot == snapshot_before
+    assert vars(session.coach) == coach_before and session.playback_origin == 9.0
+    assert sent == [] and events == []
+
+    (directory / "state.json").write_text(json.dumps({"protocol": 1, "offline": True,
+        "bridge_session": str(uuid.uuid4()), "session": {"id": session.session_id}}))
+    failure = None
+    session.handle_command({"type": "retry_lesson"})
+    assert len(sent) == 1 and session.engine.attempt_id != original.attempt_id
+    assert session.native_ghost_generation[1] == json.loads(
+        (directory / "native-ghost-reset.json").read_text())["generation"]
+    assert session.practice_snapshot["cursor"] == 0.0 and session.coach.cursor == 0.0
+    assert session.playback_origin is None and events[-1]["state"] == "training"
 
 
 def test_actual_backend_dispatch_toggle_validates_and_persists_matching_preferences(backend):
