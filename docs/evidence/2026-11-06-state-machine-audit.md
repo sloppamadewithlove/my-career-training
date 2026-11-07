@@ -102,12 +102,18 @@ on completion of the underlying SDK write is claimed here.
 The threaded regression expands to 21 cases across ordinary retry and scenario
 retry/step. Deterministic barriers cover preparation, real fence publication,
 before the locked grant, immediately after it, and an in-flight blocked write.
-The blocked cases execute the installed SDK's actual packing/framing and
-`sendall` delegation with a fake socket, with both success and exception
-outcomes. Stop returns before the blocked operation is released, proving no
-cancellation lock spans socket I/O. A loaded synthetic ghost proves success
-restarts its cursor and failure preserves it; attempt/ACK/controller/fence state
-and positive versus negative scenario acknowledgements follow the same outcome.
+The blocked cases execute the installed SDK's framing and `sendall` delegation
+with `InterfacePacket` serialization stubbed and a fake socket, with both success
+and exception outcomes. Astra independently verified actual serialization and
+unpacking during review; that evidence is separate from these committed tests.
+Stop returns before the blocked operation is released, proving no cancellation
+lock spans socket I/O. A loaded synthetic ghost proves success restarts its
+cursor and failure preserves it; attempt/ACK/controller/fence state follows the
+same outcome. A successful granted send permits a positive scenario
+acknowledgement. The injected, caught `RuntimeError` produces a negative scenario
+acknowledgement. A real `BrokenPipeError` instead propagates without a scenario
+acknowledgement while preserving the old attempt and never falsely accepting
+the step; the existing exception semantics are unchanged.
 Every test joins its threads and bounds barriers to avoid deadlocked tests.
 
 ## Inventory
