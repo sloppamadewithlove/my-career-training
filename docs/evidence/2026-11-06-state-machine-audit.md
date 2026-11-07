@@ -74,6 +74,42 @@ Power Shots step is interrupted at both desired-state construction and after
 the actual atomic native-fence publication. All six reproduced the unwanted send
 on `6681c01` before the follow-up repair, and pass with the universal gate.
 
+### Stop/dispatch ordering clarification
+
+Independent delta review of `1f83f4f48bfaaeac18b4eb40fe03aa94fb82f7bf` identified
+the remaining check-to-send race: a flag check alone does not order cancellation
+against dispatch. Stop and the actor-state dispatcher now use the existing
+`core_lock` as a short shared ordering point. Dispatch begins when it records
+`_actor_state_sending = True` under this lock; successful transport completion is
+a later, separate event. Stop that wins the lock prevents any subsequent grant.
+
+Stop that follows a grant can return while that previously begun operation is
+still in flight, even before `send_msg` has emitted bytes. The granted operation
+may subsequently complete and commit its matching engine/setup/ACK changes, or
+fail and retain the old attempt. This explicitly does not promise that Stop can
+withdraw an already-granted actor-state message. No new actor dispatch may be
+granted after Stop returns. The in-flight flag is cleared on both success and
+exception; cancellation itself is not cleared.
+
+The pinned RLBot `SocketRelay.send_msg()` packs the message and delegates to
+`send_bytes()`/`socket.sendall()` without a write deadline. The shared lock is
+released before any such operation; holding it over that call would make Stop
+wait on an unbounded socket write. The existing shutdown joins/core-cleanup
+timeouts and retained-cleanup error behavior remain unchanged. Stop acceptance
+is not a worker-stopped, transport-completion or cleanup receipt. No hard bound
+on completion of the underlying SDK write is claimed here.
+
+The threaded regression expands to 21 cases across ordinary retry and scenario
+retry/step. Deterministic barriers cover preparation, real fence publication,
+before the locked grant, immediately after it, and an in-flight blocked write.
+The blocked cases execute the installed SDK's actual packing/framing and
+`sendall` delegation with a fake socket, with both success and exception
+outcomes. Stop returns before the blocked operation is released, proving no
+cancellation lock spans socket I/O. A loaded synthetic ghost proves success
+restarts its cursor and failure preserves it; attempt/ACK/controller/fence state
+and positive versus negative scenario acknowledgements follow the same outcome.
+Every test joins its threads and bounds barriers to avoid deadlocked tests.
+
 ## Inventory
 
 An implicit machine here means behavior depends on a retained combination of

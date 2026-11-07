@@ -286,12 +286,17 @@ def test_retry_failure_preserves_attempt_until_actor_state_is_dispatched(
     assert instance.auto_reset_at is None
 
 
-@pytest.mark.parametrize("boundary", ["desired_state", "published_fence"])
+@pytest.mark.parametrize("boundary,send_fails", [
+    ("desired_state", False), ("published_fence", False), ("before_grant", False),
+    ("after_grant", False), ("after_grant", True),
+    ("blocked_send", False), ("blocked_send", True),
+])
 @pytest.mark.parametrize("route", ["legacy_retry", "scenario_retry", "scenario_step"])
-def test_worker_stop_during_reset_preparation_prevents_actor_dispatch(
-        tmp_path, monkeypatch, boundary, route):
+def test_worker_stop_orders_actor_dispatch_at_grant_and_keeps_stop_responsive(
+        tmp_path, monkeypatch, boundary, send_fails, route):
     from my_career_training.storage import Store
     from my_career_training.training import GhostPlayback
+    from my_career_training.training.recordings import Recorder
     from my_career_training.training.scenarios import scenario_actor_controllers, scenario_descriptors
 
     events, sent, errors = [], [], []
@@ -322,12 +327,14 @@ def test_worker_stop_during_reset_preparation_prevents_actor_dispatch(
     controllers_before = {key: dict(vars(value)) for key, value in controllers.items()}
     session.attempt_sent, session.attempt_acked = original.attempt_id, True
     session.attempt_retryable, session.auto_reset_at = True, 123.0
-    session.coach = GhostPlayback()
-    session.coach.cursor = .5
+    recording = Recorder(original.lesson)
+    for seconds in (0.0, 1.0):
+        recording.append(dict(original.starting_state, time=seconds, actions=worker.neutral_controls()))
+    session.coach = GhostPlayback(recording.export(duration=1.0))
+    session.coach.seek(.5)
     session.playback_origin = 9.0
     ghost_before = deepcopy(vars(session.coach))
     session.native_ghost_generation = ("old-nonce", "old-generation")
-    session.manager = NS(rlbot_interface=NS(send_msg=sent.append))
     monkeypatch.setattr(session, "_check_capture_deadline", lambda: pytest.fail("Ordinary reset checked capture deadline"))
     directory = tmp_path / "bridge"
     directory.mkdir()
@@ -338,6 +345,46 @@ def test_worker_stop_during_reset_preparation_prevents_actor_dispatch(
     def pause():
         reached.set()
         assert resume.wait(5), "Stop test did not release the reset boundary"
+
+    class DispatchLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+            self.paused = False
+
+        def __enter__(self):
+            if threading.current_thread() is session.thread and boundary == "before_grant" and not self.paused:
+                self.paused = True
+                pause()
+            self.lock.acquire()
+
+        def __exit__(self, *_args):
+            self.lock.release()
+            if (threading.current_thread() is session.thread and boundary == "after_grant"
+                    and session._actor_state_sending and not self.paused):
+                self.paused = True
+                pause()
+
+    session.core_lock = DispatchLock()
+
+    def send(message):
+        assert session._actor_state_sending
+        if boundary == "blocked_send":
+            pause()
+        if send_fails:
+            raise RuntimeError("injected granted-send failure")
+        sent.append(message)
+
+    if boundary == "blocked_send":
+        # The installed SDK packs and frames the state, then blocks in sendall.
+        # Replace only the socket; no real core, game or network operation runs.
+        relay_module = pytest.importorskip("rlbot.interface")
+        monkeypatch.setattr(relay_module.flat, "InterfacePacket", lambda _message: NS(pack=lambda: b"state"))
+        relay = relay_module.SocketRelay("state-stop-test", logger=NS(error=lambda *_args: None))
+        relay.is_connected = True
+        relay.socket = NS(sendall=send, close=lambda: None)
+    else:
+        relay = NS(send_msg=send)
+    session.manager = NS(rlbot_interface=relay)
 
     def desired_state(state, *_args):
         if boundary == "desired_state":
@@ -367,27 +414,63 @@ def test_worker_stop_during_reset_preparation_prevents_actor_dispatch(
     host.session = session
     session.thread.start()
     stop = {"type": "stop", "id": "stop-during-reset", "session_id": session.session_id}
+    stop_returned = threading.Event()
+
+    def stop_worker():
+        host.command(stop)
+        stop_returned.set()
+
+    stop_thread = threading.Thread(target=stop_worker)
     try:
         assert reached.wait(5), "Reset did not reach the selected boundary"
-        host.command(stop)
+        stop_thread.start()
+        assert stop_returned.wait(1), "Stop blocked on an in-flight actor-state send"
         assert session.cancel_start.is_set() and not session.stopping
+        if boundary in {"after_grant", "blocked_send"}:
+            assert session._actor_state_sending and session.thread.is_alive()
     finally:
         resume.set()
         session.thread.join(5)
+        if stop_thread.ident is not None:
+            stop_thread.join(5)
 
-    assert not session.thread.is_alive() and errors == []
-    assert sent == []
-    assert session.engine is original
-    assert dict(vars(original), recorder=vars(original.recorder)) == before
-    assert session.request == request_before and session.controllers is controllers
-    assert {key: vars(value) for key, value in controllers.items()} == controllers_before
-    assert session.attempt_sent == original.attempt_id and session.attempt_acked
-    assert session.attempt_retryable and session.auto_reset_at == 123.0
-    assert vars(session.coach) == ghost_before and session.playback_origin == 9.0
-    assert session.native_ghost_generation is None
+    assert not session.thread.is_alive() and not stop_thread.is_alive()
+    assert not session._actor_state_sending
+    if send_fails and route == "legacy_retry":
+        assert len(errors) == 1 and str(errors[0]) == "injected granted-send failure"
+    else:
+        assert errors == []
+    completed = boundary in {"after_grant", "blocked_send"} and not send_fails
+    assert len(sent) == int(completed)
+    if completed:
+        assert session.engine is not original and session.engine.state == "settling"
+        assert session.attempt_sent is None and not session.attempt_acked
+        assert session.auto_reset_at is None and not session.attempt_retryable
+        assert session.coach.cursor == 0 and session.playback_origin is None
+        assert session.native_ghost_generation[1] == json.loads(
+            (directory / "native-ghost-reset.json").read_text())["generation"]
+        if route == "scenario_step":
+            assert session.request != request_before and session.controllers is not controllers
+        else:
+            assert session.request == request_before
+    else:
+        assert session.engine is original
+        assert dict(vars(original), recorder=vars(original.recorder)) == before
+        assert session.request == request_before and session.controllers is controllers
+        assert {key: vars(value) for key, value in controllers.items()} == controllers_before
+        assert session.attempt_sent == original.attempt_id and session.attempt_acked
+        assert session.attempt_retryable and session.auto_reset_at == 123.0
+        assert vars(session.coach) == ghost_before and session.playback_origin == 9.0
+        assert session.native_ghost_generation is None
     assert session.events.get(timeout=0) == ("command", stop)
+    assert not host.closed and not session.cleanup_complete
+    assert not any(event["type"] == "stopped" for event in events)
     if route == "scenario_step":
-        assert events[-1]["type"] == "training_scenario_step_ack" and events[-1]["accepted"] is False
+        assert events[-1]["type"] == "training_scenario_step_ack" and events[-1]["accepted"] is completed
+    elif completed:
+        assert events[-1]["type"] == "session" and events[-1]["state"] == "training"
+    elif send_fails and route == "scenario_retry":
+        assert events[-1]["type"] == "training_control_notice"
     else:
         assert events == []
 

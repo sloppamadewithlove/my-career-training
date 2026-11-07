@@ -255,7 +255,9 @@ class GameSession:
         self.emit = emit
         self.events = SessionInbox()
         self.cancel_start = threading.Event()
+        # Order core creation and actor-state dispatch grants with Stop.
         self.core_lock = threading.Lock()
+        self._actor_state_sending = False
         self.cleanup_complete = False
         self.core = None
         self.manager = None
@@ -681,7 +683,16 @@ class GameSession:
             return False
         if self.capture is not None and self._check_capture_deadline():
             return False
-        self.manager.rlbot_interface.send_msg(message)
+        # This grant begins dispatch, ordered with Stop; sendall must not hold the lock.
+        with self.core_lock:
+            if self.cancel_start.is_set() or self.stopping:
+                return False
+            self._actor_state_sending = True
+        try:
+            self.manager.rlbot_interface.send_msg(message)
+        finally:
+            with self.core_lock:
+                self._actor_state_sending = False
         return True
 
     def reset(self):
