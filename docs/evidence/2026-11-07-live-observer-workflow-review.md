@@ -48,3 +48,15 @@ review target: 01:06:41 UTC.
 Keep exact source, compiled DLL and live-game evidence separate. The current
 published ghost remains unaccepted in-game and the user cannot perform the
 flip reset personally; pursue another permitted capture route.
+
+## Save restoration verification
+
+Independent readback subsequently verified all five restored targets against
+retained baseline bytes and the private completion evidence. The original save
+was restored first. The identified-root comparison reported 501 unchanged,
+12 changed, 2 new and 0 missing; restored file identities and timestamps differ.
+Both plugin configurations match their baselines, the temporary observer and
+active marker are absent, and Steam's normal launch choice and empty launch
+arguments were restored. A newer backup remains present and was not targeted;
+no separate before/after byte comparison for that backup is claimed. Steam Cloud
+writer exclusion and full profile-root completeness remain unproved.
