@@ -182,7 +182,8 @@ class PluginSession:
         if self.game_running():
             raise PluginSessionError(_OUTSTANDING_GAME if self.outstanding() else _CLOSE_GAME)
         if self.outstanding():
-            self.recover()
+            if self.recover()["status"] not in {"idle", "restored"}:
+                raise PluginSessionError(_OUTSTANDING_GAME)
         if self.root is None:
             raise PluginSessionError(
                 "Install BakkesMod from https://bakkesmod.com, open it once, then launch My Career again.")

@@ -127,6 +127,73 @@ def test_crash_receipt_is_recovered_before_a_new_session_can_treat_it_as_legacy(
     assert layout.dll.read_bytes() == b"old-dll"
 
 
+@pytest.mark.parametrize("after_config_restore", [False, True])
+@pytest.mark.parametrize("presence", ["game", "helper"])
+def test_new_session_preserves_deferred_recovery_and_can_retry(layout, monkeypatch,
+                                                              after_config_restore, presence):
+    original_cfg = b"plugin load alpha\r\n"
+    original_dll = b"original-user-dll"
+    layout.cfg.write_bytes(original_cfg)
+    layout.dll.write_bytes(original_dll)
+    session(layout).begin(layout.source)
+    layout.source.write_bytes(b"career-plugin-v2")
+    previous_receipt = (layout.journal / "active.json").read_bytes()
+    backups = {path.name: path.read_bytes() for path in layout.journal.glob("*.prior")}
+
+    running = [False]
+    if presence == "helper":
+        monkeypatch.setattr("my_career_training.platforms.native_launcher_pending", lambda: running[0])
+    current = PluginSession(layout.data, root=layout.root,
+                            game_running=lambda: presence == "game" and running[0])
+    real_restore = current._restore_resource
+
+    def restore(root, record):
+        real_restore(root, record)
+        if record["kind"] == "config":
+            running[0] = True
+
+    if after_config_restore:
+        monkeypatch.setattr(current, "_restore_resource", restore)
+    else:
+        real_receipt = current._receipt
+
+        def receipt():
+            # A game appears after recover's check, before any resource write.
+            result = real_receipt()
+            running[0] = True
+            return result
+
+        monkeypatch.setattr(current, "_receipt", receipt)
+    with pytest.raises(PluginSessionError, match="still open"):
+        current.begin(layout.source)
+
+    kept_receipt = (layout.journal / "active.json").read_bytes()
+    if after_config_restore:
+        assert [item["kind"] for item in json.loads(kept_receipt)["resources"]] == ["dll"]
+        assert layout.cfg.read_bytes() == original_cfg
+    else:
+        expected_receipt = json.loads(previous_receipt)
+        expected_receipt["resources"].sort(key=lambda item: item["kind"] != "config")
+        assert json.loads(kept_receipt) == expected_receipt
+        assert layout.cfg.read_bytes() == original_cfg + b"plugin load MyCareerTraining\n"
+    assert layout.dll.read_bytes() == b"career-plugin-v1"
+    assert {path.name: path.read_bytes() for path in layout.journal.glob("*.prior")} == backups
+
+    # Repeated launch requests cannot replace the unfinished recovery evidence.
+    with pytest.raises(PluginSessionError, match="still open"):
+        current.begin(layout.source)
+    assert (layout.journal / "active.json").read_bytes() == kept_receipt
+    running[0] = False
+    assert session(layout).recover()["status"] == "restored"
+    assert layout.cfg.read_bytes() == original_cfg
+    assert layout.dll.read_bytes() == original_dll
+    session(layout).begin(layout.source)
+    assert layout.dll.read_bytes() == b"career-plugin-v2"
+    session(layout).finish()
+    assert layout.dll.read_bytes() == original_dll
+    assert layout.cfg.read_bytes() == original_cfg
+
+
 def test_legacy_autoload_line_is_not_removed_without_ownership(layout):
     original = b"plugin load mycareertraining\nplugin load alpha\n"
     layout.cfg.write_bytes(original)
