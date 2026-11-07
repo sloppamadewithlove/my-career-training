@@ -53,6 +53,27 @@ Player-action contract:
    JSON, fence-file publication before dispatch, preserved ACK/deadline and ghost
    cursors on failure, then successful retry with a new ID and matching fence.
 
+### Independent review follow-up: Stop wins during reset preparation
+
+Review of `6681c013258f6f7291c4d7c3e1ba459495a38ec0` found that the existing final
+actor-state guard checked cancellation/stopping only for development capture.
+An ordinary lesson could pass its initial retry/step gate, receive a real Stop
+while constructing desired state or publishing the native fence, and still send
+actor state and commit a new attempt or acknowledge a scenario step as accepted.
+
+The final `_send_actor_state()` gate now checks cancellation and stopping in every
+mode, with capture deadline enforcement still limited to capture. A stopped
+scenario step keeps the original setup and returns a failed acknowledgement;
+retry returns without adopting its prepared engine or clearing its saved-attempt
+ACK, ghost cursor or feedback deadline. The fence still revokes old native ghost
+authority. This does not withdraw an actor-state message already sent before Stop.
+
+Six additional regressions use a real session thread and `Worker.command(stop)`
+on the calling thread. Each ordinary speed-flip retry, Power Shots retry and
+Power Shots step is interrupted at both desired-state construction and after
+the actual atomic native-fence publication. All six reproduced the unwanted send
+on `6681c01` before the follow-up repair, and pass with the universal gate.
+
 ## Inventory
 
 An implicit machine here means behavior depends on a retained combination of
@@ -62,7 +83,7 @@ This is a functional inventory, grouping small related latches under their ownin
 runtime boundary; it is not a claim that each flag needs its own class or enum.
 
 The rows below identify inspected ownership, transitions and important invariant.
-Except for the repaired retry transaction, they are inventory and existing
+Except for the repaired retry transaction and final Stop gate, they are inventory and existing
 controls, not new defects or comprehensive correctness certificates. Tests named
 as anchors are existing coverage to consult; this audit did not execute every
 listed native or Python test.
@@ -86,7 +107,7 @@ listed native or Python test.
 | Worker inbox/packet ordering | `game_worker.py`: `SessionInbox`, `receive_packet`, `process_packet` | Coalesced packet arrivals, receive sequence/time and event ordering; a fresh publication cannot rejuvenate an old packet | `tests/test_worker.py`, `tests/test_native_ghost_freshness.py`; inventoried |
 | Telemetry recovery | `game_worker.py`: `_wait_for_training_telemetry`, `_reset_after_training_telemetry`, `_check_telemetry_recovery_timeout` | Interrupted attempt, invalid fields, freshness and deadline; no fabricated success or reset before prior save acknowledgement | `tests/test_worker.py`; inventoried |
 | Training preparation/execution | `training/engine.py`: `reset`, `update`, `_interrupt`, `_finish` | Settling/ready/active/finished/interrupted, observed reset, cadence, elapsed time and events; actual reset observation starts attempts | `tests/test_training.py`, `tests/test_training_cadence.py`; inventoried |
-| Retry dispatch transaction | `game_worker.py`: `reset`, `handle_command`, `_try_training_control` | New engine + native fence + actor send + ACK/ghost state; do not mutate the accepted attempt before dispatch succeeds | **Confirmed and repaired here** |
+| Retry dispatch transaction | `game_worker.py`: `reset`, `_send_actor_state`, `handle_command`, `_try_training_control` | New engine + native fence + actor send + ACK/ghost state; do not mutate the accepted attempt before dispatch succeeds; final Stop gate applies in all modes | **Two confirmed defects repaired here** |
 | Scenario goal/timeout attribution | `training/engine.py`: `_scenario`, `_scenario_observe_touches`; `game_worker.py`: `_queue_goal_progression` | Attempt-bound score baseline/edge, actor touches and terminal outcome; later goal cannot reopen timed-out attempt | `tests/test_power_shot_scenarios.py`; original live transition cause remains open |
 | Queued challenge step/retry | `game_worker.py`: `_queue_training_control`, `_try_training_control`, `_step_training_scenario` | One attempt-bound pending manual/automatic control, deadline, save and phase gate; prepared replacement commits coherently | `tests/test_power_shot_scenarios.py`, `tests/test_scenario_setup.py`; inventoried |
 | Automatic retry feedback | `game_worker.py`: `handle_command(attempt_ack)`, `_check_auto_reset` | Published attempt, save ACK, retry eligibility and feedback deadline; wait through unavailable telemetry and respect Auto Reset Off | `tests/test_worker.py`; inventoried |

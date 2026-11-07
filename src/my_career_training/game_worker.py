@@ -677,7 +677,9 @@ class GameSession:
         return nonce, generation
 
     def _send_actor_state(self, message):
-        if self.capture is not None and (self.cancel_start.is_set() or self.stopping or self._check_capture_deadline()):
+        if self.cancel_start.is_set() or self.stopping:
+            return False
+        if self.capture is not None and self._check_capture_deadline():
             return False
         self.manager.rlbot_interface.send_msg(message)
         return True
@@ -795,7 +797,7 @@ class GameSession:
         # prepared local assignment, preserving one coherent accepted transition.
         generation = self._native_ghost_reset_fence()
         if not self._send_actor_state(message):
-            raise RuntimeError("Capture stopped before the scenario state could be applied.")
+            raise RuntimeError("The lesson stopped before the scenario state could be applied.")
         self.native_ghost_generation = generation
         self.request.update(next_setup)
         self.scenario = definition

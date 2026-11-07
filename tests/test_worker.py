@@ -2,6 +2,7 @@
 import io
 import json
 import sys
+import threading
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -283,6 +284,112 @@ def test_retry_failure_preserves_attempt_until_actor_state_is_dispatched(
     assert dict(vars(original), recorder=vars(original.recorder)) == before
     assert instance.attempt_sent is None and not instance.attempt_acked
     assert instance.auto_reset_at is None
+
+
+@pytest.mark.parametrize("boundary", ["desired_state", "published_fence"])
+@pytest.mark.parametrize("route", ["legacy_retry", "scenario_retry", "scenario_step"])
+def test_worker_stop_during_reset_preparation_prevents_actor_dispatch(
+        tmp_path, monkeypatch, boundary, route):
+    from my_career_training.storage import Store
+    from my_career_training.training import GhostPlayback
+    from my_career_training.training.scenarios import scenario_actor_controllers, scenario_descriptors
+
+    events, sent, errors = [], [], []
+    session = worker.GameSession(dict(request(tmp_path), in_game=True), events.append)
+    command = {"type": "retry_lesson", "id": "pending-reset", "session_id": session.session_id}
+    if route == "legacy_retry":
+        session.request["lesson_id"] = "speed-flip"
+        session.engine = TrainingEngine("speed-flip")
+        session.human_index = session.training_actor_index = 1
+    else:
+        session.request.update(lesson_id="power-shots", scenario_id="low-side-pass", difficulty="gold")
+        session.engine = TrainingEngine("power-shots", scenario_id="low-side-pass", difficulty="gold")
+        session.scenario = session.engine.scenario
+        session.human_index = session.training_actor_index = session.engine.human_index
+        session.descriptors = scenario_descriptors(session.request)
+        session.controllers = scenario_actor_controllers(session.scenario)
+        if route == "scenario_step":
+            command.update(type="training_scenario_step", direction=1)
+    original = session.engine
+    original.state, original.outcome = "finished", "timeout"
+    original.events.append({"type": "old-attempt"})
+    original.recorder.samples.append({"old": "sample"})
+    before = deepcopy(dict(vars(original), recorder=vars(original.recorder)))
+    request_before = deepcopy(session.request)
+    controllers = session.controllers
+    for controller in controllers.values():
+        controller.started_at = 4.2
+    controllers_before = {key: dict(vars(value)) for key, value in controllers.items()}
+    session.attempt_sent, session.attempt_acked = original.attempt_id, True
+    session.attempt_retryable, session.auto_reset_at = True, 123.0
+    session.coach = GhostPlayback()
+    session.coach.cursor = .5
+    session.playback_origin = 9.0
+    ghost_before = deepcopy(vars(session.coach))
+    session.native_ghost_generation = ("old-nonce", "old-generation")
+    session.manager = NS(rlbot_interface=NS(send_msg=sent.append))
+    monkeypatch.setattr(session, "_check_capture_deadline", lambda: pytest.fail("Ordinary reset checked capture deadline"))
+    directory = tmp_path / "bridge"
+    directory.mkdir()
+    (directory / "state.json").write_text(json.dumps({"protocol": 1, "offline": True,
+        "bridge_session": str(uuid.uuid4()), "session": {"id": session.session_id}}))
+    reached, resume = threading.Event(), threading.Event()
+
+    def pause():
+        reached.set()
+        assert resume.wait(5), "Stop test did not release the reset boundary"
+
+    def desired_state(state, *_args):
+        if boundary == "desired_state":
+            pause()
+        return state
+
+    original_atomic = Store._atomic
+
+    def publish(path, data):
+        original_atomic(path, data)
+        if boundary == "published_fence" and path.name == "native-ghost-reset.json":
+            # Hold only after the real atomic write, not a mocked fence callback.
+            assert json.loads(path.read_text())["session_id"] == session.session_id
+            pause()
+
+    monkeypatch.setattr(adapter, "desired_state", desired_state)
+    monkeypatch.setattr(Store, "_atomic", staticmethod(publish))
+
+    def run_control():
+        try:
+            session.handle_command(command)
+        except Exception as error:
+            errors.append(error)
+
+    session.thread = threading.Thread(target=run_control)
+    host = worker.Worker(io.StringIO())
+    host.session = session
+    session.thread.start()
+    stop = {"type": "stop", "id": "stop-during-reset", "session_id": session.session_id}
+    try:
+        assert reached.wait(5), "Reset did not reach the selected boundary"
+        host.command(stop)
+        assert session.cancel_start.is_set() and not session.stopping
+    finally:
+        resume.set()
+        session.thread.join(5)
+
+    assert not session.thread.is_alive() and errors == []
+    assert sent == []
+    assert session.engine is original
+    assert dict(vars(original), recorder=vars(original.recorder)) == before
+    assert session.request == request_before and session.controllers is controllers
+    assert {key: vars(value) for key, value in controllers.items()} == controllers_before
+    assert session.attempt_sent == original.attempt_id and session.attempt_acked
+    assert session.attempt_retryable and session.auto_reset_at == 123.0
+    assert vars(session.coach) == ghost_before and session.playback_origin == 9.0
+    assert session.native_ghost_generation is None
+    assert session.events.get(timeout=0) == ("command", stop)
+    if route == "scenario_step":
+        assert events[-1]["type"] == "training_scenario_step_ack" and events[-1]["accepted"] is False
+    else:
+        assert events == []
 
 
 def test_auto_reset_waits_one_second_after_first_durable_ack_and_duplicate_ack_does_not_extend(
