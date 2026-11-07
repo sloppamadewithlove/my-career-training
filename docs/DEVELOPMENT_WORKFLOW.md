@@ -46,6 +46,20 @@ evidence. Send only the source and task context the assignment needs.
 
 ## Parallel work and the review pipeline
 
+- Deliver one end-to-end player-visible slice at a time. Name its exact source,
+  compiled artifact and live acceptance separately; do not equate a passing
+  isolated test or a growing set of helper scripts with a playable feature.
+- Before building another test helper, check the installed project tools and
+  existing game/replay route. Define the specific missing evidence, the next
+  visible action and a recovery path. Timebox preparation and stop extending it
+  when it no longer moves the player-visible slice forward.
+- When a test touches game profiles, compare the identified private baseline
+  before and after. Preserve changed/new files; restore an absent original only
+  with a verified baseline and create-new-only conflict checks. Cloud activity
+  and complete save-root discovery remain explicit uncertainties.
+- The owner's 10-minute check and 45-minute improvement review are active-session
+  targets unless an actual app scheduler is available and verified. Record real
+  due/start times and delays; do not imply a timer ran while the chat was idle.
 - Parallel workers may share one goal through complementary scopes, or through
   bounded competing approaches in separate copies. Main selects one; never merge
   two alternatives blind. No concurrent writes to the same file.

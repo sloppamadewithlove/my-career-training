@@ -1,5 +1,13 @@
 # Next work and acceptance board
 
+**7 November handoff:** Start with [the current session handoff](evidence/2026-11-07-session-handoff.md).
+The prior goal was stopped by the owner. The newer published ghost source already
+includes the car/ball placement correction described as missing in the historical
+paragraphs below. It still needs an actual successful demonstration, current-game
+compatibility and live rendering/non-interference proof. Native Training exit
+also needs a live test on the updated game. Preserve the private save baseline,
+restore Steam/plugin settings after any owned test, and retain the newer saves.
+
 Updated 6 November 2026. Current source/check evidence is in [PROJECT_STATUS](PROJECT_STATUS.md). Do not confuse the current PR head with the last loaded candidate.
 
 ## Owner priority: flip-reset teaching ghost

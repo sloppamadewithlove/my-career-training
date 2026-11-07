@@ -1,5 +1,17 @@
 # Current project status
 
+**7 November handoff:** The session is stopped at the owner's request. The
+current, evidence-based restart point is [the session handoff](evidence/2026-11-07-session-handoff.md);
+it supersedes older status details below where they conflict. The flip-reset
+ghost is **not yet verified or playable in-game**, and native Training exit on
+the updated game remains unverified. The newer source is on separate published
+branches; it is not the head of draft PR #10 or an installed release. A bounded
+game launch did load the installed BakkesMod core and SDK, but an incorrectly
+typed console command was never submitted and the identity observer did not load.
+Five saves missing after the run were restored create-new-only and independently
+matched to the private baseline; changed/new files and cloud activity are not
+claimed byte-identical or globally quiescent.
+
 Updated 6 November 2026. GitHub is canonical. No new release or owner-accepted
 Gold playlist is available. The 29 October live receipts below remain historical;
 exact `2c08e74` now has source/native/package checks and bounded offline live
